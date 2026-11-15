@@ -28,6 +28,24 @@ object LaneLayout {
     }
 
     /**
+     * Puts [clip] in its own new lane DIRECTLY BELOW the lane holding
+     * [anchorClipId] (one index later — tracks[0] is the top lane), keeping its
+     * start and duration. The detached-audio law (build 203, [ExtractAudio]):
+     * the extracted sound sits right under its picture. The clip itself is
+     * placed as-is — a clip that belonged to a chain keeps no chain seat here;
+     * extraction always lands on a standalone lane (when the anchor is a chain
+     * member, that is the lane below the whole chain lane). An unknown anchor
+     * falls back to [place] (a new lane on top).
+     */
+    fun placeBelow(tracks: List<TimelineTrack>, anchorClipId: String, clip: TimelineClip): List<TimelineTrack> {
+        val li = tracks.indexOfFirst { lane -> lane.clips.any { it.id == anchorClipId } }
+        if (li < 0) return place(tracks, clip)
+        val out = tracks.toMutableList()
+        out.add(li + 1, newLane(listOf(clip)))
+        return out
+    }
+
+    /**
      * Puts every clip of [clips] in its own lane on top, in ONE step: the first clip ends up on the
      * top lane, the last one right above the old lanes. (Calling [place] in a loop copies the whole
      * lane list once per clip: 200 captions = 20,000 copies.)

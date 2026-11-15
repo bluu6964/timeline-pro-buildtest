@@ -2299,9 +2299,37 @@ fun VideoEditorScreen(
         }
     }
 
+    // Add Audio → "Extract from video" (build 203): pick a video (the media
+    // import picker, videos only); its sound becomes an audio layer at the
+    // playhead. A video without an audio stream adds nothing and says so.
+    val extractVideoPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                val item = MediaImporter.read(context, listOf(uri)).firstOrNull()
+                if (item == null) {
+                    snackbarHostState.showSnackbar("Could not read the selected video")
+                } else {
+                    val has = withContext(Dispatchers.IO) {
+                        MediaImporter.hasAudio(context, android.net.Uri.parse(item.uri))
+                    }
+                    if (!has) {
+                        snackbarHostState.showSnackbar("That video has no sound to extract")
+                    } else {
+                        viewModel.addExtractedAudio(item)
+                    }
+                }
+            }
+        }
+    }
+
     // Dialog & Sheet States
     var showAspectRatioSheet by remember { mutableStateOf(false) }
     var showAddLayerSheet by remember { mutableStateOf(false) }
+    // Add Audio (build 203): the Audio entry opens a small sheet first —
+    // "Audio file" (the document picker below) or "Extract from video".
+    var showAddAudioSheet by remember { mutableStateOf(false) }
     // Parent picker (Null object): the layer it is open for, null = closed.
     var parentSheetClipId by remember { mutableStateOf<String?>(null) }
     var showResolutionSheet by remember { mutableStateOf(false) }
@@ -3504,6 +3532,42 @@ fun VideoEditorScreen(
                                 }
                             ) {
                                 { startFreezeFrame(targetClipId) }
+                            } else null,
+                            // Extract audio (build 203): the video layer's sound becomes
+                            // its own audio layer below it; the video layer is muted via
+                            // its volume. The audio-stream probe runs off the main thread;
+                            // every refusal is worded, never silent.
+                            onExtractAudio = if (tracks.flatMap { it.clips }.any {
+                                    it.id == targetClipId && it.type == LayerType.VIDEO && !it.isImage && it.uri != null
+                                }
+                            ) {
+                                {
+                                    val target = tracks.flatMap { it.clips }.find { it.id == targetClipId }
+                                    val uriStr = target?.uri
+                                    if (target != null && uriStr != null) {
+                                        snackbarHostState.currentSnackbarData?.dismiss()
+                                        scope.launch {
+                                            val has = withContext(Dispatchers.IO) {
+                                                MediaImporter.hasAudio(context, android.net.Uri.parse(uriStr))
+                                            }
+                                            when (val r = viewModel.extractAudioFromLayer(target.id, has)) {
+                                                is com.example.model.ExtractAudio.Outcome.Done ->
+                                                    snackbarHostState.showSnackbar("Audio extracted — the video layer's volume is now 0")
+                                                is com.example.model.ExtractAudio.Outcome.Refused ->
+                                                    snackbarHostState.showSnackbar(
+                                                        when (r.fail) {
+                                                            com.example.model.ExtractAudio.Fail.NO_AUDIO ->
+                                                                "This video has no sound to extract"
+                                                            com.example.model.ExtractAudio.Fail.LOCKED ->
+                                                                "The layer is locked — unlock it to extract its audio"
+                                                            com.example.model.ExtractAudio.Fail.NOT_VIDEO ->
+                                                                "Extract audio works on video layers"
+                                                        }
+                                                    )
+                                            }
+                                        }
+                                    }
+                                }
                             } else null,
                             // Clipboard (build 176): copy / paste keyframes + effects.
                             // Paste is only offered while the clipboard holds something.
@@ -5311,7 +5375,7 @@ fun VideoEditorScreen(
                 if (id.isNotEmpty()) editingTextId = id
             },
             onShape = { showAddShapeSheet = true },
-            onAudio = { audioPicker.launch(arrayOf("audio/*")) },
+            onAudio = { showAddAudioSheet = true },
             onSticker = { showStickerSheet = true },
             onTemplates = { showTemplates = true },
             onDraw = {
@@ -5326,6 +5390,21 @@ fun VideoEditorScreen(
                 showPenMode = true
             },
             onDismiss = { showAddLayerSheet = false }
+        )
+    }
+
+    // Add Audio (build 203): "Audio file" keeps the document-picker flow;
+    // "Extract from video" opens the video picker — the picked video's sound
+    // becomes the new audio layer (see extractVideoPicker above).
+    if (showAddAudioSheet) {
+        com.example.ui.components.AddAudioSheet(
+            onAudioFile = { audioPicker.launch(arrayOf("audio/*")) },
+            onExtractFromVideo = {
+                extractVideoPicker.launch(
+                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)
+                )
+            },
+            onDismiss = { showAddAudioSheet = false }
         )
     }
 

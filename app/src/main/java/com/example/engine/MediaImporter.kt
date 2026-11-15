@@ -97,6 +97,23 @@ object MediaImporter {
         }
 
     /**
+     * True when the file at [uri] carries an audio stream — the extract-audio
+     * probe (build 203), read through the same MediaMetadataRetriever path
+     * [read] uses for duration / dimensions (HAS_AUDIO is "yes" / "no"; an
+     * unreadable file or a missing key reads as no audio). Blocking IO — call
+     * off the main thread.
+     */
+    fun hasAudio(context: Context, uri: Uri): Boolean = runCatching {
+        val r = MediaMetadataRetriever()
+        try {
+            r.setDataSource(context, uri)
+            r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_AUDIO) == "yes"
+        } finally {
+            r.release()
+        }
+    }.getOrDefault(false)
+
+    /**
      * Copies ONE content:// file into the same app storage [read] uses (`filesDir/imports`) and returns
      * the stable FileProvider uri of the copy, or null when the file cannot be read. Used by the Alight
      * XML import ([AlightMediaLocalizer]): those projects link media on the exporting phone, and without

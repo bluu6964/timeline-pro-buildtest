@@ -45,6 +45,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -863,10 +864,25 @@ private fun DrawScope.drawRingText(
     }
 }
 
+/**
+ * Add Audio (build 203): where the new audio layer's sound comes from —
+ * an audio file (the flow that existed: the system document picker), or
+ * "Extract from video" (Sarowar's order 2026-11-15 ~10:42: pick a video and
+ * its sound becomes the audio layer — see [com.example.model.ExtractAudio]).
+ * Two plain full-width list rows in the standard bottom-sheet language; the
+ * rows carry no fixed-width clusters, so nothing can overflow at 360 dp
+ * (content width 360 − 2×20 sheet padding − 2×12 row padding = 296 dp for
+ * icon + title/subtitle, which ellipsize as single lines).
+ *
+ * This composable REPLACES a dead namesake that listed four canned music
+ * tracks ("Cinematic Ambient Beat" …) and was never called from anywhere —
+ * the fake entries are gone, not carried over.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddAudioSheet(
-    onAddAudio: (name: String) -> Unit,
+    onAudioFile: () -> Unit,
+    onExtractFromVideo: () -> Unit,
     onDismiss: () -> Unit
 ) {
     ModalBottomSheet(
@@ -880,40 +896,53 @@ fun AddAudioSheet(
                 .padding(horizontal = 20.dp, vertical = 8.dp)
                 .padding(bottom = 28.dp)
         ) {
-            Text("Add Audio Track", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text("Add Audio", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(14.dp))
 
-            val tracks = listOf(
-                "Cinematic Ambient Beat" to "3:15",
-                "Upbeat Vlog Pop" to "2:40",
-                "Chill Lo-Fi Sunset" to "1:55",
-                "Electric Groove Synth" to "2:10"
-            )
-
-            tracks.forEach { (title, length) ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RectangleShape)
-                        .bouncyClickable {
-                            onAddAudio(title)
-                            onDismiss()
-                        }
-                        .padding(vertical = 10.dp, horizontal = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.MusicNote, contentDescription = null, tint = NeonGreen, modifier = Modifier.size(24.dp))
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text(title, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                            Text(length, color = TextSecondary, fontSize = 12.sp)
-                        }
-                    }
-                    Text("Add", color = NeonCyan, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                }
+            AddAudioRow(
+                icon = Icons.Default.MusicNote,
+                title = "Audio file",
+                subtitle = "Pick a music or sound file",
+                tag = "add_audio_file"
+            ) {
+                onAudioFile()
+                onDismiss()
             }
+            AddAudioRow(
+                icon = Icons.Default.Movie,
+                title = "Extract from video",
+                subtitle = "Use a video's sound as the audio layer",
+                tag = "add_audio_extract_video"
+            ) {
+                onExtractFromVideo()
+                onDismiss()
+            }
+        }
+    }
+}
+
+@Composable
+private fun AddAudioRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String,
+    tag: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RectangleShape)
+            .bouncyClickable(onClick = onClick)
+            .padding(vertical = 10.dp, horizontal = 12.dp)
+            .testTag(tag),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, contentDescription = null, tint = TextPrimary, modifier = Modifier.size(24.dp))
+        Spacer(modifier = Modifier.width(12.dp))
+        Column {
+            Text(title, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            Text(subtitle, color = TextSecondary, fontSize = 12.sp, maxLines = 1)
         }
     }
 }

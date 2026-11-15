@@ -26,13 +26,13 @@ import org.junit.Test
  */
 class Build202Test {
 
-    /** A full visual layer's tools, in ClipEditToolsPanel's construction order (30). */
+    /** A full visual layer's tools, in ClipEditToolsPanel's construction order (31; build 203 added "Extract audio" after "Freeze"). */
     private val videoLabels = listOf(
         "Effects", "Animations", "Color", "Transform", "Crop", "Blend",
         "Copy keyframes", "Paste keyframes", "Copy effects", "Paste effects",
         "Volume", "Masks", "Cutout", "Roto", "Track", "Remove", "Stabilize",
         "Captions", "Face AI", "Face swap", "Parent", "Save as Template",
-        "Freeze", "Rename", "Lock", "Solo", "Label", "Clear keys",
+        "Freeze", "Extract audio", "Rename", "Lock", "Solo", "Label", "Clear keys",
         "Copy layer", "Paste layer"
     )
 
@@ -97,7 +97,7 @@ class Build202Test {
     fun split_videoLayer_fiveVisible() {
         val n = ToolRowSplit.visibleCountForLabels(videoLabels, 360)
         assertEquals(5, n) // Effects, Animations, Color, Transform, Crop
-        assertEquals(25, videoLabels.size - n)
+        assertEquals(26, videoLabels.size - n)
     }
 
     @Test

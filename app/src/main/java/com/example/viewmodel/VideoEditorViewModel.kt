@@ -25,6 +25,7 @@ import com.example.model.WordPopTemplate
 import com.example.model.SavedTemplate
 import com.example.model.UserTemplateOps
 import com.example.model.ControllerFanOut
+import com.example.model.ExtractAudio
 import com.example.model.ExportSettings
 import com.example.model.ImportedMedia
 import com.example.model.GroupOps
@@ -2493,6 +2494,59 @@ class VideoEditorViewModel : ViewModel() {
         }
         _tracks.value = updated
         setSelected(lastId)
+        recomputeTotal()
+    }
+
+    /**
+     * Extract audio, update 1 (build 203): detaches the sound of the video
+     * layer [clipId] into a new audio layer directly below it, and mutes the
+     * video layer through its normal volume field (set to 0 — the Volume tool
+     * shows it and the user can raise it again; no hidden flag). The law is
+     * [ExtractAudio.detachedLayer] (mix-preserving: the project sounds exactly
+     * as before, the sound now lives on its own layer). ONE undo step for the
+     * new layer + the mute together.
+     *
+     * [sourceHasAudio] is the caller's probe (MediaImporter.hasAudio — the
+     * ViewModel has no media access). Refusals change nothing and push no
+     * history: not a video layer with a file (a photo has no sound to detach),
+     * a locked layer, or a file without an audio stream. A structural op on
+     * the selected layer only — deliberately NO Controller fan-out (the
+     * connected layers keep their own sound; extracting is a per-layer
+     * surgery, not an edit of a value).
+     */
+    fun extractAudioFromLayer(clipId: String, sourceHasAudio: Boolean): ExtractAudio.Outcome {
+        val clip = _tracks.value.flatMap { it.clips }.firstOrNull { it.id == clipId }
+            ?: return ExtractAudio.Outcome.Refused(ExtractAudio.Fail.NOT_VIDEO)
+        if (clip.type != LayerType.VIDEO || clip.isImage || clip.uri == null) {
+            return ExtractAudio.Outcome.Refused(ExtractAudio.Fail.NOT_VIDEO)
+        }
+        if (clip.isLocked) return ExtractAudio.Outcome.Refused(ExtractAudio.Fail.LOCKED)
+        if (!sourceHasAudio) return ExtractAudio.Outcome.Refused(ExtractAudio.Fail.NO_AUDIO)
+        pushHistory()
+        val audio = ExtractAudio.detachedLayer(clip, UUID.randomUUID().toString())
+        var updated = LaneLayout.placeBelow(_tracks.value, clipId, audio)
+        updated = updated.map { track ->
+            track.copy(clips = track.clips.map { c -> if (c.id == clipId) c.copy(volume = 0f) else c })
+        }
+        _tracks.value = updated
+        setSelected(audio.id)
+        recomputeTotal()
+        return ExtractAudio.Outcome.Done(audio.id)
+    }
+
+    /**
+     * Extract audio, update 2 (build 203): Add Audio → "Extract from video".
+     * The picked video [item] (already read + copied by MediaImporter, its
+     * audio stream already probed by the caller) becomes an audio layer at
+     * the playhead with the file's full length — [ExtractAudio.importedLayer].
+     * Placed like every added layer ([placeNewLayer]: into the selected Chain
+     * when one is targeted, else its own lane). ONE undo step.
+     */
+    fun addExtractedAudio(item: ImportedMedia) {
+        pushHistory()
+        val clip = ExtractAudio.importedLayer(item, _currentPlayheadMs.value, UUID.randomUUID().toString())
+        _tracks.value = placeNewLayer(_tracks.value, clip)
+        setSelected(clip.id)
         recomputeTotal()
     }
 

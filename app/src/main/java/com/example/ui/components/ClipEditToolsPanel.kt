@@ -16,6 +16,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.Animation
+import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Brush
@@ -123,6 +124,8 @@ fun ClipEditToolsPanel(
     onPasteEffects: (() -> Unit)? = null,
     /** Video layers: freeze frame (holds the picture at the playhead). */
     onFreeze: (() -> Unit)? = null,
+    /** Video layers with a file (build 203): extract audio — the layer's sound becomes its own audio layer below it. */
+    onExtractAudio: (() -> Unit)? = null,
     /** Lock / unlock this layer (build 199, A1): a locked layer cannot be grabbed or trimmed. */
     onLockLayer: (() -> Unit)? = null,
     /** Solo this layer (build 199, A6): hides + mutes every other layer until tapped again. Used-state = this layer is the solo. */
@@ -184,6 +187,7 @@ fun ClipEditToolsPanel(
     else emptyList()) + (if (onUngroup != null) listOf(ClipToolItem("ungroup", "Ungroup", Icons.Default.LayersClear))
     else emptyList()) + (if (onSaveTemplate != null) listOf(ClipToolItem("save_template", "Save as Template", Icons.Default.Save))
     else emptyList()) + (if (onFreeze != null) listOf(ClipToolItem("freeze", "Freeze", Icons.Default.Image))
+    else emptyList()) + (if (onExtractAudio != null) listOf(ClipToolItem("extract_audio", "Extract audio", Icons.Default.Audiotrack))
     else emptyList()) + (if (onRename != null) listOf(ClipToolItem("rename", "Rename", Icons.Default.Edit))
     else emptyList()) + (if (onLockLayer != null) listOf(ClipToolItem("lock", "Lock", Icons.Default.Lock))
     else emptyList()) + (if (onSoloLayer != null) listOf(ClipToolItem("solo", "Solo", Icons.Default.Visibility))
@@ -236,6 +240,7 @@ fun ClipEditToolsPanel(
             "save_template" -> onSaveTemplate?.invoke()
             "edit_group" -> onEditGroup?.invoke()
             "freeze" -> onFreeze?.invoke()
+            "extract_audio" -> onExtractAudio?.invoke()
             "rename" -> onRename?.invoke()
             "lock" -> onLockLayer?.invoke()
             "solo" -> onSoloLayer?.invoke()
