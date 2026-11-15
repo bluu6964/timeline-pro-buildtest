@@ -1,6 +1,7 @@
 package com.example.ui
 
 import com.example.ui.theme.AmCornerCard
+import com.example.ui.theme.AmPanel
 import androidx.compose.ui.graphics.RectangleShape
 
 import androidx.compose.animation.AnimatedContent
@@ -301,16 +302,18 @@ fun VideoEditorScreen(
     askModelDownload?.let { pending ->
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { askModelDownload = null },
+            containerColor = AmPanel,
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(AmCornerCard),
             title = { Text("Download cutout model?") },
             text = { Text("Cutout needs a one-time download of about 14 MB. It is kept on your phone and works offline after that.") },
             confirmButton = {
-                androidx.compose.material3.TextButton(onClick = {
+                com.example.ui.components.DialogPrimaryButton(text = "Download", onClick = {
                     askModelDownload = null
                     runVideoCutout(pending, true)
-                }) { Text("Download") }
+                })
             },
             dismissButton = {
-                androidx.compose.material3.TextButton(onClick = { askModelDownload = null }) { Text("Not now") }
+                com.example.ui.components.DialogSecondaryButton(text = "Not now", onClick = { askModelDownload = null })
             }
         )
     }
@@ -420,6 +423,8 @@ fun VideoEditorScreen(
         val hasBlur = pending.faceBlurDir != null
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { askFaceAi = null },
+            containerColor = AmPanel,
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(AmCornerCard),
             title = { Text("Face AI · Blur") },
             text = {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
@@ -465,24 +470,27 @@ fun VideoEditorScreen(
                 }
             },
             confirmButton = {
-                androidx.compose.material3.TextButton(onClick = {
-                    askFaceAi = null
-                    runFaceBlur(pending, faceRegion, faceStrength)
-                }) { Text(if (modelReady) "Process" else "Download & process") }
+                com.example.ui.components.DialogPrimaryButton(
+                    text = if (modelReady) "Process" else "Download & process",
+                    onClick = {
+                        askFaceAi = null
+                        runFaceBlur(pending, faceRegion, faceStrength)
+                    }
+                )
             },
             dismissButton = {
                 androidx.compose.foundation.layout.Row {
                     if (hasBlur) {
-                        androidx.compose.material3.TextButton(onClick = {
+                        com.example.ui.components.DialogDangerButton(text = "Remove", onClick = {
                             askFaceAi = null
                             viewModel.beginAdjust()
                             viewModel.updateClip(pending.id) {
                                 it.copy(faceBlurDir = null, faceBlurFps = 0f, faceBlurStartMs = 0L, faceBlurFrames = 0, faceBlurRegion = "")
                             }
                             scope.launch { snackbarHostState.showSnackbar("Face blur removed") }
-                        }) { Text("Remove") }
+                        })
                     }
-                    androidx.compose.material3.TextButton(onClick = { askFaceAi = null }) { Text("Cancel") }
+                    com.example.ui.components.DialogSecondaryButton(text = "Cancel", onClick = { askFaceAi = null })
                 }
             }
         )
@@ -582,6 +590,8 @@ fun VideoEditorScreen(
         val modelReady = com.example.engine.WhisperModelDownloader.isDownloaded(context)
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { askCaptions = null },
+            containerColor = AmPanel,
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(AmCornerCard),
             title = { Text("Auto Captions") },
             text = {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
@@ -629,13 +639,16 @@ fun VideoEditorScreen(
                 }
             },
             confirmButton = {
-                androidx.compose.material3.TextButton(onClick = {
-                    askCaptions = null
-                    runCaptions(pending, captionLang, captionMaxChars)
-                }) { Text(if (modelReady) "Start" else "Download & start") }
+                com.example.ui.components.DialogPrimaryButton(
+                    text = if (modelReady) "Start" else "Download & start",
+                    onClick = {
+                        askCaptions = null
+                        runCaptions(pending, captionLang, captionMaxChars)
+                    }
+                )
             },
             dismissButton = {
-                androidx.compose.material3.TextButton(onClick = { askCaptions = null }) { Text("Not now") }
+                com.example.ui.components.DialogSecondaryButton(text = "Not now", onClick = { askCaptions = null })
             }
         )
     }
@@ -1155,6 +1168,8 @@ fun VideoEditorScreen(
         val hasPatch = tracks.flatMap { it.clips }.firstOrNull { it.id == id }?.planarRemove != null
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { removeMenuFor = null },
+            containerColor = AmPanel,
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(AmCornerCard),
             title = { Text("Remove") },
             text = {
                 Text(
@@ -1163,21 +1178,26 @@ fun VideoEditorScreen(
                 )
             },
             confirmButton = {
-                androidx.compose.material3.TextButton(onClick = {
-                    removeMenuFor = null
-                    openRemoveSetup(id)
-                }) { Text(if (hasPatch) "Redo" else "Start") }
+                com.example.ui.components.DialogPrimaryButton(
+                    text = if (hasPatch) "Redo" else "Start",
+                    onClick = {
+                        removeMenuFor = null
+                        openRemoveSetup(id)
+                    }
+                )
             },
             dismissButton = {
-                androidx.compose.foundation.layout.Row {
+                androidx.compose.foundation.layout.Row(
+                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
+                ) {
                     if (hasPatch) {
-                        androidx.compose.material3.TextButton(onClick = {
+                        com.example.ui.components.DialogDangerButton(text = "Take away", onClick = {
                             removeMenuFor = null
                             viewModel.setPlanarRemove(id, null)
                             scope.launch { snackbarHostState.showSnackbar("Remove taken away") }
-                        }) { Text("Take away") }
+                        })
                     }
-                    androidx.compose.material3.TextButton(onClick = { removeMenuFor = null }) { Text("Close") }
+                    com.example.ui.components.DialogSecondaryButton(text = "Close", onClick = { removeMenuFor = null })
                 }
             }
         )
@@ -1657,6 +1677,8 @@ fun VideoEditorScreen(
         val modelReady = com.example.engine.FaceModelDownloader.isDownloaded(context)
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { askFaceSwap = null },
+            containerColor = AmPanel,
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(AmCornerCard),
             title = { Text("Face swap") },
             text = {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
@@ -1669,9 +1691,12 @@ fun VideoEditorScreen(
                         fontSize = 13.sp
                     )
                     Spacer(Modifier.height(12.dp))
-                    androidx.compose.material3.TextButton(onClick = {
-                        swapPhotoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                    }) { Text(if (swapPhoto == null) "Choose the photo" else "Photo chosen · change") }
+                    com.example.ui.components.DialogSecondaryButton(
+                        text = if (swapPhoto == null) "Choose the photo" else "Photo chosen · change",
+                        onClick = {
+                            swapPhotoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                        }
+                    )
                     Spacer(Modifier.height(8.dp))
                     androidx.compose.foundation.layout.Row(
                         Modifier
@@ -1690,17 +1715,20 @@ fun VideoEditorScreen(
                 }
             },
             confirmButton = {
-                androidx.compose.material3.TextButton(
+                com.example.ui.components.DialogPrimaryButton(
+                    text = "Make",
                     enabled = swapConsent && swapPhoto != null,
                     onClick = {
-                        val photo = swapPhoto ?: return@TextButton
-                        askFaceSwap = null
-                        runFaceSwap(pending, photo)
+                        val photo = swapPhoto
+                        if (photo != null) {
+                            askFaceSwap = null
+                            runFaceSwap(pending, photo)
+                        }
                     }
-                ) { Text("Make") }
+                )
             },
             dismissButton = {
-                androidx.compose.material3.TextButton(onClick = { askFaceSwap = null }) { Text("Cancel") }
+                com.example.ui.components.DialogSecondaryButton(text = "Cancel", onClick = { askFaceSwap = null })
             }
         )
     }
@@ -1711,6 +1739,8 @@ fun VideoEditorScreen(
         val followerPin = clip?.cornerPin != null && !has
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { stabilizeMenuFor = null },
+            containerColor = AmPanel,
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(AmCornerCard),
             title = { Text("Stabilize") },
             text = {
                 androidx.compose.foundation.layout.Column {
@@ -1730,28 +1760,32 @@ fun VideoEditorScreen(
             },
             confirmButton = {
                 if (!followerPin) {
-                    androidx.compose.foundation.layout.Row {
-                        androidx.compose.material3.TextButton(onClick = {
+                    androidx.compose.foundation.layout.Row(
+                        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
+                    ) {
+                        com.example.ui.components.DialogPrimaryButton(text = "Lock", onClick = {
                             stabilizeMenuFor = null
                             openStabilizeSetup(id)
-                        }) { Text("Lock") }
-                        androidx.compose.material3.TextButton(onClick = {
+                        })
+                        com.example.ui.components.DialogPrimaryButton(text = "Auto", onClick = {
                             stabilizeMenuFor = null
                             startAutoStabilize(id)
-                        }) { Text("Auto") }
+                        })
                     }
                 }
             },
             dismissButton = {
-                androidx.compose.foundation.layout.Row {
+                androidx.compose.foundation.layout.Row(
+                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
+                ) {
                     if (has) {
-                        androidx.compose.material3.TextButton(onClick = {
+                        com.example.ui.components.DialogDangerButton(text = "Remove", onClick = {
                             stabilizeMenuFor = null
                             viewModel.setCornerPin(id, null)
                             scope.launch { snackbarHostState.showSnackbar("Stabilize taken away") }
-                        }) { Text("Remove") }
+                        })
                     }
-                    androidx.compose.material3.TextButton(onClick = { stabilizeMenuFor = null }) { Text("Close") }
+                    com.example.ui.components.DialogSecondaryButton(text = "Close", onClick = { stabilizeMenuFor = null })
                 }
             }
         )
@@ -2500,35 +2534,41 @@ fun VideoEditorScreen(
 
             // Vertical budget — proportions (ideal):
             // Header 1/18 · Canvas 9/18 · Play 1/18 · Timescale 1/30 · Layer 5/18 · Toolbar ~rest
-            // Onion-skin row and Scopes panel sit BETWEEN play controls and timescale;
-            // their height is taken from the canvas share so sections below stay put.
-            // Soft minima applied only when the screen has room. Sum of all rows
-            // (including onion + scopes + tools grid) ALWAYS equals totalHeight — nothing off-screen.
+            //
+            // CANVAS LAW (Sarowar 2026-11-15, build 207): the canvas is a
+            // FIXED area. canvasH is computed ONCE from the all-closed base
+            // layout below and NEVER changes when the onion row, the scopes
+            // panel or the tools grid open — build 206 deducted the grid
+            // from the canvas share and the canvas shrank on his phone,
+            // which he rejected. The extra rows live in the LOWER ZONE
+            // below the transport row (onion + scopes between play controls
+            // and timescale; the grid between the layer panel and the
+            // footer), whose total height is constant, and they are paid
+            // for from inside that zone only — see the allocation below.
+            // Sum of all rows ALWAYS equals totalHeight — nothing off-screen.
             val onionRowH = if (onionSkin.enabled) 40.dp else 0.dp
             val scopesPanelH = if (scopesOn) ScopesPanelHeight else 0.dp
             // Tools grid (build 206): while open it is a section of this
-            // column (between the layer panel and the footer); like the
-            // onion row and the scopes panel, its height comes out of the
-            // canvas share. toolsGridHeightDp is the grid sheet's own
+            // column (between the layer panel and the footer), in NORMAL
+            // LAYOUT FLOW. toolsGridHeightDp is the grid sheet's own
             // geometry function, so the budget and the sheet cannot drift.
-            val toolsGridH = if (moreToolsExpanded) {
-                com.example.ui.components.toolsGridHeightDp(
-                    com.example.ui.components.TOOLS_GRID_UTILITY_COUNT +
-                        (morePanelState.clipSection()?.tools?.size ?: 0)
-                ).dp
-            } else 0.dp
-            val extraRowsH = onionRowH + scopesPanelH + toolsGridH
+            val toolsGridTiles =
+                com.example.ui.components.TOOLS_GRID_UTILITY_COUNT +
+                    (morePanelState.clipSection()?.tools?.size ?: 0)
 
-            // Ideal proportional sizes for the six permanent sections.
+            // Ideal proportional sizes for the six permanent sections,
+            // computed for the BASE layout (all extra rows closed) — the
+            // layout build 206 rendered with everything closed. This is
+            // the ONLY computation of headerH / canvasH / playControlsH:
+            // they are pinned for every panel state (CANVAS LAW).
             var headerH = totalHeight * (1f / 18f)
             var playControlsH = totalHeight * (1f / 18f)
             var timescaleH = totalHeight * (1f / 30f)
             var layerPanelH = totalHeight * (5f / 18f)
-            // Canvas ideal already pays for extra rows so below sections keep their place.
-            var canvasH = (totalHeight * (9f / 18f) - extraRowsH).coerceAtLeast(0.dp)
-            var toolbarH = totalHeight - (headerH + canvasH + playControlsH + timescaleH + layerPanelH + extraRowsH)
+            var canvasH = totalHeight * (9f / 18f)
+            var toolbarH = totalHeight - (headerH + canvasH + playControlsH + timescaleH + layerPanelH)
 
-            // Soft minima — preferred when they still fit.
+            // Soft minima — preferred when they still fit (base layout only).
             val minHeader = 40.dp
             val minPlay = 40.dp
             val minTimescale = 20.dp
@@ -2536,17 +2576,17 @@ fun VideoEditorScreen(
             val minCanvas = 180.dp
             val minToolbar = 48.dp
 
-            val minSum = minHeader + minPlay + minTimescale + minLayer + minCanvas + minToolbar + extraRowsH
+            val minSum = minHeader + minPlay + minTimescale + minLayer + minCanvas + minToolbar
             if (minSum <= totalHeight) {
                 headerH = headerH.coerceAtLeast(minHeader)
                 playControlsH = playControlsH.coerceAtLeast(minPlay)
                 timescaleH = timescaleH.coerceAtLeast(minTimescale)
                 layerPanelH = layerPanelH.coerceAtLeast(minLayer)
                 canvasH = canvasH.coerceAtLeast(minCanvas)
-                toolbarH = (totalHeight - (headerH + canvasH + playControlsH + timescaleH + layerPanelH + extraRowsH))
+                toolbarH = (totalHeight - (headerH + canvasH + playControlsH + timescaleH + layerPanelH))
                     .coerceAtLeast(minToolbar)
                 // If we overshot, shrink flexible sections (canvas + layer) proportionally.
-                val used = headerH + canvasH + playControlsH + timescaleH + layerPanelH + toolbarH + extraRowsH
+                val used = headerH + canvasH + playControlsH + timescaleH + layerPanelH + toolbarH
                 if (used > totalHeight) {
                     val excess = used - totalHeight
                     val flexible = canvasH + layerPanelH
@@ -2561,16 +2601,44 @@ fun VideoEditorScreen(
                 if (toolbarH < 40.dp) {
                     val need = 40.dp - toolbarH
                     canvasH = (canvasH - need).coerceAtLeast(140.dp)
-                    toolbarH = totalHeight - (headerH + canvasH + playControlsH + timescaleH + layerPanelH + extraRowsH)
+                    toolbarH = totalHeight - (headerH + canvasH + playControlsH + timescaleH + layerPanelH)
                 }
             }
 
-            // Final safety: force exact fit (float noise / edge cases).
+            // Final safety on the base layout: force exact fit (float noise / edge cases).
             run {
-                val used = headerH + canvasH + playControlsH + timescaleH + layerPanelH + toolbarH + extraRowsH
+                val used = headerH + canvasH + playControlsH + timescaleH + layerPanelH + toolbarH
                 val drift = totalHeight - used
                 if (drift != 0.dp) canvasH = (canvasH + drift).coerceAtLeast(120.dp)
             }
+
+            // ── Lower-zone allocation (CANVAS LAW) ──────────────────────
+            // The zone below the transport row — timescale, onion row,
+            // scopes panel, layer panel, tools grid, toolbar — has a
+            // CONSTANT total height: totalHeight − header − canvas −
+            // transport. The extra rows are paid from inside it: the
+            // layer panel gives up height first, down to minLayerZoneH
+            // (two layer rows — the selected layer stays fully visible
+            // and usable, the panel scrolls for the rest); if the tools
+            // grid still does not fit it shows fewer rows and scrolls
+            // vertically in-sheet. canvasH is never touched again.
+            val minLayerZoneH = 64.dp
+            val lowerZoneH = totalHeight - headerH - canvasH - playControlsH
+            val zonePoolH = (lowerZoneH - timescaleH - toolbarH - onionRowH - scopesPanelH)
+                .coerceAtLeast(0.dp)
+            var toolsGridH = 0.dp
+            var toolsGridRows = 0
+            if (moreToolsExpanded) {
+                val gridBudgetH = (zonePoolH - minLayerZoneH).coerceAtLeast(0.dp)
+                toolsGridRows = com.example.ui.components.toolsGridRowsForHeight(gridBudgetH.value.toInt())
+                    .coerceIn(1, com.example.ui.components.TOOLS_GRID_MAX_ROWS)
+                toolsGridH = com.example.ui.components
+                    .toolsGridHeightDp(toolsGridTiles, toolsGridRows).dp
+                // Pathological corner (every extra open on a short screen):
+                // the grid never pushes the layer panel out of the zone.
+                if (toolsGridH > zonePoolH) toolsGridH = zonePoolH
+            }
+            layerPanelH = (zonePoolH - toolsGridH).coerceAtLeast(0.dp)
 
             // Alight-style editor panels (Transform / Color / Blending): the play-controls card stays
             // exactly where it is. The panel starts right under it, at the timescale, so the selected
@@ -2919,7 +2987,8 @@ fun VideoEditorScreen(
                 )
 
                 // 3b. Onion-skin settings row (build 190) — only while the ghosts are
-                // on; its height came out of the canvas above, so nothing below moves.
+                // on; its height comes out of the lower zone's layer panel
+                // (CANVAS LAW, build 207), so the canvas never moves.
                 if (onionSkin.enabled) {
                     OnionSkinRow(
                         settings = onionSkin,
@@ -2929,7 +2998,8 @@ fun VideoEditorScreen(
                 }
 
                 // 3c. Video scopes panel (build 196) — only while the scopes are on;
-                // same height discipline as the onion row (out of the canvas).
+                // same height discipline as the onion row (out of the lower
+                // zone, never the canvas).
                 if (scopesOn) {
                     ScopesPanel(data = scopeData)
                 }
@@ -3189,8 +3259,10 @@ fun VideoEditorScreen(
                 // 5b. Tools grid (build 206) — a sheet in NORMAL LAYOUT FLOW
                 // between the timeline and the footer, never an overlay (the
                 // build-202 More panel's clipped row is the failure this
-                // replaces). Its height came out of the canvas in the layout
-                // math above; toolsGridHeightDp is the shared geometry.
+                // replaces). Its height comes out of the lower zone's layer
+                // panel in the layout math above (CANVAS LAW, build 207 —
+                // the canvas never pays); toolsGridHeightDp is the shared
+                // geometry, and maxRows is the zone's row budget for it.
                 if (moreToolsExpanded) {
                     com.example.ui.components.ToolsGridSheet(
                         exportInSet = exportInMs != null,
@@ -3208,6 +3280,7 @@ fun VideoEditorScreen(
                         onCanvasClick = { showAspectRatioSheet = true },
                         clipOverflow = moreClipSection,
                         onCloseRequest = { moreToolsExpanded = false },
+                        maxRows = toolsGridRows,
                         modifier = Modifier.padding(horizontal = 8.dp)
                     )
                 }
@@ -5294,7 +5367,8 @@ fun VideoEditorScreen(
     projectBusy?.let { msg ->
         androidx.compose.material3.AlertDialog(
             onDismissRequest = {},
-            containerColor = androidx.compose.ui.graphics.Color(0xFF111111),
+            containerColor = AmPanel,
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(AmCornerCard),
             title = { androidx.compose.material3.Text(msg, color = androidx.compose.ui.graphics.Color.White) },
             text = {
                 if (projectBusyProgress >= 0f) {

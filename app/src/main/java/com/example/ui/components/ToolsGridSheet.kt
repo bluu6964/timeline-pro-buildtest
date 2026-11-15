@@ -54,8 +54,11 @@ private val IconWhite = Color(0xFFF2F2F2)
  * over the canvas and arrived on Sarowar's phone as one clipped row — this
  * sheet instead lives in NORMAL LAYOUT FLOW in the editor's column, between
  * the timeline and the footer toolbar; its height is taken out of the
- * canvas share by the screen's layout math ([toolsGridHeightDp] is the one
- * geometry source both sides use, so the sheet and the budget cannot drift).
+ * LOWER ZONE (the layer panel's share) by the screen's layout math — the
+ * canvas never pays (CANVAS LAW, build 207; in build 206 the grid wrongly
+ * came out of the canvas share and the canvas shrank on Sarowar's phone).
+ * [toolsGridHeightDp] is the one geometry source both sides use, so the
+ * sheet and the budget cannot drift.
  *
  * Contents, in order: the 8 utility tools (the build-201 utility row's
  * IN/OUT, beat mark, marker, onion, scopes, snap, canvas — the same entries,
@@ -85,15 +88,30 @@ const val TOOLS_GRID_UTILITY_COUNT = 8
 /**
  * The sheet's exact height for [totalTiles] tiles: vertical padding + whole
  * rows up to [TOOLS_GRID_MAX_ROWS] (the grid scrolls vertically past that).
- * The screen's layout math budgets the canvas with this same number.
+ * The screen's layout math budgets the lower zone with this same number.
  */
-fun toolsGridHeightDp(totalTiles: Int): Int {
-    if (totalTiles <= 0) return 0
+fun toolsGridHeightDp(totalTiles: Int): Int = toolsGridHeightDp(totalTiles, TOOLS_GRID_MAX_ROWS)
+
+/**
+ * The sheet's exact height for [totalTiles] tiles when the layout grants at
+ * most [maxRows] visible rows (CANVAS LAW, build 207: when the lower zone
+ * cannot fit the full grid, the grid shows fewer rows and scrolls
+ * vertically in-sheet — no tool is lost, and the canvas is never touched).
+ */
+fun toolsGridHeightDp(totalTiles: Int, maxRows: Int): Int {
+    if (totalTiles <= 0 || maxRows <= 0) return 0
     val rows = minOf(
         (totalTiles + TOOLS_GRID_COLUMNS - 1) / TOOLS_GRID_COLUMNS,
-        TOOLS_GRID_MAX_ROWS
+        maxRows
     )
     return 2 * TOOLS_GRID_PAD_V_DP + rows * TOOLS_GRID_TILE_H_DP + (rows - 1) * TOOLS_GRID_GAP_DP
+}
+
+/** How many whole grid rows fit inside a height budget of [heightDp] dp. */
+fun toolsGridRowsForHeight(heightDp: Int): Int {
+    if (heightDp <= 0) return 0
+    return ((heightDp - 2 * TOOLS_GRID_PAD_V_DP + TOOLS_GRID_GAP_DP) /
+        (TOOLS_GRID_TILE_H_DP + TOOLS_GRID_GAP_DP)).coerceAtLeast(0)
 }
 
 /** One tile of the tools grid. */
@@ -133,6 +151,8 @@ fun ToolsGridSheet(
     clipOverflow: ClipOverflowSection?,
     /** Momentary entries ask the host to close the sheet after their tap. */
     onCloseRequest: () -> Unit,
+    /** Visible-row budget granted by the screen's lower-zone layout math (CANVAS LAW, build 207). */
+    maxRows: Int = TOOLS_GRID_MAX_ROWS,
     modifier: Modifier = Modifier
 ) {
     // The utility section's entries, in the build-201 utility row's order
@@ -176,7 +196,7 @@ fun ToolsGridSheet(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .height(toolsGridHeightDp(entries.size).dp)
+            .height(toolsGridHeightDp(entries.size, maxRows).dp)
             .background(AmCardSurface, RoundedCornerShape(AmCornerCard))
             .clip(RoundedCornerShape(AmCornerCard))
             .padding(vertical = TOOLS_GRID_PAD_V_DP.dp)
