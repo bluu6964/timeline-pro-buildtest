@@ -82,7 +82,14 @@ fun AudioClipToolsPanel(
      */
     usedTools: Set<String> = emptySet(),
     /** The shared More panel's bridge (build 202): this panel's overflow tools are published here. */
-    morePanel: MorePanelState? = null
+    morePanel: MorePanelState? = null,
+    /**
+     * Build 210 (TOOLS PANEL LAW): while the unified tools panel is open
+     * it carries ALL of this panel's tools in its one scrolling list —
+     * the panel publishes its full list and the footer bar renders only
+     * the back button. False = build 202's split behaviour.
+     */
+    toolsInGrid: Boolean = false
 ) {
     val tools = listOf(
         ClipToolItem("volume", "Volume", Icons.AutoMirrored.Filled.VolumeUp),
@@ -128,16 +135,28 @@ fun AudioClipToolsPanel(
         }
     }
 
-    // Publish the overflow to the tools grid (build 202).
+    // Publish to the tools grid (build 202). Build 210: while the
+    // unified panel is open the FULL list is published (primary first);
+    // otherwise only the overflow.
     PublishClipOverflow(
         morePanel = morePanel,
-        section = if (overflowTools.isEmpty()) null else ClipOverflowSection(
-            key = tools.joinToString(",") { it.id },
-            tools = overflowTools,
-            usedTools = usedTools,
-            tileTag = { "audio_tool_$it" },
-            onTool = { dispatch(it) }
-        )
+        section = when {
+            toolsInGrid && tools.isNotEmpty() -> ClipOverflowSection(
+                key = tools.joinToString(",") { it.id },
+                tools = tools,
+                usedTools = usedTools,
+                tileTag = { "audio_tool_$it" },
+                onTool = { dispatch(it) }
+            )
+            overflowTools.isEmpty() -> null
+            else -> ClipOverflowSection(
+                key = tools.joinToString(",") { it.id },
+                tools = overflowTools,
+                usedTools = usedTools,
+                tileTag = { "audio_tool_$it" },
+                onTool = { dispatch(it) }
+            )
+        }
     )
 
     Box(
@@ -180,22 +199,27 @@ fun AudioClipToolsPanel(
                     .background(AmHairline)
             )
 
-            Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .padding(horizontal = ToolRowSplit.CONTENT_PADDING_DP.dp),
-                horizontalArrangement = Arrangement.spacedBy(ToolRowSplit.GAP_DP.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                visibleTools.forEach { tool ->
-                    ToolTile(
-                        tool = tool,
-                        used = tool.id in usedTools,
-                        onClick = { dispatch(tool) },
-                        modifier = Modifier.fillMaxHeight(),
-                        testTag = "audio_tool_${tool.id}"
-                    )
+            // Build 210: not rendered while the unified tools panel is
+            // open — the tools live in its one scrolling list; only the
+            // back button stays in the footer bar.
+            if (!toolsInGrid) {
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .padding(horizontal = ToolRowSplit.CONTENT_PADDING_DP.dp),
+                    horizontalArrangement = Arrangement.spacedBy(ToolRowSplit.GAP_DP.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    visibleTools.forEach { tool ->
+                        ToolTile(
+                            tool = tool,
+                            used = tool.id in usedTools,
+                            onClick = { dispatch(tool) },
+                            modifier = Modifier.fillMaxHeight(),
+                            testTag = "audio_tool_${tool.id}"
+                        )
+                    }
                 }
             }
         }

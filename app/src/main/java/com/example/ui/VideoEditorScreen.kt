@@ -203,10 +203,21 @@ fun VideoEditorScreen(
     // long-pressed on the ruler / the one already sitting at the playhead.
     var showAddMarker by remember { mutableStateOf(false) }
     var markerEditTarget by remember { mutableStateOf<com.example.model.TimelineMarker?>(null) }
-    // Tools grid (build 202's "More tools", re-hosted in layout flow by
-    // build 206): its open state, and the bridge the footer clip panels
-    // publish their overflow tools through (MorePanelState).
-    var moreToolsExpanded by remember { mutableStateOf(false) }
+    // Tools panel (build 202's "More tools", re-hosted in layout flow by
+    // build 206; TOOLS PANEL LAW, build 210 — Sarowar 2026-11-15 ~16:00):
+    // the panel AUTO-SHOWS the moment a layer is selected and closes on
+    // deselect — no + tap needed. [toolsPanelManual] is the user's
+    // override of that auto behaviour: the transport disc sets it (open
+    // the utility panel with nothing selected, or close the panel while a
+    // layer stays selected), a momentary utility action's close request
+    // sets it to false (build 206's close semantics, kept), and EVERY
+    // selection change resets it to null so the auto rule re-arms.
+    var toolsPanelManual by remember { mutableStateOf<Boolean?>(null) }
+    LaunchedEffect(selectedClipId) { toolsPanelManual = null }
+    val toolsPanelOpen = toolsPanelManual ?: (selectedClipId != null)
+    // The bridge the footer clip panels publish their tools through
+    // (MorePanelState): while the panel is open they publish their FULL
+    // tool list and the panel's grid is the one scrolling home for them.
     val morePanelState = remember { com.example.ui.components.MorePanelState() }
     val tracks by viewModel.tracks.collectAsState()
     // Edit Group: inside a group only its layers are shown (timeline + canvas); outside, a group is one single layer.
@@ -2617,21 +2628,55 @@ fun VideoEditorScreen(
             // scopes panel, layer panel, tools grid, toolbar — has a
             // CONSTANT total height: totalHeight − header − canvas −
             // transport. The extra rows are paid from inside it: the
-            // layer panel gives up height first, down to minLayerZoneH
-            // (two layer rows — the selected layer stays fully visible
-            // and usable, the panel scrolls for the rest); if the tools
-            // grid still does not fit it shows fewer rows and scrolls
-            // vertically in-sheet. canvasH is never touched again.
+            // layer panel gives up height first, down to its floor; if
+            // the tools grid still does not fit it shows fewer rows and
+            // scrolls vertically in-sheet. canvasH is never touched again.
+            //
+            // TOOLS PANEL LAW, part 3 (build 210 — Sarowar 2026-11-15
+            // ~16:03, corrected): while the tools panel is open with a
+            // selection, the layer panel shows ONLY the selected layers'
+            // rows — [restrictedTracks] is what section 5 passes to the
+            // timeline panel — and the layer floor becomes exactly those
+            // rows' height (9 dp top pad + lane heights + the panel's own
+            // bottom chrome reserve: the selected-layer bar's 52 + 4, or
+            // the multi bar's 68; that chrome is bottom-anchored INSIDE
+            // the panel, below the rows, so a row is never covered).
+            // The freed pool goes to the grid, whose row cap lifts in
+            // this mode so the space becomes visible tool rows. Closing
+            // the panel or clearing the selection restores the full list
+            // and the plain 64 dp floor.
+            val selIdForRestrict = selectedClipId
+            val restrictIds: Set<String>? = when {
+                !toolsPanelOpen -> null
+                selIdForRestrict != null -> setOf(selIdForRestrict)
+                multiSelectIds.isNotEmpty() -> multiSelectIds
+                else -> null
+            }
+            val restrictedTracks = restrictIds?.let { ids ->
+                shownTracks.filter { t -> t.clips.any { c -> c.id in ids } }
+                    .takeIf { it.isNotEmpty() }
+            }
+            val restrictedLanesH = restrictedTracks?.let { rt ->
+                val lanesDp = rt.sumOf { t ->
+                    (t.clips.maxOfOrNull { c -> com.example.ui.components.laneHeightFor(c.type) }
+                        ?: 26.dp).value.toDouble() + 6.0
+                } - 6.0 // the column's spacedBy leaves no gap after the last lane
+                val chromeDp = if (multiSelectIds.isNotEmpty() && selectedClipId == null) 68f else 56f
+                (9f + lanesDp.toFloat() + chromeDp).dp
+            }
             val minLayerZoneH = 64.dp
             val lowerZoneH = totalHeight - headerH - canvasH - playControlsH
             val zonePoolH = (lowerZoneH - timescaleH - toolbarH - onionRowH - scopesPanelH)
                 .coerceAtLeast(0.dp)
             var toolsGridH = 0.dp
             var toolsGridRows = 0
-            if (moreToolsExpanded) {
-                val gridBudgetH = (zonePoolH - minLayerZoneH).coerceAtLeast(0.dp)
+            if (toolsPanelOpen) {
+                val layerFloor = restrictedLanesH ?: minLayerZoneH
+                val gridBudgetH = (zonePoolH - layerFloor).coerceAtLeast(0.dp)
+                val rowCap = if (restrictedTracks != null) Int.MAX_VALUE
+                    else com.example.ui.components.TOOLS_GRID_MAX_ROWS
                 toolsGridRows = com.example.ui.components.toolsGridRowsForHeight(gridBudgetH.value.toInt())
-                    .coerceIn(1, com.example.ui.components.TOOLS_GRID_MAX_ROWS)
+                    .coerceIn(1, rowCap)
                 toolsGridH = com.example.ui.components
                     .toolsGridHeightDp(toolsGridTiles, toolsGridRows).dp
                 // Pathological corner (every extra open on a short screen):
@@ -2690,7 +2735,30 @@ fun VideoEditorScreen(
                         onBack = { viewModel.selectClip(null) },
                         onRename = { renameTargetId = headerClip.id },
                         visible = headerClip.isVisible,
-                        onToggleVisible = { viewModel.toggleClipVisibility(headerClip.id) }
+                        onToggleVisible = { viewModel.toggleClipVisibility(headerClip.id) },
+                        // Build 210 (Sarowar's Alight reference): the layer
+                        // header's right side — duplicate (the dedicated
+                        // duplicate action, same as the selected bar's
+                        // Copy), delete (the existing delete, undoable),
+                        // and the circled three-dots toggling THIS build's
+                        // auto-show tools panel.
+                        onDuplicate = { viewModel.duplicateSelectedClip() },
+                        onDelete = { viewModel.deleteSelectedClip() },
+                        onToolsClick = { toolsPanelManual = !toolsPanelOpen },
+                        toolsPanelOpen = toolsPanelOpen
+                    )
+                } else if (multiSelectIds.isNotEmpty()) {
+                    // Multi-select: the header shows the honest count (no
+                    // single layer's name, no rename / duplicate / delete —
+                    // those act through the multi bar); back exits the mode.
+                    val firstChecked = tracks.flatMap { it.clips }.firstOrNull { it.id in multiSelectIds }
+                    com.example.ui.components.LayerHeader(
+                        height = headerH,
+                        name = "${multiSelectIds.size} layers",
+                        info = "Multi-select",
+                        colorArgb = firstChecked?.color ?: 0xFF888888L,
+                        onBack = { viewModel.exitMultiSelect() },
+                        onRename = null
                     )
                 } else EditorHeader(
                     height = headerH,
@@ -2978,9 +3046,12 @@ fun VideoEditorScreen(
                     // opens the tools grid (section 5b, in layout flow). The
                     // disc's ring summarises the grid's active state — the
                     // build-202 More glyph's honesty rule (range points,
-                    // toggles, used clip tools).
-                    toolsGridExpanded = moreToolsExpanded,
-                    onToolsGridExpandedChange = { moreToolsExpanded = it },
+                    // toggles, used clip tools). Build 210: the panel
+                    // auto-shows on selection; the disc now writes the
+                    // MANUAL override of that auto rule (its only roles:
+                    // opener with nothing selected, close while open).
+                    toolsGridExpanded = toolsPanelOpen,
+                    onToolsGridExpandedChange = { toolsPanelManual = it },
                     toolsGridActive = snapEnabled || onionSkin.enabled || scopesOn ||
                         exportInMs != null || exportOutMs != null ||
                         (moreClipSection?.let { s -> s.tools.any { it.id in s.usedTools } } == true)
@@ -3022,7 +3093,11 @@ fun VideoEditorScreen(
                 Box(Modifier.fillMaxWidth().height(layerPanelH)) {
                 TimelineLayerPanel(
                     height = layerPanelH,
-                    tracks = shownTracks,
+                    // Build 210 (TOOLS PANEL LAW part 3): while the tools
+                    // panel is open over a selection, ONLY the selected
+                    // layers' lanes are passed — no other layer row exists
+                    // in the panel; the full list returns with the panel.
+                    tracks = restrictedTracks ?: shownTracks,
                     playheadMs = playheadProvider,
                     totalDurationMs = totalDurationMs,
                     selectedClipId = selectedClipId,
@@ -3263,7 +3338,13 @@ fun VideoEditorScreen(
                 // panel in the layout math above (CANVAS LAW, build 207 —
                 // the canvas never pays); toolsGridHeightDp is the shared
                 // geometry, and maxRows is the zone's row budget for it.
-                if (moreToolsExpanded) {
+                // Build 210: the grid is THE tools panel — it auto-shows on
+                // selection (toolsPanelOpen) and carries the selected
+                // panel's primary + overflow tools as its first tiles, in
+                // ONE scrolling list with the utility tools (nothing is
+                // pinned: while it is open the footer's fixed primary row
+                // is not rendered — see section 6's toolsInGrid).
+                if (toolsPanelOpen) {
                     com.example.ui.components.ToolsGridSheet(
                         exportInSet = exportInMs != null,
                         exportOutSet = exportOutMs != null,
@@ -3279,7 +3360,7 @@ fun VideoEditorScreen(
                         onSnapClick = onSnapAction,
                         onCanvasClick = { showAspectRatioSheet = true },
                         clipOverflow = moreClipSection,
-                        onCloseRequest = { moreToolsExpanded = false },
+                        onCloseRequest = { toolsPanelManual = false },
                         maxRows = toolsGridRows,
                         modifier = Modifier.padding(horizontal = 8.dp)
                     )
@@ -3333,7 +3414,8 @@ fun VideoEditorScreen(
                             onController = { viewModel.addControllerLayer() },
                             onCamera = { viewModel.addCameraLayer() },
                             onDelete = { viewModel.deleteSelectedClip() },
-                            morePanel = morePanelState
+                            morePanel = morePanelState,
+                            toolsInGrid = toolsPanelOpen
                         ) else if (targetIsAudio) AudioClipToolsPanel(
                             height = toolbarH,
                             onDeselect = { viewModel.selectClip(null) },
@@ -3390,7 +3472,8 @@ fun VideoEditorScreen(
                                         (if (soloClipId == c.id) setOf("solo") else emptySet()) +
                                         (if (c.color != com.example.model.defaultClipColor(c.type)) setOf("label") else emptySet())
                                 } ?: emptySet(),
-                            morePanel = morePanelState
+                            morePanel = morePanelState,
+                            toolsInGrid = toolsPanelOpen
                         ) else ClipEditToolsPanel(
                             height = toolbarH,
                             // Null / 3D Camera: no picture, so no Effects / Animations / Color / Crop / Blend; only what moves them.
@@ -3799,7 +3882,8 @@ fun VideoEditorScreen(
                                         (if (soloClipId == c.id) setOf("solo") else emptySet()) +
                                         (if (c.color != com.example.model.defaultClipColor(c.type)) setOf("label") else emptySet())
                                 } ?: emptySet(),
-                            morePanel = morePanelState
+                            morePanel = morePanelState,
+                            toolsInGrid = toolsPanelOpen
                         )
                     } else {
                         BottomToolbar(

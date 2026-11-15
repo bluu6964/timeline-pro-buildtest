@@ -46,9 +46,12 @@ import com.example.ui.util.bouncyClickable
 private val IconWhite = Color(0xFFF2F2F2)
 
 /**
- * Build 206 — the TOOLS GRID: the one menu holding every tool that is not in
- * the bottom pill toolbar's primary row (Sarowar's visibility law,
- * 2026-11-15: no buried tools, everything visible in ONE grid).
+ * Build 206 — the TOOLS GRID: the one menu holding every tool under the
+ * canvas (Sarowar's visibility law, 2026-11-15: no buried tools,
+ * everything visible in ONE grid). Since build 210 it is the editor's
+ * tools PANEL: it auto-shows on layer selection and also carries the
+ * selected panel's primary tools (the footer's fixed row steps aside
+ * while it is open).
  *
  * It REPLACES the build-202 More overlay panel. The overlay was anchored
  * over the canvas and arrived on Sarowar's phone as one clipped row — this
@@ -60,16 +63,20 @@ private val IconWhite = Color(0xFFF2F2F2)
  * [toolsGridHeightDp] is the one geometry source both sides use, so the
  * sheet and the budget cannot drift.
  *
- * Contents, in order: the 8 utility tools (the build-201 utility row's
- * IN/OUT, beat mark, marker, onion, scopes, snap, canvas — the same entries,
- * tags and semantics the More panel carried) and then the selected clip
- * panel's overflow tools, published through [MorePanelState] exactly as
- * before. The grid is 4 columns of icon + label tiles; every label is a
- * full word (two lines allowed, never truncated); past the viewport the
- * grid scrolls VERTICALLY inside the sheet — no horizontal scroll, no
- * clipped rows. Momentary entries (IN, OUT, beat, marker, canvas) close
- * the sheet on tap via [onCloseRequest]; toggles (snap, onion, scopes) and
- * clip tools keep it open, as the More panel did.
+ * Contents, in order (build 210 — the TOOLS PANEL LAW: this sheet is
+ * the ONE scrolling list for every tool under the canvas): the selected
+ * clip panel's tools first — published through [MorePanelState]; while
+ * the sheet is open the section carries the panel's FULL list (primary
+ * tools first, then its overflow), and the panel's own fixed primary
+ * row is not rendered — then the 8 utility tools (the build-201 utility
+ * row's IN/OUT, beat mark, marker, onion, scopes, snap, canvas — the
+ * same entries, tags and semantics the More panel carried). The grid is
+ * 4 columns of icon + label tiles; every label is a full word (two
+ * lines allowed, never truncated); past the viewport the grid scrolls
+ * VERTICALLY inside the sheet — no horizontal scroll, no clipped rows,
+ * nothing pinned. Momentary entries (IN, OUT, beat, marker, canvas)
+ * close the sheet on tap via [onCloseRequest]; toggles (snap, onion,
+ * scopes) and clip tools keep it open, as the More panel did.
  *
  * Geometry (dp, 360 dp reference width): sheet padding 10 dp each side +
  * 3 gaps of 8 dp → tile width (360 − 16 sheet margin − 20 − 24) / 4 = 75 dp;
@@ -147,7 +154,7 @@ fun ToolsGridSheet(
     onSnapClick: () -> Unit,
     /** Canvas button: the aspect / project format sheet. */
     onCanvasClick: () -> Unit,
-    /** The selected clip panel's overflow tools, published via [MorePanelState]; null = utility section only. */
+    /** The selected clip panel's tools, published via [MorePanelState] (full list while the panel is open, build 210); null = utility section only. */
     clipOverflow: ClipOverflowSection?,
     /** Momentary entries ask the host to close the sheet after their tap. */
     onCloseRequest: () -> Unit,
@@ -171,8 +178,10 @@ fun ToolsGridSheet(
         GridEntry("Snap", snapOn, "snap_button", "Snap", closeOnTap = false, onClick = onSnapClick) { MagnetGlyph(snapOn) },
         GridEntry("Canvas", false, "grid_button", "Canvas", closeOnTap = true, onClick = onCanvasClick) { GridGlyph() }
     )
-    // The selected panel's overflow tools ride after the utility entries,
-    // in the panel's own order, dispatched by the panel itself.
+    // The selected panel's tools ride FIRST, in the panel's own order,
+    // dispatched by the panel itself (build 210: while this sheet is the
+    // unified tools panel, the section carries the panel's FULL list —
+    // primary tools first, then its overflow).
     val clipEntries = clipOverflow?.tools?.map { tool ->
         val used = tool.id in clipOverflow.usedTools
         GridEntry(
@@ -191,7 +200,10 @@ fun ToolsGridSheet(
             )
         }
     } ?: emptyList()
-    val entries = utilityEntries + clipEntries
+    // ONE scrolling list (TOOLS PANEL LAW, build 210): clip tools first,
+    // utility tools last — every tile in this single grid scrolls
+    // together; nothing is pinned above or below it.
+    val entries = clipEntries + utilityEntries
 
     Column(
         modifier = modifier

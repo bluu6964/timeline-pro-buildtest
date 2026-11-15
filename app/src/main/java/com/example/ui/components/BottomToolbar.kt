@@ -165,7 +165,14 @@ fun ChainAddPanel(
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
     /** The tools grid's bridge (build 202): this panel's overflow actions are published here. */
-    morePanel: MorePanelState? = null
+    morePanel: MorePanelState? = null,
+    /**
+     * Build 210 (TOOLS PANEL LAW): while the unified tools panel is open
+     * it carries ALL of this panel's actions in its one scrolling list —
+     * the panel publishes its full list and the footer bar renders only
+     * the back button. False = build 202's split behaviour.
+     */
+    toolsInGrid: Boolean = false
 ) {
     val actions = listOf(
         ChainAction("Media", Icons.Default.AddPhotoAlternate, "chain_media", onMedia),
@@ -188,17 +195,28 @@ fun ChainAddPanel(
     val visibleActions = actions.take(visibleCount)
     val overflowActions = actions.drop(visibleCount)
 
-    // Publish the overflow to the tools grid (build 202): a chain
-    // action's test tag doubles as its tool id in the grid section.
+    // Publish to the tools grid (build 202): a chain action's test tag
+    // doubles as its tool id in the grid section. Build 210: while the
+    // unified panel is open the FULL action list is published.
     PublishClipOverflow(
         morePanel = morePanel,
-        section = if (overflowActions.isEmpty()) null else ClipOverflowSection(
-            key = actions.joinToString(",") { it.testTag },
-            tools = overflowActions.map { ClipToolItem(it.testTag, it.label, it.icon) },
-            usedTools = emptySet(),
-            tileTag = { it },
-            onTool = { item -> overflowActions.firstOrNull { it.testTag == item.id }?.onClick() }
-        )
+        section = when {
+            toolsInGrid && actions.isNotEmpty() -> ClipOverflowSection(
+                key = actions.joinToString(",") { it.testTag },
+                tools = actions.map { ClipToolItem(it.testTag, it.label, it.icon) },
+                usedTools = emptySet(),
+                tileTag = { it },
+                onTool = { item -> actions.firstOrNull { it.testTag == item.id }?.onClick() }
+            )
+            overflowActions.isEmpty() -> null
+            else -> ClipOverflowSection(
+                key = actions.joinToString(",") { it.testTag },
+                tools = overflowActions.map { ClipToolItem(it.testTag, it.label, it.icon) },
+                usedTools = emptySet(),
+                tileTag = { it },
+                onTool = { item -> overflowActions.firstOrNull { it.testTag == item.id }?.onClick() }
+            )
+        }
     )
 
     // Build 206: the panel floats as a rounded bar — full width, so the
@@ -225,16 +243,21 @@ fun ChainAddPanel(
             Icon(Icons.AutoMirrored.Filled.ArrowBack, "Exit chain", tint = IconActive, modifier = Modifier.size(24.dp))
         }
         Box(Modifier.width(1.dp).height(32.dp).background(Color(0xFF2C2C2C)))
-        Row(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight()
-                .padding(horizontal = CHAIN_CONTENT_PADDING_DP.dp),
-            horizontalArrangement = Arrangement.spacedBy(CHAIN_GAP_DP.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            visibleActions.forEach { action ->
-                ChainToolItem(action.label, action.icon, action.testTag, action.onClick)
+        // Build 210: not rendered while the unified tools panel is open —
+        // the actions live in its one scrolling list; only the back
+        // button stays in the footer bar.
+        if (!toolsInGrid) {
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .padding(horizontal = CHAIN_CONTENT_PADDING_DP.dp),
+                horizontalArrangement = Arrangement.spacedBy(CHAIN_GAP_DP.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                visibleActions.forEach { action ->
+                    ChainToolItem(action.label, action.icon, action.testTag, action.onClick)
+                }
             }
         }
     }

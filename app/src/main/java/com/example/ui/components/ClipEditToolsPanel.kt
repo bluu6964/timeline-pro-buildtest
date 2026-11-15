@@ -156,7 +156,15 @@ fun ClipEditToolsPanel(
      * grid. Null = nowhere to publish (the overflow is simply not shown —
      * every in-app caller passes the bridge).
      */
-    morePanel: MorePanelState? = null
+    morePanel: MorePanelState? = null,
+    /**
+     * Build 210 (TOOLS PANEL LAW): while the unified tools panel is open,
+     * it is the ONE scrolling home for ALL of this panel's tools — the
+     * panel publishes its full tool list (primary + overflow, in order)
+     * and its footer bar renders only the back button (the fixed primary
+     * row is not rendered anywhere). False = build 202's split behaviour.
+     */
+    toolsInGrid: Boolean = false
 ) {
     val allTools = (if (onEditGroup != null) listOf(ClipToolItem("edit_group", "Edit group", Icons.Default.FolderOpen))
     else emptyList()) + (if (onEditText != null) listOf(ClipToolItem("edit_text", "Edit", Icons.Default.Edit))
@@ -251,18 +259,31 @@ fun ClipEditToolsPanel(
         }
     }
 
-    // Publish the overflow to the tools grid (build 202): the section
-    // carries THIS panel's dispatch, so a tap in the grid behaves exactly
-    // like a tap in the panel. Null when everything fits or no bridge was given.
+    // Publish to the tools grid (build 202): the section carries THIS
+    // panel's dispatch, so a tap in the grid behaves exactly like a tap
+    // in the panel. Build 210: while the unified panel is open the FULL
+    // list is published (primary first, then the overflow — one list);
+    // otherwise only the overflow, and null when everything fits or no
+    // bridge was given.
     PublishClipOverflow(
         morePanel = morePanel,
-        section = if (overflowTools.isEmpty()) null else ClipOverflowSection(
-            key = tools.joinToString(",") { it.id },
-            tools = overflowTools,
-            usedTools = usedTools,
-            tileTag = { "clip_tool_$it" },
-            onTool = { dispatch(it) }
-        )
+        section = when {
+            toolsInGrid && tools.isNotEmpty() -> ClipOverflowSection(
+                key = tools.joinToString(",") { it.id },
+                tools = tools,
+                usedTools = usedTools,
+                tileTag = { "clip_tool_$it" },
+                onTool = { dispatch(it) }
+            )
+            overflowTools.isEmpty() -> null
+            else -> ClipOverflowSection(
+                key = tools.joinToString(",") { it.id },
+                tools = overflowTools,
+                usedTools = usedTools,
+                tileTag = { "clip_tool_$it" },
+                onTool = { dispatch(it) }
+            )
+        }
     )
 
     Box(
@@ -313,23 +334,28 @@ fun ClipEditToolsPanel(
 
             // 2. The primary tools (build 202 — no scrolling, no More tile;
             //    the split is ToolRowSplit's, computed from the real labels;
-            //    the overflow lives in the tools grid).
-            Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .padding(horizontal = ToolRowSplit.CONTENT_PADDING_DP.dp),
-                horizontalArrangement = Arrangement.spacedBy(ToolRowSplit.GAP_DP.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                visibleTools.forEach { tool ->
-                    ToolTile(
-                        tool = tool,
-                        used = tool.id in usedTools,
-                        onClick = { dispatch(tool) },
-                        modifier = Modifier.fillMaxHeight(),
-                        testTag = "clip_tool_${tool.id}"
-                    )
+            //    the overflow lives in the tools grid). Build 210: while
+            //    the unified tools panel is open this row is NOT rendered
+            //    at all — the tools live in the panel's one scrolling list
+            //    and only the back button stays in the footer bar.
+            if (!toolsInGrid) {
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .padding(horizontal = ToolRowSplit.CONTENT_PADDING_DP.dp),
+                    horizontalArrangement = Arrangement.spacedBy(ToolRowSplit.GAP_DP.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    visibleTools.forEach { tool ->
+                        ToolTile(
+                            tool = tool,
+                            used = tool.id in usedTools,
+                            onClick = { dispatch(tool) },
+                            modifier = Modifier.fillMaxHeight(),
+                            testTag = "clip_tool_${tool.id}"
+                        )
+                    }
                 }
             }
         }
