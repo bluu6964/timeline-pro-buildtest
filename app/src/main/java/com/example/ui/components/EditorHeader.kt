@@ -1,5 +1,5 @@
 package com.example.ui.components
-import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.foundation.layout.Column
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -44,6 +44,7 @@ import com.example.model.AspectRatio
 import com.example.ui.theme.AmBase
 import com.example.ui.theme.AmCyan
 import com.example.ui.theme.AmInk
+import com.example.ui.theme.AmSlateHeader
 import com.example.ui.theme.AmTextDim
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.amBarBrush
@@ -220,164 +221,142 @@ private fun DownloadGlyph() {
 }
 
 /**
- * Header shown while a layer is selected (it replaces [EditorHeader]): back arrow (deselect), the layer's colour dot, its
- * NAME (tap = rename) and a line about the layer (type, time range, length, hidden / parent). Export etc. come back when
- * the layer is deselected.
+ * Header shown while a layer is selected (it replaces [EditorHeader]).
  *
- * Build 166 (item 4 — Sarowar: the selected-layer header "ভালো দেখাচ্ছে না"): a clean
- * CapCut-style pass in the settled B/W language — the same flat pill as [EditorHeader],
- * a steady spacing rhythm (10 dp identity gaps, 8 dp between the action discs), a larger
- * brighter layer name (15 sp) and a legible info line (11.5 sp grey). Same buttons,
- * same order, same behaviour — look only.
+ * Build 211 (Sarowar, with his Alight Motion reference): REDESIGNED to
+ * the reference. Build 210 kept MaxCut's old two-line header (name +
+ * "Video · 0:00–0:56" subtitle + colour dot + eye) and only added
+ * buttons — rejected. This is a single-row dark SLATE bar
+ * ([AmSlateHeader] — a slate grey-violet distinct from the editor
+ * black) filling the header slot edge to edge, holding ONLY, left to
+ * right: a back arrow (deselect); the layer's NAME alone — large
+ * white, single line, ellipsised, with the reference's thin underline
+ * beneath it (it reads as the editable field it is: tap = the rename
+ * dialog, as before); then duplicate (overlapping squares — the
+ * existing duplicate), delete (trash — the existing delete) and the
+ * circled three-dots (the tools-panel toggle, white ring while open,
+ * as in build 210). NO subtitle / type-duration line, NO colour dot,
+ * NO eye: the visibility toggle is NOT lost — it lives on the
+ * timeline's lane control (the eye on each layer's row), where it has
+ * always been. The multi-select header is the same bar with back +
+ * the count only (no underline, no icons — the count is not a field).
+ * Same slot height as [EditorHeader] — the canvas never moves
+ * (CANVAS LAW).
  */
 @Composable
 fun LayerHeader(
     height: Dp,
     name: String,
-    info: String,
-    colorArgb: Long,
     onBack: () -> Unit,
-    /** Name tap + pencil: rename the layer. Null = the name is not a rename affordance (multi-select header). */
+    /** Name tap: rename the layer. Null = the name is not a rename affordance (multi-select header). */
     onRename: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
-    /** Eye button: show / hide the layer. */
-    visible: Boolean = true,
-    onToggleVisible: (() -> Unit)? = null,
-    /** Duplicate button (overlapping squares — build 210, Sarowar's Alight reference): duplicates the layer in place. */
+    /** Duplicate button (overlapping squares): duplicates the layer in place. */
     onDuplicate: (() -> Unit)? = null,
     /** Delete button (trash): deletes the layer (the caller's action carries its undo semantics). */
     onDelete: (() -> Unit)? = null,
-    /** Circled three-dots button: toggles the selected layer's tools panel (build 210's auto-show panel). */
+    /** Circled three-dots button: toggles the selected layer's tools panel. */
     onToolsClick: (() -> Unit)? = null,
-    /** Whether the tools panel is currently open (the dots button's state). */
+    /** Whether the tools panel is currently open (the dots button's ring state). */
     toolsPanelOpen: Boolean = false
 ) {
-    val barH = (height - 4.dp).coerceAtMost(46.dp)
-    val btnH = barH - 10.dp
+    // Reference icon zones are ~44 dp; never taller than the slot itself.
+    val zone = minOf(44.dp, height)
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(height)
-            .background(AmBase)
-            .padding(horizontal = 4.dp),
+            .background(AmSlateHeader)
+            .testTag("layer_header"),
         contentAlignment = Alignment.Center
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(barH)
-                .glassSurface(CircleShape, fill = amBarBrush())
-                .padding(horizontal = 12.dp),
+                .padding(horizontal = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Back: leave the layer (same as the back arrow of the tools panel).
+            // Back: leave the layer (deselect) — the editor's own chevron.
             Box(
                 modifier = Modifier
-                    .width(btnH * 1.27f)
-                    .height(btnH)
+                    .width(zone)
+                    .height(zone)
                     .semantics { contentDescription = "Back to layers" }
                     .bouncyClickable(pressedScale = 0.92f, onClick = onBack)
                     .testTag("layer_header_back"),
                 contentAlignment = Alignment.Center
             ) {
-                Canvas(Modifier.size(15.dp)) {
+                Canvas(Modifier.size(16.dp)) {
                     val w = 2.7.dp.toPx()
                     val m = w / 2f
                     drawLine(TextPrimary, Offset(size.width - m, m), Offset(m, size.height / 2f), w, StrokeCap.Round)
                     drawLine(TextPrimary, Offset(m, size.height / 2f), Offset(size.width - m, size.height - m), w, StrokeCap.Round)
                 }
             }
-            Spacer(Modifier.width(10.dp))
-            Box(Modifier.size(10.dp).background(Color(colorArgb.toInt()), CircleShape))
-            Spacer(Modifier.width(10.dp))
-            // Name + info: tapping them renames the layer (only when a
-            // rename action exists — the multi-select header's count is inert).
-            androidx.compose.foundation.layout.Column(
+            // The name field: the name alone, large and white, with the
+            // reference's underline beneath it. Tapping it renames (when
+            // a rename action exists — the multi-select count is inert
+            // and carries no underline: it is not a field).
+            Column(
                 modifier = Modifier
                     .weight(1f)
-                    .clip(RectangleShape)
+                    .padding(start = 2.dp, end = 10.dp)
                     .then(
                         if (onRename != null) Modifier
                             .semantics { contentDescription = "Rename layer" }
-                            .bouncyClickable(pressedScale = 0.97f, onClick = onRename)
+                            .bouncyClickable(pressedScale = 0.98f, onClick = onRename)
                         else Modifier
                     )
-                    .padding(horizontal = 6.dp)
-                    .testTag("layer_header_name"),
-                verticalArrangement = Arrangement.spacedBy(1.dp)
+                    .testTag("layer_header_name")
             ) {
-                Text(name, color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                Text(info, color = AmTextDim, fontSize = 11.5.sp, letterSpacing = 0.2.sp, maxLines = 1,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-            }
-            if (onToggleVisible != null) {
-                Spacer(Modifier.width(8.dp))
-                Box(
-                    modifier = Modifier
-                        .size(btnH)
-                        .semantics { contentDescription = if (visible) "Hide layer" else "Show layer" }
-                        .bouncyClickable(pressedScale = 0.92f, onClick = onToggleVisible)
-                        .testTag("layer_header_eye"),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Canvas(Modifier.size(18.dp)) {
-                        val u = size.width / 18f
-                        val c = if (visible) AmCyan else TextPrimary.copy(alpha = 0.5f)
-                        val st = Stroke(1.8f * u, cap = StrokeCap.Round, join = StrokeJoin.Round)
-                        val eye = Path().apply {
-                            moveTo(1.5f * u, 9f * u)
-                            quadraticBezierTo(9f * u, 1.5f * u, 16.5f * u, 9f * u)
-                            quadraticBezierTo(9f * u, 16.5f * u, 1.5f * u, 9f * u)
-                            close()
-                        }
-                        drawPath(eye, c, style = st)
-                        drawCircle(c, 2.6f * u, Offset(9f * u, 9f * u), style = st)
-                        if (!visible) drawLine(c, Offset(2.5f * u, 15.5f * u), Offset(15.5f * u, 2.5f * u), 1.8f * u, StrokeCap.Round)
-                    }
+                Text(
+                    name, color = TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.SemiBold,
+                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+                if (onRename != null) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(top = 3.dp)
+                            .height(1.dp)
+                            .background(TextPrimary.copy(alpha = 0.45f))
+                    )
                 }
             }
-            // Build 210: the old pencil button is gone — the name field
-            // itself is the rename tap target (the reference's style), and
-            // the freed width goes to the name and the new right-side
-            // actions below. (The pencil only duplicated the name's tap.)
             // The reference's right-side actions, in its order:
             // duplicate (overlapping squares), delete (trash), circled
-            // three-dots (the tools panel toggle). Hit boxes are 40 dp
-            // wide and the full bar height tall.
+            // three-dots (the tools panel toggle).
             if (onDuplicate != null) {
-                Spacer(Modifier.width(4.dp))
                 Box(
                     modifier = Modifier
-                        .width(40.dp)
-                        .height(barH)
+                        .width(zone)
+                        .height(zone)
                         .semantics { contentDescription = "Duplicate layer" }
                         .bouncyClickable(pressedScale = 0.92f, onClick = onDuplicate)
                         .testTag("layer_header_duplicate"),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Default.ContentCopy, contentDescription = null, tint = TextPrimary, modifier = Modifier.size(19.dp))
+                    Icon(Icons.Default.ContentCopy, contentDescription = null, tint = TextPrimary, modifier = Modifier.size(20.dp))
                 }
             }
             if (onDelete != null) {
                 Box(
                     modifier = Modifier
-                        .width(40.dp)
-                        .height(barH)
+                        .width(zone)
+                        .height(zone)
                         .semantics { contentDescription = "Delete layer" }
                         .bouncyClickable(pressedScale = 0.92f, onClick = onDelete)
                         .testTag("layer_header_delete"),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Default.Delete, contentDescription = null, tint = TextPrimary, modifier = Modifier.size(20.dp))
+                    Icon(Icons.Default.Delete, contentDescription = null, tint = TextPrimary, modifier = Modifier.size(21.dp))
                 }
             }
             if (onToolsClick != null) {
-                Spacer(Modifier.width(2.dp))
                 Box(
                     modifier = Modifier
-                        .width(40.dp)
-                        .height(barH)
+                        .width(zone)
+                        .height(zone)
                         .semantics { contentDescription = if (toolsPanelOpen) "Close layer tools" else "Layer tools" }
                         .bouncyClickable(pressedScale = 0.92f, onClick = onToolsClick)
                         .testTag("layer_header_tools"),
@@ -385,14 +364,14 @@ fun LayerHeader(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(27.dp)
-                            .border(1.2.dp, if (toolsPanelOpen) TextPrimary else AmTextDim, CircleShape),
+                            .size(28.dp)
+                            .border(1.4.dp, if (toolsPanelOpen) TextPrimary else TextPrimary.copy(alpha = 0.75f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             Icons.Default.MoreHoriz, contentDescription = null,
-                            tint = if (toolsPanelOpen) TextPrimary else AmTextDim,
-                            modifier = Modifier.size(16.dp)
+                            tint = TextPrimary,
+                            modifier = Modifier.size(17.dp)
                         )
                     }
                 }

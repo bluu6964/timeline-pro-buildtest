@@ -88,6 +88,9 @@ val AmPillSelected = Color(0xFF2E2E33)
 /** Card surface on the base (project cards, the tools-grid sheet). */
 val AmCardSurface = Color(0xFF16161A)
 
+/** Selected-layer header slate (build 211): the Alight reference's dark blue-grey bar, distinct from the editor black. */
+val AmSlateHeader = Color(0xFF262635)
+
 // ── Text hierarchy ───────────────────────────────────────────────────────
 /** Secondary text. */
 val AmTextDim = Color(0xFFA3A3A3)

@@ -21,6 +21,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -37,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.theme.AmCardSurface
 import com.example.ui.theme.AmCornerCard
+import com.example.ui.theme.AmDanger
 import com.example.ui.theme.AmPanelHigh
 import com.example.ui.theme.AmPillSelected
 import com.example.ui.theme.AmTextDim
@@ -64,13 +66,16 @@ private val IconWhite = Color(0xFFF2F2F2)
  * sheet and the budget cannot drift.
  *
  * Contents, in order (build 210 — the TOOLS PANEL LAW: this sheet is
- * the ONE scrolling list for every tool under the canvas): the selected
- * clip panel's tools first — published through [MorePanelState]; while
- * the sheet is open the section carries the panel's FULL list (primary
- * tools first, then its overflow), and the panel's own fixed primary
- * row is not rendered — then the 8 utility tools (the build-201 utility
- * row's IN/OUT, beat mark, marker, onion, scopes, snap, canvas — the
- * same entries, tags and semantics the More panel carried). The grid is
+ * the ONE scrolling list for every tool under the canvas; build 211 —
+ * NO STICKY TOOL LINES — completed it): FIRST the timeline bars'
+ * actions (SelectedBar / MultiBar, published through [BarActionsState];
+ * while the sheet is open those bars render nowhere else), then the
+ * selected clip panel's tools — published through [MorePanelState];
+ * while the sheet is open the section carries the panel's FULL list
+ * (primary tools first, then its overflow), and the panel's own fixed
+ * primary row is not rendered — then the 8 utility tools (the build-201
+ * utility row's IN/OUT, beat mark, marker, onion, scopes, snap, canvas
+ * — the same entries, tags and semantics the More panel carried). The grid is
  * 4 columns of icon + label tiles; every label is a full word (two
  * lines allowed, never truncated); past the viewport the grid scrolls
  * VERTICALLY inside the sheet — no horizontal scroll, no clipped rows,
@@ -129,6 +134,10 @@ private class GridEntry(
     val description: String,
     val closeOnTap: Boolean,
     val onClick: () -> Unit,
+    /** Delete & friends: the label reads in the semantic red (build 211, the folded bar actions). */
+    val destructive: Boolean = false,
+    /** A dimmed, inert tile (the multi bar's distribute actions below three checked layers). */
+    val enabled: Boolean = true,
     val glyph: @Composable () -> Unit
 )
 
@@ -156,6 +165,13 @@ fun ToolsGridSheet(
     onCanvasClick: () -> Unit,
     /** The selected clip panel's tools, published via [MorePanelState] (full list while the panel is open, build 210); null = utility section only. */
     clipOverflow: ClipOverflowSection?,
+    /**
+     * The timeline bars' actions (SelectedBar / MultiBar), published via
+     * [BarActionsState] (build 211 — NO STICKY TOOL LINES: while this
+     * sheet is open the bars render nowhere; their actions are this
+     * list's HEAD tiles, in their bar order). Null = no bar section.
+     */
+    barActions: BarActionsSection? = null,
     /** Momentary entries ask the host to close the sheet after their tap. */
     onCloseRequest: () -> Unit,
     /** Visible-row budget granted by the screen's lower-zone layout math (CANVAS LAW, build 207). */
@@ -200,10 +216,27 @@ fun ToolsGridSheet(
             )
         }
     } ?: emptyList()
-    // ONE scrolling list (TOOLS PANEL LAW, build 210): clip tools first,
-    // utility tools last — every tile in this single grid scrolls
-    // together; nothing is pinned above or below it.
-    val entries = clipEntries + utilityEntries
+    // The timeline bars' actions ride at the HEAD of the list (build
+    // 211): while this sheet is open the SelectedBar / MultiBar are not
+    // rendered anywhere — these tiles ARE those bars, in bar order,
+    // with their callbacks, states and tags.
+    val barEntries = barActions?.tiles?.map { tile ->
+        GridEntry(
+            label = tile.label,
+            active = false,
+            tag = tile.tag,
+            description = tile.label,
+            closeOnTap = false,
+            onClick = tile.onClick,
+            destructive = tile.destructive,
+            enabled = tile.enabled
+        ) { tile.glyph() }
+    } ?: emptyList()
+    // ONE scrolling list (TOOLS PANEL LAW, build 210; completed by build
+    // 211's no-sticky-lines law): bar actions first, then the clip
+    // panel's tools, utility tools last — every tile in this single
+    // grid scrolls together; nothing is pinned above or below it.
+    val entries = barEntries + clipEntries + utilityEntries
 
     Column(
         modifier = modifier
@@ -225,8 +258,10 @@ fun ToolsGridSheet(
         ) {
             items(entries, key = { it.tag }) { entry ->
                 GridTile(entry) {
-                    entry.onClick()
-                    if (entry.closeOnTap) onCloseRequest()
+                    if (entry.enabled) {
+                        entry.onClick()
+                        if (entry.closeOnTap) onCloseRequest()
+                    }
                 }
             }
         }
@@ -256,6 +291,7 @@ private fun GridTile(entry: GridEntry, onClick: () -> Unit) {
                     RoundedCornerShape(16.dp)
                 )
                 .clip(RoundedCornerShape(16.dp))
+                .alpha(if (entry.enabled) 1f else 0.38f)
                 .padding(horizontal = 4.dp, vertical = 4.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
@@ -269,7 +305,11 @@ private fun GridTile(entry: GridEntry, onClick: () -> Unit) {
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = entry.label,
-                color = if (entry.active) IconWhite else AmTextDim,
+                color = when {
+                    entry.destructive -> AmDanger
+                    entry.active -> IconWhite
+                    else -> AmTextDim
+                },
                 fontSize = 11.sp,
                 lineHeight = 13.sp,
                 fontWeight = if (entry.active) FontWeight.Bold else FontWeight.Normal,

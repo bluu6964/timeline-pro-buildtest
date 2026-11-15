@@ -159,6 +159,21 @@ fun AudioClipToolsPanel(
         }
     )
 
+    // Build 211 (NO STICKY TOOL LINES): while the unified tools panel
+    // is open this panel renders NOTHING at all — build 210 still left
+    // its back + divider strip pinned below the grid. The strip is
+    // gone (leaving the selection is the layer header's back arrow);
+    // the publish above still runs, so the grid keeps the full list.
+    if (toolsInGrid) {
+        Box(
+            modifier = modifier
+                .fillMaxWidth()
+                .height(height)
+                .testTag("audio_clip_tools_panel")
+        )
+        return
+    }
+
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -201,7 +216,8 @@ fun AudioClipToolsPanel(
 
             // Build 210: not rendered while the unified tools panel is
             // open — the tools live in its one scrolling list; only the
-            // back button stays in the footer bar.
+            // back button stays in the footer bar. Build 211: not even
+            // the back button — the panel renders nothing (above).
             if (!toolsInGrid) {
                 Row(
                     modifier = Modifier

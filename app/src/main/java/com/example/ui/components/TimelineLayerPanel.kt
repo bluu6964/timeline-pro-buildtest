@@ -227,7 +227,17 @@ fun TimelineLayerPanel(
     /** Selected-layer bar: Reverse button (video layers). Hidden when null. */
     onReverse: (() -> Unit)? = null,
     /** Round flat "+" button at the bottom right. Hidden when null. */
-    onAddClick: (() -> Unit)? = null
+    onAddClick: (() -> Unit)? = null,
+    /**
+     * Build 211 (NO STICKY TOOL LINES): true while the unified tools
+     * panel is open. The selected-layer bar and the multi-select bar are
+     * then NOT rendered and their bottom reserves vanish — their actions
+     * are published to the tools grid's one scrolling list instead (see
+     * [barActionsPanel]), as its head tiles.
+     */
+    toolsPanelOpen: Boolean = false,
+    /** The bar-actions bridge to the tools grid (build 211); null = nowhere to publish. */
+    barActionsPanel: BarActionsState? = null
 ) {
     val isMulti = multiSelectIds.isNotEmpty()
     val showActionBar = !isMulti && showQuickActions && selectedClipId != null
@@ -460,7 +470,7 @@ fun TimelineLayerPanel(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(verticalScrollState)
-                .padding(top = 9.dp, bottom = if (isMulti) 68.dp else if (showActionBar) SelectedBarHeight + 4.dp else 4.dp)
+                .padding(top = 9.dp, bottom = if (toolsPanelOpen && (isMulti || showActionBar)) 4.dp else if (isMulti) 68.dp else if (showActionBar) SelectedBarHeight + 4.dp else 4.dp)
         ) {
             // Timeline content, shifted so currentPlayheadMs sits under the center line.
             Box(
@@ -581,11 +591,61 @@ fun TimelineLayerPanel(
                 onClick = onAddClick,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(end = 16.dp, bottom = if (showActionBar) SelectedBarHeight + 6.dp else 10.dp)
+                    .padding(end = 16.dp, bottom = if (showActionBar && !toolsPanelOpen) SelectedBarHeight + 6.dp else 10.dp)
             )
         }
 
+        // Build 211 (NO STICKY TOOL LINES): while the tools panel is
+        // open, the selected-layer bar's actions are published to the
+        // tools grid as its HEAD tiles — same order, icons, callbacks
+        // and tags as the bar in section 6; Delete keeps its red.
+        PublishBarActions(
+            barActionsPanel,
+            if (showActionBar && toolsPanelOpen) {
+                val selIsAudioPub = tracks.any { t -> t.clips.any { it.id == selectedClipId && it.type == LayerType.AUDIO } }
+                val tiles = buildList {
+                    fun tile(
+                        label: String, tag: String,
+                        icon: androidx.compose.ui.graphics.vector.ImageVector,
+                        destructive: Boolean = false,
+                        onClick: () -> Unit
+                    ) {
+                        add(
+                            BarActionTile(label, tag, destructive = destructive, onClick = onClick) {
+                                Icon(
+                                    icon, contentDescription = null,
+                                    tint = if (destructive) AmDanger else IconActive,
+                                    modifier = Modifier.size(23.dp)
+                                )
+                            }
+                        )
+                    }
+                    tile(
+                        "Master", "bar_master",
+                        if (isMasterMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
+                        onClick = onToggleMasterAudio
+                    )
+                    tile("Split", "bar_split", Icons.Default.ContentCut, onClick = onSplitClip)
+                    tile("Copy", "bar_copy", Icons.Default.ContentCopy, onClick = onDuplicateClip)
+                    onSpeed?.let { tile("Speed", "bar_speed", Icons.Default.Speed, onClick = it) }
+                    onReverse?.let { tile("Reverse", "bar_reverse", Icons.Default.FastRewind, onClick = it) }
+                    if (!selIsAudioPub) {
+                        tile("Flip H", "bar_flip_h", Icons.Default.Flip, onClick = onFlipHorizontal)
+                        tile("Flip V", "bar_flip_v", Icons.Default.FlipCameraAndroid, onClick = onFlipVertical)
+                        onReplace?.let { tile("Replace", "bar_replace", Icons.Default.SwapHoriz, onClick = it) }
+                    }
+                    tile("Delete", "bar_delete", Icons.Default.Delete, destructive = true, onClick = onDeleteClip)
+                }
+                BarActionsSection(
+                    key = "selected:$selectedClipId:$isMasterMuted:$selIsAudioPub:${tiles.size}",
+                    tiles = tiles
+                )
+            } else null
+        )
+
         // 5. Multi-select bar (drawn after the playhead line so the line passes behind it).
+        //    Build 211: while the tools panel is open the host renders
+        //    nothing and publishes the bar's actions to the grid instead.
         if (isMulti) {
             MultiBarHost(
                 tracks = tracks,
@@ -596,6 +656,8 @@ fun TimelineLayerPanel(
                 onBooleanAction = onBooleanAction,
                 onDeleteChecked = onDeleteCheckedLayers,
                 onSelectAll = onSelectAllLayers,
+                toolsPanelOpen = toolsPanelOpen,
+                barActionsPanel = barActionsPanel,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .enterPop(fromBottom = true)
@@ -604,7 +666,10 @@ fun TimelineLayerPanel(
 
         // 6. Selected-layer action bar: full width, sits at the bottom of the layer panel
         //    (the top one of the two panels). Split / Copy / Flip / Replace / Delete.
-        if (showActionBar) {
+        //    Build 211 (NO STICKY TOOL LINES): while the tools panel is
+        //    open this bar is NOT rendered — its actions are published
+        //    to the grid as head tiles (see PublishBarActions below).
+        if (showActionBar && !toolsPanelOpen) {
             val selIsAudio = tracks.any { t -> t.clips.any { it.id == selectedClipId && it.type == LayerType.AUDIO } }
             Row(
                 modifier = Modifier
@@ -693,6 +758,10 @@ private fun MultiBarHost(
     onBooleanAction: (com.example.model.ShapeBooleanOp) -> Unit = {},
     onDeleteChecked: () -> Unit = {},
     onSelectAll: () -> Unit = {},
+    /** Build 211: while the tools panel is open, publish tiles instead of rendering the bar. */
+    toolsPanelOpen: Boolean = false,
+    /** The bar-actions bridge to the tools grid (build 211); null = nowhere to publish. */
+    barActionsPanel: BarActionsState? = null,
     modifier: Modifier = Modifier
 ) {
     val mode by remember(tracks, multiSelectIds) {
@@ -718,17 +787,38 @@ private fun MultiBarHost(
             }
         }
     }
-    MultiSelectBar(
-        mode = mode,
-        onAction = onAction,
-        selectedCount = multiSelectIds.size,
-        onSpatialAction = onSpatialAction,
-        showBooleanRow = booleanReady,
-        onBooleanAction = onBooleanAction,
-        onDeleteChecked = onDeleteChecked,
-        onSelectAll = onSelectAll,
-        modifier = modifier
+    // Build 211 (NO STICKY TOOL LINES): while the tools panel is open
+    // the bar renders nowhere — its actions are the grid's head tiles,
+    // built from the same mode / boolean state computed above.
+    PublishBarActions(
+        barActionsPanel,
+        if (toolsPanelOpen) BarActionsSection(
+            key = "multi:$mode:$booleanReady:${multiSelectIds.size}",
+            tiles = multiBarActionTiles(
+                mode = mode,
+                selectedCount = multiSelectIds.size,
+                showBooleanRow = booleanReady,
+                onAction = onAction,
+                onSpatialAction = onSpatialAction,
+                onBooleanAction = onBooleanAction,
+                onDeleteChecked = onDeleteChecked,
+                onSelectAll = onSelectAll
+            )
+        ) else null
     )
+    if (!toolsPanelOpen) {
+        MultiSelectBar(
+            mode = mode,
+            onAction = onAction,
+            selectedCount = multiSelectIds.size,
+            onSpatialAction = onSpatialAction,
+            showBooleanRow = booleanReady,
+            onBooleanAction = onBooleanAction,
+            onDeleteChecked = onDeleteChecked,
+            onSelectAll = onSelectAll,
+            modifier = modifier
+        )
+    }
 }
 
 @Composable

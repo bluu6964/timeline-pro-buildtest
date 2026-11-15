@@ -190,6 +190,83 @@ fun MultiSelectBar(
 }
 
 /**
+ * Build 211 — NO STICKY TOOL LINES: while the tools panel is open the
+ * multi-select bar is not rendered; its actions live at the HEAD of the
+ * tools grid's one scrolling list as these tiles instead — the bar's
+ * own order (mode group, time-align, spatial, distribute / chain /
+ * group / All / Delete, boolean row), its own drawn glyphs, its own
+ * callbacks. Labels are the full words the bare glyphs never showed.
+ */
+@Composable
+fun multiBarActionTiles(
+    mode: MultiBarMode,
+    selectedCount: Int,
+    showBooleanRow: Boolean,
+    onAction: (MultiAction) -> Unit,
+    onSpatialAction: (SpatialAction) -> Unit,
+    onBooleanAction: (ShapeBooleanOp) -> Unit,
+    onDeleteChecked: () -> Unit,
+    onSelectAll: () -> Unit
+): List<BarActionTile> {
+    val tiles = mutableListOf<BarActionTile>()
+    fun glyph(w: androidx.compose.ui.unit.Dp = 24.dp, h: androidx.compose.ui.unit.Dp = 20.dp, draw: DrawScope.() -> Unit): @Composable () -> Unit =
+        { Canvas(Modifier.size(w, h)) { draw() } }
+    fun action(label: String, tag: String, a: MultiAction, draw: DrawScope.() -> Unit) {
+        tiles += BarActionTile(label, tag, onClick = { onAction(a) }, glyph = glyph(draw = draw))
+    }
+    fun spatial(label: String, tag: String, a: SpatialAction, enabled: Boolean = true, draw: DrawScope.() -> Unit) {
+        tiles += BarActionTile(label, tag, enabled = enabled, onClick = { onSpatialAction(a) }, glyph = glyph(draw = draw))
+    }
+    // Row 1, left group (playhead-dependent, exactly the bar's modes).
+    when (mode) {
+        MultiBarMode.SPLIT -> {
+            action("Delete left", "multi_delete_left", MultiAction.DELETE_LEFT) { drawSplitIcon(dashLeft = true, dashRight = false) }
+            action("Split", "multi_split", MultiAction.SPLIT) { drawSplitIcon(dashLeft = false, dashRight = false) }
+            action("Delete right", "multi_delete_right", MultiAction.DELETE_RIGHT) { drawSplitIcon(dashLeft = false, dashRight = true) }
+        }
+        MultiBarMode.START -> {
+            action("Extend start", "multi_extend_start", MultiAction.EXTEND_START) { drawExtendIcon(atStart = true) }
+            action("Move start", "multi_move_start", MultiAction.MOVE_START) { drawMoveIcon(atStart = true) }
+        }
+        MultiBarMode.END -> {
+            action("Extend end", "multi_extend_end", MultiAction.EXTEND_END) { drawExtendIcon(atStart = false) }
+            action("Move end", "multi_move_end", MultiAction.MOVE_END) { drawMoveIcon(atStart = false) }
+        }
+    }
+    // Row 1, right group: time align.
+    action("Align start", "multi_align_start", MultiAction.ALIGN_START) { drawBars(BarsKind.LEFT) }
+    action("Sequence", "multi_sequence", MultiAction.SEQUENCE) { drawBars(BarsKind.STAIR) }
+    action("Align end", "multi_align_end", MultiAction.ALIGN_END) { drawBars(BarsKind.RIGHT) }
+    // Row 2: canvas spatial align + canvas centre.
+    spatial("Align left", "multi_align_left", SpatialAction.ALIGN_LEFT) { drawAlignGlyph(AlignGlyph.LEFT) }
+    spatial("Centre H", "multi_centre_h", SpatialAction.ALIGN_CENTER_H) { drawAlignGlyph(AlignGlyph.CENTER_H) }
+    spatial("Align right", "multi_align_right", SpatialAction.ALIGN_RIGHT) { drawAlignGlyph(AlignGlyph.RIGHT) }
+    spatial("Align top", "multi_align_top", SpatialAction.ALIGN_TOP) { drawAlignGlyph(AlignGlyph.TOP) }
+    spatial("Centre V", "multi_centre_v", SpatialAction.ALIGN_CENTER_V) { drawAlignGlyph(AlignGlyph.CENTER_V) }
+    spatial("Align bottom", "multi_align_bottom", SpatialAction.ALIGN_BOTTOM) { drawAlignGlyph(AlignGlyph.BOTTOM) }
+    spatial("Canvas centre H", "multi_canvas_centre_h", SpatialAction.CANVAS_CENTER_H) { drawCanvasCentreGlyph(horizontal = true) }
+    spatial("Canvas centre V", "multi_canvas_centre_v", SpatialAction.CANVAS_CENTER_V) { drawCanvasCentreGlyph(horizontal = false) }
+    // Row 3: distribute (needs >= 3), chain, group, All, Delete.
+    spatial("Distribute H", "multi_distribute_h", SpatialAction.DISTRIBUTE_H, enabled = selectedCount >= 3) { drawDistributeGlyph(horizontal = true) }
+    spatial("Distribute V", "multi_distribute_v", SpatialAction.DISTRIBUTE_V, enabled = selectedCount >= 3) { drawDistributeGlyph(horizontal = false) }
+    action("Chain", "multi_chain", MultiAction.CHAIN) { drawChainIcon() }
+    action("Group", "multi_group", MultiAction.GROUP) { drawGroupIcon() }
+    tiles += BarActionTile("All", "multi_all", onClick = onSelectAll, glyph = glyph { drawSelectAllGlyph() })
+    tiles += BarActionTile("Delete", "multi_delete", destructive = true, onClick = onDeleteChecked, glyph = glyph { drawTrashGlyph() })
+    // Row 4: shape booleans (only when the bar would show them).
+    if (showBooleanRow) {
+        for (op in ShapeBooleanOp.values()) {
+            tiles += BarActionTile(
+                op.displayName, "multi_boolean_${op.name.lowercase()}",
+                onClick = { onBooleanAction(op) },
+                glyph = glyph(w = 28.dp, h = 20.dp) { drawBooleanGlyph(op) }
+            )
+        }
+    }
+    return tiles
+}
+
+/**
  * A boolean tile of the third row: a drawn Venn glyph over a small name (the ops are
  * not self-evident as bare icons on first sight; the name is part of the tile, in the
  * bar's bare B/W language — no box, no fill).

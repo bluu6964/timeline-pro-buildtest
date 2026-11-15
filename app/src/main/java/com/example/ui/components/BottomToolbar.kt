@@ -171,6 +171,8 @@ fun ChainAddPanel(
      * it carries ALL of this panel's actions in its one scrolling list —
      * the panel publishes its full list and the footer bar renders only
      * the back button. False = build 202's split behaviour.
+     * Build 211: the footer bar renders NOTHING while the panel is open
+     * (the back strip is gone too — see the early return below).
      */
     toolsInGrid: Boolean = false
 ) {
@@ -218,6 +220,21 @@ fun ChainAddPanel(
             )
         }
     )
+
+    // Build 211 (NO STICKY TOOL LINES): while the unified tools panel
+    // is open this panel renders NOTHING at all — build 210 still left
+    // its back + divider strip pinned below the grid. The strip is
+    // gone (leaving the selection is the layer header's back arrow);
+    // the publish above still runs, so the grid keeps the full list.
+    if (toolsInGrid) {
+        Box(
+            modifier = modifier
+                .fillMaxWidth()
+                .height(height)
+                .testTag("chain_add_panel")
+        )
+        return
+    }
 
     // Build 206: the panel floats as a rounded bar — full width, so the
     // ToolRowSplit budgets are untouched.

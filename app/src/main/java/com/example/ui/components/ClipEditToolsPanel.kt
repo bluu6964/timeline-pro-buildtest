@@ -163,6 +163,8 @@ fun ClipEditToolsPanel(
      * panel publishes its full tool list (primary + overflow, in order)
      * and its footer bar renders only the back button (the fixed primary
      * row is not rendered anywhere). False = build 202's split behaviour.
+     * Build 211: the footer bar renders NOTHING while the panel is open
+     * (the back strip is gone too — see the early return below).
      */
     toolsInGrid: Boolean = false
 ) {
@@ -286,6 +288,22 @@ fun ClipEditToolsPanel(
         }
     )
 
+    // Build 211 (NO STICKY TOOL LINES): while the unified tools panel
+    // is open this panel renders NOTHING at all — build 210 still left
+    // its back + divider strip pinned below the grid. The strip is
+    // gone: leaving the selection is the layer header's back arrow,
+    // and the screen gives this footer's height to the grid. The
+    // publish above still runs, so the grid keeps the full tool list.
+    if (toolsInGrid) {
+        Box(
+            modifier = modifier
+                .fillMaxWidth()
+                .height(height)
+                .testTag("clip_edit_tools_panel")
+        )
+        return
+    }
+
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -337,7 +355,8 @@ fun ClipEditToolsPanel(
             //    the overflow lives in the tools grid). Build 210: while
             //    the unified tools panel is open this row is NOT rendered
             //    at all — the tools live in the panel's one scrolling list
-            //    and only the back button stays in the footer bar.
+            //    and (build 211) not even the back button stays — the
+            //    panel renders nothing at all in that state (above).
             if (!toolsInGrid) {
                 Row(
                     modifier = Modifier

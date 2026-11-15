@@ -109,3 +109,23 @@ fun PublishClipOverflow(morePanel: MorePanelState?, section: ClipOverflowSection
         }
     }
 }
+
+/**
+ * Publishes [section] (the timeline bars' actions as grid tiles, build
+ * 211) to the tools grid while the publisher is composed — the same
+ * identity discipline as [PublishClipOverflow], so a panel swap can
+ * never clear the incoming publisher's section.
+ */
+@Composable
+fun PublishBarActions(state: BarActionsState?, section: BarActionsSection?) {
+    val latestSection = rememberUpdatedState(section)
+    DisposableEffect(state) {
+        val provider: () -> BarActionsSection? = { latestSection.value }
+        if (state != null) state.sectionProvider = provider
+        onDispose {
+            if (state != null && state.sectionProvider === provider) {
+                state.sectionProvider = null
+            }
+        }
+    }
+}
