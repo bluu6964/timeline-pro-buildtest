@@ -1,81 +1,68 @@
 package com.example.ui.components
-import androidx.compose.ui.graphics.RectangleShape
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.AccountTree
-import androidx.compose.material.icons.filled.Brush
 import androidx.compose.material.icons.filled.Animation
+import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.AutoFixHigh
+import androidx.compose.material.icons.filled.Brush
 import androidx.compose.material.icons.filled.CenterFocusStrong
+import androidx.compose.material.icons.filled.ClearAll
 import androidx.compose.material.icons.filled.ClosedCaption
 import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.CopyAll
 import androidx.compose.material.icons.filled.Crop
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Face
+import androidx.compose.material.icons.filled.FileCopy
 import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material.icons.filled.Polyline
-import androidx.compose.material.icons.filled.Flip
-import androidx.compose.material.icons.filled.FlipCameraAndroid
 import androidx.compose.material.icons.filled.GpsFixed
-import androidx.compose.material.icons.filled.Layers
-import androidx.compose.material.icons.filled.LayersClear
-import androidx.compose.material.icons.filled.OpenWith
-import androidx.compose.material.icons.filled.Save
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Label
+import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.LayersClear
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.ClearAll
-import androidx.compose.material.icons.filled.FileCopy
-import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.OpenWith
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Polyline
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Tonality
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.example.ui.theme.AmCornerItem
+import com.example.model.ToolRowSplit
 import com.example.ui.theme.AmHairline
-import com.example.ui.theme.AmTextDim
 import com.example.ui.theme.EditorBackground
 import com.example.ui.theme.IconActive
 import com.example.ui.util.bouncyClickable
@@ -205,155 +192,154 @@ fun ClipEditToolsPanel(
     else emptyList()) + (if (onPasteLayer != null) listOf(ClipToolItem("paste_layer", "Paste layer", Icons.Default.ContentPaste))
     else emptyList())
     val tools = if (onlyTools == null) allTools else allTools.filter { it.id in onlyTools }
-    val toolsListState = rememberLazyListState()
 
-    Row(
+    // Build 202 — "More tools" split (Sarowar 2026-11-15): the row no longer
+    // scrolls. The first tools that FIT at this width stay visible (existing
+    // order, budget = model/ToolRowSplit, harness-pinned); the rest sit
+    // behind the More tile and open as a grid above the row. If everything
+    // fits (Null / Camera / Controller tool sets), there is no More tile.
+    val screenWidthDp = LocalConfiguration.current.screenWidthDp
+    val visibleCount = ToolRowSplit.visibleCountForLabels(tools.map { it.label }, screenWidthDp)
+    val visibleTools = tools.take(visibleCount)
+    val overflowTools = tools.drop(visibleCount)
+    // Expansion resets whenever the offered tool set changes (a different
+    // layer / layer type was selected); it survives plain recompositions.
+    var expanded by remember(tools.joinToString(",") { it.id }) { mutableStateOf(false) }
+    // State honesty: a USED tool hidden behind More still shows — the More
+    // tile itself reads white while any overflow tool is in use, and while
+    // the grid is open.
+    val moreActive = expanded || overflowTools.any { it.id in usedTools }
+
+    fun dispatch(tool: ClipToolItem) {
+        when (tool.id) {
+            "edit_text" -> onEditText?.invoke()
+            "edit_shape" -> onEditShape?.invoke()
+            "edit_points" -> onEditPoints?.invoke()
+            "effects" -> onEffects()
+            "animations" -> onAnimations()
+            "color" -> onColor()
+            "transform" -> onTransform()
+            "crop" -> onCrop()
+            "blend" -> onBlend()
+            "copy_keyframes" -> onCopyKeyframes?.invoke()
+            "paste_keyframes" -> onPasteKeyframes?.invoke()
+            "copy_effects" -> onCopyEffects?.invoke()
+            "paste_effects" -> onPasteEffects?.invoke()
+            "cutout" -> onCutout?.invoke()
+            "roto" -> onRoto?.invoke()
+            "track" -> onTrack?.invoke()
+            "remove" -> onRemove?.invoke()
+            "stabilize" -> onStabilize?.invoke()
+            "captions" -> onCaptions?.invoke()
+            "face_ai" -> onFaceAi?.invoke()
+            "face_swap" -> onFaceSwap?.invoke()
+            "volume" -> onVolume?.invoke()
+            "masks" -> onMasks?.invoke()
+            "parent" -> onParent?.invoke()
+            "ungroup" -> onUngroup?.invoke()
+            "save_template" -> onSaveTemplate?.invoke()
+            "edit_group" -> onEditGroup?.invoke()
+            "freeze" -> onFreeze?.invoke()
+            "rename" -> onRename?.invoke()
+            "lock" -> onLockLayer?.invoke()
+            "solo" -> onSoloLayer?.invoke()
+            "label" -> onLabelColor?.invoke()
+            "clear_keyframes" -> onClearKeyframes?.invoke()
+            "copy_layer" -> onCopyLayer?.invoke()
+            "paste_layer" -> onPasteLayer?.invoke()
+        }
+    }
+
+    Box(
         modifier = modifier
             .fillMaxWidth()
             .height(height)
-            .background(EditorBackground)
-            .drawBehind {
-                // Hairline separating the tools row from the timeline (B/W language).
-                drawLine(AmHairline, Offset(0f, 0f), Offset(size.width, 0f), strokeWidth = 1.dp.toPx())
-            }
-            .padding(vertical = 4.dp)
-            .testTag("clip_edit_tools_panel"),
-        verticalAlignment = Alignment.CenterVertically
+            .testTag("clip_edit_tools_panel")
     ) {
-        // 1. Left Back Button (matching screenshot) to deselect clip and return to main toolbar
-        Box(
-            modifier = Modifier
-                .padding(start = 8.dp, end = 6.dp)
-                .size(46.dp)
-                .bouncyClickable(
-                    pressedScale = 0.88f,
-                    hoverScale = 1.08f,
-                    onClick = onDeselect
-                )
-                .testTag("clip_tools_back_button"),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "Exit Clip Edit",
-                tint = IconActive,
-                modifier = Modifier.size(24.dp)
+        if (expanded && overflowTools.isNotEmpty()) {
+            val gridH = ToolRowSplit.gridHeightDp(overflowTools.size)
+            OverflowToolsGrid(
+                tools = overflowTools,
+                usedTools = usedTools,
+                height = gridH.dp,
+                containerTag = "clip_tools_more_grid",
+                tileTag = { "clip_tool_$it" },
+                onTool = { dispatch(it) },
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .offset(y = (-gridH).dp)
             )
         }
 
-        // Vertical divider
-        Box(
+        Row(
             modifier = Modifier
-                .width(1.dp)
-                .height(32.dp)
-                .background(AmHairline)
-        )
-
-        // 2. Horizontal Scrolling Tools Panel (matching screenshot). A video layer can offer
-        //    ~20 tools — far more than fit — so while more tools sit off-screen to the right,
-        //    the row's right edge fades out as a "there is more" cue.
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight()
-        ) {
-        LazyRow(
-            state = toolsListState,
-            modifier = Modifier
-                .fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                .fillMaxSize()
+                .background(EditorBackground)
+                .drawBehind {
+                    // Hairline separating the tools row from the timeline (B/W language).
+                    drawLine(AmHairline, Offset(0f, 0f), Offset(size.width, 0f), strokeWidth = 1.dp.toPx())
+                }
+                .padding(vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            items(tools) { tool ->
-                Box(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .bouncyClickable(
-                            pressedScale = 0.88f,
-                            hoverScale = 1.08f,
-                            onClick = {
-                                when (tool.id) {
-                                    "edit_text" -> onEditText?.invoke()
-                                    "edit_shape" -> onEditShape?.invoke()
-                                    "edit_points" -> onEditPoints?.invoke()
-                                    "effects" -> onEffects()
-                                    "animations" -> onAnimations()
-                                    "color" -> onColor()
-                                    "transform" -> onTransform()
-                                    "crop" -> onCrop()
-                                    "blend" -> onBlend()
-                                    "copy_keyframes" -> onCopyKeyframes?.invoke()
-                                    "paste_keyframes" -> onPasteKeyframes?.invoke()
-                                    "copy_effects" -> onCopyEffects?.invoke()
-                                    "paste_effects" -> onPasteEffects?.invoke()
-                                    "cutout" -> onCutout?.invoke()
-                                    "roto" -> onRoto?.invoke()
-                                    "track" -> onTrack?.invoke()
-                                    "remove" -> onRemove?.invoke()
-                                    "stabilize" -> onStabilize?.invoke()
-                                    "captions" -> onCaptions?.invoke()
-                                    "face_ai" -> onFaceAi?.invoke()
-                                    "face_swap" -> onFaceSwap?.invoke()
-                                    "volume" -> onVolume?.invoke()
-                                    "masks" -> onMasks?.invoke()
-                                    "parent" -> onParent?.invoke()
-                                    "ungroup" -> onUngroup?.invoke()
-                                    "save_template" -> onSaveTemplate?.invoke()
-                                    "edit_group" -> onEditGroup?.invoke()
-                                    "freeze" -> onFreeze?.invoke()
-                                    "rename" -> onRename?.invoke()
-                                    "lock" -> onLockLayer?.invoke()
-                                    "solo" -> onSoloLayer?.invoke()
-                                    "label" -> onLabelColor?.invoke()
-                                    "clear_keyframes" -> onClearKeyframes?.invoke()
-                                    "copy_layer" -> onCopyLayer?.invoke()
-                                    "paste_layer" -> onPasteLayer?.invoke()
-                                }
-                            }
-                        )
-                        .testTag("clip_tool_${tool.id}"),
-                    contentAlignment = Alignment.Center
-                ) {
-                    val used = tool.id in usedTools
-                    // BARE since the boxless order (build 183): no tile, no used-outline —
-                    // the used state is the white bold icon + label below (build 166).
-                    Column(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                    Icon(
-                        imageVector = tool.icon,
-                        contentDescription = tool.label,
-                        tint = if (used) Color.White else AmTextDim,
-                        modifier = Modifier.size(23.dp)
-                    )
-
-                    Spacer(modifier = Modifier.height(3.dp))
-
-                    Text(
-                        text = tool.label,
-                        color = if (used) Color.White else AmTextDim,
-                        fontSize = 11.sp,
-                        fontWeight = if (used) FontWeight.Bold else FontWeight.Normal,
-                        maxLines = 1
-                    )
-                    }
-                }
-            }
-        }
-        if (toolsListState.canScrollForward) {
+            // 1. Left Back Button to deselect clip and return to main toolbar
             Box(
                 modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .fillMaxHeight()
-                    .width(30.dp)
-                    .background(
-                        Brush.horizontalGradient(listOf(Color.Transparent, EditorBackground))
+                    .padding(start = 8.dp, end = 6.dp)
+                    .size(46.dp)
+                    .bouncyClickable(
+                        pressedScale = 0.88f,
+                        hoverScale = 1.08f,
+                        onClick = onDeselect
                     )
+                    .testTag("clip_tools_back_button"),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Exit Clip Edit",
+                    tint = IconActive,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+
+            // Vertical divider
+            Box(
+                modifier = Modifier
+                    .width(1.dp)
+                    .height(32.dp)
+                    .background(AmHairline)
             )
-        }
+
+            // 2. The visible tools + the More tile (build 202 — no scrolling;
+            //    the split is ToolRowSplit's, computed from the real labels).
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .padding(horizontal = ToolRowSplit.CONTENT_PADDING_DP.dp),
+                horizontalArrangement = Arrangement.spacedBy(ToolRowSplit.GAP_DP.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                visibleTools.forEach { tool ->
+                    ToolTile(
+                        tool = tool,
+                        used = tool.id in usedTools,
+                        onClick = { dispatch(tool) },
+                        modifier = Modifier.fillMaxHeight(),
+                        testTag = "clip_tool_${tool.id}"
+                    )
+                }
+                if (overflowTools.isNotEmpty()) {
+                    ToolTile(
+                        tool = ClipToolItem("more", ToolRowSplit.MORE_LABEL, Icons.Default.Apps),
+                        used = moreActive,
+                        onClick = { expanded = !expanded },
+                        modifier = Modifier.fillMaxHeight(),
+                        testTag = "clip_tool_more"
+                    )
+                }
+            }
         }
     }
 }

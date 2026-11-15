@@ -3,53 +3,48 @@ package com.example.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.ClosedCaption
-import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentPaste
-import androidx.compose.material.icons.filled.Label
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.FileCopy
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.ContentCut
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FastRewind
+import androidx.compose.material.icons.filled.FileCopy
+import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.Label
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Tonality
+import androidx.compose.material.icons.filled.TrendingDown
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.material.icons.filled.GraphicEq
-import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.TrendingDown
+import com.example.model.ToolRowSplit
 import com.example.ui.theme.AmHairline
-import com.example.ui.theme.AmTextDim
 import com.example.ui.theme.EditorBackground
 import com.example.ui.theme.IconActive
 import com.example.ui.util.bouncyClickable
@@ -110,102 +105,116 @@ fun AudioClipToolsPanel(
     else emptyList()) + (if (onPasteLayer != null) listOf(ClipToolItem("paste_layer", "Paste layer", Icons.Default.ContentPaste))
     else emptyList())
 
-    Row(
+    // Build 202 — the same "More tools" split as the visual panel
+    // (model/ToolRowSplit): no scrolling; the first tools that fit stay
+    // visible, the rest open as a grid above the row behind the More tile.
+    val screenWidthDp = LocalConfiguration.current.screenWidthDp
+    val visibleCount = ToolRowSplit.visibleCountForLabels(tools.map { it.label }, screenWidthDp)
+    val visibleTools = tools.take(visibleCount)
+    val overflowTools = tools.drop(visibleCount)
+    var expanded by remember(tools.joinToString(",") { it.id }) { mutableStateOf(false) }
+    // A used tool hidden behind More keeps the More tile white (state honesty).
+    val moreActive = expanded || overflowTools.any { it.id in usedTools }
+
+    fun dispatch(tool: ClipToolItem) {
+        when (tool.id) {
+            "volume" -> onVolume()
+            "fade" -> onFade()
+            "speed" -> onSpeed()
+            "reverse" -> onReverse()
+            "beats" -> onDetectBeats?.invoke()
+            "ducking" -> onDucking?.invoke()
+            "noise" -> onNoiseReduction?.invoke()
+            "captions" -> onCaptions?.invoke()
+            "rename" -> onRename?.invoke()
+            "lock" -> onLockLayer?.invoke()
+            "solo" -> onSoloLayer?.invoke()
+            "label" -> onLabelColor?.invoke()
+            "copy_layer" -> onCopyLayer?.invoke()
+            "paste_layer" -> onPasteLayer?.invoke()
+        }
+    }
+
+    Box(
         modifier = modifier
             .fillMaxWidth()
             .height(height)
-            .background(EditorBackground)
-            .drawBehind {
-                // Hairline separating the tools row from the timeline (B/W language).
-                drawLine(AmHairline, Offset(0f, 0f), Offset(size.width, 0f), strokeWidth = 1.dp.toPx())
-            }
-            .padding(vertical = 4.dp)
-            .testTag("audio_clip_tools_panel"),
-        verticalAlignment = Alignment.CenterVertically
+            .testTag("audio_clip_tools_panel")
     ) {
-        Box(
-            modifier = Modifier
-                .padding(start = 8.dp, end = 6.dp)
-                .size(46.dp)
-                .bouncyClickable(pressedScale = 0.88f, hoverScale = 1.08f, onClick = onDeselect)
-                .testTag("audio_tools_back_button"),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "Exit audio edit",
-                tint = IconActive,
-                modifier = Modifier.size(24.dp)
+        if (expanded && overflowTools.isNotEmpty()) {
+            val gridH = ToolRowSplit.gridHeightDp(overflowTools.size)
+            OverflowToolsGrid(
+                tools = overflowTools,
+                usedTools = usedTools,
+                height = gridH.dp,
+                containerTag = "audio_tools_more_grid",
+                tileTag = { "audio_tool_$it" },
+                onTool = { dispatch(it) },
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .offset(y = (-gridH).dp)
             )
         }
 
-        Box(
+        Row(
             modifier = Modifier
-                .width(1.dp)
-                .height(32.dp)
-                .background(AmHairline)
-        )
-
-        LazyRow(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight(),
-            contentPadding = PaddingValues(horizontal = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                .fillMaxSize()
+                .background(EditorBackground)
+                .drawBehind {
+                    // Hairline separating the tools row from the timeline (B/W language).
+                    drawLine(AmHairline, Offset(0f, 0f), Offset(size.width, 0f), strokeWidth = 1.dp.toPx())
+                }
+                .padding(vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            items(tools) { tool ->
-                Box(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .bouncyClickable(
-                            pressedScale = 0.88f,
-                            hoverScale = 1.08f,
-                            onClick = {
-                                when (tool.id) {
-                                    "volume" -> onVolume()
-                                    "fade" -> onFade()
-                                    "speed" -> onSpeed()
-                                    "reverse" -> onReverse()
-                                    "beats" -> onDetectBeats?.invoke()
-                                    "ducking" -> onDucking?.invoke()
-                                    "noise" -> onNoiseReduction?.invoke()
-                                    "captions" -> onCaptions?.invoke()
-                                    "rename" -> onRename?.invoke()
-                                    "lock" -> onLockLayer?.invoke()
-                                    "solo" -> onSoloLayer?.invoke()
-                                    "label" -> onLabelColor?.invoke()
-                                    "copy_layer" -> onCopyLayer?.invoke()
-                                    "paste_layer" -> onPasteLayer?.invoke()
-                                }
-                            }
-                        )
-                        .testTag("audio_tool_${tool.id}"),
-                    contentAlignment = Alignment.Center
-                ) {
-                    // Used-tool state (build 201, S-7): white + bold when the
-                    // tool is in the used set — ClipEditToolsPanel's language.
-                    val used = tool.id in usedTools
-                    Column(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                    Icon(
-                        imageVector = tool.icon,
-                        contentDescription = tool.label,
-                        tint = if (used) Color.White else AmTextDim,
-                        modifier = Modifier.size(23.dp)
+            Box(
+                modifier = Modifier
+                    .padding(start = 8.dp, end = 6.dp)
+                    .size(46.dp)
+                    .bouncyClickable(pressedScale = 0.88f, hoverScale = 1.08f, onClick = onDeselect)
+                    .testTag("audio_tools_back_button"),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Exit audio edit",
+                    tint = IconActive,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .width(1.dp)
+                    .height(32.dp)
+                    .background(AmHairline)
+            )
+
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .padding(horizontal = ToolRowSplit.CONTENT_PADDING_DP.dp),
+                horizontalArrangement = Arrangement.spacedBy(ToolRowSplit.GAP_DP.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                visibleTools.forEach { tool ->
+                    ToolTile(
+                        tool = tool,
+                        used = tool.id in usedTools,
+                        onClick = { dispatch(tool) },
+                        modifier = Modifier.fillMaxHeight(),
+                        testTag = "audio_tool_${tool.id}"
                     )
-                    Spacer(modifier = Modifier.height(3.dp))
-                    Text(
-                        text = tool.label,
-                        color = if (used) Color.White else AmTextDim,
-                        fontSize = 11.sp,
-                        fontWeight = if (used) FontWeight.Bold else FontWeight.Normal,
-                        maxLines = 1
+                }
+                if (overflowTools.isNotEmpty()) {
+                    ToolTile(
+                        tool = ClipToolItem("more", ToolRowSplit.MORE_LABEL, Icons.Default.Apps),
+                        used = moreActive,
+                        onClick = { expanded = !expanded },
+                        modifier = Modifier.fillMaxHeight(),
+                        testTag = "audio_tool_more"
                     )
-                    }
                 }
             }
         }
