@@ -28,9 +28,7 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -202,20 +200,25 @@ fun ProjectsDialog(
             }
         },
         confirmButton = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 if (missingMediaCount > 0) {
-                    TextButton(onClick = onFixMissingMedia) {
-                        Text("Missing media ($missingMediaCount)", color = Color(0xFFFFB74D))
-                    }
+                    DialogSecondaryButton(
+                        text = "Missing media ($missingMediaCount)",
+                        onClick = onFixMissingMedia,
+                        contentColor = Color(0xFFFFB74D)
+                    )
                 }
-                TextButton(onClick = onImport) { Text("Import", color = HeaderCyan) }
+                DialogSecondaryButton(text = "Import", onClick = onImport)
                 // The primary action: the violet pill (build 206 redesign).
                 VioletPillButton(onClick = onNew) {
                     Text("New project", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                 }
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Close", color = TextSecondary) } }
+        dismissButton = { DialogSecondaryButton(text = "Close", onClick = onDismiss) }
     )
 
     renaming?.let { p ->
@@ -226,15 +229,15 @@ fun ProjectsDialog(
         shape = RoundedCornerShape(AmCornerCard),
             title = { Text("Rename", color = HeaderText) },
             text = {
-                OutlinedTextField(value = text, onValueChange = { text = it.take(60) }, singleLine = true)
+                PillTextField(value = text, onValueChange = { text = it.take(60) })
             },
             confirmButton = {
-                TextButton(onClick = {
+                DialogPrimaryButton(text = "OK", onClick = {
                     if (text.isNotBlank()) onRename(p.id, text)
                     renaming = null
-                }) { Text("OK", color = HeaderCyan) }
+                })
             },
-            dismissButton = { TextButton(onClick = { renaming = null }) { Text("Cancel", color = TextSecondary) } }
+            dismissButton = { DialogSecondaryButton(text = "Cancel", onClick = { renaming = null }) }
         )
     }
 
@@ -246,12 +249,12 @@ fun ProjectsDialog(
             title = { Text("Delete project?", color = HeaderText) },
             text = { Text("\"${p.name}\" will be removed. This cannot be undone.", color = TextSecondary) },
             confirmButton = {
-                TextButton(onClick = {
+                DialogDangerButton(text = "Delete", onClick = {
                     onDelete(p.id)
                     deleting = null
-                }) { Text("Delete", color = AmDanger) }
+                })
             },
-            dismissButton = { TextButton(onClick = { deleting = null }) { Text("Cancel", color = TextSecondary) } }
+            dismissButton = { DialogSecondaryButton(text = "Cancel", onClick = { deleting = null }) }
         )
     }
 }

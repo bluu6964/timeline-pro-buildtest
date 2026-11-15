@@ -1,7 +1,5 @@
 package com.example.ui.components
 
-import com.example.ui.theme.AmCornerCard
-import androidx.compose.ui.graphics.RectangleShape
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -46,9 +44,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
+import com.example.ui.theme.AmCardSurface
 import com.example.ui.theme.AmPanel
+import com.example.ui.theme.AmPanelHigh
+import com.example.ui.theme.AmPillSelected
+import com.example.ui.theme.AmSheetShape
 import com.example.ui.theme.AmTextDim
-import com.example.ui.theme.EditorSurfaceVariant
 import com.example.ui.theme.NeonCyan
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
@@ -75,7 +76,8 @@ fun ClipEffectsSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = AmPanel,
-        shape = RoundedCornerShape(AmCornerCard)
+        shape = AmSheetShape,
+        dragHandle = { SheetDragHandle() }
     ) {
         Column(
             modifier = Modifier
@@ -99,10 +101,16 @@ fun ClipEffectsSheet(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Box(
-                            modifier = Modifier.size(64.dp),
+                            modifier = Modifier
+                                .size(64.dp)
+                                .background(
+                                    if (isSelected) AmPillSelected else AmCardSurface,
+                                    RoundedCornerShape(18.dp)
+                                )
+                                .clip(RoundedCornerShape(18.dp)),
                             contentAlignment = Alignment.Center
                         ) {
-                            // BARE tile (boxless order, build 183): white vs grey glyph.
+                            // Rounded tile (build 207): selected = filled pill surface.
                             Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = if (isSelected) Color.White else AmTextDim, modifier = Modifier.size(28.dp))
                         }
                         Spacer(modifier = Modifier.height(6.dp))
@@ -129,7 +137,8 @@ fun ClipReplaceSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = AmPanel,
-        shape = RoundedCornerShape(AmCornerCard)
+        shape = AmSheetShape,
+        dragHandle = { SheetDragHandle() }
     ) {
         Column(
             modifier = Modifier
@@ -141,15 +150,17 @@ fun ClipReplaceSheet(
             Spacer(modifier = Modifier.height(14.dp))
 
             mediaOptions.forEach { (res, name, desc) ->
+                // (card rows, spaced by the spacer after each row)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RectangleShape)
+                        .background(AmCardSurface, RoundedCornerShape(20.dp))
+                        .clip(RoundedCornerShape(20.dp))
                         .bouncyClickable(onClick = {
                             onMediaSelected(res, name)
                             onDismiss()
                         })
-                        .padding(vertical = 8.dp),
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Image(
@@ -158,7 +169,7 @@ fun ClipReplaceSheet(
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
                             .size(54.dp)
-                            .clip(RectangleShape)
+                            .clip(RoundedCornerShape(12.dp))
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
@@ -166,6 +177,7 @@ fun ClipReplaceSheet(
                         Text(desc, color = TextSecondary, fontSize = 12.sp)
                     }
                 }
+                Spacer(modifier = Modifier.height(8.dp))
             }
         }
     }
@@ -183,7 +195,8 @@ fun ClipBlendSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = AmPanel,
-        shape = RoundedCornerShape(AmCornerCard)
+        shape = AmSheetShape,
+        dragHandle = { SheetDragHandle() }
     ) {
         Column(
             modifier = Modifier
@@ -199,8 +212,11 @@ fun ClipBlendSheet(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RectangleShape)
-                        .background(if (isSelected) EditorSurfaceVariant else Color.Transparent)
+                        .background(
+                            if (isSelected) AmPillSelected else AmCardSurface,
+                            RoundedCornerShape(20.dp)
+                        )
+                        .clip(RoundedCornerShape(20.dp))
                         .bouncyClickable(onClick = {
                             onBlendSelected(mode)
                             onDismiss()
@@ -214,6 +230,7 @@ fun ClipBlendSheet(
                         Icon(Icons.Default.Check, contentDescription = null, tint = NeonCyan, modifier = Modifier.size(20.dp))
                     }
                 }
+                Spacer(modifier = Modifier.height(6.dp))
             }
         }
     }
@@ -230,7 +247,8 @@ fun ClipCropSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = AmPanel,
-        shape = RoundedCornerShape(AmCornerCard)
+        shape = AmSheetShape,
+        dragHandle = { SheetDragHandle() }
     ) {
         Column(
             modifier = Modifier
@@ -245,8 +263,8 @@ fun ClipCropSheet(
                 items(cropRatios) { ratio ->
                     Box(
                         modifier = Modifier
-                            .clip(RectangleShape)
-                            .background(EditorSurfaceVariant)
+                            .background(AmPanelHigh, CircleShape)
+                            .clip(CircleShape)
                             .bouncyClickable(onClick = {
                                 onCropRatioSelected(ratio)
                                 onDismiss()

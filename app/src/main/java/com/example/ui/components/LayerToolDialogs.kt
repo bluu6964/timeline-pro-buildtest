@@ -18,9 +18,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -50,18 +48,16 @@ fun RenameLayerDialog(
         shape = RoundedCornerShape(AmCornerCard),
         title = { Text("Rename layer") },
         text = {
-            OutlinedTextField(
+            PillTextField(
                 value = text,
-                onValueChange = { text = it.take(60) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
+                onValueChange = { text = it.take(60) }
             )
         },
         confirmButton = {
-            TextButton(enabled = text.isNotBlank(), onClick = { onConfirm(text) }) { Text("OK") }
+            DialogPrimaryButton(text = "OK", enabled = text.isNotBlank(), onClick = { onConfirm(text) })
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            DialogSecondaryButton(text = "Cancel", onClick = onDismiss)
         }
     )
 }
@@ -92,19 +88,17 @@ fun SaveTemplateDialog(
                     fontSize = 13.sp, color = TextSecondary
                 )
                 Spacer(Modifier.height(12.dp))
-                OutlinedTextField(
+                PillTextField(
                     value = text,
-                    onValueChange = { text = it.take(60) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    onValueChange = { text = it.take(60) }
                 )
             }
         },
         confirmButton = {
-            TextButton(enabled = text.isNotBlank(), onClick = { onConfirm(text) }) { Text("Save") }
+            DialogPrimaryButton(text = "Save", enabled = text.isNotBlank(), onClick = { onConfirm(text) })
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            DialogSecondaryButton(text = "Cancel", onClick = onDismiss)
         }
     )
 }

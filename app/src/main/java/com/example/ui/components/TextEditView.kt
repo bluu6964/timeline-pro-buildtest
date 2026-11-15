@@ -1,7 +1,7 @@
 package com.example.ui.components
 
 import com.example.ui.theme.AmCornerCard
-import androidx.compose.ui.graphics.RectangleShape
+import com.example.ui.theme.AmCornerSheet
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -30,6 +30,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -110,7 +111,7 @@ fun TextEditSheet(
             // Rises above the keyboard; while it is open the panel shrinks to the text box + chips.
             .imePadding()
             .then(if (imeVisible) Modifier else Modifier.height(fullHeight))
-            .clip(RectangleShape)
+            .clip(RoundedCornerShape(topStart = AmCornerSheet, topEnd = AmCornerSheet))
             .background(SheetBg)
             // The parent sheet already owns this area. Do not intercept pointer gestures here:
             // doing so prevents nested font/style controls from receiving vertical scroll drags.
@@ -123,7 +124,7 @@ fun TextEditSheet(
                 .align(Alignment.CenterHorizontally)
                 .width(50.dp)
                 .height(5.dp)
-                .clip(RectangleShape)
+                .clip(CircleShape)
                 .background(Color(0xFF4A4A4E))
         )
 
@@ -153,7 +154,7 @@ fun TextEditSheet(
                 .fillMaxWidth()
                 .onFocusChanged { focused = it.isFocused }
                 .then(
-                    if (focused) Modifier.border(2.dp, Color(0xFFBDBDBD), RectangleShape)
+                    if (focused) Modifier.border(2.dp, Color(0xFFBDBDBD), RoundedCornerShape(AmCornerCard))
                     else Modifier
                 )
         )
@@ -215,7 +216,7 @@ private fun SheetChip(
     Box(
         modifier = modifier
             .height(48.dp)
-            .clip(RectangleShape)
+            .clip(CircleShape)
             .background(if (selected) ChipSelectedBg else ChipBg)
             .bouncyClickable(pressedScale = 0.9f, onClick = onClick)
             .padding(horizontal = 22.dp),
@@ -367,9 +368,9 @@ private fun FontChip(name: String, selected: Boolean, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .height(46.dp)
-            .clip(RectangleShape)
+            .clip(RoundedCornerShape(14.dp))
             .background(ChipBg)
-            .then(if (selected) Modifier.border(2.dp, Color.White, RectangleShape) else Modifier)
+            .then(if (selected) Modifier.border(2.dp, Color.White, RoundedCornerShape(14.dp)) else Modifier)
             .bouncyClickable(pressedScale = 0.9f, onClick = onClick)
             .padding(horizontal = 16.dp),
         contentAlignment = Alignment.Center
@@ -402,9 +403,9 @@ private fun StyleTab(
             Box(
                 modifier = Modifier
                     .size(64.dp)
-                    .clip(RectangleShape)
+                    .clip(RoundedCornerShape(14.dp))
                     .background(ChipBg)
-                    .then(if (isCurrent) Modifier.border(2.dp, Color.White, RectangleShape) else Modifier)
+                    .then(if (isCurrent) Modifier.border(2.dp, Color.White, RoundedCornerShape(14.dp)) else Modifier)
                     .bouncyClickable(pressedScale = 0.93f) { onUpdate { preset.applyTo(it) } },
                 contentAlignment = Alignment.Center
             ) {
@@ -428,7 +429,7 @@ private fun StyleTab(
                     modifier = Modifier
                         .width(66.dp)
                         .height(52.dp)
-                        .clip(RectangleShape)
+                        .clip(CircleShape)
                         .background(if (clip.fontWeight == w) ChipSelectedBg else ChipBg)
                         .bouncyClickable(pressedScale = 0.92f) { onUpdate { it.copy(fontWeight = w) } },
                     contentAlignment = Alignment.Center
@@ -499,7 +500,7 @@ private fun StyleToggle(
     Box(
         modifier = modifier
             .height(52.dp)
-            .clip(RectangleShape)
+            .clip(CircleShape)
             .background(if (on) ChipSelectedBg else ChipBg)
             .bouncyClickable(pressedScale = 0.9f, onClick = onClick),
         contentAlignment = Alignment.Center
@@ -581,7 +582,7 @@ private fun AlignButton(icon: ImageVector, on: Boolean, modifier: Modifier, onCl
     Box(
         modifier = modifier
             .height(52.dp)
-            .clip(RectangleShape)
+            .clip(CircleShape)
             .background(if (on) ChipSelectedBg else ChipBg)
             .bouncyClickable(pressedScale = 0.9f, onClick = onClick),
         contentAlignment = Alignment.Center
@@ -648,7 +649,7 @@ private fun PathActionRow(label: String, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .height(52.dp)
-            .clip(RectangleShape)
+            .clip(CircleShape)
             .background(ChipBg)
             .bouncyClickable(pressedScale = 0.97f, onClick = onClick)
             .padding(horizontal = 16.dp),

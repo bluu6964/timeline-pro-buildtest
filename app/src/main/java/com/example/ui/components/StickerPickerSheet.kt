@@ -1,7 +1,5 @@
 package com.example.ui.components
 
-import com.example.ui.theme.AmCornerCard
-import androidx.compose.ui.graphics.RectangleShape
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -43,6 +41,9 @@ import androidx.compose.ui.unit.sp
 import com.example.engine.StickerLibrary
 import com.example.model.at
 import com.example.ui.theme.AmPanel
+import com.example.ui.theme.AmPanelHigh
+import com.example.ui.theme.AmPillSelected
+import com.example.ui.theme.AmSheetShape
 import com.example.ui.theme.AmTextDim
 
 /**
@@ -64,7 +65,8 @@ fun StickerPickerSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = AmPanel,
-        shape = RoundedCornerShape(AmCornerCard)
+        shape = AmSheetShape,
+        dragHandle = { SheetDragHandle() }
     ) {
         Column(
             modifier = Modifier
@@ -90,12 +92,16 @@ fun StickerPickerSheet(
                     val on = cat == selected
                     Box(
                         modifier = Modifier
+                            .background(
+                                if (on) AmPillSelected else AmPanelHigh,
+                                androidx.compose.foundation.shape.CircleShape
+                            )
+                            .clip(androidx.compose.foundation.shape.CircleShape)
                             .clickable { selected = cat }
                             .padding(horizontal = 14.dp, vertical = 8.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        // BARE tab (boxless order, build 183): white bold vs grey label —
-                        // was a white/dark filled chip.
+                        // Pill tab (build 207): selected = the filled pill.
                         Text(
                             cat.replaceFirstChar { it.uppercase() },
                             color = if (on) Color.White else AmTextDim,
@@ -138,7 +144,7 @@ private fun StickerTile(item: StickerLibrary.Item, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .aspectRatio(1f)
-            .clip(RectangleShape)
+            .clip(RoundedCornerShape(12.dp))
             .background(Color(0xFF2B2B2B))
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
@@ -158,7 +164,7 @@ private fun StickerTile(item: StickerLibrary.Item, onClick: () -> Unit) {
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(4.dp)
-                    .clip(RectangleShape)
+                    .clip(RoundedCornerShape(6.dp))
                     .background(Color(0xCC000000))
                     .padding(horizontal = 5.dp, vertical = 2.dp)
             ) {
@@ -185,7 +191,8 @@ fun StickerSpeedSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = AmPanel,
-        shape = RoundedCornerShape(AmCornerCard)
+        shape = AmSheetShape,
+        dragHandle = { SheetDragHandle() }
     ) {
         AudioSpeedSheet(
             speed = clip.at(playheadMs).speed,

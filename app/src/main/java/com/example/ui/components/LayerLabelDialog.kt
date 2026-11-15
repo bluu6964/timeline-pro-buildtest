@@ -14,21 +14,19 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.unit.dp
 import com.example.ui.theme.AmPanel
-import com.example.ui.theme.HeaderCyan
 import com.example.ui.theme.HeaderText
 import com.example.ui.theme.TextSecondary
 import com.example.ui.util.bouncyClickable
 
 /**
- * The layer colour-label picker (build 199, A2), in the marker dialog's language (square
- * dialog on AmPanel, bare text actions). The colour it sets is the timeline label colour
+ * The layer colour-label picker (build 199, A2). Build 207 (frontend redesign):
+ * rounded swatches and pill actions in the dialog's 24 dp container. The colour it sets is the timeline label colour
  * itself ([com.example.model.TimelineClip.color] — the same value the timeline bars render),
  * NOT a second colour model: the palette is a set of label colours plus "Default", which
  * restores the colour the layer type is created with (model.defaultClipColor).
@@ -66,12 +64,10 @@ fun LayerLabelDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onPick(defaultColor) }) {
-                Text("Default", color = HeaderCyan)
-            }
+            DialogPrimaryButton(text = "Default", onClick = { onPick(defaultColor) })
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel", color = TextSecondary) }
+            DialogSecondaryButton(text = "Cancel", onClick = onDismiss)
         }
     )
 }
@@ -83,9 +79,9 @@ private fun Swatch(colorValue: Long, currentColor: Long, onPick: (Long) -> Unit)
     Box(
         modifier = Modifier
             .size(34.dp)
-            .background(Color(colorValue), RectangleShape)
+            .background(Color(colorValue), RoundedCornerShape(10.dp))
             .then(
-                if (selected) Modifier.border(2.dp, Color.White, RectangleShape) else Modifier
+                if (selected) Modifier.border(2.dp, Color.White, RoundedCornerShape(10.dp)) else Modifier
             )
             .bouncyClickable { onPick(colorValue) }
     )

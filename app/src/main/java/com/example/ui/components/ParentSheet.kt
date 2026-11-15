@@ -1,7 +1,6 @@
 package com.example.ui.components
 
-import com.example.ui.theme.AmCornerCard
-import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.draw.clip
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -27,7 +26,10 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.ui.theme.AmCardSurface
 import com.example.ui.theme.AmPanel
+import com.example.ui.theme.AmPillSelected
+import com.example.ui.theme.AmSheetShape
 import com.example.ui.theme.EditorSurfaceVariant
 import com.example.ui.theme.IconActive
 import com.example.ui.theme.NeonCyan
@@ -50,7 +52,12 @@ fun ParentSheet(
     onPick: (String?) -> Unit,
     onDismiss: () -> Unit
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = AmPanel, shape = RoundedCornerShape(AmCornerCard)) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = AmPanel,
+        shape = AmSheetShape,
+        dragHandle = { SheetDragHandle() }
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -86,7 +93,11 @@ private fun Row1(name: String, id: String?, selected: Boolean, onClick: () -> Un
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(EditorSurfaceVariant, RectangleShape)
+            .background(
+                if (selected) AmPillSelected else AmCardSurface,
+                RoundedCornerShape(20.dp)
+            )
+            .clip(RoundedCornerShape(20.dp))
             .bouncyClickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 14.dp)
             .testTag("parent_pick_${id ?: "none"}"),
@@ -94,7 +105,13 @@ private fun Row1(name: String, id: String?, selected: Boolean, onClick: () -> Un
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         if (id != null) Icon(Icons.Default.CenterFocusWeak, null, tint = IconActive, modifier = Modifier.size(22.dp))
-        Text(name, color = if (selected) NeonCyan else TextPrimary, fontSize = 15.sp, modifier = Modifier.weight(1f))
+        Text(
+            name,
+            color = TextPrimary,
+            fontSize = 15.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+            modifier = Modifier.weight(1f)
+        )
         if (selected) Icon(Icons.Default.Check, null, tint = NeonCyan, modifier = Modifier.size(20.dp))
     }
 }

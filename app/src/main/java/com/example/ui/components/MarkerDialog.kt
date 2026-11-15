@@ -7,9 +7,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -19,17 +17,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.unit.dp
 import com.example.model.TimelineMarker
-import com.example.ui.theme.AmDanger
 import com.example.ui.theme.AmPanel
-import com.example.ui.theme.HeaderCyan
 import com.example.ui.theme.HeaderText
 import com.example.ui.theme.TextSecondary
 
 private val DialogFill = AmPanel
 
 /**
- * The add / edit sheet of the named timeline markers (build 188), in the Projects
- * dialog's language (square dialog, one text field, bare text actions).
+ * The add / edit sheet of the named timeline markers (build 188). Build 207
+ * (frontend redesign): the dialog keeps its 24 dp rounded container; the field
+ * is the filled pill and the actions are pill buttons (violet confirm, red
+ * delete, ghost cancel).
  *
  * Add mode ([marker] = null): the field starts with the suggested name; confirming calls
  * [onConfirm] with the typed name. Edit mode: the field starts with the marker's name,
@@ -56,11 +54,10 @@ fun MarkerNameDialog(
         title = { Text(if (marker == null) "Add marker" else "Marker", color = HeaderText) },
         text = {
             Column {
-                OutlinedTextField(
+                PillTextField(
                     value = text,
                     onValueChange = { text = it.take(40) },
-                    singleLine = true,
-                    label = { Text("Name") }
+                    label = "Name"
                 )
                 Text(
                     text = "At $timeLabel",
@@ -70,15 +67,20 @@ fun MarkerNameDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(text) }) {
-                Text(if (marker == null) "Add" else "Save", color = HeaderCyan)
-            }
+            DialogPrimaryButton(
+                text = if (marker == null) "Add" else "Save",
+                onClick = { onConfirm(text) }
+            )
         },
         dismissButton = {
-            if (onDelete != null) {
-                TextButton(onClick = onDelete) { Text("Delete", color = AmDanger) }
+            androidx.compose.foundation.layout.Row(
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
+            ) {
+                if (onDelete != null) {
+                    DialogDangerButton(text = "Delete", onClick = onDelete)
+                }
+                DialogSecondaryButton(text = "Cancel", onClick = onDismiss)
             }
-            TextButton(onClick = onDismiss) { Text("Cancel", color = TextSecondary) }
         }
     )
 }

@@ -1,5 +1,4 @@
 package com.example.ui.components
-import androidx.compose.ui.graphics.RectangleShape
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -54,6 +53,8 @@ import com.example.model.MaskState
 import com.example.model.TimelineClip
 import com.example.model.sourceOffsetMs
 import com.example.model.neighbourKey
+import com.example.ui.theme.AmPillSelected
+import com.example.ui.theme.AmPanelHigh
 import com.example.ui.theme.AmCyan
 import com.example.ui.theme.AmHairline
 import com.example.ui.theme.AmMicroLabel
@@ -243,7 +244,7 @@ fun ClipMasksPanel(
                 Box(
                     modifier = Modifier
                         .size(40.dp)
-                        .clip(RectangleShape)
+                        .clip(RoundedCornerShape(10.dp))
                         .bouncyClickable(onClick = { replace(selected.toggleKeyAt(rel)) })
                         .testTag("mask_key_toggle"),
                     contentAlignment = Alignment.Center
@@ -339,11 +340,16 @@ private fun MaskSlider(label: String, value: Float, min: Float, max: Float, unit
 private fun Chip(label: String, on: Boolean, enabled: Boolean = true, tag: String, onClick: () -> Unit) {
     Box(
         modifier = Modifier
+            .background(
+                if (on) AmPillSelected else AmPanelHigh,
+                androidx.compose.foundation.shape.CircleShape
+            )
+            .clip(androidx.compose.foundation.shape.CircleShape)
             .bouncyClickable(onClick = { if (enabled) onClick() })
             .testTag(tag),
         contentAlignment = Alignment.Center
     ) {
-        // BARE chip (boxless order, build 183): the label carries the state.
+        // Pill chip (build 207): on = the filled pill surface + bold label.
         Text(
             label,
             color = if (!enabled) TextSecondary else if (on) TextPrimary else AmTextDim,

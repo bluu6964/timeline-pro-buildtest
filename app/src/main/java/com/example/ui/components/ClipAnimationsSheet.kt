@@ -1,5 +1,4 @@
 package com.example.ui.components
-import androidx.compose.ui.graphics.RectangleShape
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -18,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Autorenew
@@ -74,6 +74,8 @@ import com.example.model.ClipAnim
 import com.example.model.Easing
 import com.example.model.TimelineClip
 import com.example.model.maxAnimMs
+import com.example.ui.theme.AmPillSelected
+import com.example.ui.theme.AmPanelHigh
 import com.example.ui.theme.AmCyan
 import com.example.ui.theme.AmHairline
 import com.example.ui.theme.AmTextDim
@@ -162,11 +164,16 @@ fun ClipAnimationsPanel(
                 Box(
                     modifier = Modifier
                         .padding(end = 8.dp)
+                        .background(
+                            if (on) AmPillSelected else AmPanelHigh,
+                            CircleShape
+                        )
+                        .clip(CircleShape)
                         .bouncyClickable(onClick = { slot = s })
                         .testTag("anim_tab_${s.name.lowercase()}"),
                     contentAlignment = Alignment.Center
                 ) {
-                    // BARE tab (boxless order, build 183): white bold vs grey label.
+                    // Pill tab (build 207): selected = the filled pill.
                     Text(
                         s.label,
                         color = if (on) TextPrimary else AmTextDim,
@@ -183,6 +190,11 @@ fun ClipAnimationsPanel(
                     Box(
                         modifier = Modifier
                             .padding(start = 6.dp)
+                            .background(
+                                if (on) AmPillSelected else AmPanelHigh,
+                                CircleShape
+                            )
+                            .clip(CircleShape)
                             .bouncyClickable(onClick = { section = sec })
                             .testTag("anim_section_${sec.name.lowercase()}"),
                         contentAlignment = Alignment.Center
@@ -393,7 +405,7 @@ private fun AnimShapePreview(
     Canvas(
         modifier
             .aspectRatio(ratio, matchHeightConstraintsFirst = true)
-            .glassSurface(RectangleShape, fill = amGlassBrush())
+            .glassSurface(RoundedCornerShape(16.dp), fill = amGlassBrush())
     ) {
         val k = size.width / previewW // preview px -> screen px
         val base = size.height * 0.5f
@@ -438,10 +450,16 @@ private fun AnimTile(label: String, icon: ImageVector, selected: Boolean, tag: S
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
-            modifier = Modifier.size(60.dp),
+            modifier = Modifier
+                .size(60.dp)
+                .background(
+                    if (selected) AmPillSelected else AmPanelHigh,
+                    RoundedCornerShape(16.dp)
+                )
+                .clip(RoundedCornerShape(16.dp)),
             contentAlignment = Alignment.Center
         ) {
-            // BARE tile (boxless order, build 183): white vs grey glyph + label.
+            // Rounded tile (build 207): selected = filled pill surface.
             Icon(icon, contentDescription = label, tint = if (selected) Color.White else AmTextDim, modifier = Modifier.size(26.dp))
         }
         Spacer(Modifier.height(5.dp))
@@ -454,6 +472,11 @@ private fun CurveChip(label: String, easing: Easing?, selected: Boolean, onClick
     Box(
         modifier = Modifier
             .width(62.dp)
+            .background(
+                if (selected) AmPillSelected else AmPanelHigh,
+                RoundedCornerShape(12.dp)
+            )
+            .clip(RoundedCornerShape(12.dp))
             .bouncyClickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {

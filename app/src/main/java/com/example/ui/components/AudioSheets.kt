@@ -1,5 +1,4 @@
 package com.example.ui.components
-import androidx.compose.ui.graphics.RectangleShape
 
 import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.mutableStateOf
@@ -20,6 +19,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
@@ -39,8 +39,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.ui.theme.AmPanelHigh
 import com.example.ui.theme.EditorSurface
-import com.example.ui.theme.EditorSurfaceVariant
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.ui.util.bouncyClickable
@@ -261,8 +261,8 @@ fun AudioSpeedSheet(
                         color = TextPrimary,
                         fontSize = 13.sp,
                         modifier = Modifier
-                            .clip(RectangleShape)
-                            .background(EditorSurfaceVariant)
+                            .clip(CircleShape)
+                            .background(AmPanelHigh)
                             .bouncyClickable { applySpeed(preset) }
                             .padding(horizontal = 14.dp, vertical = 8.dp)
                     )
@@ -275,8 +275,8 @@ fun AudioSpeedSheet(
                     color = TextPrimary,
                     fontSize = 13.sp,
                     modifier = Modifier
-                        .clip(RectangleShape)
-                        .background(EditorSurfaceVariant)
+                        .clip(CircleShape)
+                        .background(AmPanelHigh)
                         .bouncyClickable { onSmooth() }
                         .padding(horizontal = 14.dp, vertical = 10.dp)
                 )

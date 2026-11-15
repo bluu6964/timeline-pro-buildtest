@@ -1,9 +1,10 @@
 package com.example.ui.components
 
-import com.example.ui.theme.AmCornerCard
+import com.example.ui.theme.AmCardSurface
+import com.example.ui.theme.AmSheetShape
 
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.draw.clip
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -61,7 +62,12 @@ fun AddLayerSheet(
     onPen: () -> Unit = {},
     onDismiss: () -> Unit
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = AmPanel, shape = RoundedCornerShape(AmCornerCard)) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = AmPanel,
+        shape = AmSheetShape,
+        dragHandle = { SheetDragHandle() }
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -96,11 +102,14 @@ private fun RowScope.Item(label: String, icon: ImageVector, tag: String, onClick
     Box(
         modifier = Modifier
             .weight(1f)
+            .background(AmCardSurface, RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(20.dp))
             .bouncyClickable(onClick = onClick)
             .testTag(tag),
         contentAlignment = Alignment.Center
     ) {
-        // BARE since the boxless order (build 183): icon + label only, no tile.
+        // A rounded card tile (build 207 redesign): icon + label on the card
+        // surface — the same tile language as the tools grid.
         Column(
             modifier = Modifier.padding(vertical = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally

@@ -88,7 +88,10 @@ import com.example.model.LayerType
 import com.example.model.PreviewResolution
 import com.example.model.TimelineTrack
 import com.example.ui.theme.AmHairline
+import com.example.ui.theme.AmCardSurface
 import com.example.ui.theme.AmPanel
+import com.example.ui.theme.AmPillSelected
+import com.example.ui.theme.AmSheetShape
 import com.example.ui.theme.AmPanelHigh
 import com.example.ui.theme.EditorBackground
 import com.example.ui.theme.EditorSurfaceVariant
@@ -154,7 +157,8 @@ fun AspectRatioSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = AmPanel,
-        shape = RoundedCornerShape(AmCornerCard)
+        shape = AmSheetShape,
+        dragHandle = { SheetDragHandle() }
     ) {
         Column(
             modifier = Modifier
@@ -175,7 +179,7 @@ fun AspectRatioSheet(
                         modifier = Modifier
                             .width(100.dp)
                             .height(100.dp)
-                            .clip(RectangleShape)
+                            .clip(RoundedCornerShape(16.dp))
                             .background(if (selected) Color(0xFFE8E4E4) else Color(0xFF3A3A3D))
                             .bouncyClickable(pressedScale = 0.94f) { onRatioSelected(ratio) }
                             .testTag("aspect_${ratio.label}"),
@@ -215,12 +219,12 @@ fun AspectRatioSheet(
                     Box(
                         modifier = Modifier
                             .size(48.dp)
-                            .clip(RectangleShape)
+                            .clip(CircleShape)
                             .background(if (custom) Color(canvasColor) else Color(0xFF3A3A3D))
                             .border(
                                 if (custom) 3.dp else 1.5.dp,
                                 if (custom) Color.White else Color.White.copy(alpha = 0.7f),
-                                RectangleShape
+                                CircleShape
                             )
                             .bouncyClickable(pressedScale = 0.9f) { showPicker = true }
                             .testTag("canvas_color_custom"),
@@ -234,12 +238,12 @@ fun AspectRatioSheet(
                     Box(
                         modifier = Modifier
                             .size(48.dp)
-                            .clip(RectangleShape)
+                            .clip(CircleShape)
                             .background(Color(c))
                             .border(
                                 if (selected) 3.dp else 1.dp,
                                 if (selected) Color.White else Color.White.copy(alpha = 0.18f),
-                                RectangleShape
+                                CircleShape
                             )
                             .bouncyClickable(pressedScale = 0.88f) { onCanvasColor(c) }
                     )
@@ -256,7 +260,7 @@ fun AspectRatioSheet(
                     val selected = label == resolution
                     Column(
                         modifier = Modifier
-                            .clip(RectangleShape)
+                            .clip(RoundedCornerShape(14.dp))
                             .background(if (selected) Color(0xFFE8E4E4) else Color(0xFF3A3A3D))
                             .bouncyClickable(pressedScale = 0.94f) { onResolution(label) }
                             .padding(horizontal = 18.dp, vertical = 12.dp)
@@ -307,7 +311,8 @@ fun ResolutionSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = AmPanel,
-        shape = RoundedCornerShape(AmCornerCard)
+        shape = AmSheetShape,
+        dragHandle = { SheetDragHandle() }
     ) {
         Column(
             modifier = Modifier
@@ -328,8 +333,11 @@ fun ResolutionSheet(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RectangleShape)
-                        .background(if (isSelected) EditorSurfaceVariant else Color.Transparent)
+                        .background(
+                            if (isSelected) AmPillSelected else AmCardSurface,
+                            RoundedCornerShape(20.dp)
+                        )
+                        .clip(RoundedCornerShape(20.dp))
                         .bouncyClickable {
                             onResolutionSelected(res)
                             onDismiss()
@@ -890,7 +898,8 @@ fun AddAudioSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = AmPanel,
-        shape = RoundedCornerShape(AmCornerCard)
+        shape = AmSheetShape,
+        dragHandle = { SheetDragHandle() }
     ) {
         Column(
             modifier = Modifier
@@ -910,6 +919,7 @@ fun AddAudioSheet(
                 onAudioFile()
                 onDismiss()
             }
+            Spacer(modifier = Modifier.height(8.dp))
             AddAudioRow(
                 icon = Icons.Default.Movie,
                 title = "Extract from video",
@@ -934,9 +944,10 @@ private fun AddAudioRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RectangleShape)
+            .background(AmCardSurface, RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(20.dp))
             .bouncyClickable(onClick = onClick)
-            .padding(vertical = 10.dp, horizontal = 12.dp)
+            .padding(vertical = 12.dp, horizontal = 14.dp)
             .testTag(tag),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -961,7 +972,8 @@ fun AddTextSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = AmPanel,
-        shape = RoundedCornerShape(AmCornerCard)
+        shape = AmSheetShape,
+        dragHandle = { SheetDragHandle() }
     ) {
         Column(
             modifier = Modifier
@@ -972,17 +984,10 @@ fun AddTextSheet(
             Text("Add Text Layer", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(12.dp))
 
-            OutlinedTextField(
+            PillTextField(
                 value = textInput,
                 onValueChange = { textInput = it },
-                label = { Text("Title / Caption", color = TextSecondary) },
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = TextPrimary,
-                    unfocusedTextColor = TextPrimary,
-                    focusedBorderColor = NeonCyan,
-                    unfocusedBorderColor = EditorSurfaceVariant
-                ),
-                modifier = Modifier.fillMaxWidth()
+                label = "Title / Caption"
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -1008,14 +1013,15 @@ fun AddTextSheet(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            TextButton(
+            VioletPillButton(
                 onClick = {
                     if (textInput.isNotBlank()) {
                         onAddText(textInput, selectedColor)
                     }
                     onDismiss()
                 },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
             ) {
                 Text("Add to Timeline", color = Color.White, fontWeight = FontWeight.Bold)
             }
@@ -1045,16 +1051,8 @@ fun AddShapeSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = AmPanel,
-        shape = RoundedCornerShape(AmCornerCard),
-        dragHandle = {
-            Box(
-                modifier = Modifier
-                    .padding(top = 10.dp, bottom = 4.dp)
-                    .width(36.dp)
-                    .height(4.dp)
-                    .background(Color.White.copy(alpha = 0.25f), RectangleShape)
-            )
-        }
+        shape = AmSheetShape,
+        dragHandle = { SheetDragHandle() }
     ) {
         Column(
             modifier = Modifier
@@ -1138,7 +1136,7 @@ private fun ShapePickerCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val tile = RectangleShape
+    val tile = RoundedCornerShape(16.dp)
     Column(
         modifier = modifier.bouncyClickable(pressedScale = 0.94f, hoverScale = 1.0f, onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally

@@ -1,5 +1,4 @@
 package com.example.ui.components
-import androidx.compose.ui.graphics.RectangleShape
 
 import android.app.Activity
 import android.content.Context
@@ -37,7 +36,6 @@ import androidx.compose.material.icons.filled.Colorize
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -58,6 +56,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.example.ui.theme.AmCornerCard
 import com.example.ui.theme.TextPrimary
 import java.util.Locale
 
@@ -172,7 +171,7 @@ fun ColorPickerDialog(
         Column(
             modifier = Modifier
                 .enterPop()
-                .clip(RectangleShape)
+                .clip(RoundedCornerShape(AmCornerCard))
                 .background(SheetBg)
                 .padding(18.dp)
         ) {
@@ -243,10 +242,12 @@ fun ColorPickerDialog(
                     color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium
                 )
                 Spacer(Modifier.weight(1f))
-                TextButton(onClick = onDismiss) { Text("Cancel", color = Color(0xFFA1A1A6)) }
-                TextButton(onClick = { onPick(current); onDismiss() }) {
-                    Text("OK", color = Color.White, fontWeight = FontWeight.Bold)
-                }
+                DialogSecondaryButton(text = "Cancel", onClick = onDismiss)
+                Spacer(Modifier.width(8.dp))
+                DialogPrimaryButton(
+                    text = "OK",
+                    onClick = { onPick(current); onDismiss() }
+                )
             }
         }
     }

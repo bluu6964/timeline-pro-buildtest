@@ -1,7 +1,8 @@
 package com.example.ui.components
 
+import com.example.ui.theme.AmPillSelected
+import com.example.ui.theme.AmCornerPanel
 import com.example.ui.theme.AmCornerCard
-import androidx.compose.ui.graphics.RectangleShape
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -27,6 +28,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
@@ -133,7 +135,7 @@ fun BlendEditSheet(
         modifier = modifier
             .fillMaxWidth()
             .glassSurface(
-                RectangleShape,
+                RoundedCornerShape(AmCornerPanel),
                 fill = amGlassBrush()
             )
             // swallow touches so nothing underneath can be hit
@@ -300,12 +302,20 @@ fun BlendEditSheet(
                         .testTag("blend_tab_$name"),
                     contentAlignment = Alignment.Center
                 ) {
+                    // Pill tab (build 207): the chosen group reads as a filled pill.
                     Text(
                         name,
                         color = if (on) TextPrimary else TextSecondary,
                         fontSize = 17.sp,
                         fontWeight = if (on) FontWeight.Bold else FontWeight.Medium,
-                        modifier = Modifier.padding(horizontal = 14.dp)
+                        modifier = Modifier
+                            .then(
+                                if (on) Modifier
+                                    .background(AmPillSelected, CircleShape)
+                                    .clip(CircleShape)
+                                else Modifier
+                            )
+                            .padding(horizontal = 14.dp, vertical = 6.dp)
                     )
                 }
             }

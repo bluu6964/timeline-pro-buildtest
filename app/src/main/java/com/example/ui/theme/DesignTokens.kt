@@ -1,5 +1,6 @@
 package com.example.ui.theme
 
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -123,6 +124,12 @@ val AmCornerItem = 8.dp
 val AmCornerChip = 6.dp
 /** Micro badges / tiny containers. */
 val AmCornerMicro = 4.dp
+/**
+ * The bottom-sheet shape (build 207): [AmCornerSheet] top corners, square
+ * bottom (the sheet sits on the screen edge). Every ModalBottomSheet in the
+ * UI layer uses this one shape.
+ */
+val AmSheetShape = RoundedCornerShape(topStart = AmCornerSheet, topEnd = AmCornerSheet)
 
 // ── Spacing scale ────────────────────────────────────────────────────────
 object AmSpace {

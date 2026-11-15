@@ -1,7 +1,6 @@
 package com.example.ui.components
 
 import com.example.ui.theme.AmCornerCard
-import androidx.compose.ui.graphics.RectangleShape
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -16,7 +15,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -68,10 +66,10 @@ fun MissingMediaDialog(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RectangleShape)
+                                .clip(RoundedCornerShape(16.dp))
                                 .background(AmPanelHigh)
-                                .border(1.dp, AmHairline, RectangleShape)
-                                .padding(start = 12.dp, top = 6.dp, bottom = 6.dp, end = 2.dp),
+                                .border(1.dp, AmHairline, RoundedCornerShape(16.dp))
+                                .padding(start = 12.dp, top = 6.dp, bottom = 6.dp, end = 6.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
@@ -90,16 +88,17 @@ fun MissingMediaDialog(
                                     fontSize = 11.sp
                                 )
                             }
-                            TextButton(onClick = { onReplace(item) }) {
-                                Text("Replace", color = HeaderCyan)
-                            }
+                            DialogSecondaryButton(
+                                text = "Replace",
+                                onClick = { onReplace(item) }
+                            )
                         }
                     }
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Done", color = HeaderCyan) }
+            DialogPrimaryButton(text = "Done", onClick = onDismiss)
         }
     )
 }

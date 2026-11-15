@@ -96,16 +96,16 @@ fun FlatTile(modifier: Modifier = Modifier) {
     )
 }
 
-/** Flat square base (chips, lane pills, readouts): solid raised grey + hairline.
- *  Was a capsule (CircleShape) until Sarowar's square order 2026-11-14 — chips
- *  and pills are chrome, so they are square now like every other chrome shape. */
+/** Flat pill base (chips, lane pills, readouts): solid raised grey + hairline.
+ *  A capsule again since build 207 (the frontend redesign's fully-rounded
+ *  language reversed the 2026-11-14 square order for chips and pills). */
 @Composable
 fun FlatPill(modifier: Modifier = Modifier) {
     Box(
         modifier
-            .background(AmPanelHigh, RectangleShape)
-            .border(1.dp, AmHairline, RectangleShape)
-            .clip(RectangleShape)
+            .background(AmPanelHigh, CircleShape)
+            .border(1.dp, AmHairline, CircleShape)
+            .clip(CircleShape)
     )
 }
 
@@ -171,10 +171,12 @@ fun GradientPillButton(
 }
 
 /**
- * Chip / tab. A CLICKABLE chip is BARE since Sarowar's boxless order 2026-11-14
- * (build 183): no pill, no border — the label alone carries the state (selected =
- * bright bold, unselected = dim). A null [onClick] renders a STATIC display chip
- * and keeps its flat pill surface (it is a readout, not a button).
+ * Chip / tab. Since build 207 (frontend redesign) a CLICKABLE chip is a pill:
+ * selected = the filled [com.example.ui.theme.AmPillSelected] capsule,
+ * unselected = the raised surface — the label still reinforces the state
+ * (selected = bright bold, unselected = dim). A null [onClick] renders a
+ * STATIC display chip and keeps its flat pill surface (it is a readout,
+ * not a button).
  */
 @Composable
 fun GlassChip(
@@ -185,7 +187,15 @@ fun GlassChip(
     tag: String? = null
 ) {
     var m = modifier
-    if (onClick != null) m = m.bouncyClickable(pressedScale = 0.95f, onClick = onClick)
+    if (onClick != null) {
+        m = m
+            .background(
+                if (selected) com.example.ui.theme.AmPillSelected else AmPanelHigh,
+                CircleShape
+            )
+            .clip(CircleShape)
+            .bouncyClickable(pressedScale = 0.95f, onClick = onClick)
+    }
     if (tag != null) m = m.testTag(tag)
     Box(m, contentAlignment = Alignment.Center) {
         if (onClick == null) {
@@ -194,8 +204,8 @@ fun GlassChip(
                 Modifier
                     .matchParentSize()
                     .then(
-                        if (selected) Modifier.border(1.dp, amCyanVioletBrush(), RectangleShape)
-                        else Modifier.border(1.dp, AmHairline, RectangleShape)
+                        if (selected) Modifier.border(1.dp, amCyanVioletBrush(), CircleShape)
+                        else Modifier.border(1.dp, AmHairline, CircleShape)
                     )
             ) {}
         }

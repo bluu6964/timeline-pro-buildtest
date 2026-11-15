@@ -1,7 +1,6 @@
 package com.example.ui.components
 
 import com.example.ui.theme.AmCornerCard
-import androidx.compose.ui.graphics.RectangleShape
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -10,6 +9,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -28,7 +28,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -87,7 +86,9 @@ import com.example.model.pieSegmentsAt
 import com.example.ui.theme.AmDanger
 import com.example.ui.theme.AmHairline
 import com.example.ui.theme.AmPanel
+import com.example.ui.theme.AmInk
 import com.example.ui.theme.AmPanelHigh
+import com.example.ui.theme.AmPillSelected
 import com.example.ui.theme.HeaderCyan
 import com.example.ui.theme.HeaderText
 import com.example.ui.theme.TextSecondary
@@ -168,15 +169,17 @@ fun TemplatesDialog(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text("Cards", color = HeaderText, fontSize = 14.sp)
                                 Spacer(Modifier.weight(1f))
-                                TextButton(
+                                DialogSecondaryButton(
+                                    text = "−",
                                     onClick = { carouselCards-- },
                                     enabled = carouselCards > CarouselSpec.MIN_CARDS
-                                ) { Text("−", fontSize = 18.sp) }
+                                )
                                 Text("$carouselCards", color = HeaderText, fontSize = 15.sp)
-                                TextButton(
+                                DialogSecondaryButton(
+                                    text = "+",
                                     onClick = { carouselCards++ },
                                     enabled = carouselCards < CarouselSpec.MAX_CARDS
-                                ) { Text("+", fontSize = 18.sp) }
+                                )
                             }
                             Text(
                                 "One turn: ${carouselSeconds}s",
@@ -189,23 +192,26 @@ fun TemplatesDialog(
                                 steps = 7,
                                 modifier = Modifier.fillMaxWidth()
                             )
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("Direction", color = HeaderText, fontSize = 14.sp)
-                                Spacer(Modifier.weight(1f))
-                                TextButton(onClick = { carouselClockwise = true }) {
-                                    Text(
-                                        "Clockwise",
-                                        color = if (carouselClockwise) HeaderCyan else TextSecondary,
-                                        fontWeight = if (carouselClockwise) FontWeight.Bold else FontWeight.Normal
-                                    )
-                                }
-                                TextButton(onClick = { carouselClockwise = false }) {
-                                    Text(
-                                        "Counter-clockwise",
-                                        color = if (!carouselClockwise) HeaderCyan else TextSecondary,
-                                        fontWeight = if (!carouselClockwise) FontWeight.Bold else FontWeight.Normal
-                                    )
-                                }
+                            Text("Direction", color = HeaderText, fontSize = 14.sp)
+                            Spacer(Modifier.height(6.dp))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                PillActionButton(
+                                    text = "Clockwise",
+                                    onClick = { carouselClockwise = true },
+                                    containerColor = if (carouselClockwise) AmPillSelected else AmPanelHigh,
+                                    contentColor = if (carouselClockwise) HeaderText else TextSecondary,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                PillActionButton(
+                                    text = "Counter-clockwise",
+                                    onClick = { carouselClockwise = false },
+                                    containerColor = if (!carouselClockwise) AmPillSelected else AmPanelHigh,
+                                    contentColor = if (!carouselClockwise) HeaderText else TextSecondary,
+                                    modifier = Modifier.weight(1f)
+                                )
                             }
                         }
                     } else null,
@@ -223,7 +229,7 @@ fun TemplatesDialog(
                                 modifier = Modifier
                                     .align(Alignment.TopEnd)
                                     .padding(8.dp)
-                                    .clip(RectangleShape)
+                                    .clip(androidx.compose.foundation.shape.CircleShape)
                                     .background(Color(0xCC14181D))
                                     .padding(horizontal = 10.dp, vertical = 5.dp)
                             ) {
@@ -340,20 +346,23 @@ fun TemplatesDialog(
                             color = TextSecondary, fontSize = 13.sp
                         )
                         Spacer(Modifier.height(10.dp))
-                        // BARE (boxless order, build 183): text action, no filled button.
-                        TextButton(onClick = { onAddUserTemplate(tpl) }, modifier = Modifier.fillMaxWidth()) {
-                            Text("Add to project", color = HeaderText, fontWeight = FontWeight.SemiBold)
+                        // The white pill (build 207 redesign), delete as a ghost pill.
+                        GradientPillButton(
+                            onClick = { onAddUserTemplate(tpl) },
+                            modifier = Modifier.fillMaxWidth(),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 10.dp)
+                        ) {
+                            Text("Add to project", color = AmInk, fontWeight = FontWeight.SemiBold)
                         }
-                        TextButton(onClick = { pendingDelete = tpl }) {
-                            Text("Delete template", color = TextSecondary)
-                        }
+                        Spacer(Modifier.height(8.dp))
+                        DialogSecondaryButton(text = "Delete template", onClick = { pendingDelete = tpl })
                     }
                 }
             }
         },
         confirmButton = {},
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Close", color = HeaderText) }
+            DialogSecondaryButton(text = "Close", onClick = onDismiss)
         }
     )
     pendingDelete?.let { tpl ->
@@ -370,20 +379,21 @@ fun TemplatesDialog(
                 )
             },
             confirmButton = {
-                TextButton(onClick = { pendingDelete = null; onDeleteUserTemplate(tpl) }) {
-                    Text("Delete", color = AmDanger)
-                }
+                DialogDangerButton(
+                    text = "Delete",
+                    onClick = { pendingDelete = null; onDeleteUserTemplate(tpl) }
+                )
             },
             dismissButton = {
-                TextButton(onClick = { pendingDelete = null }) { Text("Cancel", color = HeaderText) }
+                DialogSecondaryButton(text = "Cancel", onClick = { pendingDelete = null })
             }
         )
     }
 }
 
 /**
- * One template's flat card (Stage 3, B/W language): a raised flat panel with a
- * hairline border. The picker used to be one long loose column of nine previews;
+ * One template's card: a raised panel with a hairline border, rounded since
+ * build 207 (frontend redesign). The picker used to be one long loose column of nine previews;
  * grouping each template into an identical card — same order, same texts, same
  * buttons, same actions — is what makes the list scan. The preview inside a card
  * is the template's OWN artwork (its colours and gradients are the template, not
@@ -391,7 +401,8 @@ fun TemplatesDialog(
  */
 @Composable
 private fun TemplateCard(content: @Composable ColumnScope.() -> Unit) {
-    val card = RectangleShape
+    // Build 207: the card is rounded (24 dp) in the redesign language.
+    val card = RoundedCornerShape(AmCornerCard)
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -424,9 +435,13 @@ private fun ColumnScope.TemplateSection(
         Text(description, color = TextSecondary, fontSize = 13.sp)
         settings?.invoke(this)
         Spacer(Modifier.height(10.dp))
-        // BARE (boxless order, build 183): text action, no filled button.
-        TextButton(onClick = onAdd, modifier = Modifier.fillMaxWidth()) {
-            Text("Add to project", color = HeaderText, fontWeight = FontWeight.SemiBold)
+        // The white pill (build 207 redesign): the card's primary action.
+        GradientPillButton(
+            onClick = onAdd,
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 10.dp)
+        ) {
+            Text("Add to project", color = AmInk, fontWeight = FontWeight.SemiBold)
         }
         Spacer(Modifier.height(8.dp))
         Text(footnote, color = TextSecondary, fontSize = 12.sp)

@@ -1,5 +1,8 @@
 package com.example.ui.components
 
+import com.example.ui.util.bouncyClickable
+import com.example.ui.theme.TextPrimary
+import com.example.ui.theme.AmCardSurface
 import com.example.ui.theme.AmCornerCard
 import androidx.compose.ui.graphics.RectangleShape
 
@@ -8,6 +11,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
@@ -265,16 +269,27 @@ fun TrackLayerPickDialog(
         text = {
             Column {
                 if (onPickCamera != null) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(
-                            onClick = onPickCamera,
-                            modifier = Modifier.weight(1f).testTag("track_camera")
-                        ) { Text("Camera track (keep it in the center)", modifier = Modifier.fillMaxWidth()) }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .background(AmCardSurface, RoundedCornerShape(16.dp))
+                                .clip(RoundedCornerShape(16.dp))
+                                .bouncyClickable(onClick = onPickCamera)
+                                .padding(horizontal = 14.dp, vertical = 12.dp)
+                                .testTag("track_camera")
+                        ) {
+                            Text("Camera track (keep it in the center)", color = TextPrimary, fontSize = 14.sp)
+                        }
                         if (onRemoveCamera != null) {
-                            TextButton(
+                            DialogSecondaryButton(
+                                text = "Remove",
                                 onClick = onRemoveCamera,
-                                modifier = Modifier.testTag("track_camera_remove")
-                            ) { Text("Remove") }
+                                tag = "track_camera_remove"
+                            )
                         }
                     }
                     Text(
@@ -301,22 +316,35 @@ fun TrackLayerPickDialog(
                             .verticalScroll(rememberScrollState())
                     ) {
                         targets.forEach { t ->
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                TextButton(
-                                    onClick = { onPick(t.id) },
-                                    modifier = Modifier.weight(1f).testTag("track_target_" + t.id)
-                                ) { Text(t.label + if (t.pinned) " (pinned)" else "", modifier = Modifier.fillMaxWidth()) }
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.padding(bottom = 6.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .background(AmCardSurface, RoundedCornerShape(16.dp))
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .bouncyClickable { onPick(t.id) }
+                                        .padding(horizontal = 14.dp, vertical = 12.dp)
+                                        .testTag("track_target_" + t.id)
+                                ) {
+                                    Text(t.label + if (t.pinned) " (pinned)" else "", color = TextPrimary, fontSize = 14.sp)
+                                }
                                 if (t.canPin && onPickPin != null) {
-                                    TextButton(
+                                    DialogSecondaryButton(
+                                        text = "Pin",
                                         onClick = { onPickPin(t.id) },
-                                        modifier = Modifier.testTag("track_pin_" + t.id)
-                                    ) { Text("Pin") }
+                                        tag = "track_pin_" + t.id
+                                    )
                                 }
                                 if (t.pinned && onRemovePin != null) {
-                                    TextButton(
+                                    DialogSecondaryButton(
+                                        text = "Unpin",
                                         onClick = { onRemovePin(t.id) },
-                                        modifier = Modifier.testTag("track_unpin_" + t.id)
-                                    ) { Text("Unpin") }
+                                        tag = "track_unpin_" + t.id
+                                    )
                                 }
                             }
                         }
@@ -325,7 +353,7 @@ fun TrackLayerPickDialog(
             }
         },
         confirmButton = {},
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Close") } }
+        dismissButton = { DialogSecondaryButton(text = "Close", onClick = onDismiss) }
     )
 }
 

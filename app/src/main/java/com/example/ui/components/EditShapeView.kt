@@ -1,7 +1,7 @@
 package com.example.ui.components
 
+import com.example.ui.theme.AmCornerSheet
 import com.example.ui.theme.AmCornerCard
-import androidx.compose.ui.graphics.RectangleShape
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -268,7 +268,7 @@ fun EditShapeView(
 
             Box(
                 modifier = Modifier
-                    .clip(RectangleShape)
+                    .clip(CircleShape)
                     .background(NeonCyan)
                     .bouncyClickable(onClick = {
                         onSaveShape(
@@ -655,7 +655,7 @@ fun EditShapeView(
                     modifier = Modifier
                         .fillMaxWidth(progressFraction.coerceIn(0.2f, 1f))
                         .height(28.dp)
-                        .clip(RectangleShape)
+                        .clip(RoundedCornerShape(8.dp))
                         .background(Color(0xFF2C2C2C))
                         .padding(horizontal = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -695,7 +695,7 @@ fun EditShapeView(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RectangleShape)
+                .clip(RoundedCornerShape(topStart = AmCornerSheet, topEnd = AmCornerSheet))
                 .background(Color(0xFF141414))
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
@@ -705,7 +705,7 @@ fun EditShapeView(
                     .align(Alignment.CenterHorizontally)
                     .width(36.dp)
                     .height(4.dp)
-                    .background(Color(0xFF3F3F3F), RectangleShape)
+                    .background(Color(0xFF3F3F3F), CircleShape)
             )
 
             Spacer(modifier = Modifier.height(10.dp))
@@ -719,7 +719,7 @@ fun EditShapeView(
                     val isSelected = tab == activeTab
                     Box(
                         modifier = Modifier
-                            .clip(RectangleShape)
+                            .clip(CircleShape)
                             .background(if (isSelected) Color(0xFFF3F4F6) else Color(0xFF232323))
                             .bouncyClickable(
                                 pressedScale = 0.92f,
@@ -767,12 +767,12 @@ fun EditShapeView(
                                 Box(
                                     modifier = Modifier
                                         .size(38.dp)
-                                        .clip(RectangleShape)
+                                        .clip(RoundedCornerShape(12.dp))
                                         .background(if (isSelected) Color(0xFF2C2C2C) else Color(0xFF1D1D1D))
                                         .border(
                                             width = if (isSelected) 2.dp else 1.dp,
                                             color = if (isSelected) Color.White else Color(0xFF3B3B3B),
-                                            shape = RoundedCornerShape(AmCornerCard)
+                                            shape = RoundedCornerShape(12.dp)
                                         )
                                         .bouncyClickable(onClick = {
                                             selectedShapeType = shape
@@ -992,8 +992,8 @@ fun EditShapeView(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // BARE (boxless order, build 183): a text action, no filled button box.
-            androidx.compose.material3.TextButton(
+            // The violet primary pill (build 207 redesign).
+            VioletPillButton(
                 onClick = {
                     onSaveShape(
                         selectedShapeType,
@@ -1011,9 +1011,8 @@ fun EditShapeView(
                     )
                     onDismiss()
                 },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(46.dp)
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 13.dp)
             ) {
                 Text(
                     text = if (editing) "Save Shape" else "Add Shape to Timeline",
@@ -1052,7 +1051,7 @@ private fun ShapeEditChip(label: String, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .height(48.dp)
-            .clip(RectangleShape)
+            .clip(CircleShape)
             .background(ChipBg)
             .bouncyClickable(pressedScale = 0.9f, onClick = onClick)
             .padding(horizontal = 22.dp),
