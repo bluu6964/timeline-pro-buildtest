@@ -202,8 +202,8 @@ fun VideoEditorScreen(
     // long-pressed on the ruler / the one already sitting at the playhead.
     var showAddMarker by remember { mutableStateOf(false) }
     var markerEditTarget by remember { mutableStateOf<com.example.model.TimelineMarker?>(null) }
-    // More tools (build 202, scope expansion): the ONE overflow panel over the
-    // play-controls row — its open state, and the bridge the footer clip panels
+    // Tools grid (build 202's "More tools", re-hosted in layout flow by
+    // build 206): its open state, and the bridge the footer clip panels
     // publish their overflow tools through (MorePanelState).
     var moreToolsExpanded by remember { mutableStateOf(false) }
     val morePanelState = remember { com.example.ui.components.MorePanelState() }
@@ -2503,10 +2503,21 @@ fun VideoEditorScreen(
             // Onion-skin row and Scopes panel sit BETWEEN play controls and timescale;
             // their height is taken from the canvas share so sections below stay put.
             // Soft minima applied only when the screen has room. Sum of all rows
-            // (including onion + scopes) ALWAYS equals totalHeight — nothing off-screen.
+            // (including onion + scopes + tools grid) ALWAYS equals totalHeight — nothing off-screen.
             val onionRowH = if (onionSkin.enabled) 40.dp else 0.dp
             val scopesPanelH = if (scopesOn) ScopesPanelHeight else 0.dp
-            val extraRowsH = onionRowH + scopesPanelH
+            // Tools grid (build 206): while open it is a section of this
+            // column (between the layer panel and the footer); like the
+            // onion row and the scopes panel, its height comes out of the
+            // canvas share. toolsGridHeightDp is the grid sheet's own
+            // geometry function, so the budget and the sheet cannot drift.
+            val toolsGridH = if (moreToolsExpanded) {
+                com.example.ui.components.toolsGridHeightDp(
+                    com.example.ui.components.TOOLS_GRID_UTILITY_COUNT +
+                        (morePanelState.clipSection()?.tools?.size ?: 0)
+                ).dp
+            } else 0.dp
+            val extraRowsH = onionRowH + scopesPanelH + toolsGridH
 
             // Ideal proportional sizes for the six permanent sections.
             var headerH = totalHeight * (1f / 18f)
@@ -2564,7 +2575,9 @@ fun VideoEditorScreen(
             // Alight-style editor panels (Transform / Color / Blending): the play-controls card stays
             // exactly where it is. The panel starts right under it, at the timescale, so the selected
             // layer's strip takes the first layer row and the other layers are hidden behind the panel.
-            val panelTop = headerH + canvasH + playControlsH + extraRowsH
+            // (The tools grid's height is NOT added here: these panels are bottom-anchored
+            // over everything below the play controls, the in-flow grid included.)
+            val panelTop = headerH + canvasH + playControlsH + onionRowH + scopesPanelH
             val panelH = (totalHeight - panelTop).coerceAtLeast(140.dp)
 
             // The selected layer, drawn by the real timeline panel (identical look) as the first row.
@@ -2853,7 +2866,27 @@ fun VideoEditorScreen(
                 )
 
                 // 3. Play & Full Screen Section (1/18 of screen) — always visible (universal)
-                // Build 202: the selected clip panel's published overflow section
+                // Build 206: the tools grid's utility actions — the same wiring
+                // the build-202 More panel carried (beat mark, marker, snap with
+                // its build-199 persistence), hoisted so the transport row and
+                // the grid sheet share the exact lambdas.
+                val onBeatMarkAction: () -> Unit = {
+                    val added = viewModel.toggleBeatMark(playheadState.value)
+                    snackbarHostState.currentSnackbarData?.dismiss()
+                    scope.launch { snackbarHostState.showSnackbar(if (added) "Beat mark added" else "Beat mark removed") }
+                }
+                val onMarkerAction: () -> Unit = {
+                    // A marker already at the playhead is edited; otherwise a new one is named.
+                    val near = viewModel.markerNear(playheadState.value)
+                    if (near != null) markerEditTarget = near else showAddMarker = true
+                }
+                val onSnapAction: () -> Unit = {
+                    val next = !snapEnabled
+                    viewModel.setSnapEnabled(next)
+                    context.getSharedPreferences("editor", android.content.Context.MODE_PRIVATE)
+                        .edit().putBoolean("snap_enabled", next).apply()
+                }
+                // The selected clip panel's published overflow section
                 // (null while nothing is selected or the panel fits whole).
                 val moreClipSection = morePanelState.clipSection()
                 PlayControlsSection(
@@ -2868,47 +2901,21 @@ fun VideoEditorScreen(
                         com.example.model.PreviewResolution.HALF -> "1/2"
                         com.example.model.PreviewResolution.QUARTER -> "1/4"
                     },
-                    onGridClick = { showAspectRatioSheet = true },
-                    onBeatMarkClick = {
-                        val added = viewModel.toggleBeatMark(playheadState.value)
-                        snackbarHostState.currentSnackbarData?.dismiss()
-                        scope.launch { snackbarHostState.showSnackbar(if (added) "Beat mark added" else "Beat mark removed") }
-                    },
-                    onMarkerClick = {
-                        // A marker already at the playhead is edited; otherwise a new one is named.
-                        val near = viewModel.markerNear(playheadState.value)
-                        if (near != null) markerEditTarget = near else showAddMarker = true
-                    },
-                    onionSkinOn = onionSkin.enabled,
-                    onOnionSkinClick = { viewModel.setOnionSkinEnabled(!onionSkin.enabled) },
-                    scopesOn = scopesOn,
-                    onScopesClick = { viewModel.setScopesOn(!scopesOn) },
-                    // Build 199: snap toggle (A3, persisted in the editor preferences) and
-                    // the export range IN/OUT points (A10 — set at the playhead, tap again
-                    // at the same spot to clear).
-                    snapOn = snapEnabled,
-                    onSnapClick = {
-                        val next = !snapEnabled
-                        viewModel.setSnapEnabled(next)
-                        context.getSharedPreferences("editor", android.content.Context.MODE_PRIVATE)
-                            .edit().putBoolean("snap_enabled", next).apply()
-                    },
-                    exportInSet = exportInMs != null,
-                    exportOutSet = exportOutMs != null,
-                    onExportInClick = { viewModel.toggleExportInAtPlayhead() },
-                    onExportOutClick = { viewModel.toggleExportOutAtPlayhead() },
                     onPreviousClick = { viewModel.jumpPrevious() },
                     onPlayPauseClick = { viewModel.togglePlayPause() },
                     onNextClick = { viewModel.jumpNext() },
                     onUndoClick = { viewModel.undo(); com.example.ui.buddy.BuddyBrain.react(com.example.ui.buddy.BuddyEvent.UNDO) },
                     onRedoClick = { viewModel.redo(); com.example.ui.buddy.BuddyBrain.react(com.example.ui.buddy.BuddyEvent.REDO) },
-                    // Build 202: the ONE More tools button + its shared panel —
-                    // the utility controls live inside it now, and the selected
-                    // clip panel's overflow tools ride its clip section.
-                    moreExpanded = moreToolsExpanded,
-                    onMoreExpandedChange = { moreToolsExpanded = it },
-                    moreActive = moreClipSection?.let { s -> s.tools.any { it.id in s.usedTools } } == true,
-                    clipOverflow = moreClipSection
+                    // Build 206: the violet tools disc in the transport pill
+                    // opens the tools grid (section 5b, in layout flow). The
+                    // disc's ring summarises the grid's active state — the
+                    // build-202 More glyph's honesty rule (range points,
+                    // toggles, used clip tools).
+                    toolsGridExpanded = moreToolsExpanded,
+                    onToolsGridExpandedChange = { moreToolsExpanded = it },
+                    toolsGridActive = snapEnabled || onionSkin.enabled || scopesOn ||
+                        exportInMs != null || exportOutMs != null ||
+                        (moreClipSection?.let { s -> s.tools.any { it.id in s.usedTools } } == true)
                 )
 
                 // 3b. Onion-skin settings row (build 190) — only while the ghosts are
@@ -3177,6 +3184,32 @@ fun VideoEditorScreen(
                         modifier = Modifier.align(Alignment.TopEnd)
                     )
                 }
+                }
+
+                // 5b. Tools grid (build 206) — a sheet in NORMAL LAYOUT FLOW
+                // between the timeline and the footer, never an overlay (the
+                // build-202 More panel's clipped row is the failure this
+                // replaces). Its height came out of the canvas in the layout
+                // math above; toolsGridHeightDp is the shared geometry.
+                if (moreToolsExpanded) {
+                    com.example.ui.components.ToolsGridSheet(
+                        exportInSet = exportInMs != null,
+                        exportOutSet = exportOutMs != null,
+                        onExportInClick = { viewModel.toggleExportInAtPlayhead() },
+                        onExportOutClick = { viewModel.toggleExportOutAtPlayhead() },
+                        onBeatMarkClick = onBeatMarkAction,
+                        onMarkerClick = onMarkerAction,
+                        onionSkinOn = onionSkin.enabled,
+                        onOnionSkinClick = { viewModel.setOnionSkinEnabled(!onionSkin.enabled) },
+                        scopesOn = scopesOn,
+                        onScopesClick = { viewModel.setScopesOn(!scopesOn) },
+                        snapOn = snapEnabled,
+                        onSnapClick = onSnapAction,
+                        onCanvasClick = { showAspectRatioSheet = true },
+                        clipOverflow = moreClipSection,
+                        onCloseRequest = { moreToolsExpanded = false },
+                        modifier = Modifier.padding(horizontal = 8.dp)
+                    )
                 }
 
                 // 6. Footer: Clip Edit Tools Panel if clip is selected, otherwise Main Bottom Toolbar

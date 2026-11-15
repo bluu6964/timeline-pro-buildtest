@@ -2,6 +2,7 @@ package com.example.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -31,15 +32,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.model.ToolRowSplit
+import com.example.ui.theme.AmBarSurface
 import com.example.ui.theme.AmHairline
-import com.example.ui.theme.EditorBackground
 import com.example.ui.theme.IconActive
 import com.example.ui.util.bouncyClickable
 
@@ -128,7 +128,7 @@ fun AudioClipToolsPanel(
         }
     }
 
-    // Publish the overflow to the shared More panel (build 202).
+    // Publish the overflow to the tools grid (build 202).
     PublishClipOverflow(
         morePanel = morePanel,
         section = if (overflowTools.isEmpty()) null else ClipOverflowSection(
@@ -144,16 +144,16 @@ fun AudioClipToolsPanel(
         modifier = modifier
             .fillMaxWidth()
             .height(height)
+            .padding(vertical = 4.dp)
             .testTag("audio_clip_tools_panel")
     ) {
+        // Build 206: the panel floats as a rounded bar (the redesign's pill
+        // language) — full width, so the ToolRowSplit budgets are untouched.
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .background(EditorBackground)
-                .drawBehind {
-                    // Hairline separating the tools row from the timeline (B/W language).
-                    drawLine(AmHairline, Offset(0f, 0f), Offset(size.width, 0f), strokeWidth = 1.dp.toPx())
-                }
+                .background(AmBarSurface, RoundedCornerShape(24.dp))
+                .clip(RoundedCornerShape(24.dp))
                 .padding(vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {

@@ -1,5 +1,6 @@
 package com.example.ui.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -7,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -22,18 +24,26 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.ToolRowSplit
+import com.example.ui.theme.AmPillSelected
 import com.example.ui.theme.AmTextDim
 import com.example.ui.util.bouncyClickable
 
 /**
- * Build 202 — the shared pieces of the "More tools" layout: one bare tool
- * tile (used by the clip panels' primary rows AND by the clip section of
- * the shared More panel, so the used-state language — white + bold = used,
- * build 166 — is identical in both), and the publish bridge a clip panel
- * uses to hand its overflow tools to the shared panel ([MorePanelState]).
+ * The shared pieces of the tools layout: one tool tile (used by the clip
+ * panels' primary rows AND by the tools grid, so the used-state language —
+ * white + bold = used, build 166; a filled pill since build 206 — is
+ * identical in both), and the publish bridge a clip panel uses to hand its
+ * overflow tools to the tools grid ([MorePanelState]).
  */
 
-/** One bare tool tile: icon over label, no box (boxless law, build 183). */
+/**
+ * One tool tile: icon over label. Build 206 (redesign language): a USED
+ * tool reads as a filled pill ([AmPillSelected]) behind icon + label — the
+ * references' selected state — on top of the build-166 white + bold rule.
+ * The background paints the tile's existing box (background before padding),
+ * so the tile's footprint — and with it the ToolRowSplit width budgets —
+ * is byte-identical to the bare tile's.
+ */
 @Composable
 fun ToolTile(
     tool: ClipToolItem,
@@ -49,7 +59,12 @@ fun ToolTile(
         contentAlignment = Alignment.Center
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
+            modifier = Modifier
+                .then(
+                    if (used) Modifier.background(AmPillSelected, RoundedCornerShape(14.dp))
+                    else Modifier
+                )
+                .padding(horizontal = 4.dp, vertical = 4.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
@@ -75,10 +90,10 @@ fun ToolTile(
 
 /**
  * Publishes [section] (this panel's overflow tools, or null when there are
- * none) to the shared More panel while this panel is composed. The provider
+ * none) to the tools grid while this panel is composed. The provider
  * is registered/unregistered by identity, so a panel swap during the
  * footer's AnimatedContent transition can never clear the incoming panel's
- * section, and the section the play-controls row reads is always this
+ * section, and the section the screen reads is always this
  * panel's LATEST one.
  */
 @Composable

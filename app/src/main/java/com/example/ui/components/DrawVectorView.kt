@@ -30,6 +30,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.ui.theme.AmInk
 import com.example.ui.theme.AmTextDim
 import com.example.ui.theme.AmTextFaint
 import com.example.ui.theme.TextPrimary
@@ -165,7 +166,7 @@ fun DrawVectorPanel(
             Spacer(Modifier.width(10.dp))
             GradientPillButton(onClick = onDone, tag = "draw_done_button") {
                 Text(
-                    "Done", color = TextPrimary,
+                    "Done", color = AmInk,
                     fontSize = 14.sp, fontWeight = FontWeight.Bold
                 )
             }

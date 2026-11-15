@@ -5,11 +5,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 
 /**
- * Build 202 (scope expansion) — one clip panel's overflow tools, as shown in
- * the clip section of the shared More panel. [key] identifies the tool set;
- * [tileTag] maps a tool id to its test tag (each panel keeps its own tag
- * scheme); [onTool] is the publishing panel's own dispatch, so a tap in the
- * shared panel behaves exactly like a tap in the panel's old grid did.
+ * One clip panel's overflow tools, as shown in the tools grid (build 202's
+ * shared More panel; a layout-flow grid sheet since build 206). [key]
+ * identifies the tool set; [tileTag] maps a tool id to its test tag (each
+ * panel keeps its own tag scheme); [onTool] is the publishing panel's own
+ * dispatch, so a tap in the grid behaves exactly like a tap in the panel did.
  */
 class ClipOverflowSection(
     val key: String,
@@ -20,16 +20,17 @@ class ClipOverflowSection(
 )
 
 /**
- * The bridge between the footer clip tools panels and the ONE shared
- * "More tools" panel over the play-controls row (Sarowar 2026-11-15 ~10:24:
- * all the tool buttons under the canvas go inside the one button).
+ * The bridge between the footer clip tools panels and the ONE tools grid
+ * (Sarowar 2026-11-15 ~10:24: all the tool buttons under the canvas go
+ * inside the one button; build 206 hosts them in the layout-flow
+ * [ToolsGridSheet] instead of the build-202 overlay panel).
  *
  * A clip panel does not render its overflow any more; it PUBLISHES it here
  * through a provider lambda (registered in a DisposableEffect, so the exact
  * instance is unregistered when the panel leaves composition — no stale
  * section, no cross-panel clearing). The provider reads the panel's latest
  * composition state, so the section always reflects the panel's current
- * tools / used set / dispatch. PlayControlsSection reads [clipSection]
+ * tools / used set / dispatch. The screen reads [clipSection]
  * during composition; both state reads are snapshot-tracked.
  */
 class MorePanelState {

@@ -2,6 +2,7 @@ package com.example.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -49,16 +50,15 @@ import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.model.ToolRowSplit
+import com.example.ui.theme.AmBarSurface
 import com.example.ui.theme.AmHairline
-import com.example.ui.theme.EditorBackground
 import com.example.ui.theme.IconActive
 import com.example.ui.util.bouncyClickable
 
@@ -151,9 +151,9 @@ fun ClipEditToolsPanel(
      */
     onlyTools: Set<String>? = null,
     /**
-     * The shared More panel's bridge (build 202): this panel's overflow
-     * tools are published here and shown in the panel over the play-controls
-     * row. Null = nowhere to publish (the overflow is simply not shown —
+     * The tools grid's bridge (build 202; a layout-flow sheet since build
+     * 206): this panel's overflow tools are published here and shown in the
+     * grid. Null = nowhere to publish (the overflow is simply not shown —
      * every in-app caller passes the bridge).
      */
     morePanel: MorePanelState? = null
@@ -202,9 +202,9 @@ fun ClipEditToolsPanel(
     // ~10:24): the row no longer scrolls and carries NO More button of its
     // own. The first tools that FIT at this width stay visible (existing
     // order, budget = model/ToolRowSplit, harness-pinned); the overflow is
-    // PUBLISHED to the one shared More panel over the play-controls row
-    // (see PublishClipOverflow below). If everything fits (Null / Camera /
-    // Controller tool sets), nothing is published.
+    // PUBLISHED to the one tools grid (see PublishClipOverflow below). If
+    // everything fits (Null / Camera / Controller tool sets), nothing is
+    // published.
     val screenWidthDp = LocalConfiguration.current.screenWidthDp
     val visibleCount = ToolRowSplit.visibleCountForLabels(tools.map { it.label }, screenWidthDp)
     val visibleTools = tools.take(visibleCount)
@@ -251,9 +251,9 @@ fun ClipEditToolsPanel(
         }
     }
 
-    // Publish the overflow to the shared More panel (build 202): the section
-    // carries THIS panel's dispatch, so a tap up there behaves exactly like
-    // a tap in the panel. Null when everything fits or no bridge was given.
+    // Publish the overflow to the tools grid (build 202): the section
+    // carries THIS panel's dispatch, so a tap in the grid behaves exactly
+    // like a tap in the panel. Null when everything fits or no bridge was given.
     PublishClipOverflow(
         morePanel = morePanel,
         section = if (overflowTools.isEmpty()) null else ClipOverflowSection(
@@ -269,16 +269,16 @@ fun ClipEditToolsPanel(
         modifier = modifier
             .fillMaxWidth()
             .height(height)
+            .padding(vertical = 4.dp)
             .testTag("clip_edit_tools_panel")
     ) {
+        // Build 206: the panel floats as a rounded bar (the redesign's pill
+        // language) — full width, so the ToolRowSplit budgets are untouched.
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .background(EditorBackground)
-                .drawBehind {
-                    // Hairline separating the tools row from the timeline (B/W language).
-                    drawLine(AmHairline, Offset(0f, 0f), Offset(size.width, 0f), strokeWidth = 1.dp.toPx())
-                }
+                .background(AmBarSurface, RoundedCornerShape(24.dp))
+                .clip(RoundedCornerShape(24.dp))
                 .padding(vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -313,7 +313,7 @@ fun ClipEditToolsPanel(
 
             // 2. The primary tools (build 202 — no scrolling, no More tile;
             //    the split is ToolRowSplit's, computed from the real labels;
-            //    the overflow lives in the shared More panel).
+            //    the overflow lives in the tools grid).
             Row(
                 modifier = Modifier
                     .weight(1f)

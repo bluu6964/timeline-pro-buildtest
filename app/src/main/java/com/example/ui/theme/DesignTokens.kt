@@ -10,20 +10,24 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /**
- * DESIGN TOKENS — Professional CapCut-inspired black & white language (2026-11-15 polish).
+ * DESIGN TOKENS — the frontend-redesign language (build 206, Sarowar 2026-11-15).
  *
- * Goals of this pass:
- *  - Keep the strict monochrome chrome (no neon, no glass, no gradients in UI chrome).
- *  - Add a small, consistent radius scale so panels/chips feel modern instead of harsh-square.
- *  - Introduce a clear spacing scale and refined surface hierarchy for better visual rhythm.
- *  - Improve type hierarchy and contrast for readability.
- *  - Preserve every existing token name so call-sites stay source-compatible.
- *
- * Language rules (unchanged spirit):
- *  - Backgrounds: near-black base, flat dark greys for panels.
- *  - Emphasis: white vs grey only. Primary actions = solid white + black text.
- *  - One semantic colour kept: AmDanger (destructive). AmFxAccent stays limited to effects ruler.
- *  - User content colours (clips, effects, templates) are outside this layer.
+ * This supersedes the square + boxless law of builds 178/183. The new language,
+ * from Sarowar's references (floating pill-nav video + editor concepts):
+ *  - Dark near-black base; chrome stays black & white, with ONE accent:
+ *    [AmAccentViolet] for primary actions and the tools-grid button.
+ *  - FULLY ROUNDED surfaces: cards ~24 dp, sheets ~28 dp top corners,
+ *    bars and buttons are full pills (capsules).
+ *  - Bars FLOAT: pill-shaped bars with margins over the base, never
+ *    full-width strips. Selected state = a filled lighter pill
+ *    ([AmPillSelected]) holding icon + label.
+ *  - Buttons have their pills back (this reverses build 183's boxless rule).
+ *  - Panels/sheets live in normal layout flow — the floating look comes from
+ *    margins and shape, never from overlays anchored over the canvas
+ *    (the build-202 More-panel lesson).
+ *  - Semantic colours kept: AmDanger (destructive), AmFxAccent (effects ruler
+ *    only). User content colours (clips, effects, templates) are outside this
+ *    layer. Existing token names are preserved so call sites stay compatible.
  */
 
 // ── Base & flat surfaces ─────────────────────────────────────────────────
@@ -73,6 +77,16 @@ val AmFxAccent = Color(0xFFFF2E7E)
 /** Ink drawn on white fills (Export label, badges). */
 val AmInk = Color(0xFF0A0A0A)
 
+// ── Build 206: the redesign's surfaces + accent ──────────────────────────
+/** The one accent: primary actions and the tools-grid button (Sarowar's references). */
+val AmAccentViolet = Color(0xFF7C5CFF)
+/** Floating pill bars (transport, toolbars, header): near-black, a step above the base. */
+val AmBarSurface = Color(0xFF111114)
+/** The filled pill of a selected / active item inside a bar or grid. */
+val AmPillSelected = Color(0xFF2E2E33)
+/** Card surface on the base (project cards, the tools-grid sheet). */
+val AmCardSurface = Color(0xFF16161A)
+
 // ── Text hierarchy ───────────────────────────────────────────────────────
 /** Secondary text. */
 val AmTextDim = Color(0xFFA3A3A3)
@@ -90,15 +104,19 @@ fun amMintCyanBrush(): Brush = SolidColor(Color.White)
 fun amGlassBrush(): Brush = SolidColor(AmPanel)
 fun amGlassChipBrush(): Brush = SolidColor(AmPanelHigh)
 fun amCyanVioletBrush(): Brush = SolidColor(Color.White)
+/** The floating-bar fill (build 206). */
+fun amBarBrush(): Brush = SolidColor(AmBarSurface)
 
-// ── Corner scale — soft professional radii (CapCut-like) ─────────────────
-// Previous strict 0.dp square look is relaxed for better modern feel while
-// remaining simple and flat. Functional round shapes (play disc, thumbs, etc.)
-// stay circular and are not affected by these tokens.
-/** Large cards / dialogs / bottom sheets. */
-val AmCornerCard = 12.dp
+// ── Corner scale — fully rounded (build 206 redesign) ────────────────────
+// Bars and buttons are full pills (CircleShape at the call site); these
+// tokens size the rounded surfaces. Functional round shapes (play disc,
+// thumbs, etc.) stay circular and are not affected by these tokens.
+/** Large cards / dialogs. */
+val AmCornerCard = 24.dp
+/** Bottom sheets: top corners (build 207 applies them across the sheets). */
+val AmCornerSheet = 28.dp
 /** Panels, major containers. */
-val AmCornerPanel = 10.dp
+val AmCornerPanel = 20.dp
 /** Toolbar items, medium chips, buttons. */
 val AmCornerItem = 8.dp
 /** Small chips, readout pills. */

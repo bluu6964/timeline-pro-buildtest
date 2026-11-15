@@ -40,13 +40,13 @@ import com.example.ui.theme.AmCyan
 import com.example.ui.theme.AmInk
 import com.example.ui.theme.AmTextDim
 import com.example.ui.theme.TextPrimary
-import com.example.ui.theme.amGlassBrush
+import com.example.ui.theme.amBarBrush
 import com.example.ui.util.bouncyClickable
 
 /**
- * Header in the settled B/W language: one flat dark pill bar holding
+ * Header in the build-206 redesign language: one floating dark pill bar holding
  *   [X]   [camera icon]                 [1080P v]  [download | Export]
- * The Export pill is flat WHITE with black text (the CapCut-style primary emphasis).
+ * The Export pill is flat WHITE with black text (the primary emphasis).
  * [aspectRatio] is kept for the callers; the ratio itself is chosen in the sheet the
  * camera icon and the resolution pill open.
  */
@@ -78,7 +78,7 @@ fun EditorHeader(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(barH)
-                .glassSurface(CircleShape, fill = amGlassBrush())
+                .glassSurface(CircleShape, fill = amBarBrush())
         ) {
             // ── Close ──────────────────────────────────────────────
             Box(
@@ -155,11 +155,11 @@ fun EditorHeader(
                 ) {
                     DownloadGlyph()
                     Spacer(Modifier.width(9.dp))
-                    // Bare Export (boxless order, build 183): the divider + label are
-                    // white now — the white button fill they sat on is gone.
-                    Box(Modifier.width(1.dp).height(13.dp).background(TextPrimary.copy(alpha = 0.85f)))
+                    // Export is a white pill again (build 206 redesign): the
+                    // glyph, divider and label are ink on the white fill.
+                    Box(Modifier.width(1.dp).height(13.dp).background(AmInk.copy(alpha = 0.3f)))
                     Spacer(Modifier.width(9.dp))
-                    Text("Export", color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                    Text("Export", color = AmInk, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                 }
             }
         }
@@ -201,7 +201,7 @@ private fun DownloadGlyph() {
             moveTo(10f * u, 1.6f * u); lineTo(10f * u, 11.8f * u)
             moveTo(5.6f * u, 7.6f * u); lineTo(10f * u, 12f * u); lineTo(14.4f * u, 7.6f * u)
         }
-        drawPath(arrow, TextPrimary, style = st)
+        drawPath(arrow, AmInk, style = st)
         val tray = Path().apply {
             moveTo(1.6f * u, 12.5f * u); lineTo(1.6f * u, 16.2f * u)
             quadraticBezierTo(1.6f * u, 18.4f * u, 3.8f * u, 18.4f * u)
@@ -209,7 +209,7 @@ private fun DownloadGlyph() {
             quadraticBezierTo(18.4f * u, 18.4f * u, 18.4f * u, 16.2f * u)
             lineTo(18.4f * u, 12.5f * u)
         }
-        drawPath(tray, TextPrimary, style = st)
+        drawPath(tray, AmInk, style = st)
     }
 }
 
@@ -251,7 +251,7 @@ fun LayerHeader(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(barH)
-                .glassSurface(CircleShape, fill = amGlassBrush())
+                .glassSurface(CircleShape, fill = amBarBrush())
                 .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {

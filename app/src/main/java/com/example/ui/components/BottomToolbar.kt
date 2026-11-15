@@ -33,8 +33,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
@@ -44,15 +42,14 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.ToolRowSplit
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import com.example.ui.theme.AmCornerChip
+import com.example.ui.theme.AmAccentViolet
+import com.example.ui.theme.AmBarSurface
 import com.example.ui.theme.AmDanger
-import com.example.ui.theme.AmHairline
-import com.example.ui.theme.AmPanelHigh
 import com.example.ui.theme.AmSpace
 import com.example.ui.theme.AmTextDim
 import com.example.ui.theme.AmTextPrimary
-import com.example.ui.theme.EditorBackground
 import com.example.ui.theme.IconActive
 import com.example.ui.theme.TextPrimary
 import com.example.ui.util.bouncyClickable
@@ -67,15 +64,15 @@ fun BottomToolbar(
     onCameraClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // Build 206: the toolbar floats as a rounded bar (the redesign's pill
+    // language) — full width, items keep their weight(1f) shares.
     Row(
         modifier = modifier
             .fillMaxWidth()
             .height(height)
-            .background(EditorBackground)
-            .drawBehind {
-                // Clean hairline separator from timeline.
-                drawLine(AmHairline, Offset(0f, 0f), Offset(size.width, 0f), strokeWidth = 1.dp.toPx())
-            }
+            .padding(vertical = 4.dp)
+            .background(AmBarSurface, RoundedCornerShape(24.dp))
+            .clip(RoundedCornerShape(24.dp))
             .padding(horizontal = AmSpace.sm, vertical = AmSpace.xs),
         horizontalArrangement = Arrangement.spacedBy(AmSpace.xs),
         verticalAlignment = Alignment.CenterVertically
@@ -112,15 +109,16 @@ private fun RowScope.ToolbarItem(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // Primary action gets a subtle raised pill for clearer hierarchy.
+            // Primary action gets the violet disc (build 206: the accent
+            // marks the primary action in the references).
             Box(
                 modifier = Modifier
                     .size(if (primary) 40.dp else 36.dp)
                     .then(
                         if (primary) {
                             Modifier
-                                .clip(RoundedCornerShape(AmCornerChip))
-                                .background(AmPanelHigh)
+                                .clip(CircleShape)
+                                .background(AmAccentViolet)
                         } else Modifier
                     ),
                 contentAlignment = Alignment.Center
@@ -150,7 +148,7 @@ private fun RowScope.ToolbarItem(
  *
  * Build 202: the same primary-row split as the clip panels (model/ToolRowSplit)
  * — the row no longer scrolls and carries no More button; the overflow is
- * published to the one shared More panel over the play-controls row.
+ * published to the one tools grid (a layout-flow sheet since build 206).
  */
 @Composable
 fun ChainAddPanel(
@@ -166,7 +164,7 @@ fun ChainAddPanel(
     onCamera: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
-    /** The shared More panel's bridge (build 202): this panel's overflow actions are published here. */
+    /** The tools grid's bridge (build 202): this panel's overflow actions are published here. */
     morePanel: MorePanelState? = null
 ) {
     val actions = listOf(
@@ -190,8 +188,8 @@ fun ChainAddPanel(
     val visibleActions = actions.take(visibleCount)
     val overflowActions = actions.drop(visibleCount)
 
-    // Publish the overflow to the shared More panel (build 202): a chain
-    // action's test tag doubles as its tool id in the shared section.
+    // Publish the overflow to the tools grid (build 202): a chain
+    // action's test tag doubles as its tool id in the grid section.
     PublishClipOverflow(
         morePanel = morePanel,
         section = if (overflowActions.isEmpty()) null else ClipOverflowSection(
@@ -203,11 +201,15 @@ fun ChainAddPanel(
         )
     )
 
+    // Build 206: the panel floats as a rounded bar — full width, so the
+    // ToolRowSplit budgets are untouched.
     Row(
         modifier = modifier
             .fillMaxWidth()
             .height(height)
-            .background(EditorBackground)
+            .padding(vertical = 4.dp)
+            .background(AmBarSurface, RoundedCornerShape(24.dp))
+            .clip(RoundedCornerShape(24.dp))
             .padding(vertical = 5.dp)
             .testTag("chain_add_panel"),
         verticalAlignment = Alignment.CenterVertically

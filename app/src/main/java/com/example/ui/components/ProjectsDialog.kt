@@ -1,25 +1,29 @@
 package com.example.ui.components
 
 import com.example.ui.theme.AmCornerCard
-import androidx.compose.ui.graphics.RectangleShape
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
@@ -36,14 +40,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.ProjectMeta
+import com.example.ui.theme.AmCardSurface
 import com.example.ui.theme.AmDanger
-import com.example.ui.theme.AmHairline
-import com.example.ui.theme.AmInk
 import com.example.ui.theme.AmPanel
 import com.example.ui.theme.AmPanelHigh
 import com.example.ui.theme.HeaderCyan
@@ -80,6 +85,11 @@ fun ProjectsDialog(
 ) {
     var renaming by remember { mutableStateOf<ProjectMeta?>(null) }
     var deleting by remember { mutableStateOf<ProjectMeta?>(null) }
+    // Build 206 (the redesign's Home): a search pill over the list. Purely a
+    // local display filter — no callback or wiring changes.
+    var query by remember { mutableStateOf("") }
+    val shownProjects = if (query.isBlank()) projects
+        else projects.filter { it.name.contains(query.trim(), ignoreCase = true) }
     val dateFmt = remember { SimpleDateFormat("d MMM, HH:mm", Locale.getDefault()) }
 
     AlertDialog(
@@ -88,6 +98,38 @@ fun ProjectsDialog(
         shape = RoundedCornerShape(AmCornerCard),
         title = { Text("Projects", color = HeaderText, fontWeight = FontWeight.Bold) },
         text = {
+            Column {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(CircleShape)
+                        .background(AmPanelHigh)
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Filled.Search,
+                        contentDescription = "Search projects",
+                        tint = TextSecondary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    BasicTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        singleLine = true,
+                        textStyle = TextStyle(color = TextPrimary, fontSize = 14.sp),
+                        cursorBrush = SolidColor(TextPrimary),
+                        modifier = Modifier.weight(1f),
+                        decorationBox = { inner ->
+                            if (query.isEmpty()) {
+                                Text("Search projects", color = TextSecondary, fontSize = 14.sp)
+                            }
+                            inner()
+                        }
+                    )
+                }
+                Spacer(Modifier.height(10.dp))
             LazyColumn(
                 modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -101,17 +143,27 @@ fun ProjectsDialog(
                             modifier = Modifier.padding(vertical = 8.dp)
                         )
                     }
+                } else if (shownProjects.isEmpty()) {
+                    item {
+                        Text(
+                            "No projects match your search.",
+                            color = TextSecondary,
+                            fontSize = 13.sp,
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        )
+                    }
                 }
-                items(projects, key = { it.id }) { p ->
+                items(shownProjects, key = { it.id }) { p ->
                     val isCurrent = p.id == currentId
+                    // Build 206: a rounded card on the card surface (the
+                    // redesign's Home), no border.
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RectangleShape)
-                            .background(AmPanelHigh)
-                            .border(1.dp, AmHairline, RectangleShape)
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(AmCardSurface)
                             .clickable { onOpen(p.id) }
-                            .padding(start = 12.dp, top = 6.dp, bottom = 6.dp, end = 2.dp),
+                            .padding(start = 12.dp, top = 8.dp, bottom = 8.dp, end = 2.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
@@ -147,6 +199,7 @@ fun ProjectsDialog(
                     }
                 }
             }
+            }
         },
         confirmButton = {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -156,9 +209,9 @@ fun ProjectsDialog(
                     }
                 }
                 TextButton(onClick = onImport) { Text("Import", color = HeaderCyan) }
-                // The primary action: a flat white pill (B/W language), not a text button.
-                GradientPillButton(onClick = onNew) {
-                    Text("New project", color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                // The primary action: the violet pill (build 206 redesign).
+                VioletPillButton(onClick = onNew) {
+                    Text("New project", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                 }
             }
         },

@@ -42,13 +42,13 @@ import com.example.ui.theme.amGlassBrush
 import com.example.ui.util.bouncyClickable
 
 /**
- * Shared components of the settled BLACK & WHITE design language (Sarowar's order
- * 2026-11-13 ~20:30 — CapCut-style simple black/white; see theme/DesignTokens.kt).
+ * Shared components of the design language (see theme/DesignTokens.kt).
  * Everything here is FLAT: solid fills, one hairline border, no gradient, no glass
  * dome/sheen, no glow, no image assets. (Builds 161/163 drew these surfaces from a
  * program-rendered PNG kit + gradient brushes; that machinery is deleted — the kit
  * files and KitAssets.kt are gone, and the replacements below are plain Compose.)
- * Emphasis is white vs grey only: the primary action is a flat white pill.
+ * Build 206 (frontend redesign): surfaces are fully rounded and bars/buttons
+ * are pills; the primary action is a flat white pill, the accent violet.
  */
 
 /**
@@ -141,13 +141,11 @@ fun GlassIconButton(
 }
 
 /**
- * The primary action button — BARE since Sarowar's boxless order 2026-11-14
- * (build 183: "পুরো box ই remove করে ফেলতে" — remove the whole box, CapCut-style).
- * It was a flat white square button until this build; now it renders ONLY its
- * content (icon + label) with the press scale as feedback. Content colours come
- * from the call site and are WHITE now (the white fill that carried dark ink is
- * gone). The name is kept so call sites read as before. Touch geometry is
- * unchanged: same padding, same row.
+ * The primary action button — a flat WHITE PILL again since build 206
+ * (Sarowar's frontend redesign: "buttons get their pills back", reversing
+ * build 183's boxless order). Content colours come from the call site and
+ * must be INK (dark) — they sit on the white fill. The name is kept so call
+ * sites read as before. Touch geometry is unchanged: same padding, same row.
  */
 @Composable
 fun GradientPillButton(
@@ -162,6 +160,8 @@ fun GradientPillButton(
     Box(m, contentAlignment = Alignment.Center) {
         Row(
             Modifier
+                .background(Color.White, CircleShape)
+                .clip(CircleShape)
                 .bouncyClickable(pressedScale = 0.94f, onClick = onClick)
                 .padding(contentPadding),
             verticalAlignment = Alignment.CenterVertically,
