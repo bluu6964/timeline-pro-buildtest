@@ -107,7 +107,7 @@ internal class NativeTextPainter(
         ).toInt()
 
         p[0] = fontPx
-        p[1] = fontPx * clip.letterSpacing / 100f
+        p[1] = com.example.model.TextPaintRules.letterSpacingPx(fontPx, clip.letterSpacing)
         p[2] = clip.lineHeightPercent / 100f
         p[3] = when (clip.textAlign) { 0 -> 0f; 2 -> 2f; else -> 1f }
         p[4] = maxTextW.toFloat()
@@ -144,10 +144,11 @@ internal class NativeTextPainter(
         } else {
             p[24] = 0f; p[25] = 0f; p[26] = 0f; p[27] = 0f; c[2] = 0
         }
-        if (bgOn) {
-            val bg = argb(clip.bgColor, 0xFF000000)
-            val a = (clip.bgOpacity.coerceIn(0f, 100f) / 100f * 255).toInt()
-            c[3] = Color.argb(a, Color.red(bg), Color.green(bg), Color.blue(bg))
+        // The painted background is exactly bgColor × bgOpacity (build 212, TextPaintRules —
+        // the same rule as the Compose / Canvas painters; null = the engine paints nothing).
+        val bgArgb = com.example.model.TextPaintRules.bgArgb(clip.bgColor, clip.bgOpacity)
+        if (bgArgb != null) {
+            c[3] = bgArgb
             p[28] = 1f
             p[29] = (clip.bgCorner / 2f).toInt().coerceIn(0, 50) / 100f
         } else {

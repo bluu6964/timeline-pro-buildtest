@@ -3937,9 +3937,10 @@ fun VideoEditorScreen(
                 )
 
                 // Same layout as Color/Blending. While the keyboard is open only the text box +
-                // chips remain, raised above the keyboard.
+                // quick row remain, raised above the keyboard (build 212); the canvas keeps its
+                // fixed height — the space comes from this lower zone (timescale + layer row
+                // hidden, the panel column wraps the compact sheet).
                 val textImeVisible = WindowInsets.isImeVisible
-                val textRowH = com.example.ui.components.laneHeightFor(editingText.type) + 8.dp
                 Column(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
@@ -3969,8 +3970,10 @@ fun VideoEditorScreen(
                         pathLayers = tracks.flatMap { it.clips }.filter { it.isPathBearing && it.id != editingText.id },
                         onUpdate = { change -> viewModel.updateClip(editingText.id, change) },
                         onEyedropper = { cb -> eyedropperCallback = cb },
-                        modifier = Modifier.fillMaxWidth(),
-                        fullHeight = (panelH - timescaleH - textRowH).coerceAtLeast(120.dp)
+                        // Build 212: the sheet is sized by layout (the rest of the panel
+                        // column), not by a hand-computed height difference.
+                        modifier = if (textImeVisible) Modifier.fillMaxWidth()
+                        else Modifier.fillMaxWidth().weight(1f)
                     )
                 }
                 // The layer can disappear while editing (undo / delete): close the editor then.

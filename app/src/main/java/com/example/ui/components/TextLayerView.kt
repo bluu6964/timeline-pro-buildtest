@@ -110,7 +110,13 @@ fun TextLayerContent(
             2 -> TextAlign.End
             else -> TextAlign.Center
         },
-        letterSpacing = with(density) { (fontPx * clip.letterSpacing / 100f).toSp() },
+        // One spacing rule in every painter (build 212, TextPaintRules): the em fraction
+        // of the font size — the same semantics as the Canvas painter's Paint.letterSpacing,
+        // with no density round-trip of its own.
+        letterSpacing = androidx.compose.ui.unit.TextUnit(
+            com.example.model.TextPaintRules.letterSpacingEm(clip.letterSpacing),
+            androidx.compose.ui.unit.TextUnitType.Em
+        ),
         lineHeight = with(density) { (fontPx * clip.lineHeightPercent / 100f).toSp() }
     )
 
@@ -125,10 +131,12 @@ fun TextLayerContent(
     val padV = with(density) {
         max(fontPx * 0.12f, if (bgOn) fontPx * clip.bgPadding / 100f * 0.5f else 0f).toDp()
     }
-    val bgBase = Color(clip.bgColor)
-    val bgModifier = if (bgOn) {
+    // The painted background is exactly bgColor × bgOpacity (build 212, TextPaintRules —
+    // the same rule the Canvas / native painters use; null = nothing is painted).
+    val bgArgb = com.example.model.TextPaintRules.bgArgb(clip.bgColor, clip.bgOpacity)
+    val bgModifier = if (bgArgb != null) {
         Modifier.background(
-            bgBase.copy(alpha = (bgBase.alpha * clip.bgOpacity / 100f).coerceIn(0f, 1f)),
+            Color(bgArgb),
             RoundedCornerShape(percent = (clip.bgCorner / 2f).toInt().coerceIn(0, 50))
         )
     } else Modifier

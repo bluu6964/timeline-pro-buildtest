@@ -392,7 +392,7 @@ internal class LayerPainter(
             typeface = Typeface.create(Typeface.DEFAULT, clip.fontWeight.coerceIn(100, 900), clip.isItalic)
             isUnderlineText = clip.isUnderline
             isStrikeThruText = clip.isStrikethrough
-            letterSpacing = clip.letterSpacing / 100f
+            letterSpacing = com.example.model.TextPaintRules.letterSpacingEm(clip.letterSpacing)
         }
         if (clip.shadowOpacity > 0f) {
             val rad = Math.toRadians(clip.shadowAngle.toDouble())
@@ -502,12 +502,11 @@ internal class LayerPainter(
             canvas.clipRect(f[0] * boxW, f[1] * boxH, f[2] * boxW, f[3] * boxH)
         }
 
-        // Optional background box
-        if (bgOn) {
-            val bg = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = argb(clip.bgColor, fallback = 0xFF000000)
-                alpha = (clip.bgOpacity.coerceIn(0f, 100f) / 100f * 255).toInt()
-            }
+        // Optional background box: exactly bgColor × bgOpacity (build 212, TextPaintRules —
+        // the same rule as the Compose preview; null = nothing is painted).
+        val bgArgb = com.example.model.TextPaintRules.bgArgb(clip.bgColor, clip.bgOpacity)
+        if (bgArgb != null) {
+            val bg = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = bgArgb }
             val corner = (clip.bgCorner / 2f).toInt().coerceIn(0, 50) / 100f * minOf(boxW, boxH)
             canvas.drawRoundRect(RectF(0f, 0f, boxW, boxH), corner, corner, bg)
         }

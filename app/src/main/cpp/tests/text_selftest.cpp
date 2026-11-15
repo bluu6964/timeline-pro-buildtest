@@ -212,6 +212,58 @@ static void testEngine() {
     }
 }
 
+// Build 212 pins (Sarowar's phone report: letter spacing ghosted the glyphs and the
+// background box ignored its opacity slider): letter spacing must move the glyphs
+// apart WITHOUT painting any of them twice (same ink, same cluster count, wider
+// span), and the background must follow bgArgb's alpha exactly (alpha 0 = no box).
+static void testSpacingAndBg() {
+    const char* latin = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf";
+    if (!fileExists(latin)) { std::printf("skip spacing/bg tests (no %s)\n", latin); return; }
+    const int W = 600, H = 300;
+    Request r;
+    r.text = "test";
+    r.fontPath = latin;
+    r.fontPx = 100; r.maxTextW = 500; r.padH = 15; r.padV = 7; r.cx = 300; r.cy = 150;
+    Stats st;
+    std::vector<uint8_t> bmp((size_t)W * H * 4, 0);
+    CHECK(draw(bmp.data(), W, H, W * 4, r, &st));
+    CHECK(st.clusters == 4);
+    const long ink0 = alphaSum(bmp);
+    int x0, x1, y0, y1;
+    firstOpaqueCols(bmp, W, H, &x0, &x1, &y0, &y1);
+    const int span0 = x1 - x0;
+
+    std::fill(bmp.begin(), bmp.end(), 0);
+    r.letterSpacing = 40.f;
+    CHECK(draw(bmp.data(), W, H, W * 4, r, &st));
+    CHECK(st.clusters == 4);
+    const long ink40 = alphaSum(bmp);
+    firstOpaqueCols(bmp, W, H, &x0, &x1, &y0, &y1);
+    // Same ink (no glyph painted twice), span grows by 3 gaps x 40 px.
+    CHECK(std::labs(ink40 - ink0) <= ink0 / 100 + 8);
+    CHECK(std::abs((x1 - x0) - (span0 + 120)) <= 6);
+    r.letterSpacing = 0.f;
+
+    // Background with alpha 0 paints nothing at all.
+    std::fill(bmp.begin(), bmp.end(), 0);
+    r.bgOn = true; r.bgArgb = 0x00336699u;
+    CHECK(draw(bmp.data(), W, H, W * 4, r, &st));
+    CHECK(std::labs(alphaSum(bmp) - ink0) <= ink0 / 100 + 8);
+    // Background with full alpha paints the box (far more ink than the glyphs alone).
+    std::fill(bmp.begin(), bmp.end(), 0);
+    r.bgArgb = 0xFFCCCCCCu;
+    CHECK(draw(bmp.data(), W, H, W * 4, r, &st));
+    const long inkFull = alphaSum(bmp);
+    CHECK(inkFull > ink0 * 3);
+    // Half alpha: the box contributes ~half of its full-alpha ink.
+    std::fill(bmp.begin(), bmp.end(), 0);
+    r.bgArgb = 0x80CCCCCCu;
+    CHECK(draw(bmp.data(), W, H, W * 4, r, &st));
+    const long inkHalf = alphaSum(bmp);
+    CHECK(inkHalf > ink0 + (inkFull - ink0) * 35 / 100);
+    CHECK(inkHalf < ink0 + (inkFull - ink0) * 65 / 100);
+}
+
 // Gradient / picture fill: colour depends on the position inside the text block.
 static void testFill() {
     const char* latin = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf";
@@ -903,6 +955,7 @@ int main() {
     testTextOnPath();
     testBlit();
     testEngine();
+    testSpacingAndBg();
     testDrawOn();
     testFill();
     testRtl();
