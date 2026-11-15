@@ -8,14 +8,12 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
-import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.ClosedCaption
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Edit
@@ -31,10 +29,6 @@ import androidx.compose.material.icons.filled.TrendingDown
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -86,7 +80,9 @@ fun AudioClipToolsPanel(
      * rendered every tool identically, so a locked / soloed / labelled audio
      * layer showed its state nowhere.
      */
-    usedTools: Set<String> = emptySet()
+    usedTools: Set<String> = emptySet(),
+    /** The shared More panel's bridge (build 202): this panel's overflow tools are published here. */
+    morePanel: MorePanelState? = null
 ) {
     val tools = listOf(
         ClipToolItem("volume", "Volume", Icons.AutoMirrored.Filled.VolumeUp),
@@ -105,16 +101,13 @@ fun AudioClipToolsPanel(
     else emptyList()) + (if (onPasteLayer != null) listOf(ClipToolItem("paste_layer", "Paste layer", Icons.Default.ContentPaste))
     else emptyList())
 
-    // Build 202 — the same "More tools" split as the visual panel
-    // (model/ToolRowSplit): no scrolling; the first tools that fit stay
-    // visible, the rest open as a grid above the row behind the More tile.
+    // Build 202 — the same primary-row split as the visual panel
+    // (model/ToolRowSplit): no scrolling, no More tile of its own; the
+    // overflow is published to the one shared More panel (below).
     val screenWidthDp = LocalConfiguration.current.screenWidthDp
     val visibleCount = ToolRowSplit.visibleCountForLabels(tools.map { it.label }, screenWidthDp)
     val visibleTools = tools.take(visibleCount)
     val overflowTools = tools.drop(visibleCount)
-    var expanded by remember(tools.joinToString(",") { it.id }) { mutableStateOf(false) }
-    // A used tool hidden behind More keeps the More tile white (state honesty).
-    val moreActive = expanded || overflowTools.any { it.id in usedTools }
 
     fun dispatch(tool: ClipToolItem) {
         when (tool.id) {
@@ -135,27 +128,24 @@ fun AudioClipToolsPanel(
         }
     }
 
+    // Publish the overflow to the shared More panel (build 202).
+    PublishClipOverflow(
+        morePanel = morePanel,
+        section = if (overflowTools.isEmpty()) null else ClipOverflowSection(
+            key = tools.joinToString(",") { it.id },
+            tools = overflowTools,
+            usedTools = usedTools,
+            tileTag = { "audio_tool_$it" },
+            onTool = { dispatch(it) }
+        )
+    )
+
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(height)
             .testTag("audio_clip_tools_panel")
     ) {
-        if (expanded && overflowTools.isNotEmpty()) {
-            val gridH = ToolRowSplit.gridHeightDp(overflowTools.size)
-            OverflowToolsGrid(
-                tools = overflowTools,
-                usedTools = usedTools,
-                height = gridH.dp,
-                containerTag = "audio_tools_more_grid",
-                tileTag = { "audio_tool_$it" },
-                onTool = { dispatch(it) },
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .offset(y = (-gridH).dp)
-            )
-        }
-
         Row(
             modifier = Modifier
                 .fillMaxSize()
@@ -205,15 +195,6 @@ fun AudioClipToolsPanel(
                         onClick = { dispatch(tool) },
                         modifier = Modifier.fillMaxHeight(),
                         testTag = "audio_tool_${tool.id}"
-                    )
-                }
-                if (overflowTools.isNotEmpty()) {
-                    ToolTile(
-                        tool = ClipToolItem("more", ToolRowSplit.MORE_LABEL, Icons.Default.Apps),
-                        used = moreActive,
-                        onClick = { expanded = !expanded },
-                        modifier = Modifier.fillMaxHeight(),
-                        testTag = "audio_tool_more"
                     )
                 }
             }

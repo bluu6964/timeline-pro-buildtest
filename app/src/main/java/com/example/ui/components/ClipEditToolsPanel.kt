@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -17,7 +16,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.Animation
-import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Brush
@@ -48,10 +46,6 @@ import androidx.compose.material.icons.filled.Tonality
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -152,7 +146,14 @@ fun ClipEditToolsPanel(
      * Null / 3D Camera layers have no picture, so only the tools that do something for them are shown (like the audio panel):
      * when set, tools whose id is not in this set are left out. null = every tool the layer type offers.
      */
-    onlyTools: Set<String>? = null
+    onlyTools: Set<String>? = null,
+    /**
+     * The shared More panel's bridge (build 202): this panel's overflow
+     * tools are published here and shown in the panel over the play-controls
+     * row. Null = nowhere to publish (the overflow is simply not shown —
+     * every in-app caller passes the bridge).
+     */
+    morePanel: MorePanelState? = null
 ) {
     val allTools = (if (onEditGroup != null) listOf(ClipToolItem("edit_group", "Edit group", Icons.Default.FolderOpen))
     else emptyList()) + (if (onEditText != null) listOf(ClipToolItem("edit_text", "Edit", Icons.Default.Edit))
@@ -193,22 +194,17 @@ fun ClipEditToolsPanel(
     else emptyList())
     val tools = if (onlyTools == null) allTools else allTools.filter { it.id in onlyTools }
 
-    // Build 202 — "More tools" split (Sarowar 2026-11-15): the row no longer
-    // scrolls. The first tools that FIT at this width stay visible (existing
-    // order, budget = model/ToolRowSplit, harness-pinned); the rest sit
-    // behind the More tile and open as a grid above the row. If everything
-    // fits (Null / Camera / Controller tool sets), there is no More tile.
+    // Build 202 — the primary row (Sarowar 2026-11-15, scope corrected
+    // ~10:24): the row no longer scrolls and carries NO More button of its
+    // own. The first tools that FIT at this width stay visible (existing
+    // order, budget = model/ToolRowSplit, harness-pinned); the overflow is
+    // PUBLISHED to the one shared More panel over the play-controls row
+    // (see PublishClipOverflow below). If everything fits (Null / Camera /
+    // Controller tool sets), nothing is published.
     val screenWidthDp = LocalConfiguration.current.screenWidthDp
     val visibleCount = ToolRowSplit.visibleCountForLabels(tools.map { it.label }, screenWidthDp)
     val visibleTools = tools.take(visibleCount)
     val overflowTools = tools.drop(visibleCount)
-    // Expansion resets whenever the offered tool set changes (a different
-    // layer / layer type was selected); it survives plain recompositions.
-    var expanded by remember(tools.joinToString(",") { it.id }) { mutableStateOf(false) }
-    // State honesty: a USED tool hidden behind More still shows — the More
-    // tile itself reads white while any overflow tool is in use, and while
-    // the grid is open.
-    val moreActive = expanded || overflowTools.any { it.id in usedTools }
 
     fun dispatch(tool: ClipToolItem) {
         when (tool.id) {
@@ -250,27 +246,26 @@ fun ClipEditToolsPanel(
         }
     }
 
+    // Publish the overflow to the shared More panel (build 202): the section
+    // carries THIS panel's dispatch, so a tap up there behaves exactly like
+    // a tap in the panel. Null when everything fits or no bridge was given.
+    PublishClipOverflow(
+        morePanel = morePanel,
+        section = if (overflowTools.isEmpty()) null else ClipOverflowSection(
+            key = tools.joinToString(",") { it.id },
+            tools = overflowTools,
+            usedTools = usedTools,
+            tileTag = { "clip_tool_$it" },
+            onTool = { dispatch(it) }
+        )
+    )
+
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(height)
             .testTag("clip_edit_tools_panel")
     ) {
-        if (expanded && overflowTools.isNotEmpty()) {
-            val gridH = ToolRowSplit.gridHeightDp(overflowTools.size)
-            OverflowToolsGrid(
-                tools = overflowTools,
-                usedTools = usedTools,
-                height = gridH.dp,
-                containerTag = "clip_tools_more_grid",
-                tileTag = { "clip_tool_$it" },
-                onTool = { dispatch(it) },
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .offset(y = (-gridH).dp)
-            )
-        }
-
         Row(
             modifier = Modifier
                 .fillMaxSize()
@@ -311,8 +306,9 @@ fun ClipEditToolsPanel(
                     .background(AmHairline)
             )
 
-            // 2. The visible tools + the More tile (build 202 — no scrolling;
-            //    the split is ToolRowSplit's, computed from the real labels).
+            // 2. The primary tools (build 202 — no scrolling, no More tile;
+            //    the split is ToolRowSplit's, computed from the real labels;
+            //    the overflow lives in the shared More panel).
             Row(
                 modifier = Modifier
                     .weight(1f)
@@ -328,15 +324,6 @@ fun ClipEditToolsPanel(
                         onClick = { dispatch(tool) },
                         modifier = Modifier.fillMaxHeight(),
                         testTag = "clip_tool_${tool.id}"
-                    )
-                }
-                if (overflowTools.isNotEmpty()) {
-                    ToolTile(
-                        tool = ClipToolItem("more", ToolRowSplit.MORE_LABEL, Icons.Default.Apps),
-                        used = moreActive,
-                        onClick = { expanded = !expanded },
-                        modifier = Modifier.fillMaxHeight(),
-                        testTag = "clip_tool_more"
                     )
                 }
             }

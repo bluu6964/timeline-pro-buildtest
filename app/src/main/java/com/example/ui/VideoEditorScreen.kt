@@ -200,6 +200,11 @@ fun VideoEditorScreen(
     // long-pressed on the ruler / the one already sitting at the playhead.
     var showAddMarker by remember { mutableStateOf(false) }
     var markerEditTarget by remember { mutableStateOf<com.example.model.TimelineMarker?>(null) }
+    // More tools (build 202, scope expansion): the ONE overflow panel over the
+    // play-controls row — its open state, and the bridge the footer clip panels
+    // publish their overflow tools through (MorePanelState).
+    var moreToolsExpanded by remember { mutableStateOf(false) }
+    val morePanelState = remember { com.example.ui.components.MorePanelState() }
     val tracks by viewModel.tracks.collectAsState()
     // Edit Group: inside a group only its layers are shown (timeline + canvas); outside, a group is one single layer.
     val editingGroupId by viewModel.editingGroupId.collectAsState()
@@ -2478,11 +2483,10 @@ fun VideoEditorScreen(
             // Scopes (build 196): the same discipline — while the panel is open its
             // height comes out of the canvas too, so nothing below moves.
             val scopesPanelH = if (scopesOn) ScopesPanelHeight else 0.dp
-            // Play-controls utility row (build 201, audit B-1): the bar is two
-            // rows now — transport + a 40 dp utility row — and, like the onion
-            // row and the scopes panel, its height comes out of the canvas.
-            val playUtilityRowH = 40.dp
-            val canvasH = (totalHeight * (9f / 18f) - onionRowH - scopesPanelH - playUtilityRowH).coerceAtLeast(260.dp)
+            // Build 202: the play bar is ONE transport row again — the build-201
+            // utility row's 40 dp returns to the canvas (its controls live in
+            // the More panel now), so panelTop below is numerically unchanged.
+            val canvasH = (totalHeight * (9f / 18f) - onionRowH - scopesPanelH).coerceAtLeast(260.dp)
             val playControlsH = (totalHeight * (1f / 18f)).coerceAtLeast(44.dp)
             val timescaleH = (totalHeight * (1f / 30f)).coerceAtLeast(24.dp)
             val layerPanelH = (totalHeight * (5f / 18f)).coerceAtLeast(160.dp)
@@ -2491,7 +2495,7 @@ fun VideoEditorScreen(
             // Alight-style editor panels (Transform / Color / Blending): the play-controls card stays
             // exactly where it is. The panel starts right under it, at the timescale, so the selected
             // layer's strip takes the first layer row and the other layers are hidden behind the panel.
-            val panelTop = headerH + canvasH + playControlsH + playUtilityRowH
+            val panelTop = headerH + canvasH + playControlsH
             val panelH = (totalHeight - panelTop).coerceAtLeast(200.dp)
 
             // The selected layer, drawn by the real timeline panel (identical look) as the first row.
@@ -2780,6 +2784,9 @@ fun VideoEditorScreen(
                 )
 
                 // 3. Play & Full Screen Section (1/18 of screen) — always visible (universal)
+                // Build 202: the selected clip panel's published overflow section
+                // (null while nothing is selected or the panel fits whole).
+                val moreClipSection = morePanelState.clipSection()
                 PlayControlsSection(
                     height = playControlsH,
                     isPlaying = isPlaying,
@@ -2825,7 +2832,14 @@ fun VideoEditorScreen(
                     onPlayPauseClick = { viewModel.togglePlayPause() },
                     onNextClick = { viewModel.jumpNext() },
                     onUndoClick = { viewModel.undo(); com.example.ui.buddy.BuddyBrain.react(com.example.ui.buddy.BuddyEvent.UNDO) },
-                    onRedoClick = { viewModel.redo(); com.example.ui.buddy.BuddyBrain.react(com.example.ui.buddy.BuddyEvent.REDO) }
+                    onRedoClick = { viewModel.redo(); com.example.ui.buddy.BuddyBrain.react(com.example.ui.buddy.BuddyEvent.REDO) },
+                    // Build 202: the ONE More tools button + its shared panel —
+                    // the utility controls live inside it now, and the selected
+                    // clip panel's overflow tools ride its clip section.
+                    moreExpanded = moreToolsExpanded,
+                    onMoreExpandedChange = { moreToolsExpanded = it },
+                    moreActive = moreClipSection?.let { s -> s.tools.any { it.id in s.usedTools } } == true,
+                    clipOverflow = moreClipSection
                 )
 
                 // 3b. Onion-skin settings row (build 190) — only while the ghosts are
@@ -3143,7 +3157,8 @@ fun VideoEditorScreen(
                             onNull = { viewModel.addNullLayer() },
                             onController = { viewModel.addControllerLayer() },
                             onCamera = { viewModel.addCameraLayer() },
-                            onDelete = { viewModel.deleteSelectedClip() }
+                            onDelete = { viewModel.deleteSelectedClip() },
+                            morePanel = morePanelState
                         ) else if (targetIsAudio) AudioClipToolsPanel(
                             height = toolbarH,
                             onDeselect = { viewModel.selectClip(null) },
@@ -3199,7 +3214,8 @@ fun VideoEditorScreen(
                                         (if (c.isLocked) setOf("lock") else emptySet()) +
                                         (if (soloClipId == c.id) setOf("solo") else emptySet()) +
                                         (if (c.color != com.example.model.defaultClipColor(c.type)) setOf("label") else emptySet())
-                                } ?: emptySet()
+                                } ?: emptySet(),
+                            morePanel = morePanelState
                         ) else ClipEditToolsPanel(
                             height = toolbarH,
                             // Null / 3D Camera: no picture, so no Effects / Animations / Color / Crop / Blend; only what moves them.
@@ -3571,7 +3587,8 @@ fun VideoEditorScreen(
                                         (if (c.isLocked) setOf("lock") else emptySet()) +
                                         (if (soloClipId == c.id) setOf("solo") else emptySet()) +
                                         (if (c.color != com.example.model.defaultClipColor(c.type)) setOf("label") else emptySet())
-                                } ?: emptySet()
+                                } ?: emptySet(),
+                            morePanel = morePanelState
                         )
                     } else {
                         BottomToolbar(
@@ -4331,9 +4348,11 @@ fun VideoEditorScreen(
                     Row(
                         modifier = Modifier
                             .align(Alignment.TopStart)
-                            // 54 dp above the bar's top; the bar grew by the 40 dp
-                            // utility row in build 201, hence -94 (= -54 - 40).
-                            .offset(x = 10.dp, y = panelTop - playControlsH - 94.dp)
+                            // 54 dp above the bar's top. Build 201's utility row
+                            // grew the bar by 40 dp (hence -94 then); build 202
+                            // dissolved that row into the More panel, so the bar
+                            // is one row again and the offset is back to -54.
+                            .offset(x = 10.dp, y = panelTop - playControlsH - 54.dp)
                             .zIndex(29f)
                             .enterPop(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)

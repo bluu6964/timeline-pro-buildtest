@@ -1,49 +1,36 @@
 package com.example.ui.components
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.ToolRowSplit
-import com.example.ui.theme.AmHairline
 import com.example.ui.theme.AmTextDim
-import com.example.ui.theme.EditorBackground
 import com.example.ui.util.bouncyClickable
 
 /**
- * Build 202 — the shared pieces of the clip tools panels' "More tools"
- * layout: one bare tool tile (used by the collapsed row AND the expanded
- * grid, so the used-state language — white + bold = used, build 166 — is
- * identical in both) and the overflow grid itself. All geometry comes from
- * [ToolRowSplit], whose constants the harness pins against the 360 dp budget.
+ * Build 202 — the shared pieces of the "More tools" layout: one bare tool
+ * tile (used by the clip panels' primary rows AND by the clip section of
+ * the shared More panel, so the used-state language — white + bold = used,
+ * build 166 — is identical in both), and the publish bridge a clip panel
+ * uses to hand its overflow tools to the shared panel ([MorePanelState]).
  */
 
 /** One bare tool tile: icon over label, no box (boxless law, build 183). */
@@ -87,59 +74,22 @@ fun ToolTile(
 }
 
 /**
- * The expanded "More tools" grid: the overflow tools in a fixed-column grid
- * of the same tiles. Rendered as an overlay directly above the panel's row
- * (the caller offsets it by -[height]); it carries the panel background and
- * swallows stray taps on its empty padding, so touches never fall through
- * to the timeline underneath. When the overflow runs past
- * [ToolRowSplit.GRID_MAX_ROWS] rows the grid scrolls vertically inside its
- * fixed height.
+ * Publishes [section] (this panel's overflow tools, or null when there are
+ * none) to the shared More panel while this panel is composed. The provider
+ * is registered/unregistered by identity, so a panel swap during the
+ * footer's AnimatedContent transition can never clear the incoming panel's
+ * section, and the section the play-controls row reads is always this
+ * panel's LATEST one.
  */
 @Composable
-fun OverflowToolsGrid(
-    tools: List<ClipToolItem>,
-    usedTools: Set<String>,
-    height: Dp,
-    containerTag: String,
-    tileTag: (String) -> String,
-    onTool: (ClipToolItem) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(height)
-            .background(EditorBackground)
-            .drawBehind {
-                // Hairline separating the grid from the layer panel it covers.
-                drawLine(AmHairline, Offset(0f, 0f), Offset(size.width, 0f), strokeWidth = 1.dp.toPx())
-            }
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null
-            ) { }
-            .testTag(containerTag)
-    ) {
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(ToolRowSplit.GRID_COLUMNS),
-            contentPadding = PaddingValues(
-                horizontal = 8.dp,
-                vertical = ToolRowSplit.GRID_V_PADDING_DP.dp
-            ),
-            horizontalArrangement = Arrangement.spacedBy(ToolRowSplit.GRID_GAP_DP.dp),
-            verticalArrangement = Arrangement.spacedBy(ToolRowSplit.GRID_GAP_DP.dp),
-            modifier = Modifier.fillMaxSize()
-        ) {
-            items(tools, key = { it.id }) { tool ->
-                ToolTile(
-                    tool = tool,
-                    used = tool.id in usedTools,
-                    onClick = { onTool(tool) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(ToolRowSplit.GRID_TILE_HEIGHT_DP.dp),
-                    testTag = tileTag(tool.id)
-                )
+fun PublishClipOverflow(morePanel: MorePanelState?, section: ClipOverflowSection?) {
+    val latestSection = rememberUpdatedState(section)
+    DisposableEffect(morePanel) {
+        val provider: () -> ClipOverflowSection? = { latestSection.value }
+        if (morePanel != null) morePanel.clipSectionProvider = provider
+        onDispose {
+            if (morePanel != null && morePanel.clipSectionProvider === provider) {
+                morePanel.clipSectionProvider = null
             }
         }
     }

@@ -1,23 +1,30 @@
 package com.example.ui.components
-import androidx.compose.ui.graphics.RectangleShape
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -31,14 +38,15 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.model.ToolRowSplit
 import com.example.ui.theme.AmBase
-import com.example.ui.theme.AmCornerMicro
+import com.example.ui.theme.AmHairline
 import com.example.ui.theme.IconDisabled
 import com.example.ui.theme.TextPrimary
-import com.example.ui.theme.amGlassChipBrush
 import com.example.ui.util.bouncyClickable
 
 private val IconWhite = Color(0xFFF2F2F2)
@@ -47,24 +55,31 @@ private val IconWhite = Color(0xFFF2F2F2)
  * Top control bar, in the settled B/W language. All glyphs are drawn here (no
  * stock icons) so stroke weight and proportions match.
  *
- * REBUILT in build 201 (audit B-1, CRITICAL): until 200 the bar aligned three
- * groups (Start / Centre / End) inside ONE Box and they OVERLAPPED —
- * ~546 dp of controls in a 360 dp bar, the defect Sarowar photographed
- * (neighbouring buttons' glyphs showed through each other and the IN/OUT
- * labels read as garbled). The bar is now TWO rows whose widths provably fit
- * 360 dp (and the centre play button can never collide):
+ * Build 201 rebuilt this bar as two rows (audit B-1: the old one-Box layout
+ * OVERLAPPED ~546 dp of controls in a 360 dp bar). Build 202 (Sarowar
+ * 2026-11-15 ~10:24, correcting the first scoping of his clean-UI order)
+ * dissolves the utility row again — differently: the bar is now ONE transport
+ * row, and every other control of the middle section lives behind the ONE
+ * "More tools" button at the transport row's end:
  *   transport row ([height]): [undo 44][redo 44][resolution 44] · centred
- *     [play 44] · [fullscreen 44][grid 44][snap 40] — left cluster ends at
- *     142.5 dp, play spans 158–202 dp, right cluster starts at 228 dp.
- *   utility row (40 dp, editor only): [IN 44][OUT 48][beat 40][marker 40]
- *     [onion 40][scopes 40] + 4 dp gaps + 10.5 dp start padding = ~283 dp.
- * Every touch target is ≥ 40 dp in both dimensions. IN/OUT are plain text
- * (Sarowar's correction: white when set, grey when unset, no glyphs).
- * Behaviour of every control is unchanged.
+ *     [play 44] · [fullscreen 44][More 44] — left cluster ends at 142.5 dp,
+ *     play spans 158–202 dp, right cluster starts at 268 dp (360 dp budget,
+ *     proof: ui-redesign/proof-more-tools.png).
+ *   the More panel (overlay above the row, [ToolRowSplit.sharedPanelHeightDp]:
+ *     112 dp, 225 dp with a clip section): a utility section — IN/OUT, beat
+ *     mark, marker, onion, scopes, snap, canvas (the old utility row + the
+ *     transport row's snap/grid buttons) — and, while a clip is selected, the
+ *     selected clip panel's overflow tools in their own section under a
+ *     divider (published through [MorePanelState] by the footer panels).
+ * Momentary entries (IN, OUT, beat, marker, canvas) close the panel on tap;
+ * toggles (snap, onion, scopes) keep it open so the state change is visible.
+ * The More glyph reads white while the panel is open OR any hidden control
+ * is active (a range point set, a toggle on, a used clip tool — the screen
+ * passes the clip half as [moreActive]).
  *
  * [showEditorControls] false = a chrome-only host (CropView, audit S-3): the
- * editor-only controls (IN/OUT, beat mark, marker, onion, scopes, grid, snap)
- * are OMITTED entirely — never rendered inert, never showing a false state.
+ * More button, its panel, and every control inside it are OMITTED entirely —
+ * never rendered inert, never showing a false state.
  *
  * [onPreviousClick] / [onNextClick] are kept so the callers do not change; the reference design has no
  * previous / next buttons.
@@ -85,40 +100,146 @@ fun PlayControlsSection(
     modifier: Modifier = Modifier,
     /** Text inside the outlined pill next to redo ("Full", "1/2", "1/4"). */
     resolutionLabel: String = "Full",
-    /** Grid icon (canvas / project format). */
+    /** Canvas button (aspect / project format sheet) — in the More panel since build 202. */
     onGridClick: () -> Unit = {},
-    /** Plus icon at the right end: puts a beat mark at the playhead. */
+    /** Beat mark: puts a beat mark at the playhead. In the More panel since build 202. */
     onBeatMarkClick: () -> Unit = {},
-    /** Flag icon next to the beat mark: adds a NAMED marker at the playhead (or edits the one already there). */
+    /** Marker: adds a NAMED marker at the playhead (or edits the one already there). In the More panel since build 202. */
     onMarkerClick: () -> Unit = {},
-    /** Stacked-frames icon at the right end (build 190): toggles the onion-skin ghost frames on the canvas. */
+    /** Onion skin (build 190): toggles the ghost frames on the canvas. In the More panel since build 202. */
     onionSkinOn: Boolean = false,
     onOnionSkinClick: () -> Unit = {},
-    /** Histogram-bars icon beside the onion toggle (build 196): toggles the video-scopes panel. */
+    /** Video scopes (build 196): toggles the scopes panel. In the More panel since build 202. */
     scopesOn: Boolean = false,
     onScopesClick: () -> Unit = {},
-    /** Magnet toggle (build 199, A3): canvas + transform-pad snapping on/off. White = on. */
+    /** Snap toggle (build 199, A3): canvas + transform-pad snapping. White = on. In the More panel since build 202. */
     snapOn: Boolean = true,
     onSnapClick: () -> Unit = {},
-    /** Export range points (build 199, A10): IN/OUT set the range point at the playhead (tap again to clear). White = set. */
+    /** Export range points (build 199, A10): IN/OUT set the range point at the playhead (tap again to clear). White = set. In the More panel since build 202. */
     exportInSet: Boolean = false,
     exportOutSet: Boolean = false,
     onExportInClick: () -> Unit = {},
     onExportOutClick: () -> Unit = {},
     /** Editor-only controls (build 201): false for chrome-only hosts (CropView) — they are omitted, not inert. */
-    showEditorControls: Boolean = true
+    showEditorControls: Boolean = true,
+    /** The shared More panel's open state (build 202) — hoisted by the screen. */
+    moreExpanded: Boolean = false,
+    onMoreExpandedChange: (Boolean) -> Unit = {},
+    /** A hidden CLIP tool is in use (the screen's half of the More glyph's summary state). */
+    moreActive: Boolean = false,
+    /** The selected clip panel's overflow tools, published via [MorePanelState]; null = no clip section. */
+    clipOverflow: ClipOverflowSection? = null
 ) {
-    Column(
+    // The utility section's entries, in the old utility row's order with the
+    // transport row's snap/canvas appended. Momentary entries close the
+    // panel on tap; toggles keep it open (see the header).
+    val utilityEntries = listOf(
+        PanelEntry("Range in", exportInSet, "export_in_button", "Export range in point", closeOnTap = true, onClick = onExportInClick) {
+            Text("IN", color = if (exportInSet) IconWhite else IconDisabled, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
+        },
+        PanelEntry("Range out", exportOutSet, "export_out_button", "Export range out point", closeOnTap = true, onClick = onExportOutClick) {
+            Text("OUT", color = if (exportOutSet) IconWhite else IconDisabled, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
+        },
+        PanelEntry("Beat mark", false, "beat_mark_button", "Beat mark", closeOnTap = true, onClick = onBeatMarkClick) { BeatMarkGlyph() },
+        PanelEntry("Marker", false, "marker_button", "Marker", closeOnTap = true, onClick = onMarkerClick) { MarkerGlyph() },
+        PanelEntry("Onion", onionSkinOn, "onion_skin_button", "Onion skin", closeOnTap = false, onClick = onOnionSkinClick) { OnionGlyph(onionSkinOn) },
+        PanelEntry("Scopes", scopesOn, "scopes_button", "Scopes", closeOnTap = false, onClick = onScopesClick) { ScopesGlyph(scopesOn) },
+        PanelEntry("Snap", snapOn, "snap_button", "Snap", closeOnTap = false, onClick = onSnapClick) { MagnetGlyph(snapOn) },
+        PanelEntry("Canvas", false, "grid_button", "Canvas", closeOnTap = true, onClick = onGridClick) { GridGlyph() }
+    )
+    // The More glyph's summary state: open, or anything hidden is active.
+    val moreGlyphOn = moreExpanded || moreActive || exportInSet || exportOutSet ||
+        snapOn || onionSkinOn || scopesOn
+
+    Box(
         modifier = modifier
             .fillMaxWidth()
+            .height(height)
             .background(AmBase)
     ) {
-        // ── Transport row: undo · redo · resolution | play | fullscreen · grid · snap ──
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(height)
-        ) {
+        // ── The shared More panel: an overlay directly above the transport
+        // row (over the canvas's bottom edge), so nothing below moves. ──
+        if (showEditorControls && moreExpanded) {
+            val panelH = ToolRowSplit.sharedPanelHeightDp(clipOverflow?.tools?.size ?: 0)
+            Column(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .offset(y = (-panelH).dp)
+                    .fillMaxWidth()
+                    .height(panelH.dp)
+                    .background(AmBase)
+                    .drawBehind {
+                        drawLine(AmHairline, Offset(0f, 0f), Offset(size.width, 0f), strokeWidth = 1.dp.toPx())
+                        drawLine(AmHairline, Offset(0f, size.height), Offset(size.width, size.height), strokeWidth = 1.dp.toPx())
+                    }
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) { }
+                    .padding(vertical = ToolRowSplit.PANEL_V_PADDING_DP.dp)
+                    .testTag("more_tools_panel")
+            ) {
+                // Utility section: always all 8 tiles (2 rows), never scrolls.
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(ToolRowSplit.GRID_COLUMNS),
+                    userScrollEnabled = false,
+                    contentPadding = PaddingValues(horizontal = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(ToolRowSplit.GRID_GAP_DP.dp),
+                    verticalArrangement = Arrangement.spacedBy(ToolRowSplit.GRID_GAP_DP.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(ToolRowSplit.gridHeightDp(utilityEntries.size, vPaddingDp = 0).dp)
+                ) {
+                    items(utilityEntries, key = { it.tag }) { entry ->
+                        PanelTile(entry) {
+                            entry.onClick()
+                            if (entry.closeOnTap) onMoreExpandedChange(false)
+                        }
+                    }
+                }
+                // Clip section: the selected panel's overflow tools, in their
+                // own section under a divider; 2 rows shown, scrolling past.
+                if (clipOverflow != null) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 6.dp)
+                            .height(1.dp)
+                            .background(AmHairline)
+                    )
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(ToolRowSplit.GRID_COLUMNS),
+                        contentPadding = PaddingValues(horizontal = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(ToolRowSplit.GRID_GAP_DP.dp),
+                        verticalArrangement = Arrangement.spacedBy(ToolRowSplit.GRID_GAP_DP.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(
+                                ToolRowSplit.gridHeightDp(
+                                    clipOverflow.tools.size,
+                                    vPaddingDp = 0,
+                                    maxRows = ToolRowSplit.CLIP_SECTION_MAX_ROWS
+                                ).dp
+                            )
+                    ) {
+                        items(clipOverflow.tools, key = { it.id }) { tool ->
+                            ToolTile(
+                                tool = tool,
+                                used = tool.id in clipOverflow.usedTools,
+                                onClick = { clipOverflow.onTool(tool) },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(ToolRowSplit.GRID_TILE_HEIGHT_DP.dp),
+                                testTag = clipOverflow.tileTag(tool.id)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── Transport row: undo · redo · resolution | play | fullscreen · More ──
+        Box(modifier = Modifier.fillMaxSize()) {
             Row(
                 modifier = Modifier
                     .align(Alignment.CenterStart)
@@ -142,8 +263,7 @@ fun PlayControlsSection(
                     // BARE (boxless order, build 183): the resolution label with no chip surface.
                     Box(
                         modifier = Modifier
-                            .width(26.dp)
-                            .height(17.5.dp),
+                            .size(width = 26.dp, height = 17.5.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -160,7 +280,7 @@ fun PlayControlsSection(
 
             // ── Centre: play / pause — BARE white glyph (boxless order, build 183;
             // the 44 dp target stays). It spans 158–202 dp at 360 dp wide; the
-            // side clusters end at 142.5 / start at 228 — no overlap possible. ──
+            // side clusters end at 142.5 / start at 268 — no overlap possible. ──
             Box(
                 modifier = Modifier
                     .align(Alignment.Center)
@@ -184,99 +304,69 @@ fun PlayControlsSection(
                     FrameGlyph()
                 }
                 if (showEditorControls) {
-                    IconButton44(enabled = true, onClick = onGridClick, tag = "grid_button", description = "Canvas") {
-                        GridGlyph()
-                    }
+                    // THE one More tools button for the whole middle section
+                    // (build 202): opens the shared panel above the row.
                     Box(
                         modifier = Modifier
-                            .size(width = 40.dp, height = 44.dp)
-                            .semantics { contentDescription = "Snap" }
-                            .bouncyClickable(onClick = onSnapClick)
-                            .testTag("snap_button"),
+                            .size(44.dp)
+                            .semantics { contentDescription = "More tools" }
+                            .bouncyClickable(onClick = { onMoreExpandedChange(!moreExpanded) })
+                            .testTag("more_tools_button"),
                         contentAlignment = Alignment.Center
                     ) {
-                        MagnetGlyph(snapOn)
+                        MoreGlyph(moreGlyphOn)
                     }
                 }
             }
         }
+    }
+}
 
-        // ── Utility row (build 201): the editor-only controls that used to
-        // crush the transport row — IN/OUT range points, beat mark, named
-        // marker, onion skin, scopes. 44+48+40+40+40+40 + 5×4 gaps + 10.5
-        // start padding ≈ 283 dp ≤ 360. ──
-        if (showEditorControls) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(40.dp)
-                    .padding(horizontal = 10.5.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+/** One entry of the shared More panel's utility section. */
+private class PanelEntry(
+    val label: String,
+    val active: Boolean,
+    val tag: String,
+    val description: String,
+    val closeOnTap: Boolean,
+    val onClick: () -> Unit,
+    val glyph: @Composable () -> Unit
+)
+
+/** A utility tile in the shared More panel: the bar's own glyph over an 11 sp label. */
+@Composable
+private fun PanelTile(entry: PanelEntry, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(ToolRowSplit.GRID_TILE_HEIGHT_DP.dp)
+            .semantics { contentDescription = entry.description }
+            .bouncyClickable(pressedScale = 0.88f, hoverScale = 1.08f, onClick = onClick)
+            .testTag(entry.tag),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Box(
+                modifier = Modifier.size(24.dp),
+                contentAlignment = Alignment.Center
             ) {
-                RangePointButton(label = "IN", width = 44.dp, isSet = exportInSet, onClick = onExportInClick, tag = "export_in_button", description = "Export range in point")
-                RangePointButton(label = "OUT", width = 48.dp, isSet = exportOutSet, onClick = onExportOutClick, tag = "export_out_button", description = "Export range out point")
-                IconButton40(enabled = true, onClick = onBeatMarkClick, tag = "beat_mark_button", description = "Beat mark") {
-                    BeatMarkGlyph()
-                }
-                IconButton40(enabled = true, onClick = onMarkerClick, tag = "marker_button", description = "Marker") {
-                    MarkerGlyph()
-                }
-                IconButton40(enabled = true, onClick = onOnionSkinClick, tag = "onion_skin_button", description = "Onion skin") {
-                    OnionGlyph(onionSkinOn)
-                }
-                IconButton40(enabled = true, onClick = onScopesClick, tag = "scopes_button", description = "Scopes") {
-                    ScopesGlyph(scopesOn)
-                }
+                entry.glyph()
             }
+            Spacer(modifier = Modifier.height(3.dp))
+            Text(
+                text = entry.label,
+                color = if (entry.active) IconWhite else IconDisabled,
+                fontSize = 11.sp,
+                fontWeight = if (entry.active) FontWeight.Bold else FontWeight.Normal,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center
+            )
         }
-    }
-}
-
-/**
- * An IN/OUT range-point button (build 199, A10; rebuilt build 201): PLAIN
- * TEXT only — Sarowar's explicit correction, no arrow glyphs — white when the
- * point is set, grey when unset, on a ≥ 40 dp target.
- */
-@Composable
-private fun RangePointButton(label: String, width: Dp, isSet: Boolean, onClick: () -> Unit, tag: String, description: String) {
-    Box(
-        modifier = Modifier
-            .size(width = width, height = 40.dp)
-            .semantics { contentDescription = description }
-            .bouncyClickable(onClick = onClick)
-            .testTag(tag),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = label,
-            color = if (isSet) IconWhite else IconDisabled,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.ExtraBold,
-            textAlign = TextAlign.Center,
-            maxLines = 1
-        )
-    }
-}
-
-/** The utility row's 40 dp bare icon button (build 201) — GlassIconButton's 40 dp sibling. */
-@Composable
-private fun IconButton40(
-    enabled: Boolean,
-    onClick: () -> Unit,
-    tag: String,
-    description: String,
-    content: @Composable () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .size(40.dp)
-            .semantics { contentDescription = description }
-            .bouncyClickable(enabled = enabled, onClick = onClick)
-            .testTag(tag),
-        contentAlignment = Alignment.Center
-    ) {
-        content()
     }
 }
 
@@ -487,3 +577,26 @@ private fun BeatMarkGlyph() {
     }
 }
 
+/**
+ * A 2 x 2 grid of rounded squares: the ONE More tools button (build 202).
+ * White while the panel is open or anything hidden is active, grey otherwise —
+ * the toggle state law of this bar (the magnet's pattern).
+ */
+@Composable
+private fun MoreGlyph(on: Boolean) {
+    Canvas(Modifier.size(24.dp)) {
+        val u = size.width / 24f
+        val c = if (on) Color(0xFFF2F2F2) else IconDisabled
+        val sq = 7.4f * u
+        val gap = 3.4f * u
+        val x0 = (size.width - (2 * sq + gap)) / 2f
+        val y0 = (size.height - (2 * sq + gap)) / 2f
+        for (r in 0..1) for (k in 0..1) {
+            drawRoundRect(
+                c,
+                Offset(x0 + k * (sq + gap), y0 + r * (sq + gap)),
+                Size(sq, sq), CornerRadius(1.8f * u)
+            )
+        }
+    }
+}

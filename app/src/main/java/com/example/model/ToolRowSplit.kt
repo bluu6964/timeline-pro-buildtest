@@ -3,18 +3,24 @@ package com.example.model
 import kotlin.math.ceil
 
 /**
- * Build 202 — the split law behind the clip tools panels' "More tools" button
- * (Sarowar 2026-11-15: "Middle এ canvas এর নিচে একসাথে এত tool না রেখে — একটা
- * button থাকবে More tools, সেখানে click করলে বাকি tool গুলো show করবে").
- * The panels in the footer slot under the canvas (ClipEditToolsPanel,
- * AudioClipToolsPanel, ChainAddPanel) used to be one long horizontally
- * scrolling row — ~29 tools on a full video layer, the newest tools at the
- * far end of the scroll (TOOLS-AUDIT-2). Now the collapsed row shows only
- * the first tools that FIT, in the existing order, and the rest live behind
- * one "More" tile that opens them as a grid above the row.
+ * Build 202 — the geometry law behind Sarowar's "clean the UI" order
+ * (2026-11-15 ~10:04, scope corrected ~10:24): the middle section under the
+ * canvas keeps only the primary tools visible; EVERYTHING else lives behind
+ * ONE "More tools" button at the end of the play-controls transport row.
+ *
+ * The pieces this law sizes:
+ *  - the clip tools panels' PRIMARY rows (ClipEditToolsPanel,
+ *    AudioClipToolsPanel, ChainAddPanel): no scrolling, no per-panel More
+ *    button — the first tools that FIT at the panel's width, in the existing
+ *    order ([visibleCountForLabels] / [visibleCount]).
+ *  - the ONE shared overflow panel over the transport row: a utility section
+ *    (the build-201 utility row's IN/OUT, beat mark, marker, onion, scopes +
+ *    the transport row's snap and canvas buttons, dissolved as rows in this
+ *    build) and, while a clip is selected, the selected panel's overflow
+ *    tools in their own section below it ([sharedPanelHeightDp]).
  *
  * Everything here is pure dp arithmetic so the harness pins the 360 dp
- * budget; the panels render with THESE constants, so the law and the pixels
+ * budgets; the UI renders with THESE constants, so the law and the pixels
  * cannot drift apart.
  *
  * Width model for a label tile: the tile is bare (boxless law) — a 23 dp
@@ -27,13 +33,13 @@ import kotlin.math.ceil
  */
 object ToolRowSplit {
 
-    /** Back-button zone at the row's start: 8 pad + 46 button + 6 pad + 1 divider. */
+    /** Back-button zone at a clip row's start: 8 pad + 46 button + 6 pad + 1 divider. */
     const val BACK_ZONE_DP = 61
 
-    /** Horizontal padding of the tools row itself, each side. */
+    /** Horizontal padding of a clip tools row itself, each side. */
     const val CONTENT_PADDING_DP = 2
 
-    /** Gap between tile boxes in the collapsed row (and before the More tile). */
+    /** Gap between tile boxes in a clip tools row. */
     const val GAP_DP = 4
 
     /** Total horizontal padding inside a label tile (4 dp each side). */
@@ -48,18 +54,28 @@ object ToolRowSplit {
     /** A tile never gets narrower than this (touch-target law, build 201). */
     const val TILE_MIN_WIDTH_DP = 40
 
-    /** The More tile's label. */
+    /** The shared panel's More tile label (the transport-row button is its glyph). */
     const val MORE_LABEL = "More"
 
     /** Conservative per-char label advance at 11 sp (see the header). */
     private const val CHAR_WIDTH_DP = 6.2
 
-    /** The expanded grid: fixed columns, tile height, gaps, vertical padding, visible row cap. */
+    /** Grid geometry (the shared panel's sections): fixed columns, tile height, gaps. */
     const val GRID_COLUMNS = 5
     const val GRID_TILE_HEIGHT_DP = 48
     const val GRID_GAP_DP = 4
     const val GRID_V_PADDING_DP = 6
     const val GRID_MAX_ROWS = 3
+
+    /** The shared panel: vertical padding (top + bottom), the section divider block. */
+    const val PANEL_V_PADDING_DP = 6
+    const val PANEL_DIVIDER_DP = 13
+
+    /** Tiles in the shared panel's utility section (IN, OUT, beat, marker, onion, scopes, snap, canvas). */
+    const val UTILITY_TILE_COUNT = 8
+
+    /** Rows of the selected panel's overflow shown inside the shared panel (it scrolls past that). */
+    const val CLIP_SECTION_MAX_ROWS = 2
 
     /** Modelled width of one label tile (see the header for the model). */
     fun tileWidthDp(label: String): Int {
@@ -67,7 +83,7 @@ object ToolRowSplit {
         return maxOf(TILE_MIN_WIDTH_DP, TILE_PADDING_DP + maxOf(ICON_DP, text) + TILE_SAFETY_DP)
     }
 
-    /** Width available to tiles + gaps inside the row at [screenWidthDp]. */
+    /** Width available to tiles + gaps inside a row at [screenWidthDp]. */
     fun availableDp(
         screenWidthDp: Int,
         backZoneDp: Int = BACK_ZONE_DP,
@@ -75,20 +91,17 @@ object ToolRowSplit {
     ): Int = screenWidthDp - backZoneDp - 2 * contentPaddingDp
 
     /**
-     * How many of [widthsDp] (in order) stay visible in the collapsed row.
-     * If everything fits, all of them (and no More tile is shown at all).
-     * Otherwise the count is the largest prefix that fits WITH the More tile
-     * and its gap reserved after it.
+     * How many of [widthsDp] (in order) stay visible in a primary row: the
+     * largest prefix whose widths + gaps fit [availableDp]. If everything
+     * fits, all of them. The rest are the panel's overflow — they live in
+     * the shared More panel, so no room is reserved for a button here.
      */
-    fun visibleCount(widthsDp: List<Int>, availableDp: Int, gapDp: Int, moreWidthDp: Int): Int {
-        if (widthsDp.isEmpty()) return 0
-        val allWidth = widthsDp.sum() + gapDp * (widthsDp.size - 1)
-        if (allWidth <= availableDp) return widthsDp.size
+    fun visibleCount(widthsDp: List<Int>, availableDp: Int, gapDp: Int): Int {
         var used = 0
         var n = 0
         while (n < widthsDp.size) {
             val add = widthsDp[n] + if (n == 0) 0 else gapDp
-            if (used + add + gapDp + moreWidthDp > availableDp) break
+            if (used + add > availableDp) break
             used += add
             n++
         }
@@ -97,12 +110,12 @@ object ToolRowSplit {
 
     /** [visibleCount] for the label-measured panels (clip + audio tools). */
     fun visibleCountForLabels(labels: List<String>, screenWidthDp: Int): Int =
-        visibleCount(labels.map(::tileWidthDp), availableDp(screenWidthDp), GAP_DP, tileWidthDp(MORE_LABEL))
+        visibleCount(labels.map(::tileWidthDp), availableDp(screenWidthDp), GAP_DP)
 
     /**
-     * Height of the expanded grid overlay for [itemCount] tiles: whole rows
-     * up to [maxRows] (the grid scrolls vertically past that), plus the row
-     * gaps and the container's vertical padding.
+     * Height of a grid block of [itemCount] tiles at the shared geometry:
+     * whole rows up to [maxRows] (the grid scrolls vertically past that),
+     * plus row gaps and [vPaddingDp] of vertical padding on each side.
      */
     fun gridHeightDp(
         itemCount: Int,
@@ -115,5 +128,20 @@ object ToolRowSplit {
         if (itemCount <= 0) return 0
         val rows = minOf((itemCount + columns - 1) / columns, maxRows)
         return rows * tileHeightDp + (rows - 1) * gapDp + 2 * vPaddingDp
+    }
+
+    /**
+     * Total height of the shared More panel: its own vertical padding + the
+     * utility section (always [UTILITY_TILE_COUNT] tiles = 2 rows) + — when
+     * a clip is selected — the divider and the clip-overflow section
+     * ([CLIP_SECTION_MAX_ROWS] rows shown, scrolling past that).
+     * No clip overflow -> 112 dp; with any overflow -> up to 225 dp.
+     */
+    fun sharedPanelHeightDp(clipOverflowCount: Int, utilityCount: Int = UTILITY_TILE_COUNT): Int {
+        var h = 2 * PANEL_V_PADDING_DP + gridHeightDp(utilityCount, vPaddingDp = 0)
+        if (clipOverflowCount > 0) {
+            h += PANEL_DIVIDER_DP + gridHeightDp(clipOverflowCount, vPaddingDp = 0, maxRows = CLIP_SECTION_MAX_ROWS)
+        }
+        return h
     }
 }
