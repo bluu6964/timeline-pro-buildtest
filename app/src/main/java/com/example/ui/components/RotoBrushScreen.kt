@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
@@ -62,6 +64,8 @@ import com.example.engine.RotoBrushVideo
 import com.example.engine.RotoFrames
 import com.example.model.TimelineClip
 import com.example.model.exportSpeed
+import com.example.ui.theme.AmAccentViolet
+import com.example.ui.theme.AmPillSelected
 import com.example.ui.theme.NeonCyan
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -274,7 +278,7 @@ fun RotoBrushScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("Roto Brush", color = Color.White, fontSize = 18.sp, modifier = Modifier.weight(1f))
-                TextButton(onClick = { runJob?.cancel(); onClose() }) { Text("Close", color = Color.White) }
+                DialogSecondaryButton(text = "Close", onClick = { runJob?.cancel(); onClose() })
             }
 
             // Picture + outline + brush
@@ -347,7 +351,7 @@ fun RotoBrushScreen(
                         modifier = Modifier
                             .align(Alignment.TopCenter)
                             .padding(8.dp)
-                            .background(Color(0xAA000000))
+                            .background(Color(0xAA000000), RoundedCornerShape(8.dp))
                             .padding(horizontal = 10.dp, vertical = 4.dp)
                     )
                 }
@@ -362,6 +366,11 @@ fun RotoBrushScreen(
                     Spacer(Modifier.height(6.dp))
                     Button(
                         enabled = downloading == null,
+                        shape = CircleShape,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = AmAccentViolet,
+                            contentColor = Color.White
+                        ),
                         onClick = {
                             downloading = 0f
                             status = "Downloading EdgeSAM (about 38 MB)…"
@@ -382,10 +391,10 @@ fun RotoBrushScreen(
                     ) { Text(if (downloading != null) "Downloading… " + ((downloading ?: 0f) * 100).toInt() + "%" else "Download models (38 MB)") }
                     Spacer(Modifier.height(6.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { pickEncoder.launch(arrayOf("*/*")) }) {
+                        OutlinedButton(shape = CircleShape, onClick = { pickEncoder.launch(arrayOf("*/*")) }) {
                             Text(if (EdgeSamEngine.hasEncoder(context)) "Encoder ✓" else "Choose encoder")
                         }
-                        OutlinedButton(onClick = { pickDecoder.launch(arrayOf("*/*")) }) {
+                        OutlinedButton(shape = CircleShape, onClick = { pickDecoder.launch(arrayOf("*/*")) }) {
                             Text(if (EdgeSamEngine.hasDecoder(context)) "Decoder ✓" else "Choose decoder")
                         }
                     }
@@ -420,6 +429,7 @@ fun RotoBrushScreen(
             ) {
                 Button(
                     onClick = { foreground = true },
+                    shape = CircleShape,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (foreground) Color(0xFF39E26B) else Color(0xFF2A2A33),
                         contentColor = if (foreground) Color.Black else Color.White
@@ -427,18 +437,19 @@ fun RotoBrushScreen(
                 ) { Text("+ Object") }
                 Button(
                     onClick = { foreground = false },
+                    shape = CircleShape,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (!foreground) Color(0xFFFF4D4D) else Color(0xFF2A2A33),
                         contentColor = Color.White
                     )
                 ) { Text("− Not object") }
-                OutlinedButton(onClick = {
+                OutlinedButton(shape = CircleShape, onClick = {
                     val list = strokes[curMs].orEmpty()
                     if (list.size <= 1) strokes.remove(curMs) else strokes[curMs] = list.dropLast(1)
                     showMask()
                 }) { Text("Undo") }
-                OutlinedButton(onClick = { strokes.remove(curMs); showMask() }) { Text("Clear") }
-                if (modelsOk) OutlinedButton(onClick = {
+                OutlinedButton(shape = CircleShape, onClick = { strokes.remove(curMs); showMask() }) { Text("Clear") }
+                if (modelsOk) OutlinedButton(shape = CircleShape, onClick = {
                     inputMode = (inputMode + 1) % 3
                     EdgeSamEngine.setInputMode(context, inputMode)
                     if (runJob == null) loadFrame(curMs)
@@ -463,11 +474,21 @@ fun RotoBrushScreen(
                 if (runJob != null) {
                     Button(
                         onClick = { runJob?.cancel() },
+                        shape = CircleShape,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = AmPillSelected,
+                            contentColor = Color.White
+                        ),
                         modifier = Modifier.weight(1f)
                     ) { Text("Cancel") }
                 } else {
                     Button(
                         enabled = modelsOk && totalStrokes > 0,
+                        shape = CircleShape,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = AmAccentViolet,
+                            contentColor = Color.White
+                        ),
                         onClick = {
                             val keys = strokes.entries
                                 .filter { it.value.isNotEmpty() }

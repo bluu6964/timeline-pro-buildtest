@@ -87,6 +87,7 @@ import com.example.model.GRAD_RADIAL
 import com.example.model.GRAD_SWEEP
 import com.example.model.TimelineClip
 import com.example.ui.theme.AmBase
+import com.example.ui.theme.AmCornerPanel
 import com.example.ui.theme.AmHairline
 import com.example.ui.theme.AmMint
 import com.example.ui.theme.AmPanel
@@ -147,7 +148,7 @@ fun ColorEditSheet(
             .fillMaxWidth()
             .then(if (fullHeight != null) Modifier.height(fullHeight) else Modifier)
             .glassSurface(
-                RectangleShape,
+                RoundedCornerShape(AmCornerPanel),
                 fill = amGlassBrush()
             )
             .clickable(

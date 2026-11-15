@@ -1,5 +1,4 @@
 package com.example.ui.components
-import androidx.compose.ui.graphics.RectangleShape
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -10,6 +9,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -20,6 +20,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.ui.theme.AmAccentViolet
 
 /** Progress of the full-video cutout (RVM) with a Cancel button. */
 @Composable
@@ -35,7 +36,7 @@ fun CutoutProgressBar(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 6.dp)
-            .clip(RectangleShape)
+            .clip(RoundedCornerShape(16.dp))
             .background(Color(0xFF1C1C1C))
             .padding(horizontal = 14.dp, vertical = 10.dp)
     ) {
@@ -51,20 +52,20 @@ fun CutoutProgressBar(
                 fontSize = 13.sp,
                 modifier = Modifier.weight(1f)
             )
-            TextButton(onClick = onCancel) { Text(actionLabel, color = Color(0xFF7FB4FF), fontSize = 13.sp) }
+            TextButton(onClick = onCancel) { Text(actionLabel, color = Color.White, fontSize = 13.sp) }
         }
         Box(
             Modifier
                 .fillMaxWidth()
                 .height(5.dp)
-                .clip(RectangleShape)
+                .clip(CircleShape)
                 .background(Color(0xFF3A3A3A))
         ) {
             Box(
                 Modifier
                     .fillMaxWidth(p)
                     .height(5.dp)
-                    .background(Color(0xFF4C8DFF))
+                    .background(AmAccentViolet)
             )
         }
     }

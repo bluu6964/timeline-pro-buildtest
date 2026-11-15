@@ -761,7 +761,9 @@ private fun LayerLaneControl(
     val latestLong by rememberUpdatedState(onLongPress)
     val latestToggle by rememberUpdatedState(onToggleMulti)
     val latestMulti by rememberUpdatedState(isMulti)
-    val pillShape = RectangleShape
+    // Build 209: the lane header is the pill its name + design comment promise —
+    // glued to the left edge, its right end a half-capsule.
+    val pillShape = RoundedCornerShape(topEnd = 14.dp, bottomEnd = 14.dp)
     Box(
         modifier = Modifier
             .padding(start = 5.dp)

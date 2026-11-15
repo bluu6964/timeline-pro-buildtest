@@ -4091,8 +4091,8 @@ fun VideoEditorScreen(
                             modifier = Modifier
                                 .align(Alignment.TopCenter)
                                 .padding(top = 10.dp)
-                                .clip(RectangleShape)
-                                .background(Color.Black.copy(alpha = 0.65f))
+                                .clip(androidx.compose.foundation.shape.CircleShape)
+                                .background(Color.Black.copy(alpha = 0.65f), androidx.compose.foundation.shape.CircleShape)
                                 .padding(horizontal = 12.dp, vertical = 6.dp)
                         )
                     }

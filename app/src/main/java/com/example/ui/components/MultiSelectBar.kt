@@ -1,5 +1,4 @@
 package com.example.ui.components
-import androidx.compose.ui.graphics.RectangleShape
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -36,6 +35,7 @@ import com.example.model.MultiAction
 import com.example.model.MultiBarMode
 import com.example.model.ShapeBooleanOp
 import com.example.model.SpatialAction
+import com.example.ui.theme.AmCornerPanel
 import com.example.ui.theme.AmDanger
 import com.example.ui.theme.amGlassBrush
 import com.example.ui.util.bouncyClickable
@@ -86,7 +86,7 @@ fun MultiSelectBar(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 8.dp, vertical = 6.dp)
-            .glassSurface(RectangleShape, fill = amGlassBrush())
+            .glassSurface(RoundedCornerShape(AmCornerPanel), fill = amGlassBrush())
             .padding(horizontal = 12.dp, vertical = 2.dp)
     ) {
         Row(

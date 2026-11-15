@@ -486,7 +486,7 @@ fun AppliedEffectsView(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RectangleShape)
+                .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
                 .background(Color(0xFF141414))
                 .padding(horizontal = 16.dp, vertical = 10.dp)
         ) {
@@ -497,7 +497,7 @@ fun AppliedEffectsView(
                         .align(Alignment.CenterHorizontally)
                         .width(36.dp)
                         .height(4.dp)
-                        .background(Color(0xFF3F3F3F), RectangleShape)
+                        .background(Color(0xFF3F3F3F), CircleShape)
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
@@ -519,8 +519,8 @@ fun AppliedEffectsView(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(46.dp)
-                                        .clip(RectangleShape)
-                                        .background(Color(0xFF2A2A2A))
+                                        .clip(CircleShape)
+                                        .background(Color(0xFF2A2A2A), CircleShape)
                                         .bouncyClickable(
                                             pressedScale = 0.96f,
                                             onClick = { screenMode = AppliedEffectsScreenMode.LIBRARY }
@@ -565,8 +565,8 @@ fun AppliedEffectsView(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
                                                     .height(48.dp)
-                                                    .clip(RectangleShape)
-                                                    .background(Color(0xFF242424))
+                                                    .clip(RoundedCornerShape(14.dp))
+                                                    .background(Color(0xFF242424), RoundedCornerShape(14.dp))
                                                     .padding(horizontal = 10.dp),
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
@@ -663,8 +663,8 @@ fun AppliedEffectsView(
                                         val isSelected = cat == selectedCategory
                                         Box(
                                             modifier = Modifier
-                                                .clip(RectangleShape)
-                                                .background(if (isSelected) Color(0xFFF3F4F6) else Color(0xFF232323))
+                                                .clip(CircleShape)
+                                                .background(if (isSelected) Color(0xFFF3F4F6) else Color(0xFF232323), CircleShape)
                                                 .bouncyClickable(onClick = { selectedCategory = cat })
                                                 .padding(horizontal = 14.dp, vertical = 7.dp),
                                             contentAlignment = Alignment.Center
@@ -718,9 +718,9 @@ fun AppliedEffectsView(
                                             Box(
                                                 modifier = Modifier
                                                     .size(62.dp)
-                                                    .clip(RectangleShape)
-                                                    .background(Color(0xFF2A2A2A))
-                                                    .border(1.dp, Color(0xFF3B3B3B), RectangleShape),
+                                                    .clip(RoundedCornerShape(12.dp))
+                                                    .background(Color(0xFF2A2A2A), RoundedCornerShape(12.dp))
+                                                    .border(1.dp, Color(0xFF3B3B3B), RoundedCornerShape(12.dp)),
                                                 contentAlignment = Alignment.Center
                                             ) {
                                                 // Stylized Rocket / Graphic Canvas

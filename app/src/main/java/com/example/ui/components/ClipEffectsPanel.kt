@@ -1,7 +1,6 @@
 package com.example.ui.components
 
 import com.example.ui.theme.AmCornerCard
-import androidx.compose.ui.graphics.RectangleShape
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -255,7 +254,8 @@ fun ClipEffectsPanel(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(48.dp)
-                        .background(if (full) AmPanelHigh.copy(alpha = 0.45f) else AmPanelHigh)
+                        .clip(CircleShape)
+                        .background(if (full) AmPanelHigh.copy(alpha = 0.45f) else AmPanelHigh, CircleShape)
                         .then(
                             if (full) Modifier
                             else Modifier.bouncyClickable(onClick = { mode = FxPanelMode.BROWSER })
@@ -399,7 +399,8 @@ fun ClipEffectsPanel(
                         Box(
                             modifier = Modifier
                                 .padding(end = 8.dp)
-                                .background(if (on) Color.White else AmPanelHigh)
+                                .clip(CircleShape)
+                                .background(if (on) Color.White else AmPanelHigh, CircleShape)
                                 .bouncyClickable(onClick = { chip = c })
                                 .testTag("fx_category_$c"),
                             contentAlignment = Alignment.Center
@@ -497,12 +498,14 @@ fun ClipEffectsPanel(
                         Spacer(Modifier.weight(1f))
                         Row(
                             modifier = Modifier
+                                .clip(CircleShape)
+                                .background(AmPanelHigh, CircleShape)
                                 .bouncyClickable(onClick = {
                                     onChange(latestEffects.filter { it.id != fx.id })
                                     editingId = null
                                     mode = FxPanelMode.APPLIED
                                 })
-                                .padding(vertical = 6.dp, horizontal = 4.dp)
+                                .padding(vertical = 8.dp, horizontal = 12.dp)
                                 .testTag("fx_remove_${fx.type}"),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -581,6 +584,8 @@ fun ClipEffectsPanel(
                         Box(
                             modifier = Modifier
                                 .padding(top = 4.dp)
+                                .clip(CircleShape)
+                                .background(AmPanelHigh, CircleShape)
                                 .bouncyClickable(onClick = {
                                     val vals = def.params.map { it.default } + fx.values.drop(def.params.size)
                                     onChange(effects.map { if (it.id == fx.id) it.copy(values = vals) else it })
@@ -618,15 +623,17 @@ private fun AppliedFxRow(
     onDrag: (Float) -> Unit,
     onDragEnd: () -> Unit
 ) {
+    val rowShape = RoundedCornerShape(16.dp)
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(52.dp)
             .offset { IntOffset(0, dragOffsetPx.roundToInt()) }
             .zIndex(if (isDragging) 1f else 0f)
-            .background(AmPanelHigh)
+            .clip(rowShape)
+            .background(AmPanelHigh, rowShape)
             .then(
-                if (isDragging) Modifier.border(1.dp, AmHairlineStrong, RectangleShape)
+                if (isDragging) Modifier.border(1.dp, AmHairlineStrong, rowShape)
                 else Modifier
             )
             .testTag("fx_row_${fx.type}"),
@@ -706,7 +713,7 @@ private fun FxGridTile(
     onClick: () -> Unit,
     onBadgeClick: () -> Unit
 ) {
-    val tileShape = RoundedCornerShape(10.dp) // the ARTWORK's corners (content, as in the reference); chrome stays square
+    val tileShape = RoundedCornerShape(10.dp) // the ARTWORK's corners (content, as in the reference)
     Column(
         modifier = Modifier
             .bouncyClickable(onClick = onClick)
@@ -734,7 +741,8 @@ private fun FxGridTile(
                         .align(Alignment.TopStart)
                         .padding(4.dp)
                         .size(22.dp)
-                        .background(Color.Black.copy(alpha = 0.55f))
+                        .clip(CircleShape)
+                        .background(Color.Black.copy(alpha = 0.55f), CircleShape)
                         .bouncyClickable(onClick = onBadgeClick)
                         .testTag("fx_badge_${def.id}"),
                     contentAlignment = Alignment.Center
@@ -836,7 +844,8 @@ private fun FxTileArtwork(def: FxDef, modifier: Modifier = Modifier) {
 /**
  * The browser's info sheet (build 200): the selected effect's name, category and the
  * library's own one-line description ([FxDef.blurb] — written for every def), plus its
- * parameter set. In the marker dialog's language (square dialog on AmPanel, bare actions).
+ * parameter set. Rounded dialog on AmPanel ([AmCornerCard]) with a pill action
+ * (build 209, the redesign language).
  */
 @Composable
 fun FxInfoDialog(def: FxDef, onDismiss: () -> Unit) {
@@ -865,9 +874,7 @@ fun FxInfoDialog(def: FxDef, onDismiss: () -> Unit) {
             }
         },
         confirmButton = {
-            androidx.compose.material3.TextButton(onClick = onDismiss) {
-                Text("Close", color = TextPrimary)
-            }
+            DialogSecondaryButton(text = "Close", onClick = onDismiss)
         },
         modifier = Modifier.testTag("fx_info_dialog")
     )
@@ -891,11 +898,13 @@ private fun KeyPickerRow(swatch: Color, onPick: () -> Unit) {
                 .testTag("fx_key_swatch")
         )
         Spacer(Modifier.width(12.dp))
-        // BARE (boxless order, build 183): no white fill under the label any more.
+        // Pill button (build 209): the filled capsule of the redesign language.
         Row(
             modifier = Modifier
+                .clip(CircleShape)
+                .background(AmPanelHigh, CircleShape)
                 .bouncyClickable(onClick = onPick)
-                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .padding(horizontal = 16.dp, vertical = 10.dp)
                 .testTag("fx_key_pick"),
             verticalAlignment = Alignment.CenterVertically
         ) {

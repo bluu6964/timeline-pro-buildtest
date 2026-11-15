@@ -84,6 +84,7 @@ import com.example.model.segmentIndexAt
 import com.example.model.LayerType
 import com.example.model.TimelineClip
 import com.example.ui.theme.AmBase
+import com.example.ui.theme.AmCornerPanel
 import com.example.ui.theme.AmHairline
 import com.example.ui.theme.AmHairlineStrong
 import com.example.ui.theme.AmTextDim
@@ -311,7 +312,7 @@ fun TransformView(
                 // In the editor the panel takes all the space under the layer strip.
                 .then(if (panelOnly) Modifier.weight(1f) else Modifier)
                 .glassSurface(
-                    RectangleShape,
+                    RoundedCornerShape(AmCornerPanel),
                     fill = amGlassBrush()
                 )
                 .padding(horizontal = 16.dp, vertical = 6.dp)
@@ -322,7 +323,7 @@ fun TransformView(
                     .align(Alignment.CenterHorizontally)
                     .width(36.dp)
                     .height(4.dp)
-                    .background(AmHairlineStrong, RectangleShape)
+                    .background(AmHairlineStrong, CircleShape)
             )
 
             Spacer(modifier = Modifier.height(4.dp))
@@ -649,9 +650,9 @@ private fun PositionPad(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxHeight()
-                .clip(RectangleShape)
+                .clip(RoundedCornerShape(12.dp))
                 .background(AmPanel)
-                .border(1.dp, AmHairline, RectangleShape)
+                .border(1.dp, AmHairline, RoundedCornerShape(12.dp))
                 .pointerInput(Unit) {
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false)
@@ -848,8 +849,8 @@ internal fun TransformValueHeader(
         Box(
             modifier = Modifier
                 .size(40.dp)
-                .clip(RectangleShape)
-                .background(if (easingOpen) AmPanelHigh else Color.Transparent)
+                .clip(CircleShape)
+                .background(if (easingOpen) AmPanelHigh else Color.Transparent, CircleShape)
                 .bouncyClickable(onClick = { if (easingEnabled) onEasing() })
                 .testTag("transform_easing_button"),
             contentAlignment = Alignment.Center

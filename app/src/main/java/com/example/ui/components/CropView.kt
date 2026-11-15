@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
@@ -72,10 +73,12 @@ import com.example.model.indexOnTime
 import com.example.model.segmentIndexAt
 import com.example.model.LayerType
 import com.example.model.TimelineClip
+import com.example.ui.theme.AmCornerPanel
+import com.example.ui.theme.AmPanel
+import com.example.ui.theme.AmPillSelected
 import com.example.ui.theme.CanvasBackground
 import com.example.ui.theme.EditorBackground
 import com.example.ui.theme.IconActive
-import com.example.ui.theme.NeonCyan
 import com.example.ui.theme.RulerSubTickColor
 import com.example.ui.theme.RulerTickColor
 import com.example.ui.theme.TextPrimary
@@ -372,13 +375,14 @@ fun CropView(
 
             Box(
                 modifier = Modifier
-                    .clip(RectangleShape)
-                    .background(NeonCyan)
+                    .heightIn(min = 40.dp)
+                    .clip(CircleShape)
+                    .background(Color.White, CircleShape)
                     .bouncyClickable(onClick = {
                         emitCrop()
                         onDismiss()
                     })
-                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -780,9 +784,9 @@ fun CropView(
             Box(
                 modifier = Modifier
                     .size(32.dp)
-                    .clip(RectangleShape)
+                    .clip(CircleShape)
                     .background(Color(0xFF1D1D1D))
-                    .border(1.dp, Color(0xFF333333), RectangleShape)
+                    .border(1.dp, Color(0xFF333333), CircleShape)
                     .bouncyClickable(onClick = {
                         activePreset = "Free"
                         setRect(0f, 0f, 1f, 1f)
@@ -803,9 +807,9 @@ fun CropView(
                 modifier = Modifier
                     .weight(1f)
                     .height(30.dp)
-                    .clip(RectangleShape)
+                    .clip(RoundedCornerShape(10.dp))
                     .background(Color(0xFF1E1E1E))
-                    .border(1.dp, Color(0xFF2C2C2C), RectangleShape)
+                    .border(1.dp, Color(0xFF2C2C2C), RoundedCornerShape(10.dp))
                     .padding(horizontal = 6.dp),
                 contentAlignment = Alignment.CenterStart
             ) {
@@ -856,8 +860,8 @@ fun CropView(
                         .verticalScroll(androidx.compose.foundation.rememberScrollState())
                     else Modifier
                 )
-                .clip(RectangleShape)
-                .background(Color(0xFF141414))
+                .clip(RoundedCornerShape(topStart = AmCornerPanel, topEnd = AmCornerPanel))
+                .background(AmPanel)
                 .padding(horizontal = 16.dp, vertical = 6.dp)
         ) {
             // Drag handle pill
@@ -866,7 +870,7 @@ fun CropView(
                     .align(Alignment.CenterHorizontally)
                     .width(36.dp)
                     .height(4.dp)
-                    .background(Color(0xFF3F3F3F), RectangleShape)
+                    .background(AmPillSelected, CircleShape)
             )
 
             Spacer(modifier = Modifier.height(4.dp))
@@ -912,9 +916,10 @@ fun CropView(
                     val isSelected = (preset == activePreset)
                     Box(
                         modifier = Modifier
-                            .clip(RectangleShape)
-                            .background(if (isSelected) Color.White else Color(0xFF262626))
-                            .border(1.dp, if (isSelected) Color.White else Color(0xFF3D3D3D), RectangleShape)
+                            .heightIn(min = 40.dp)
+                            .clip(CircleShape)
+                            .background(if (isSelected) Color.White else Color(0xFF262626), CircleShape)
+                            .border(1.dp, if (isSelected) Color.White else Color(0xFF3D3D3D), CircleShape)
                             .bouncyClickable(onClick = { applyPresetRatio(preset) })
                             .padding(horizontal = 16.dp, vertical = 8.dp),
                         contentAlignment = Alignment.Center

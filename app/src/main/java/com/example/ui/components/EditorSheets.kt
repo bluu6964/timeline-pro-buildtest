@@ -1,7 +1,7 @@
 package com.example.ui.components
 
 import com.example.ui.theme.AmCornerCard
-import androidx.compose.ui.graphics.RectangleShape
+import com.example.ui.theme.AmInk
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.foundation.Canvas
@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -470,20 +471,31 @@ fun ExportModalDialog(
                         Text(savedToLabel, color = Color.White.copy(alpha = 0.7f),
                             fontSize = 14.sp, fontWeight = FontWeight.Medium)
                         Spacer(modifier = Modifier.height(24.dp))
-                        // BARE actions (boxless order, build 183): text buttons, no filled boxes.
+                        // Pill actions (build 209, the redesign language): Done is the
+                        // white pill, Share the filled grey pill — same row, same weights.
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                            TextButton(
+                            PillActionButton(
+                                text = "Done",
                                 onClick = onDismiss,
+                                containerColor = Color.White,
+                                contentColor = AmInk,
                                 modifier = Modifier.weight(1f).height(48.dp)
-                            ) { Text("Done", color = Color.White, fontWeight = FontWeight.Bold) }
-                            TextButton(
-                                onClick = onShare,
-                                modifier = Modifier.weight(1f).height(48.dp)
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(48.dp)
+                                    .clip(CircleShape)
+                                    .background(AmPillSelected, CircleShape)
+                                    .bouncyClickable(pressedScale = 0.94f, onClick = onShare),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Icon(Icons.Default.Share, contentDescription = null,
-                                    tint = Color.White, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Share", color = Color.White, fontWeight = FontWeight.Bold)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Share, contentDescription = null,
+                                        tint = Color.White, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Share", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                }
                             }
                         }
                     }
@@ -538,15 +550,15 @@ fun ExportModalDialog(
                 }
             }
 
-            // Bottom tab with X: cancels a running export, otherwise closes the screen.
+            // Bottom pill tab with X: cancels a running export, otherwise closes the screen.
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .navigationBarsPadding()
                     .width(96.dp)
                     .height(56.dp)
-                    .clip(RectangleShape)
-                    .background(Color.White.copy(alpha = 0.10f))
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.10f), CircleShape)
                     .clickable { if (isExporting) onCancel() else onDismiss() }
                     .testTag("export_close"),
                 contentAlignment = Alignment.Center
@@ -705,25 +717,26 @@ private fun ColumnScope.ExportSettingsPage(
     }
 
     Spacer(modifier = Modifier.height(12.dp))
-    // BARE (boxless order, build 183): the Export action is bold white text now.
-    TextButton(
+    // The Export action: the violet primary pill (build 209, the redesign language).
+    DialogPrimaryButton(
+        text = "Export Now",
         onClick = onStartExport,
-        modifier = Modifier.fillMaxWidth().height(52.dp).testTag("export_now")
-    ) {
-        Text("Export Now", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-    }
+        modifier = Modifier.fillMaxWidth().height(52.dp),
+        tag = "export_now"
+    )
     // Room for the round "close" tab at the bottom of the screen.
     Spacer(modifier = Modifier.height(68.dp))
 }
 
 @Composable
 private fun ExportCard(title: String, value: String, hint: String, content: @Composable ColumnScope.() -> Unit) {
+    val cardShape = RoundedCornerShape(AmCornerCard)
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RectangleShape)
+            .clip(cardShape)
             .background(AmPanel)
-            .border(1.dp, AmHairline, RectangleShape)
+            .border(1.dp, AmHairline, cardShape)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
@@ -764,17 +777,22 @@ private fun ExportChipRow(content: @Composable androidx.compose.foundation.layou
 
 @Composable
 private fun ExportChip(text: String, selected: Boolean, onClick: () -> Unit) {
-    Text(
-        text = text,
-        fontSize = 13.sp,
-        fontWeight = FontWeight.SemiBold,
-        color = if (selected) Color(0xFF0A0A0A) else Color(0xFFE5E5E7),
+    Box(
         modifier = Modifier
-            .clip(RectangleShape)
-            .background(if (selected) ExportAccent else Color.White.copy(alpha = 0.10f))
+            .heightIn(min = 40.dp)
+            .clip(CircleShape)
+            .background(if (selected) ExportAccent else Color.White.copy(alpha = 0.10f), CircleShape)
             .bouncyClickable(pressedScale = 0.94f) { onClick() }
-            .padding(horizontal = 14.dp, vertical = 7.dp)
-    )
+            .padding(horizontal = 14.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = if (selected) Color(0xFF0A0A0A) else Color(0xFFE5E5E7)
+        )
+    }
 }
 
 
@@ -1263,14 +1281,24 @@ fun FullscreenPlayerModal(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onDismiss) {
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                ) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Exit Fullscreen", tint = Color.White)
                 }
                 Text(
                     text = "${formatTimeCode(currentPlayheadMs)} / ${formatTimeCode(totalDurationMs)}",
                     color = Color.White,
                     fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
                 )
             }
 

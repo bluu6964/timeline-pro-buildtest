@@ -222,8 +222,8 @@ fun EasingEditor(
                 Box(
                     modifier = Modifier
                         .size(66.dp)
-                        .clip(RectangleShape)
-                        .background(if (selected) TileBgSelected else TileBg)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (selected) TileBgSelected else TileBg, RoundedCornerShape(12.dp))
                         .bouncyClickable(pressedScale = 0.92f, onClick = {
                             begin()
                             change(preset)
