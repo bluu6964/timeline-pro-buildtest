@@ -1,4 +1,6 @@
 package com.example.ui.components
+
+import com.example.ui.theme.AmCornerCard
 import androidx.compose.ui.graphics.RectangleShape
 
 import androidx.compose.foundation.Image
@@ -73,7 +75,7 @@ fun ClipEffectsSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = AmPanel,
-        shape = RectangleShape
+        shape = RoundedCornerShape(AmCornerCard)
     ) {
         Column(
             modifier = Modifier
@@ -127,7 +129,7 @@ fun ClipReplaceSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = AmPanel,
-        shape = RectangleShape
+        shape = RoundedCornerShape(AmCornerCard)
     ) {
         Column(
             modifier = Modifier
@@ -181,7 +183,7 @@ fun ClipBlendSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = AmPanel,
-        shape = RectangleShape
+        shape = RoundedCornerShape(AmCornerCard)
     ) {
         Column(
             modifier = Modifier
@@ -228,7 +230,7 @@ fun ClipCropSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = AmPanel,
-        shape = RectangleShape
+        shape = RoundedCornerShape(AmCornerCard)
     ) {
         Column(
             modifier = Modifier

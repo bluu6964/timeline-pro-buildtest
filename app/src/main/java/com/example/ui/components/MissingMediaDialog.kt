@@ -1,4 +1,6 @@
 package com.example.ui.components
+
+import com.example.ui.theme.AmCornerCard
 import androidx.compose.ui.graphics.RectangleShape
 
 import androidx.compose.foundation.background
@@ -49,7 +51,7 @@ fun MissingMediaDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = DialogFill,
-        shape = RectangleShape,
+        shape = RoundedCornerShape(AmCornerCard),
         title = { Text("Replace missing media", color = HeaderText, fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {

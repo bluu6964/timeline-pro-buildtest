@@ -1,4 +1,6 @@
 package com.example.ui.components
+
+import com.example.ui.theme.AmCornerCard
 import androidx.compose.ui.graphics.RectangleShape
 
 import androidx.compose.foundation.background
@@ -48,7 +50,7 @@ fun ParentSheet(
     onPick: (String?) -> Unit,
     onDismiss: () -> Unit
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = AmPanel, shape = RectangleShape) {
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = AmPanel, shape = RoundedCornerShape(AmCornerCard)) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()

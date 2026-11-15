@@ -1,4 +1,6 @@
 package com.example.ui
+
+import com.example.ui.theme.AmCornerCard
 import androidx.compose.ui.graphics.RectangleShape
 
 import androidx.compose.animation.AnimatedContent
@@ -2484,7 +2486,7 @@ fun VideoEditorScreen(
                 // Square snackbar surface (Sarowar's square order 2026-11-14 —
                 // the Material default snackbar shape is rounded).
                 SnackbarHost(snackbarHostState) { data ->
-                    androidx.compose.material3.Snackbar(data, shape = RectangleShape)
+                    androidx.compose.material3.Snackbar(data, shape = RoundedCornerShape(AmCornerCard))
                 }
             }
         },
@@ -2496,35 +2498,74 @@ fun VideoEditorScreen(
         ) {
             val totalHeight = maxHeight
 
-            // Proportions matching user prompt exactly:
-            // Header: 1/18 of screen
-            // Canvas: 9/18 of screen
-            // Play, full screen section: 1/18 of screen
-            // Timescale: 1/30 of screen
-            // Layer panel: 5/18 of screen
-            // Bottom toolbar: remaining screen height (~2/18)
-            val headerH = (totalHeight * (1f / 18f)).coerceAtLeast(44.dp)
-            // Onion skin (build 190): while the ghosts are on, the settings row under
-            // the play controls takes its height from the canvas; the sections below
-            // keep their places.
-            val onionRowH = if (onionSkin.enabled) 40.dp else 0.dp   // 40 since build 201 (the row's steppers grew to 40 dp targets)
-            // Scopes (build 196): the same discipline — while the panel is open its
-            // height comes out of the canvas too, so nothing below moves.
+            // Vertical budget — proportions (ideal):
+            // Header 1/18 · Canvas 9/18 · Play 1/18 · Timescale 1/30 · Layer 5/18 · Toolbar ~rest
+            // Onion-skin row and Scopes panel sit BETWEEN play controls and timescale;
+            // their height is taken from the canvas share so sections below stay put.
+            // Soft minima applied only when the screen has room. Sum of all rows
+            // (including onion + scopes) ALWAYS equals totalHeight — nothing off-screen.
+            val onionRowH = if (onionSkin.enabled) 40.dp else 0.dp
             val scopesPanelH = if (scopesOn) ScopesPanelHeight else 0.dp
-            // Build 202: the play bar is ONE transport row again — the build-201
-            // utility row's 40 dp returns to the canvas (its controls live in
-            // the More panel now), so panelTop below is numerically unchanged.
-            val canvasH = (totalHeight * (9f / 18f) - onionRowH - scopesPanelH).coerceAtLeast(260.dp)
-            val playControlsH = (totalHeight * (1f / 18f)).coerceAtLeast(44.dp)
-            val timescaleH = (totalHeight * (1f / 30f)).coerceAtLeast(24.dp)
-            val layerPanelH = (totalHeight * (5f / 18f)).coerceAtLeast(160.dp)
-            val toolbarH = (totalHeight - (headerH + canvasH + playControlsH + timescaleH + layerPanelH)).coerceAtLeast(54.dp)
+            val extraRowsH = onionRowH + scopesPanelH
+
+            // Ideal proportional sizes for the six permanent sections.
+            var headerH = totalHeight * (1f / 18f)
+            var playControlsH = totalHeight * (1f / 18f)
+            var timescaleH = totalHeight * (1f / 30f)
+            var layerPanelH = totalHeight * (5f / 18f)
+            // Canvas ideal already pays for extra rows so below sections keep their place.
+            var canvasH = (totalHeight * (9f / 18f) - extraRowsH).coerceAtLeast(0.dp)
+            var toolbarH = totalHeight - (headerH + canvasH + playControlsH + timescaleH + layerPanelH + extraRowsH)
+
+            // Soft minima — preferred when they still fit.
+            val minHeader = 40.dp
+            val minPlay = 40.dp
+            val minTimescale = 20.dp
+            val minLayer = 120.dp
+            val minCanvas = 180.dp
+            val minToolbar = 48.dp
+
+            val minSum = minHeader + minPlay + minTimescale + minLayer + minCanvas + minToolbar + extraRowsH
+            if (minSum <= totalHeight) {
+                headerH = headerH.coerceAtLeast(minHeader)
+                playControlsH = playControlsH.coerceAtLeast(minPlay)
+                timescaleH = timescaleH.coerceAtLeast(minTimescale)
+                layerPanelH = layerPanelH.coerceAtLeast(minLayer)
+                canvasH = canvasH.coerceAtLeast(minCanvas)
+                toolbarH = (totalHeight - (headerH + canvasH + playControlsH + timescaleH + layerPanelH + extraRowsH))
+                    .coerceAtLeast(minToolbar)
+                // If we overshot, shrink flexible sections (canvas + layer) proportionally.
+                val used = headerH + canvasH + playControlsH + timescaleH + layerPanelH + toolbarH + extraRowsH
+                if (used > totalHeight) {
+                    val excess = used - totalHeight
+                    val flexible = canvasH + layerPanelH
+                    if (flexible > 0.dp && flexible > excess) {
+                        val scale = 1f - (excess / flexible)
+                        canvasH *= scale
+                        layerPanelH *= scale
+                    }
+                }
+            } else {
+                // Extremely short screen: keep pure proportions; ensure toolbar usable.
+                if (toolbarH < 40.dp) {
+                    val need = 40.dp - toolbarH
+                    canvasH = (canvasH - need).coerceAtLeast(140.dp)
+                    toolbarH = totalHeight - (headerH + canvasH + playControlsH + timescaleH + layerPanelH + extraRowsH)
+                }
+            }
+
+            // Final safety: force exact fit (float noise / edge cases).
+            run {
+                val used = headerH + canvasH + playControlsH + timescaleH + layerPanelH + toolbarH + extraRowsH
+                val drift = totalHeight - used
+                if (drift != 0.dp) canvasH = (canvasH + drift).coerceAtLeast(120.dp)
+            }
 
             // Alight-style editor panels (Transform / Color / Blending): the play-controls card stays
             // exactly where it is. The panel starts right under it, at the timescale, so the selected
             // layer's strip takes the first layer row and the other layers are hidden behind the panel.
-            val panelTop = headerH + canvasH + playControlsH
-            val panelH = (totalHeight - panelTop).coerceAtLeast(200.dp)
+            val panelTop = headerH + canvasH + playControlsH + extraRowsH
+            val panelH = (totalHeight - panelTop).coerceAtLeast(140.dp)
 
             // The selected layer, drawn by the real timeline panel (identical look) as the first row.
             val layerRow: @Composable (String) -> Unit = { id ->

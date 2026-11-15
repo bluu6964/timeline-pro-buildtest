@@ -1,4 +1,6 @@
 package com.example.ui.components
+
+import com.example.ui.theme.AmCornerCard
 import androidx.compose.ui.graphics.RectangleShape
 
 import androidx.compose.foundation.background
@@ -83,7 +85,7 @@ fun ProjectsDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = DialogFill,
-        shape = RectangleShape,
+        shape = RoundedCornerShape(AmCornerCard),
         title = { Text("Projects", color = HeaderText, fontWeight = FontWeight.Bold) },
         text = {
             LazyColumn(
@@ -168,7 +170,7 @@ fun ProjectsDialog(
         AlertDialog(
             onDismissRequest = { renaming = null },
             containerColor = DialogFill,
-        shape = RectangleShape,
+        shape = RoundedCornerShape(AmCornerCard),
             title = { Text("Rename", color = HeaderText) },
             text = {
                 OutlinedTextField(value = text, onValueChange = { text = it.take(60) }, singleLine = true)
@@ -187,7 +189,7 @@ fun ProjectsDialog(
         AlertDialog(
             onDismissRequest = { deleting = null },
             containerColor = DialogFill,
-        shape = RectangleShape,
+        shape = RoundedCornerShape(AmCornerCard),
             title = { Text("Delete project?", color = HeaderText) },
             text = { Text("\"${p.name}\" will be removed. This cannot be undone.", color = TextSecondary) },
             confirmButton = {

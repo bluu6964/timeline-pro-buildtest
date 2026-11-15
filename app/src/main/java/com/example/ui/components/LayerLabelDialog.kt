@@ -1,5 +1,9 @@
 package com.example.ui.components
 
+import com.example.ui.theme.AmCornerCard
+
+import androidx.compose.foundation.shape.RoundedCornerShape
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -41,7 +45,7 @@ fun LayerLabelDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = AmPanel,
-        shape = RectangleShape,
+        shape = RoundedCornerShape(AmCornerCard),
         title = { Text("Layer label", color = HeaderText) },
         text = {
             Column {

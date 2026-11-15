@@ -1,4 +1,6 @@
 package com.example.ui.components
+
+import com.example.ui.theme.AmCornerCard
 import androidx.compose.ui.graphics.RectangleShape
 
 import androidx.compose.foundation.Canvas
@@ -361,7 +363,7 @@ private fun OpacitySlider(
 
 @Composable
 private fun BlendThumb(spec: BlendSpec, selected: Boolean, modifier: Modifier = Modifier) {
-    val shape = RectangleShape
+    val shape = RoundedCornerShape(AmCornerCard)
     Box(
         modifier = modifier
             .clip(shape)

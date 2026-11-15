@@ -5,130 +5,157 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /**
- * DESIGN TOKENS — the app's settled design language: **simple BLACK & WHITE, CapCut-style**
- * (Sarowar's order 2026-11-13 ~20:30: "ui থেকে neon and glassy বাদ দিয়ে পুরো capcut এর মত
- * simple black white করো"). This SUPERSEDES the neon/glass redesign of builds 161/163
- * (mint→cyan and cyan→violet gradients, glass dome/sheen surfaces, the program-rendered
- * glow/glass PNG kit, BlendMode.Plus bloom) — all of it is gone from the chrome.
+ * DESIGN TOKENS — Professional CapCut-inspired black & white language (2026-11-15 polish).
  *
- * THE LANGUAGE, strictly monochrome and FLAT:
- *  - Backgrounds: true/near black (#000–#0A0A0A); surfaces flat dark greys
- *    (#161616–#262626); hairline dividers in mid-grey / white-alpha.
- *  - Text/icons: white primary, grey secondary. No coloured accents in UI chrome.
- *  - The ONE emphasis mechanism: white vs grey. The primary action (Export) is a flat
- *    WHITE button with BLACK text; selected/active states are white (fill, border or
- *    text), inactive states grey.
- *  - No gradients, no glow, no glass: no gradient brushes, no dome light / top sheen,
- *    no additive bloom anywhere in chrome. The brush factories below survive only as
- *    call-site compatibility — every one returns a FLAT [SolidColor].
- *  - The single retained functional colour is [AmDanger] (destructive actions, kept
- *    since the batch-1 polish): a semantic signal, not an accent.
- *  - USER CONTENT colours are NOT chrome and are untouched by this layer: layer / fill /
- *    effect / template colours, timeline clip-type bars, colour-picker content.
+ * Goals of this pass:
+ *  - Keep the strict monochrome chrome (no neon, no glass, no gradients in UI chrome).
+ *  - Add a small, consistent radius scale so panels/chips feel modern instead of harsh-square.
+ *  - Introduce a clear spacing scale and refined surface hierarchy for better visual rhythm.
+ *  - Improve type hierarchy and contrast for readability.
+ *  - Preserve every existing token name so call-sites stay source-compatible.
  *
- * New UI code consumes these tokens; the older flat tokens in Color.kt carry the same
- * monochrome values (the legacy lime "Neon" aliases now resolve to white/grey).
+ * Language rules (unchanged spirit):
+ *  - Backgrounds: near-black base, flat dark greys for panels.
+ *  - Emphasis: white vs grey only. Primary actions = solid white + black text.
+ *  - One semantic colour kept: AmDanger (destructive). AmFxAccent stays limited to effects ruler.
+ *  - User content colours (clips, effects, templates) are outside this layer.
  */
 
 // ── Base & flat surfaces ─────────────────────────────────────────────────
-/** App base: near-black, neutral (no navy tint). */
+/** App base: near-black, neutral. */
 val AmBase = Color(0xFF0A0A0A)
-/** Below-base pure black for recessed areas (canvas surround stays [CanvasBackground]). */
+/** Pure black for recessed / canvas surround. */
 val AmBaseDeep = Color(0xFF000000)
-/** Flat panel surface — sheets, bars, dialogs. */
-val AmPanel = Color(0xFF161616)
-/** Raised flat surface — discs, pills, chips sitting on a panel. */
-val AmPanelHigh = Color(0xFF262626)
-/** Default flat fill for small items drawn over the base. */
-val AmGlassFill = Color(0xFF1C1C1C)
-/** 1 px hairline divider/border on flat surfaces. */
-val AmHairline = Color(0x1FFFFFFF)
-/** Stronger hairline for emphasised flat edges. */
-val AmHairlineStrong = Color(0x38FFFFFF)
+/** Primary panel surface — sheets, bottom bars, dialogs. */
+val AmPanel = Color(0xFF141414)
+/** Raised surface — chips, selected pills, elevated cards. */
+val AmPanelHigh = Color(0xFF1F1F1F)
+/** Slightly higher for interactive hover / pressed states. */
+val AmPanelElevated = Color(0xFF2A2A2A)
+/** Default fill for small chrome items on base. */
+val AmGlassFill = Color(0xFF1A1A1A)
+/** Subtle 1px hairline. */
+val AmHairline = Color(0x22FFFFFF)
+/** Stronger hairline for focused edges. */
+val AmHairlineStrong = Color(0x40FFFFFF)
 
-// ── Accents — the white/grey mechanism (names kept for call-site stability) ──
-/** The active/selected colour: plain white. (Was electric mint in the scrapped redesign.) */
+// ── Accents — white / grey emphasis (names kept for compatibility) ───────
+/** Active / selected: pure white. */
 val AmMint = Color(0xFFFFFFFF)
-/** Mid grey — the dim end of the old primary pair. */
+/** Dimmed primary. */
 val AmMintDeep = Color(0xFFC8C8C8)
-/** Near-white for glyph accents. (Was cyan.) */
+/** Near-white glyph accent. */
 val AmCyan = Color(0xFFE8E8E8)
-/** Plain white. (Was bright cyan.) */
+/** Bright white. */
 val AmCyanBright = Color(0xFFFFFFFF)
-/** Light grey. (Was violet — strokes only in the old language, now just a grey.) */
+/** Light grey stroke / secondary accent. */
 val AmViolet = Color(0xFFCFCFCF)
-/** Mid grey. (Was deep violet.) */
+/** Mid grey. */
 val AmVioletDeep = Color(0xFFA8A8A8)
-/** The old lime identity, resolved to white like the rest of the chrome. */
-val AmLime = NeonLime
-/** Neutral light grey. (Was warm orange; elapsed-time accents are monochrome now.) */
+/** Legacy lime → white. */
+val AmLime = Color(0xFFFFFFFF)
+/** Neutral light grey. */
 val AmOrange = Color(0xFFC8C8C8)
-/** Plain white. (Was hot pink; no chrome usage remains.) */
+/** White. */
 val AmPink = Color(0xFFFFFFFF)
-/** Soft red for destructive actions — the ONE retained functional colour (since batch 1). */
-val AmDanger = Color(0xFFFF6B6B)
+/** Soft red — only for destructive actions. */
+val AmDanger = Color(0xFFFF5C5C)
 /**
- * Magenta-pink — the ONE accent borrowed from Sarowar's effects-layout reference
- * (build 200): it colours ONLY the parameter ruler's thumb in the Effects
- * parameter editor. No other chrome may use it.
+ * Magenta-pink — reserved exclusively for the Effects parameter ruler thumb.
+ * Do not use elsewhere in chrome.
  */
 val AmFxAccent = Color(0xFFFF2E7E)
-/** Dark ink drawn ON TOP of white fills (Export label, Add/check badges). */
+/** Ink drawn on white fills (Export label, badges). */
 val AmInk = Color(0xFF0A0A0A)
 
-// ── Text on the flat surfaces ────────────────────────────────────────────
-/** Secondary text: neutral grey. */
-val AmTextDim = Color(0xFFA6A6A6)
-/** Tertiary text on flat surfaces. */
-val AmTextFaint = Color(0xFF6E6E6E)
+// ── Text hierarchy ───────────────────────────────────────────────────────
+/** Secondary text. */
+val AmTextDim = Color(0xFFA3A3A3)
+/** Tertiary / disabled text. */
+val AmTextFaint = Color(0xFF6B6B6B)
+/** Primary text (explicit token for new code). */
+val AmTextPrimary = Color(0xFFF5F5F7)
 
-// ── Slider-specific ──────────────────────────────────────────────────────
-/** Ruler tick, minor. */
-val AmTickMinor = Color(0xFF3A3A3A)
-/** Ruler tick, major. */
-val AmTickMajor = Color(0xFF7A7A7A)
+// ── Slider / ruler ──────────────────────────────────────────────────────
+val AmTickMinor = Color(0xFF383838)
+val AmTickMajor = Color(0xFF787878)
 
-// ── Brush factories — FLAT. Every factory returns a SolidColor so existing
-//    call sites render flat monochrome with zero gradient. ────────────────
-/** The primary-action fill: flat white (Export pill, Add badge, selected tabs). */
+// ── Brush factories (still flat SolidColor for compatibility) ────────────
 fun amMintCyanBrush(): Brush = SolidColor(Color.White)
-
-/** Flat panel fill (sheets/bars via glassSurface's default). */
 fun amGlassBrush(): Brush = SolidColor(AmPanel)
-
-/** Flat raised fill for small chips/pills sitting on a panel. */
 fun amGlassChipBrush(): Brush = SolidColor(AmPanelHigh)
-
-/** Selected-state border: flat white. */
 fun amCyanVioletBrush(): Brush = SolidColor(Color.White)
 
-// ── Corner scale — SQUARE (Sarowar's order 2026-11-14: the rounded corners
-//    around every button and card GO — flat square, CapCut-simple). All chrome
-//    corner tokens are 0.dp: buttons, cards, dialogs, sheets, panels, chips and
-//    tiles render with sharp square corners. The token names survive so call
-//    sites read as before. Shapes that are round BY FUNCTION are not corners
-//    and are untouched: discs (play button, icon discs), colour swatches and
-//    picker discs, slider thumbs, the export progress ring, and all user
-//    CONTENT (media, template artwork, layer rendering). ───────────────────
-/** Cards (dialogs and panels) — square since 2026-11-14. */
-val AmCornerCard = 0.dp
-/** Panels and sheets — square since 2026-11-14. */
-val AmCornerPanel = 0.dp
-/** Toolbar items and medium chips — square since 2026-11-14. */
-val AmCornerItem = 0.dp
-/** Small chips and readout pills — square since 2026-11-14. */
-val AmCornerChip = 0.dp
-/** Micro elements (readout boxes, badges) — square since 2026-11-14. */
-val AmCornerMicro = 0.dp
+// ── Corner scale — soft professional radii (CapCut-like) ─────────────────
+// Previous strict 0.dp square look is relaxed for better modern feel while
+// remaining simple and flat. Functional round shapes (play disc, thumbs, etc.)
+// stay circular and are not affected by these tokens.
+/** Large cards / dialogs / bottom sheets. */
+val AmCornerCard = 12.dp
+/** Panels, major containers. */
+val AmCornerPanel = 10.dp
+/** Toolbar items, medium chips, buttons. */
+val AmCornerItem = 8.dp
+/** Small chips, readout pills. */
+val AmCornerChip = 6.dp
+/** Micro badges / tiny containers. */
+val AmCornerMicro = 4.dp
+
+// ── Spacing scale ────────────────────────────────────────────────────────
+object AmSpace {
+    val xxs: Dp = 2.dp
+    val xs: Dp = 4.dp
+    val sm: Dp = 8.dp
+    val md: Dp = 12.dp
+    val lg: Dp = 16.dp
+    val xl: Dp = 20.dp
+    val xxl: Dp = 24.dp
+    val xxxl: Dp = 32.dp
+}
+
+// ── Elevation / stroke helpers ───────────────────────────────────────────
+/** Standard content padding inside panels. */
+val AmPanelPadding = 16.dp
+/** Compact content padding (toolbars, dense lists). */
+val AmPanelPaddingCompact = 12.dp
+/** Minimum comfortable touch target. */
+val AmTouchTarget = 44.dp
 
 // ── Type emphasis ────────────────────────────────────────────────────────
-/** Tiny uppercase micro-label (10–11 sp, letter-spaced) — apply `.uppercase()` at the call site. */
-val AmMicroLabel = TextStyle(fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.4.sp)
-/** Huge bold numeral — stat readouts, counters, big values. */
-val AmBigNumeral = TextStyle(fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 0.sp)
-/** Emphasised control label (buttons, toolbar items). */
-val AmControlLabel = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.4.sp)
+/** Tiny uppercase micro-label — call site should apply .uppercase(). */
+val AmMicroLabel = TextStyle(
+    fontSize = 10.sp,
+    fontWeight = FontWeight.SemiBold,
+    letterSpacing = 1.2.sp,
+    color = AmTextDim
+)
+/** Large bold numeral for stats / counters. */
+val AmBigNumeral = TextStyle(
+    fontSize = 28.sp,
+    fontWeight = FontWeight.Bold,
+    letterSpacing = (-0.5).sp
+)
+/** Control / toolbar label. */
+val AmControlLabel = TextStyle(
+    fontSize = 11.sp,
+    fontWeight = FontWeight.Medium,
+    letterSpacing = 0.2.sp
+)
+/** Section title inside sheets. */
+val AmSectionTitle = TextStyle(
+    fontSize = 13.sp,
+    fontWeight = FontWeight.SemiBold,
+    letterSpacing = 0.1.sp
+)
+/** Body text for descriptions. */
+val AmBody = TextStyle(
+    fontSize = 14.sp,
+    fontWeight = FontWeight.Normal,
+    letterSpacing = 0.15.sp,
+    lineHeight = 20.sp
+)

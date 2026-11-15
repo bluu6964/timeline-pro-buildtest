@@ -9,25 +9,25 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 
 private val DarkColorScheme = darkColorScheme(
-    // B/W language (2026-11-13 order): Material's accent roles ride the monochrome
-    // token layer (white primary, near-white secondary — theme/DesignTokens.kt).
+    // Professional B/W language — white primary, refined dark surfaces.
     primary = AmMint,
     onPrimary = AmInk,
-    primaryContainer = EditorSurfaceVariant,
+    primaryContainer = AmPanelHigh,
     onPrimaryContainer = TextPrimary,
     secondary = AmCyan,
     onSecondary = TextPrimary,
-    background = EditorBackground,
+    background = AmBase,
     onBackground = TextPrimary,
-    surface = EditorSurface,
+    surface = AmPanel,
     onSurface = TextPrimary,
-    surfaceVariant = EditorSurfaceVariant,
+    surfaceVariant = AmPanelHigh,
     onSurfaceVariant = TextSecondary,
-    outline = EditorDivider
+    outline = AmHairlineStrong,
+    error = AmDanger,
+    onError = AmInk
 )
 
 @Composable
@@ -39,8 +39,8 @@ fun AfterMotionTheme(
         SideEffect {
             val window = (view.context as? Activity)?.window
             if (window != null) {
-                window.statusBarColor = EditorBackground.toArgb()
-                window.navigationBarColor = EditorBackground.toArgb()
+                window.statusBarColor = AmBase.toArgb()
+                window.navigationBarColor = AmBase.toArgb()
                 val controller = WindowCompat.getInsetsController(window, view)
                 controller.isAppearanceLightStatusBars = false
                 controller.isAppearanceLightNavigationBars = false
@@ -51,17 +51,14 @@ fun AfterMotionTheme(
     MaterialTheme(
         colorScheme = DarkColorScheme,
         typography = Typography,
-        // SQUARE law (Sarowar 2026-11-14): every Material shape role is sharp
-        // square. Shapes roles are typed CornerBasedShape, so the square value
-        // is a zero corner radius (RectangleShape is not a CornerBasedShape).
-        // (Material3 dialogs and sheets use their own token shapes, so those
-        // call sites also pass shape = RectangleShape explicitly.)
+        // Soft professional radii (CapCut-like). Functional circles (play button,
+        // thumbs, colour discs) remain fully round and are not driven by these roles.
         shapes = Shapes(
-            extraSmall = RoundedCornerShape(0.dp),
-            small = RoundedCornerShape(0.dp),
-            medium = RoundedCornerShape(0.dp),
-            large = RoundedCornerShape(0.dp),
-            extraLarge = RoundedCornerShape(0.dp)
+            extraSmall = RoundedCornerShape(AmCornerMicro),
+            small = RoundedCornerShape(AmCornerChip),
+            medium = RoundedCornerShape(AmCornerItem),
+            large = RoundedCornerShape(AmCornerPanel),
+            extraLarge = RoundedCornerShape(AmCornerCard)
         ),
         content = content
     )

@@ -1,5 +1,9 @@
 package com.example.ui.components
 
+import com.example.ui.theme.AmCornerCard
+
+import androidx.compose.foundation.shape.RoundedCornerShape
+
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
@@ -48,7 +52,7 @@ fun MarkerNameDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = DialogFill,
-        shape = RectangleShape,
+        shape = RoundedCornerShape(AmCornerCard),
         title = { Text(if (marker == null) "Add marker" else "Marker", color = HeaderText) },
         text = {
             Column {

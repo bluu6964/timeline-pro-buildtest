@@ -1,4 +1,6 @@
 package com.example.ui.components
+
+import com.example.ui.theme.AmCornerCard
 import androidx.compose.ui.graphics.RectangleShape
 
 import androidx.compose.foundation.Canvas
@@ -137,7 +139,7 @@ fun TemplatesDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = AmPanel,
-        shape = RectangleShape,
+        shape = RoundedCornerShape(AmCornerCard),
         title = { Text("Templates", color = HeaderText, fontWeight = FontWeight.Bold) },
         text = {
             Column(
@@ -358,7 +360,7 @@ fun TemplatesDialog(
         AlertDialog(
             onDismissRequest = { pendingDelete = null },
             containerColor = AmPanel,
-            shape = RectangleShape,
+            shape = RoundedCornerShape(AmCornerCard),
             title = { Text("Delete template?", color = HeaderText, fontWeight = FontWeight.Bold) },
             text = {
                 Text(

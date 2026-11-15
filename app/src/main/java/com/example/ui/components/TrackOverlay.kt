@@ -1,4 +1,6 @@
 package com.example.ui.components
+
+import com.example.ui.theme.AmCornerCard
 import androidx.compose.ui.graphics.RectangleShape
 
 import androidx.compose.foundation.background
@@ -258,7 +260,7 @@ fun TrackLayerPickDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        shape = RectangleShape,
+        shape = RoundedCornerShape(AmCornerCard),
         title = { Text("Which layer should follow the object?") },
         text = {
             Column {

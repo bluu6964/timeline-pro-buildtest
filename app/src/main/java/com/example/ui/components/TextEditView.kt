@@ -1,4 +1,6 @@
 package com.example.ui.components
+
+import com.example.ui.theme.AmCornerCard
 import androidx.compose.ui.graphics.RectangleShape
 
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -137,7 +139,7 @@ fun TextEditSheet(
             },
             maxLines = 3,
             textStyle = androidx.compose.ui.text.TextStyle(fontSize = 20.sp),
-            shape = RectangleShape,
+            shape = RoundedCornerShape(AmCornerCard),
             colors = TextFieldDefaults.colors(
                 focusedContainerColor = FieldBg,
                 unfocusedContainerColor = FieldBg,
@@ -275,7 +277,7 @@ private fun FontsTab(clip: TimelineClip, onUpdate: ((TimelineClip) -> TimelineCl
             placeholder = { Text("Search Fonts", color = Color(0xFF8A8A8E), fontSize = 19.sp) },
             leadingIcon = { Icon(Icons.Default.Search, null, tint = Color(0xFFB0B0B4), modifier = Modifier.size(28.dp)) },
             singleLine = true,
-            shape = RectangleShape,
+            shape = RoundedCornerShape(AmCornerCard),
             colors = TextFieldDefaults.colors(
                 focusedContainerColor = FieldBg,
                 unfocusedContainerColor = FieldBg,

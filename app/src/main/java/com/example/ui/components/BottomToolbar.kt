@@ -44,9 +44,14 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.ToolRowSplit
+import androidx.compose.foundation.shape.RoundedCornerShape
+import com.example.ui.theme.AmCornerChip
 import com.example.ui.theme.AmDanger
 import com.example.ui.theme.AmHairline
+import com.example.ui.theme.AmPanelHigh
+import com.example.ui.theme.AmSpace
 import com.example.ui.theme.AmTextDim
+import com.example.ui.theme.AmTextPrimary
 import com.example.ui.theme.EditorBackground
 import com.example.ui.theme.IconActive
 import com.example.ui.theme.TextPrimary
@@ -68,17 +73,14 @@ fun BottomToolbar(
             .height(height)
             .background(EditorBackground)
             .drawBehind {
-                // Hairline separating the footer from the timeline (B/W language).
+                // Clean hairline separator from timeline.
                 drawLine(AmHairline, Offset(0f, 0f), Offset(size.width, 0f), strokeWidth = 1.dp.toPx())
             }
-            .padding(horizontal = 8.dp, vertical = 5.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+            .padding(horizontal = AmSpace.sm, vertical = AmSpace.xs),
+        horizontalArrangement = Arrangement.spacedBy(AmSpace.xs),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // The add-layer "+" lives here since build 145 (Sarowar: in the bottom toolbar with
-        // the other tools, not up by the timeline): it opens the same AddLayerSheet as before.
-        // Same five items, same order — the B/W pass only changes the look:
-        // flat tiles, and Add (the bar's primary action) carries the one white badge.
+        // Primary "Add" sits first; remaining tools are secondary chrome.
         ToolbarItem("Add", Icons.Default.Add, "toolbar_add_button", onAddClick, primary = true)
         ToolbarItem("Null", Icons.Default.CenterFocusWeak, "toolbar_null_button", onNullClick)
         ToolbarItem("Controller", Icons.Default.Tune, "toolbar_controller_button", onControllerClick)
@@ -99,44 +101,45 @@ private fun RowScope.ToolbarItem(
         modifier = Modifier
             .weight(1f)
             .fillMaxHeight()
-            .bouncyClickable(pressedScale = 0.94f, hoverScale = 1.015f, onClick = onClick)
+            .bouncyClickable(pressedScale = 0.94f, hoverScale = 1.02f, onClick = onClick)
             .testTag(testTag),
         contentAlignment = Alignment.Center
     ) {
-        // BARE since Sarowar's boxless order 2026-11-14 (build 183): no tile under
-        // the icon + label — the button is just its glyph and text.
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 2.dp, vertical = 4.dp),
+                .padding(horizontal = AmSpace.xxs, vertical = AmSpace.xs),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-        if (primary) {
-            // The primary (Add) item's emphasis is its WHITE glyph now — the white
-            // disc badge it sat on went with the boxless order (build 183).
+            // Primary action gets a subtle raised pill for clearer hierarchy.
             Box(
-                modifier = Modifier.size(38.dp),
+                modifier = Modifier
+                    .size(if (primary) 40.dp else 36.dp)
+                    .then(
+                        if (primary) {
+                            Modifier
+                                .clip(RoundedCornerShape(AmCornerChip))
+                                .background(AmPanelHigh)
+                        } else Modifier
+                    ),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(icon, label, tint = TextPrimary, modifier = Modifier.size(21.dp))
+                Icon(
+                    icon,
+                    contentDescription = label,
+                    tint = if (primary) AmTextPrimary else IconActive,
+                    modifier = Modifier.size(if (primary) 22.dp else 20.dp)
+                )
             }
-        } else {
-            Box(
-                modifier = Modifier.size(38.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(icon, label, tint = IconActive, modifier = Modifier.size(20.dp))
-            }
-        }
-        Spacer(Modifier.height(3.dp))
-        Text(
-            label,
-            color = if (primary) TextPrimary else AmTextDim,
-            fontSize = 10.sp,
-            fontWeight = if (primary) FontWeight.SemiBold else FontWeight.Medium,
-            maxLines = 1
-        )
+            Spacer(Modifier.height(AmSpace.xxs))
+            Text(
+                label,
+                color = if (primary) AmTextPrimary else AmTextDim,
+                fontSize = 10.sp,
+                fontWeight = if (primary) FontWeight.SemiBold else FontWeight.Medium,
+                maxLines = 1
+            )
         }
     }
 }
@@ -248,7 +251,7 @@ private const val CHAIN_TILE_W_DP = 62
 private const val CHAIN_GAP_DP = 6
 private const val CHAIN_CONTENT_PADDING_DP = 8
 
-/** A tool of [ChainAddPanel]: fixed width. Bare like the toolbar's items (build 183). */
+/** A tool of [ChainAddPanel]: fixed width. Clean, consistent with main toolbar. */
 @Composable
 private fun ChainToolItem(label: String, icon: ImageVector, testTag: String, onClick: () -> Unit) {
     val destructive = label == "Delete"
@@ -256,22 +259,33 @@ private fun ChainToolItem(label: String, icon: ImageVector, testTag: String, onC
         modifier = Modifier
             .width(CHAIN_TILE_W_DP.dp)
             .fillMaxHeight()
-            .bouncyClickable(pressedScale = 0.94f, hoverScale = 1.015f, onClick = onClick)
+            .bouncyClickable(pressedScale = 0.94f, hoverScale = 1.02f, onClick = onClick)
             .testTag(testTag),
         contentAlignment = Alignment.Center
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 2.dp, vertical = 4.dp),
+                .padding(horizontal = AmSpace.xxs, vertical = AmSpace.xs),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-        Box(modifier = Modifier.size(38.dp), contentAlignment = Alignment.Center) {
-            Icon(icon, label, tint = if (destructive) AmDanger else IconActive, modifier = Modifier.size(20.dp))
-        }
-        Spacer(Modifier.height(3.dp))
-        Text(label, color = AmTextDim, fontSize = 10.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+            Box(modifier = Modifier.size(36.dp), contentAlignment = Alignment.Center) {
+                Icon(
+                    icon,
+                    contentDescription = label,
+                    tint = if (destructive) AmDanger else IconActive,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            Spacer(Modifier.height(AmSpace.xxs))
+            Text(
+                label,
+                color = if (destructive) AmDanger else AmTextDim,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1
+            )
         }
     }
 }

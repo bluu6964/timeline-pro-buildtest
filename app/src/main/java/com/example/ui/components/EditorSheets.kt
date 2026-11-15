@@ -1,4 +1,6 @@
 package com.example.ui.components
+
+import com.example.ui.theme.AmCornerCard
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -152,7 +154,7 @@ fun AspectRatioSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = AmPanel,
-        shape = RectangleShape
+        shape = RoundedCornerShape(AmCornerCard)
     ) {
         Column(
             modifier = Modifier
@@ -305,7 +307,7 @@ fun ResolutionSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = AmPanel,
-        shape = RectangleShape
+        shape = RoundedCornerShape(AmCornerCard)
     ) {
         Column(
             modifier = Modifier
@@ -888,7 +890,7 @@ fun AddAudioSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = AmPanel,
-        shape = RectangleShape
+        shape = RoundedCornerShape(AmCornerCard)
     ) {
         Column(
             modifier = Modifier
@@ -959,7 +961,7 @@ fun AddTextSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = AmPanel,
-        shape = RectangleShape
+        shape = RoundedCornerShape(AmCornerCard)
     ) {
         Column(
             modifier = Modifier
@@ -1043,7 +1045,7 @@ fun AddShapeSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = AmPanel,
-        shape = RectangleShape,
+        shape = RoundedCornerShape(AmCornerCard),
         dragHandle = {
             Box(
                 modifier = Modifier

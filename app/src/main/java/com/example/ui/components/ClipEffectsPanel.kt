@@ -1,4 +1,6 @@
 package com.example.ui.components
+
+import com.example.ui.theme.AmCornerCard
 import androidx.compose.ui.graphics.RectangleShape
 
 import androidx.compose.foundation.Canvas
@@ -841,7 +843,7 @@ fun FxInfoDialog(def: FxDef, onDismiss: () -> Unit) {
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = com.example.ui.theme.AmPanel,
-        shape = RectangleShape,
+        shape = RoundedCornerShape(AmCornerCard),
         title = {
             Text(def.name, color = TextPrimary, fontWeight = FontWeight.Bold)
         },

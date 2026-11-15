@@ -1,4 +1,6 @@
 package com.example.ui.components
+
+import com.example.ui.theme.AmCornerCard
 import androidx.compose.ui.graphics.RectangleShape
 
 import androidx.compose.animation.core.animateFloatAsState
@@ -770,7 +772,7 @@ fun EditShapeView(
                                         .border(
                                             width = if (isSelected) 2.dp else 1.dp,
                                             color = if (isSelected) Color.White else Color(0xFF3B3B3B),
-                                            shape = RectangleShape
+                                            shape = RoundedCornerShape(AmCornerCard)
                                         )
                                         .bouncyClickable(onClick = {
                                             selectedShapeType = shape

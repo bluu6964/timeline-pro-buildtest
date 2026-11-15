@@ -1,4 +1,6 @@
 package com.example.ui.components
+
+import com.example.ui.theme.AmCornerCard
 import androidx.compose.ui.graphics.RectangleShape
 
 import androidx.compose.foundation.Image
@@ -62,7 +64,7 @@ fun StickerPickerSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = AmPanel,
-        shape = RectangleShape
+        shape = RoundedCornerShape(AmCornerCard)
     ) {
         Column(
             modifier = Modifier
@@ -183,7 +185,7 @@ fun StickerSpeedSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = AmPanel,
-        shape = RectangleShape
+        shape = RoundedCornerShape(AmCornerCard)
     ) {
         AudioSpeedSheet(
             speed = clip.at(playheadMs).speed,

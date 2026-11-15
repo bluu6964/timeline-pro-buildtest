@@ -1,4 +1,6 @@
 package com.example.ui.components
+
+import com.example.ui.theme.AmCornerCard
 import androidx.compose.ui.graphics.RectangleShape
 
 import androidx.compose.foundation.background
@@ -85,7 +87,7 @@ fun FlatDisc(modifier: Modifier = Modifier) {
  *  buttons stopped using it under Sarowar's boxless order 2026-11-14 (build 183). */
 @Composable
 fun FlatTile(modifier: Modifier = Modifier) {
-    val shape = RectangleShape
+    val shape = RoundedCornerShape(AmCornerCard)
     Box(
         modifier
             .background(AmGlassFill, shape)
