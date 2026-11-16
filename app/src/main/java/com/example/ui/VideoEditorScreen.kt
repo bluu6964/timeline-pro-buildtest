@@ -2568,8 +2568,12 @@ fun VideoEditorScreen(
             // column (between the layer panel and the footer), in NORMAL
             // LAYOUT FLOW. toolsGridHeightDp is the grid sheet's own
             // geometry function, so the budget and the sheet cannot drift.
+            // Build 214 (ITEM 1): the utility tiles are UNIVERSAL tools —
+            // they are counted (and shown) only in the no-selection panel;
+            // a selected layer's panel is that layer's tools only.
             val toolsGridTiles =
-                com.example.ui.components.TOOLS_GRID_UTILITY_COUNT +
+                (if (selectedClipId == null && multiSelectIds.isEmpty())
+                    com.example.ui.components.TOOLS_GRID_UTILITY_COUNT else 0) +
                     (morePanelState.clipSection()?.tools?.size ?: 0) +
                     (barActionsState.section()?.tiles?.size ?: 0)
 
@@ -2655,14 +2659,14 @@ fun VideoEditorScreen(
             // the rows' exact height is the whole floor.
             val minLayerZoneH = 64.dp
             val lowerZoneH = totalHeight - headerH - canvasH - playControlsH
-            // Build 211 (NO STICKY TOOL LINES): while the tools panel is
-            // open with a selection, the footer's clip panel renders
-            // NOTHING (its back strip is gone — every tool lives in the
-            // grid), so the footer takes no height and its share joins
-            // the zone pool: the grid and the layer panel grow, the
-            // canvas is untouched (CANVAS LAW). With no selection the
-            // footer is the BottomToolbar and keeps its full height.
-            val footerH = if (toolsPanelOpen && selectedClipId != null) 0.dp else toolbarH
+            // Build 214 (THE DOCK): the footer is the dock's primary
+            // toolbar — it is ALWAYS visible (the project toolbar with
+            // no selection, the selected layer's primary tools with
+            // one), so it always keeps its full height; the panel stage
+            // above it is paid for from the layer panel's share, exactly
+            // as the grid was (CANVAS LAW). This supersedes build 211's
+            // footer-collapses-to-0 rule.
+            val footerH = toolbarH
             val zonePoolH = (lowerZoneH - timescaleH - footerH - onionRowH - scopesPanelH)
                 .coerceAtLeast(0.dp)
             // Build 215: the tools panel is now ONE row, so when EVERY layer's lane still fits in the
@@ -2672,8 +2676,11 @@ fun VideoEditorScreen(
                 (t.clips.maxOfOrNull { c -> com.example.ui.components.laneHeightFor(c.type) }
                     ?: 24.dp).value.toDouble() + 6.0
             } - 6.0 + 9.0).toFloat().dp
+            // Build 214: the panel stage's header rides on top of the
+            // tools row inside the stage — the fit test budgets both.
             val oneRowGridH = com.example.ui.components
-                .toolsGridHeightDp(maxOf(toolsGridTiles, 1), 1).dp
+                .toolsGridHeightDp(maxOf(toolsGridTiles, 1), 1).dp +
+                com.example.ui.components.PANEL_STAGE_HEADER_DP.dp
             val allLanesFit = allLanesH + oneRowGridH <= zonePoolH
             val selIdForRestrict = selectedClipId
             val restrictIds: Set<String>? = when {
@@ -2705,7 +2712,8 @@ fun VideoEditorScreen(
                 toolsGridRows = com.example.ui.components.toolsGridRowsForHeight(gridBudgetH.value.toInt())
                     .coerceIn(1, rowCap)
                 toolsGridH = com.example.ui.components
-                    .toolsGridHeightDp(toolsGridTiles, toolsGridRows).dp
+                    .toolsGridHeightDp(toolsGridTiles, toolsGridRows).dp +
+                    com.example.ui.components.PANEL_STAGE_HEADER_DP.dp // build 214: the stage header
                 // Pathological corner (every extra open on a short screen):
                 // the grid never pushes the layer panel out of the zone.
                 if (toolsGridH > zonePoolH) toolsGridH = zonePoolH
@@ -2799,6 +2807,12 @@ fun VideoEditorScreen(
                     },
                     resolutionLabel = exportSettings.resolution.substringBefore(' ').uppercase(),
                     onResolutionClick = { showAspectRatioSheet = true },
+                    // Build 214: the app bar shows the project name and owns undo / redo.
+                    projectName = projectList.find { it.id == projectId }?.name ?: "Untitled project",
+                    canUndo = canUndo,
+                    canRedo = canRedo,
+                    onUndoClick = { viewModel.undo(); com.example.ui.buddy.BuddyBrain.react(com.example.ui.buddy.BuddyEvent.UNDO) },
+                    onRedoClick = { viewModel.redo(); com.example.ui.buddy.BuddyBrain.react(com.example.ui.buddy.BuddyEvent.REDO) },
                     onExportClick = {
                         // Fresh state every time: a previous export must not leak into this one.
                         exportDone = false
@@ -3059,19 +3073,20 @@ fun VideoEditorScreen(
                     onNextClick = { viewModel.jumpNext() },
                     onUndoClick = { viewModel.undo(); com.example.ui.buddy.BuddyBrain.react(com.example.ui.buddy.BuddyEvent.UNDO) },
                     onRedoClick = { viewModel.redo(); com.example.ui.buddy.BuddyBrain.react(com.example.ui.buddy.BuddyEvent.REDO) },
-                    // Build 206: the violet tools disc in the transport pill
-                    // opens the tools grid (section 5b, in layout flow). The
-                    // disc's ring summarises the grid's active state — the
-                    // build-202 More glyph's honesty rule (range points,
-                    // toggles, used clip tools). Build 210: the panel
-                    // auto-shows on selection; the disc now writes the
-                    // MANUAL override of that auto rule (its only roles:
-                    // opener with nothing selected, close while open).
+                    // Build 214: the transport bar no longer carries a
+                    // tools disc — the dock below owns panel opening (the
+                    // no-selection toolbar's More item, the layer header's
+                    // circled menu, auto-show on selection). These params
+                    // are kept for caller compatibility only.
                     toolsGridExpanded = toolsPanelOpen,
                     onToolsGridExpandedChange = { toolsPanelManual = it },
                     toolsGridActive = snapEnabled || onionSkin.enabled || scopesOn ||
                         exportInMs != null || exportOutMs != null ||
-                        (moreClipSection?.let { s -> s.tools.any { it.id in s.usedTools } } == true)
+                        (moreClipSection?.let { s -> s.tools.any { it.id in s.usedTools } } == true),
+                    // Build 214: snap + marker toggles live in the transport bar.
+                    snapOn = snapEnabled,
+                    onSnapClick = onSnapAction,
+                    onMarkerClick = onMarkerAction
                 )
 
                 // 3b. Onion-skin settings row (build 190) — only while the ghosts are
@@ -3362,33 +3377,51 @@ fun VideoEditorScreen(
                 // geometry, and maxRows is the zone's row budget for it.
                 // Build 210: the grid is THE tools panel — it auto-shows on
                 // selection (toolsPanelOpen) and carries the selected
-                // panel's primary + overflow tools as its first tiles, in
-                // ONE scrolling list with the utility tools (nothing is
-                // pinned: while it is open the footer's fixed primary row
-                // is not rendered — see section 6's toolsInGrid).
+                // panel's full tool list as its tiles, in ONE scrolling
+                // list. Build 214: the footer's primary row is the DOCK —
+                // it stays rendered while the stage is open (the panels
+                // publish their full list via toolsInGrid AND keep their
+                // primary row as the dock toolbar).
                 if (toolsPanelOpen) {
-                    com.example.ui.components.ToolsGridSheet(
-                        exportInSet = exportInMs != null,
-                        exportOutSet = exportOutMs != null,
-                        onExportInClick = { viewModel.toggleExportInAtPlayhead() },
-                        onExportOutClick = { viewModel.toggleExportOutAtPlayhead() },
-                        onBeatMarkClick = onBeatMarkAction,
-                        onMarkerClick = onMarkerAction,
-                        onionSkinOn = onionSkin.enabled,
-                        onOnionSkinClick = { viewModel.setOnionSkinEnabled(!onionSkin.enabled) },
-                        scopesOn = scopesOn,
-                        onScopesClick = { viewModel.setScopesOn(!scopesOn) },
-                        snapOn = snapEnabled,
-                        onSnapClick = onSnapAction,
-                        onCanvasClick = { showAspectRatioSheet = true },
-                        clipOverflow = moreClipSection,
-                        // Build 211: the bar actions head the list
-                        // (SelectedBar / MultiBar tiles, in bar order).
-                        barActions = barSection,
-                        onCloseRequest = { toolsPanelManual = false },
-                        maxRows = toolsGridRows,
-                        modifier = Modifier.padding(horizontal = 8.dp)
-                    )
+                    // Build 214: the tools panel opens in the PANEL STAGE —
+                    // the dock's one panel architecture (header: title +
+                    // layer name + close; content: the tools list). ITEM 1:
+                    // with a selection the list is ONLY that layer's tools;
+                    // the universal tools appear only in the no-selection
+                    // (project) panel.
+                    com.example.ui.components.PanelStage(
+                        title = if (selectedClipId != null || multiSelectIds.isNotEmpty()) "Layer tools" else "Project tools",
+                        layerName = headerClip?.name
+                            ?: if (multiSelectIds.isNotEmpty()) "${multiSelectIds.size} layers" else null,
+                        onClose = { toolsPanelManual = false },
+                        modifier = Modifier
+                            .padding(horizontal = 8.dp)
+                            .height(toolsGridH)
+                    ) {
+                        com.example.ui.components.ToolsGridSheet(
+                            exportInSet = exportInMs != null,
+                            exportOutSet = exportOutMs != null,
+                            onExportInClick = { viewModel.toggleExportInAtPlayhead() },
+                            onExportOutClick = { viewModel.toggleExportOutAtPlayhead() },
+                            onBeatMarkClick = onBeatMarkAction,
+                            onMarkerClick = onMarkerAction,
+                            onionSkinOn = onionSkin.enabled,
+                            onOnionSkinClick = { viewModel.setOnionSkinEnabled(!onionSkin.enabled) },
+                            scopesOn = scopesOn,
+                            onScopesClick = { viewModel.setScopesOn(!scopesOn) },
+                            snapOn = snapEnabled,
+                            onSnapClick = onSnapAction,
+                            onCanvasClick = { showAspectRatioSheet = true },
+                            clipOverflow = moreClipSection,
+                            includeUtilities = selectedClipId == null && multiSelectIds.isEmpty(),
+                            // Build 211: the bar actions head the list
+                            // (SelectedBar / MultiBar tiles, in bar order).
+                            barActions = barSection,
+                            onCloseRequest = { toolsPanelManual = false },
+                            maxRows = toolsGridRows,
+                            modifier = Modifier
+                        )
+                    }
                 }
 
                 // 6. Footer: Clip Edit Tools Panel if clip is selected, otherwise Main Bottom Toolbar
@@ -3418,7 +3451,7 @@ fun VideoEditorScreen(
                         }
                         if (targetIsChain) com.example.ui.components.ChainAddPanel(
                             // A Chain has no picture of its own: only ways to put layers into it (they go inside while it is selected).
-                            // Build 211: footerH is 0 while the tools panel is open (this panel renders nothing then).
+                            // Build 214: footerH is the dock height — this panel is the dock's layer toolbar and always renders.
                             height = footerH,
                             onBack = { viewModel.selectClip(null) },
                             onMedia = {
@@ -3443,7 +3476,7 @@ fun VideoEditorScreen(
                             morePanel = morePanelState,
                             toolsInGrid = toolsPanelOpen
                         ) else if (targetIsAudio) AudioClipToolsPanel(
-                            // Build 211: footerH is 0 while the tools panel is open (this panel renders nothing then).
+                            // Build 214: footerH is the dock height — this panel is the dock's layer toolbar and always renders.
                             height = footerH,
                             onDeselect = { viewModel.selectClip(null) },
                             onVolume = {
@@ -3502,7 +3535,7 @@ fun VideoEditorScreen(
                             morePanel = morePanelState,
                             toolsInGrid = toolsPanelOpen
                         ) else ClipEditToolsPanel(
-                            // Build 211: footerH is 0 while the tools panel is open (this panel renders nothing then).
+                            // Build 214: footerH is the dock height — this panel is the dock's layer toolbar and always renders.
                             height = footerH,
                             // Null / 3D Camera: no picture, so no Effects / Animations / Color / Crop / Blend; only what moves them.
                             // Controller (build 155 — Sarowar's scope correction): ONLY the five tools whose
@@ -3916,11 +3949,27 @@ fun VideoEditorScreen(
                     } else {
                         BottomToolbar(
                             height = toolbarH,
+                            // Build 214: the dock's project toolbar — Add /
+                            // Media / Text / Audio / Canvas / More (the
+                            // universal panel in the stage). Null / Controller /
+                            // Chain / Camera adds live in the Add sheet now.
                             onAddClick = { showAddLayerSheet = true },
-                            onNullClick = { viewModel.addNullLayer() },
-                            onControllerClick = { viewModel.addControllerLayer() },
-                            onChainClick = { viewModel.addChainLayer() },
-                            onCameraClick = { viewModel.addCameraLayer() }
+                            onMediaClick = {
+                                mediaPicker.launch(
+                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
+                                )
+                            },
+                            onTextClick = {
+                                val remaining = totalDurationMs - playheadState.value
+                                val id = viewModel.addTextLayer(
+                                    if (totalDurationMs > 0L && remaining >= 1000L) minOf(4000L, remaining) else 4000L
+                                )
+                                if (id.isNotEmpty()) editingTextId = id
+                            },
+                            onAudioClick = { showAddAudioSheet = true },
+                            onCanvasClick = { showAspectRatioSheet = true },
+                            onMoreClick = { toolsPanelManual = true },
+                            moreActive = toolsPanelOpen
                         )
                     }
                 }
@@ -5646,6 +5695,11 @@ fun VideoEditorScreen(
                 viewModel.pause()
                 showDrawMode = true
             },
+            // Build 214: the helper-layer adds (the old toolbar's items).
+            onNull = { viewModel.addNullLayer() },
+            onController = { viewModel.addControllerLayer() },
+            onChain = { viewModel.addChainLayer() },
+            onCamera = { viewModel.addCameraLayer() },
             onPen = {
                 penAnchors = emptyList()
                 penClosed = false

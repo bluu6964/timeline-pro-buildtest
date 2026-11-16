@@ -426,7 +426,8 @@ fun ExportModalDialog(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0xFF000000))
+                // Build 214: the warm near-black app background (was pure black).
+                .background(com.example.ui.theme.AmBase)
         ) {
             Column(
                 modifier = Modifier
@@ -717,7 +718,7 @@ private fun ColumnScope.ExportSettingsPage(
     }
 
     Spacer(modifier = Modifier.height(12.dp))
-    // The Export action: the violet primary pill (build 209, the redesign language).
+    // The Export action: the brand-red primary pill (build 214; the token's value).
     DialogPrimaryButton(
         text = "Export Now",
         onClick = onStartExport,

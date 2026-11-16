@@ -105,7 +105,11 @@ fun TransformHeaderBar(
         modifier = modifier
             .fillMaxWidth()
             .height(height)
-            .background(EditorBackground)
+            // Build 214: the panel-stage header surface (the anchored
+            // panels — Transform / Text / Effects / Masks / Color /
+            // Blending — present through the same stage architecture:
+            // the card surface under the title bar).
+            .background(com.example.ui.theme.AmCardSurface)
             // swallow touches so nothing underneath (the real header) can be hit
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },

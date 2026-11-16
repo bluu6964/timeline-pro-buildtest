@@ -41,6 +41,7 @@ import com.example.model.ProjectMarkers
 import com.example.model.TIMELINE_PX_PER_MS
 import com.example.model.TimelineMarker
 import com.example.ui.theme.AmBaseDeep
+import com.example.ui.theme.AmBarSurface
 import com.example.ui.theme.AmCyanBright
 import com.example.ui.theme.AmOrange
 import com.example.ui.theme.AmTextFaint
@@ -97,7 +98,7 @@ fun TimescaleSection(
         modifier = modifier
             .fillMaxWidth()
             .height(height)
-            .background(AmBaseDeep)
+            .background(AmBarSurface) // build 214: the ruler strip shares the transport bar's surface — one merged slim bar
             .testTag("timescale_section")
     ) {
         val rightPillWidth = when {

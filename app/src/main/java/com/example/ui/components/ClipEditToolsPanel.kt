@@ -288,21 +288,12 @@ fun ClipEditToolsPanel(
         }
     )
 
-    // Build 211 (NO STICKY TOOL LINES): while the unified tools panel
-    // is open this panel renders NOTHING at all — build 210 still left
-    // its back + divider strip pinned below the grid. The strip is
-    // gone: leaving the selection is the layer header's back arrow,
-    // and the screen gives this footer's height to the grid. The
-    // publish above still runs, so the grid keeps the full tool list.
-    if (toolsInGrid) {
-        Box(
-            modifier = modifier
-                .fillMaxWidth()
-                .height(height)
-                .testTag("clip_edit_tools_panel")
-        )
-        return
-    }
+    // Build 214 (THE DOCK): this panel IS the dock's primary toolbar
+    // while a layer is selected — it stays visible while the panel
+    // stage is open above it (the stage carries the full tool list; the
+    // publish above still runs). Build 211's render-nothing state is
+    // superseded by the dock architecture: the primary tools are always
+    // visible with icon + label (the visibility law).
 
     Box(
         modifier = modifier
@@ -352,29 +343,25 @@ fun ClipEditToolsPanel(
 
             // 2. The primary tools (build 202 — no scrolling, no More tile;
             //    the split is ToolRowSplit's, computed from the real labels;
-            //    the overflow lives in the tools grid). Build 210: while
-            //    the unified tools panel is open this row is NOT rendered
-            //    at all — the tools live in the panel's one scrolling list
-            //    and (build 211) not even the back button stays — the
-            //    panel renders nothing at all in that state (above).
-            if (!toolsInGrid) {
-                Row(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .padding(horizontal = ToolRowSplit.CONTENT_PADDING_DP.dp),
-                    horizontalArrangement = Arrangement.spacedBy(ToolRowSplit.GAP_DP.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    visibleTools.forEach { tool ->
-                        ToolTile(
-                            tool = tool,
-                            used = tool.id in usedTools,
-                            onClick = { dispatch(tool) },
-                            modifier = Modifier.fillMaxHeight(),
-                            testTag = "clip_tool_${tool.id}"
-                        )
-                    }
+            //    the overflow lives in the panel stage's tool list).
+            //    Build 214: the row renders ALWAYS — it is the dock's
+            //    primary toolbar for the selected layer.
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .padding(horizontal = ToolRowSplit.CONTENT_PADDING_DP.dp),
+                horizontalArrangement = Arrangement.spacedBy(ToolRowSplit.GAP_DP.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                visibleTools.forEach { tool ->
+                    ToolTile(
+                        tool = tool,
+                        used = tool.id in usedTools,
+                        onClick = { dispatch(tool) },
+                        modifier = Modifier.fillMaxHeight(),
+                        testTag = "clip_tool_${tool.id}"
+                    )
                 }
             }
         }

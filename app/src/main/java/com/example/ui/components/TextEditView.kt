@@ -77,17 +77,22 @@ import com.example.ui.text.FontCatalog
 import com.example.ui.text.FontEntry
 import com.example.ui.text.FontRepository
 import com.example.ui.text.rememberFontFamily
+import com.example.ui.theme.AmAccentViolet
 import com.example.ui.theme.AmTextDim
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import kotlinx.coroutines.launch
 
 /**
- * Bottom panel of "Text edit" (build 213 redesign): ONE small panel at a time, chosen from a
- * horizontally scrolling icon toolbar pinned to the bottom (Edit, Font, Style, Stroke, Shadow,
- * Box, Space, Reveal, Path). Edit = the text box + the quick row (Italic / Underline /
- * Strikethrough + Align). Every change is applied to the layer at once, so the canvas above
- * shows it live.
+ * Bottom panel of "Text edit" (build 213 redesign; build 214 — the panel
+ * stage's architecture): ONE small panel at a time, chosen from a
+ * horizontally scrolling icon toolbar. Build 214 moves the switcher from
+ * the sheet's bottom into its HEADER area (the panel architecture's
+ * section switcher sits at the top, under the drag handle), and the
+ * active tool's pill carries the brand red. Sections: Edit, Font, Style,
+ * Stroke, Shadow, Box, Space, Reveal, Path. Edit = the text box + the
+ * quick row (Italic / Underline / Strikethrough + Align). Every change
+ * is applied to the layer at once, so the canvas above shows it live.
  *
  * While the keyboard is open the sheet shows ONLY the Edit panel (no toolbar), raised above the
  * keyboard — the canvas keeps its fixed height (canvas law); the space comes from the lower
@@ -135,6 +140,9 @@ fun TextEditSheet(
                     .clip(CircleShape)
                     .background(Color(0xFF4A4A4E))
             )
+            // Build 214: the section switcher sits in the panel's header
+            // area (top), not pinned to the bottom.
+            TextToolBar(selected = tool, onSelect = { tool = it })
             // One panel at a time; a fresh scroll state per tool so switching never keeps an old fold.
             key(tool) {
                 Column(
@@ -165,7 +173,6 @@ fun TextEditSheet(
                     }
                 }
             }
-            TextToolBar(selected = tool, onSelect = { tool = it })
         }
     }
 }
@@ -183,11 +190,11 @@ private enum class TextTool(val label: String, val icon: ImageVector) {
     PATH("Path", Icons.Default.Timeline)
 }
 
-private val ToolbarBg = Color(0xFF141417)
-private val ToolAccent = Color(0xFF7C5CFF)
+private val ToolbarBg = Color(0xFF121215)
+private val ToolAccent = AmAccentViolet // build 214: the brand red (the token's value)
 private val ToolIdle = Color(0xFF9A9AA0)
 
-/** Bottom icon toolbar: scrolls sideways, one 64 dp cell per tool, the active one in a violet pill. */
+/** Section switcher (build 214: in the panel's header area): scrolls sideways, one 64 dp cell per tool, the active one in a brand-red pill. */
 @Composable
 private fun TextToolBar(selected: TextTool, onSelect: (TextTool) -> Unit) {
     Row(

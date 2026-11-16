@@ -61,9 +61,9 @@ import com.example.ui.theme.TextPrimary
 import java.util.Locale
 
 /** Colors used by the Text edit panel (taken from the reference screenshots). */
-internal val SheetBg = Color(0xFF1C1D20)
-internal val FieldBg = Color(0xFF2F3033)
-internal val ChipBg = Color(0xFF3A3A3D)
+internal val SheetBg = Color(0xFF17171C) // build 214: the card surface
+internal val FieldBg = Color(0xFF22222A) // build 214: the raised surface
+internal val ChipBg = Color(0xFF22222A) // build 214: the raised surface
 internal val ChipSelectedBg = Color(0xFFE8E4E4)
 
 private val Swatches = listOf(

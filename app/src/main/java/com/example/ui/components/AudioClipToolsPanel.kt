@@ -159,20 +159,11 @@ fun AudioClipToolsPanel(
         }
     )
 
-    // Build 211 (NO STICKY TOOL LINES): while the unified tools panel
-    // is open this panel renders NOTHING at all — build 210 still left
-    // its back + divider strip pinned below the grid. The strip is
-    // gone (leaving the selection is the layer header's back arrow);
-    // the publish above still runs, so the grid keeps the full list.
-    if (toolsInGrid) {
-        Box(
-            modifier = modifier
-                .fillMaxWidth()
-                .height(height)
-                .testTag("audio_clip_tools_panel")
-        )
-        return
-    }
+    // Build 214 (THE DOCK): this panel IS the dock's primary toolbar
+    // while an audio layer is selected — it stays visible while the
+    // panel stage is open above it (the stage carries the full tool
+    // list; the publish above still runs). Build 211's render-nothing
+    // state is superseded by the dock architecture.
 
     Box(
         modifier = modifier
@@ -214,28 +205,24 @@ fun AudioClipToolsPanel(
                     .background(AmHairline)
             )
 
-            // Build 210: not rendered while the unified tools panel is
-            // open — the tools live in its one scrolling list; only the
-            // back button stays in the footer bar. Build 211: not even
-            // the back button — the panel renders nothing (above).
-            if (!toolsInGrid) {
-                Row(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .padding(horizontal = ToolRowSplit.CONTENT_PADDING_DP.dp),
-                    horizontalArrangement = Arrangement.spacedBy(ToolRowSplit.GAP_DP.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    visibleTools.forEach { tool ->
-                        ToolTile(
-                            tool = tool,
-                            used = tool.id in usedTools,
-                            onClick = { dispatch(tool) },
-                            modifier = Modifier.fillMaxHeight(),
-                            testTag = "audio_tool_${tool.id}"
-                        )
-                    }
+            // Build 214: the row renders ALWAYS — it is the dock's
+            // primary toolbar for the selected audio layer.
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .padding(horizontal = ToolRowSplit.CONTENT_PADDING_DP.dp),
+                horizontalArrangement = Arrangement.spacedBy(ToolRowSplit.GAP_DP.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                visibleTools.forEach { tool ->
+                    ToolTile(
+                        tool = tool,
+                        used = tool.id in usedTools,
+                        onClick = { dispatch(tool) },
+                        modifier = Modifier.fillMaxHeight(),
+                        testTag = "audio_tool_${tool.id}"
+                    )
                 }
             }
         }

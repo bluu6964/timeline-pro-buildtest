@@ -1,31 +1,38 @@
 package com.example.ui.components
 
-import com.example.ui.theme.AmCornerCard
-
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -39,17 +46,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.example.model.ProjectMeta
+import com.example.ui.theme.AmAccent
+import com.example.ui.theme.AmBase
 import com.example.ui.theme.AmCardSurface
+import com.example.ui.theme.AmCornerCard
 import com.example.ui.theme.AmDanger
 import com.example.ui.theme.AmPanel
 import com.example.ui.theme.AmPanelHigh
-import com.example.ui.theme.HeaderCyan
+import com.example.ui.theme.AmTextDim
 import com.example.ui.theme.HeaderText
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
@@ -60,7 +73,18 @@ import java.util.Locale
 /** Dialog surface: the flat panel token (was a hard-coded #111111). */
 private val DialogFill = AmPanel
 
-/** The project list: open, new, rename, delete. The open project is marked. */
+/**
+ * HOME (build 214 — UI ARCHITECTURE REDESIGN): the project list is the
+ * app's home surface, presented full-screen over the editor: a brand
+ * header (the red M mark + MaxCut), one large NEW PROJECT hero card,
+ * then the RECENT section — rich project cards (thumbnail block, name,
+ * modified date, duration, ⋯ menu) in a 2-column grid. All actions are
+ * the same callbacks the old dialog carried (open / new / rename /
+ * delete / export / export-Alight-XML / import / fix missing media);
+ * the per-card ⋯ menu gathers what used to be four loose icon buttons.
+ * (No settings destination exists in the app, so the brand header
+ * carries no settings icon — no dead buttons.)
+ */
 @Composable
 fun ProjectsDialog(
     projects: List<ProjectMeta>,
@@ -83,127 +107,120 @@ fun ProjectsDialog(
 ) {
     var renaming by remember { mutableStateOf<ProjectMeta?>(null) }
     var deleting by remember { mutableStateOf<ProjectMeta?>(null) }
-    // Build 206 (the redesign's Home): a search pill over the list. Purely a
-    // local display filter — no callback or wiring changes.
+    var menuFor by remember { mutableStateOf<String?>(null) }
+    // A local display filter — no callback or wiring changes.
     var query by remember { mutableStateOf("") }
     val shownProjects = if (query.isBlank()) projects
         else projects.filter { it.name.contains(query.trim(), ignoreCase = true) }
     val dateFmt = remember { SimpleDateFormat("d MMM, HH:mm", Locale.getDefault()) }
 
-    AlertDialog(
+    Dialog(
         onDismissRequest = onDismiss,
-        containerColor = DialogFill,
-        shape = RoundedCornerShape(AmCornerCard),
-        title = { Text("Projects", color = HeaderText, fontWeight = FontWeight.Bold) },
-        text = {
-            Column {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(CircleShape)
-                        .background(AmPanelHigh)
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Icons.Filled.Search,
-                        contentDescription = "Search projects",
-                        tint = TextSecondary,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    BasicTextField(
-                        value = query,
-                        onValueChange = { query = it },
-                        singleLine = true,
-                        textStyle = TextStyle(color = TextPrimary, fontSize = 14.sp),
-                        cursorBrush = SolidColor(TextPrimary),
-                        modifier = Modifier.weight(1f),
-                        decorationBox = { inner ->
-                            if (query.isEmpty()) {
-                                Text("Search projects", color = TextSecondary, fontSize = 14.sp)
-                            }
-                            inner()
-                        }
-                    )
-                }
-                Spacer(Modifier.height(10.dp))
-            LazyColumn(
-                modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(AmBase)
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .padding(horizontal = 16.dp)
+                .testTag("projects_home")
+        ) {
+            // ── Brand header ───────────────────────────────────────
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(64.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                if (projects.isEmpty()) {
-                    item {
-                        Text(
-                            "No projects yet. Tap New project below to create one.",
-                            color = TextSecondary,
-                            fontSize = 13.sp,
-                            modifier = Modifier.padding(vertical = 8.dp)
-                        )
-                    }
-                } else if (shownProjects.isEmpty()) {
-                    item {
-                        Text(
-                            "No projects match your search.",
-                            color = TextSecondary,
-                            fontSize = 13.sp,
-                            modifier = Modifier.padding(vertical = 8.dp)
-                        )
-                    }
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(AmAccent),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("M", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
                 }
-                items(shownProjects, key = { it.id }) { p ->
-                    val isCurrent = p.id == currentId
-                    // Build 206: a rounded card on the card surface (the
-                    // redesign's Home), no border.
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(AmCardSurface)
-                            .clickable { onOpen(p.id) }
-                            .padding(start = 12.dp, top = 8.dp, bottom = 8.dp, end = 2.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                p.name,
-                                color = if (isCurrent) HeaderCyan else HeaderText,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                "${dateFmt.format(Date(p.updatedAt))}  ·  ${p.layerCount} layers  ·  ${formatDuration(p.durationMs)}" +
-                                    if (isCurrent) "  ·  open" else "",
-                                color = TextSecondary,
-                                fontSize = 12.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                        IconButton(onClick = { onExport(p) }, modifier = Modifier.size(44.dp)) {
-                            Icon(Icons.Filled.Share, contentDescription = "Export project file", tint = TextSecondary)
-                        }
-                        IconButton(onClick = { onExportAlightXml(p) }, modifier = Modifier.size(44.dp)) {
-                            Icon(Icons.Filled.Code, contentDescription = "Export as Alight Motion XML", tint = TextSecondary)
-                        }
-                        IconButton(onClick = { renaming = p }, modifier = Modifier.size(44.dp)) {
-                            Icon(Icons.Filled.Edit, contentDescription = "Rename", tint = TextSecondary)
-                        }
-                        IconButton(onClick = { deleting = p }, modifier = Modifier.size(44.dp)) {
-                            Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = TextSecondary)
-                        }
-                    }
+                Spacer(Modifier.width(12.dp))
+                Column {
+                    Text("MaxCut", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                    Text("Projects", color = AmTextDim, fontSize = 12.sp, maxLines = 1)
+                }
+                Spacer(Modifier.weight(1f))
+                IconButton(onClick = onDismiss, modifier = Modifier.size(44.dp).testTag("home_close_button")) {
+                    Icon(Icons.Filled.Close, contentDescription = "Close", tint = TextPrimary)
                 }
             }
+
+            // ── Search ─────────────────────────────────────────────
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(CircleShape)
+                    .background(AmPanelHigh)
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Filled.Search,
+                    contentDescription = "Search projects",
+                    tint = TextSecondary,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                BasicTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    singleLine = true,
+                    textStyle = TextStyle(color = TextPrimary, fontSize = 14.sp),
+                    cursorBrush = SolidColor(TextPrimary),
+                    modifier = Modifier.weight(1f),
+                    decorationBox = { inner ->
+                        if (query.isEmpty()) {
+                            Text("Search projects", color = TextSecondary, fontSize = 14.sp)
+                        }
+                        inner()
+                    }
+                )
             }
-        },
-        confirmButton = {
+            Spacer(Modifier.height(14.dp))
+
+            // ── New Project hero ───────────────────────────────────
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(AmCornerCard))
+                    .background(AmAccent)
+                    .clickable { onNew() }
+                    .padding(horizontal = 18.dp, vertical = 18.dp)
+                    .testTag("home_new_project"),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(46.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.22f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Filled.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(26.dp))
+                }
+                Spacer(Modifier.width(14.dp))
+                Column {
+                    Text("New Project", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                    Text("Start a fresh edit", color = Color.White.copy(alpha = 0.75f), fontSize = 12.5.sp, maxLines = 1)
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+
+            // ── Secondary actions ──────────────────────────────────
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                DialogSecondaryButton(text = "Import", onClick = onImport)
                 if (missingMediaCount > 0) {
                     DialogSecondaryButton(
                         text = "Missing media ($missingMediaCount)",
@@ -211,22 +228,158 @@ fun ProjectsDialog(
                         contentColor = Color(0xFFFFB74D)
                     )
                 }
-                DialogSecondaryButton(text = "Import", onClick = onImport)
-                // The primary action: the violet pill (build 206 redesign).
-                VioletPillButton(onClick = onNew) {
-                    Text("New project", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+            }
+
+            // ── Recent ─────────────────────────────────────────────
+            PanelSectionLabel("Recent")
+
+            if (projects.isEmpty()) {
+                Text(
+                    "No projects yet. Start one with New Project above.",
+                    color = TextSecondary,
+                    fontSize = 13.sp,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+            } else if (shownProjects.isEmpty()) {
+                Text(
+                    "No projects match your search.",
+                    color = TextSecondary,
+                    fontSize = 13.sp,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+            } else {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(2),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    items(shownProjects, key = { it.id }) { p ->
+                        val isCurrent = p.id == currentId
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(AmCornerCard))
+                                .background(AmCardSurface)
+                                .clickable { onOpen(p.id) }
+                                .testTag("project_card_${p.id}")
+                        ) {
+                            // Thumbnail block (no stored thumbnail exists:
+                            // the project's initial on the raised surface,
+                            // with the duration badge and the OPEN chip).
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(74.dp)
+                                    .background(AmPanelHigh),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    p.name.trim().firstOrNull()?.uppercase() ?: "M",
+                                    color = AmTextDim,
+                                    fontSize = 28.sp,
+                                    fontWeight = FontWeight.ExtraBold
+                                )
+                                if (isCurrent) {
+                                    Box(
+                                        modifier = Modifier
+                                            .align(Alignment.TopStart)
+                                            .padding(8.dp)
+                                            .clip(CircleShape)
+                                            .background(AmAccent)
+                                            .padding(horizontal = 7.dp, vertical = 2.dp)
+                                    ) {
+                                        Text("OPEN", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold)
+                                    }
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.BottomEnd)
+                                        .padding(8.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.Black.copy(alpha = 0.55f))
+                                        .padding(horizontal = 7.dp, vertical = 2.dp)
+                                ) {
+                                    Text(formatDuration(p.durationMs), color = Color.White, fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(start = 12.dp, top = 8.dp, bottom = 10.dp, end = 2.dp),
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        p.name,
+                                        color = if (isCurrent) AmAccent else TextPrimary,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        "${dateFmt.format(Date(p.updatedAt))} · ${p.layerCount} layers",
+                                        color = TextSecondary,
+                                        fontSize = 11.5.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                Box {
+                                    IconButton(
+                                        onClick = { menuFor = p.id },
+                                        modifier = Modifier.size(36.dp).testTag("project_menu_${p.id}")
+                                    ) {
+                                        Icon(Icons.Filled.MoreVert, contentDescription = "Project actions", tint = TextSecondary, modifier = Modifier.size(20.dp))
+                                    }
+                                    DropdownMenu(
+                                        expanded = menuFor == p.id,
+                                        onDismissRequest = { menuFor = null },
+                                        modifier = Modifier.background(AmPanelHigh)
+                                    ) {
+                                        DropdownMenuItem(
+                                            text = { Text("Open", color = TextPrimary) },
+                                            onClick = { menuFor = null; onOpen(p.id) }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Rename", color = TextPrimary) },
+                                            leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(18.dp)) },
+                                            onClick = { menuFor = null; renaming = p }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Share project file", color = TextPrimary) },
+                                            leadingIcon = { Icon(Icons.Filled.Share, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(18.dp)) },
+                                            onClick = { menuFor = null; onExport(p) }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Export Alight XML", color = TextPrimary) },
+                                            leadingIcon = { Icon(Icons.Filled.Code, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(18.dp)) },
+                                            onClick = { menuFor = null; onExportAlightXml(p) }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Delete", color = AmDanger) },
+                                            leadingIcon = { Icon(Icons.Filled.Delete, contentDescription = null, tint = AmDanger, modifier = Modifier.size(18.dp)) },
+                                            onClick = { menuFor = null; deleting = p }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
-        },
-        dismissButton = { DialogSecondaryButton(text = "Close", onClick = onDismiss) }
-    )
+        }
+    }
 
     renaming?.let { p ->
         var text by remember(p.id) { mutableStateOf(p.name) }
         AlertDialog(
             onDismissRequest = { renaming = null },
             containerColor = DialogFill,
-        shape = RoundedCornerShape(AmCornerCard),
+            shape = RoundedCornerShape(AmCornerCard),
             title = { Text("Rename", color = HeaderText) },
             text = {
                 PillTextField(value = text, onValueChange = { text = it.take(60) })
@@ -245,7 +398,7 @@ fun ProjectsDialog(
         AlertDialog(
             onDismissRequest = { deleting = null },
             containerColor = DialogFill,
-        shape = RoundedCornerShape(AmCornerCard),
+            shape = RoundedCornerShape(AmCornerCard),
             title = { Text("Delete project?", color = HeaderText) },
             text = { Text("\"${p.name}\" will be removed. This cannot be undone.", color = TextSecondary) },
             confirmButton = {

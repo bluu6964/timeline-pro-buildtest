@@ -167,6 +167,15 @@ fun ToolsGridSheet(
     /** The selected clip panel's tools, published via [MorePanelState] (full list while the panel is open, build 210); null = utility section only. */
     clipOverflow: ClipOverflowSection?,
     /**
+     * Build 214 — ITEM 1 (Sarowar, 2026-11-16): the 8 utility tools
+     * (Range in/out, Beat mark, Marker, Onion, Scopes, Snap, Canvas) are
+     * UNIVERSAL tools, not any layer's tools. They are included ONLY in
+     * the no-selection (project) panel; a selected layer's panel carries
+     * ONLY that layer's tools. The screen passes this from the selection
+     * state.
+     */
+    includeUtilities: Boolean = true,
+    /**
      * The timeline bars' actions (SelectedBar / MultiBar), published via
      * [BarActionsState] (build 211 — NO STICKY TOOL LINES: while this
      * sheet is open the bars render nowhere; their actions are this
@@ -239,11 +248,13 @@ fun ToolsGridSheet(
     // grid scrolls together; nothing is pinned above or below it.
     // Build 215: the single row leads with the tools used most (Edit / Effects / Animations /
     // Color / Transform), then the bar actions (Delete last), then the other clip tools, then
-    // the utility tools.
+    // the utility tools. Build 214 (ITEM 1): the utility section rides ONLY when
+    // [includeUtilities] — the no-selection panel; a layer's panel is layer tools only.
     val primaryIds = setOf("edit_group", "edit_text", "edit_shape", "edit_points", "effects", "animations", "color", "transform")
     val primaryTags = clipOverflow?.tools?.filter { it.id in primaryIds }?.map { clipOverflow.tileTag(it.id) }?.toSet() ?: emptySet()
     val (primaryClip, restClip) = clipEntries.partition { it.tag in primaryTags }
-    val entries = primaryClip + barEntries.sortedBy { it.destructive } + restClip + utilityEntries
+    val entries = primaryClip + barEntries.sortedBy { it.destructive } + restClip +
+        (if (includeUtilities) utilityEntries else emptyList())
 
     Column(
         modifier = modifier

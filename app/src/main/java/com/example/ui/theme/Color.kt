@@ -9,10 +9,10 @@ import androidx.compose.ui.graphics.Color
 val EditorBackground = AmBase
 val EditorSurface = AmPanelHigh
 // Timeline lane controls (left pills)
-val LanePill = Color(0xFF1A1A1A)
-val LanePillBorder = Color(0xFF2E2E2E)
+val LanePill = Color(0xFF17171C)
+val LanePillBorder = Color(0xFF26262E)
 val EditorSurfaceVariant = AmPanelElevated
-val EditorDivider = Color(0xFF3A3A3A)
+val EditorDivider = Color(0xFF26262E)
 val GlassSurface = AmPanelHigh
 val GlassHighlight = Color(0xFFFFFFFF)
 // Canvas / project background: full black.
@@ -22,8 +22,8 @@ val AccentBlueSoft = Color(0xFFD0D0D0)
 
 // Timeline & Track colors
 val TrackBackground = Color(0xFF161616)
-val TrackBorder = Color(0xFF2E2E2E)
-val PlayheadColor = Color(0xFFF5F5F7)
+val TrackBorder = Color(0xFF26262E)
+val PlayheadColor = Color(0xFFFF3B47) // build 214: the playhead carries the brand red
 val PlayheadAccent = Color(0xFFFFFFFF)
 val RulerTickColor = Color(0xFFB8B8B8)
 val RulerSubTickColor = Color(0xFF555555)
@@ -46,8 +46,8 @@ val TrimHandleColor = AccentBlue
 
 // Text & Icons
 val TextPrimary = Color(0xFFF5F5F7)
-val TextSecondary = Color(0xFFA1A1A6)
-val TextTertiary = Color(0xFF6E6E73)
+val TextSecondary = Color(0xFFA7A7B3)
+val TextTertiary = Color(0xFF6E6E78)
 val IconActive = Color(0xFFE5E5EA)
 val IconDisabled = Color(0xFF555555)
 

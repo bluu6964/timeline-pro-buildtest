@@ -19,6 +19,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CenterFocusWeak
 import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.AspectRatio
+import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MusicNote
@@ -54,18 +56,32 @@ import com.example.ui.theme.IconActive
 import com.example.ui.theme.TextPrimary
 import com.example.ui.util.bouncyClickable
 
+/**
+ * THE DOCK's primary toolbar, no-selection state (build 214 — UI
+ * ARCHITECTURE REDESIGN): the permanent bottom bar of the editor. It is
+ * ALWAYS visible (the panel stage opens above it, never instead of it)
+ * and carries the PROJECT tools with icon + label: Add (the primary —
+ * the brand-red disc; the old + disc's role lives here now), Media,
+ * Text, Audio, Canvas, and More — which opens the universal-tools panel
+ * in the stage (Range in/out, Beat mark, Marker, Onion, Scopes, Snap,
+ * Canvas: the UNIVERSAL tools — they are not any layer's tools, so they
+ * live here in the no-selection dock, never in a layer's panel).
+ * With a selection, this same dock slot carries the selected layer's
+ * primary tools instead (the clip panels render them).
+ */
 @Composable
 fun BottomToolbar(
     height: Dp,
     onAddClick: () -> Unit,
-    onNullClick: () -> Unit,
-    onControllerClick: () -> Unit,
-    onChainClick: () -> Unit,
-    onCameraClick: () -> Unit,
-    modifier: Modifier = Modifier
+    onMediaClick: () -> Unit,
+    onTextClick: () -> Unit,
+    onAudioClick: () -> Unit,
+    onCanvasClick: () -> Unit,
+    onMoreClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    /** The universal panel is open in the stage (the More item reads selected). */
+    moreActive: Boolean = false
 ) {
-    // Build 206: the toolbar floats as a rounded bar (the redesign's pill
-    // language) — full width, items keep their weight(1f) shares.
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -73,16 +89,17 @@ fun BottomToolbar(
             .padding(vertical = 4.dp)
             .background(AmBarSurface, RoundedCornerShape(24.dp))
             .clip(RoundedCornerShape(24.dp))
-            .padding(horizontal = AmSpace.sm, vertical = AmSpace.xs),
+            .padding(horizontal = AmSpace.sm, vertical = AmSpace.xs)
+            .testTag("dock_toolbar"),
         horizontalArrangement = Arrangement.spacedBy(AmSpace.xs),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Primary "Add" sits first; remaining tools are secondary chrome.
         ToolbarItem("Add", Icons.Default.Add, "toolbar_add_button", onAddClick, primary = true)
-        ToolbarItem("Null", Icons.Default.CenterFocusWeak, "toolbar_null_button", onNullClick)
-        ToolbarItem("Controller", Icons.Default.Tune, "toolbar_controller_button", onControllerClick)
-        ToolbarItem("Chain", Icons.Default.ViewStream, "toolbar_chain_button", onChainClick)
-        ToolbarItem("3D Camera", Icons.Default.Videocam, "toolbar_camera_button", onCameraClick)
+        ToolbarItem("Media", Icons.Default.AddPhotoAlternate, "toolbar_media_button", onMediaClick)
+        ToolbarItem("Text", Icons.Default.TextFields, "toolbar_text_button", onTextClick)
+        ToolbarItem("Audio", Icons.Default.MusicNote, "toolbar_audio_button", onAudioClick)
+        ToolbarItem("Canvas", Icons.Default.AspectRatio, "toolbar_canvas_button", onCanvasClick)
+        ToolbarItem("More", Icons.Default.MoreHoriz, "toolbar_more_button", onMoreClick, selected = moreActive)
     }
 }
 
@@ -92,12 +109,20 @@ private fun RowScope.ToolbarItem(
     icon: ImageVector,
     testTag: String,
     onClick: () -> Unit,
-    primary: Boolean = false
+    primary: Boolean = false,
+    /** Selected state (the item's panel is open in the stage): the filled selected pill. */
+    selected: Boolean = false
 ) {
     Box(
         modifier = Modifier
             .weight(1f)
             .fillMaxHeight()
+            .then(
+                if (selected) Modifier
+                    .background(com.example.ui.theme.AmPillSelected, RoundedCornerShape(16.dp))
+                    .clip(RoundedCornerShape(16.dp))
+                else Modifier
+            )
             .bouncyClickable(pressedScale = 0.94f, hoverScale = 1.02f, onClick = onClick)
             .testTag(testTag),
         contentAlignment = Alignment.Center
@@ -109,8 +134,8 @@ private fun RowScope.ToolbarItem(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // Primary action gets the violet disc (build 206: the accent
-            // marks the primary action in the references).
+            // Primary action gets the accent disc (build 214: the brand
+            // red marks the primary action).
             Box(
                 modifier = Modifier
                     .size(if (primary) 40.dp else 36.dp)
@@ -126,16 +151,16 @@ private fun RowScope.ToolbarItem(
                 Icon(
                     icon,
                     contentDescription = label,
-                    tint = if (primary) AmTextPrimary else IconActive,
+                    tint = if (primary || selected) AmTextPrimary else IconActive,
                     modifier = Modifier.size(if (primary) 22.dp else 20.dp)
                 )
             }
             Spacer(Modifier.height(AmSpace.xxs))
             Text(
                 label,
-                color = if (primary) AmTextPrimary else AmTextDim,
+                color = if (primary || selected) AmTextPrimary else AmTextDim,
                 fontSize = 10.sp,
-                fontWeight = if (primary) FontWeight.SemiBold else FontWeight.Medium,
+                fontWeight = if (primary || selected) FontWeight.SemiBold else FontWeight.Medium,
                 maxLines = 1
             )
         }
@@ -221,23 +246,11 @@ fun ChainAddPanel(
         }
     )
 
-    // Build 211 (NO STICKY TOOL LINES): while the unified tools panel
-    // is open this panel renders NOTHING at all — build 210 still left
-    // its back + divider strip pinned below the grid. The strip is
-    // gone (leaving the selection is the layer header's back arrow);
-    // the publish above still runs, so the grid keeps the full list.
-    if (toolsInGrid) {
-        Box(
-            modifier = modifier
-                .fillMaxWidth()
-                .height(height)
-                .testTag("chain_add_panel")
-        )
-        return
-    }
-
-    // Build 206: the panel floats as a rounded bar — full width, so the
-    // ToolRowSplit budgets are untouched.
+    // Build 214 (THE DOCK): this panel IS the dock's primary toolbar
+    // while a Chain is selected — it stays visible while the panel stage
+    // is open above it (the stage carries the full action list; the
+    // publish above still runs). Build 211's render-nothing state is
+    // superseded by the dock architecture.
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -260,21 +273,16 @@ fun ChainAddPanel(
             Icon(Icons.AutoMirrored.Filled.ArrowBack, "Exit chain", tint = IconActive, modifier = Modifier.size(24.dp))
         }
         Box(Modifier.width(1.dp).height(32.dp).background(Color(0xFF2C2C2C)))
-        // Build 210: not rendered while the unified tools panel is open —
-        // the actions live in its one scrolling list; only the back
-        // button stays in the footer bar.
-        if (!toolsInGrid) {
-            Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .padding(horizontal = CHAIN_CONTENT_PADDING_DP.dp),
-                horizontalArrangement = Arrangement.spacedBy(CHAIN_GAP_DP.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                visibleActions.forEach { action ->
-                    ChainToolItem(action.label, action.icon, action.testTag, action.onClick)
-                }
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+                .padding(horizontal = CHAIN_CONTENT_PADDING_DP.dp),
+            horizontalArrangement = Arrangement.spacedBy(CHAIN_GAP_DP.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            visibleActions.forEach { action ->
+                ChainToolItem(action.label, action.icon, action.testTag, action.onClick)
             }
         }
     }

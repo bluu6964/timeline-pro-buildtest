@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -17,6 +16,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.border
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Redo
+import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreHoriz
@@ -41,6 +42,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.AspectRatio
+import com.example.ui.theme.AmAccentViolet
 import com.example.ui.theme.AmBase
 import com.example.ui.theme.AmCyan
 import com.example.ui.theme.AmInk
@@ -51,11 +53,13 @@ import com.example.ui.theme.amBarBrush
 import com.example.ui.util.bouncyClickable
 
 /**
- * Header in the build-206 redesign language: one floating dark pill bar holding
- *   [X]   [camera icon]                 [1080P v]  [download | Export]
- * The Export pill is flat WHITE with black text (the primary emphasis).
- * [aspectRatio] is kept for the callers; the ratio itself is chosen in the sheet the
- * camera icon and the resolution pill open.
+ * The APP BAR (build 214 — UI ARCHITECTURE REDESIGN): zone A of the editor
+ * shell. One bar holding, left to right: the close X, the PROJECT NAME,
+ * undo / redo (moved up from the transport bar — the app bar owns them
+ * now), the save-frame icon, the resolution pill, and EXPORT as the
+ * primary filled button (brand red, white content — the architecture's
+ * one primary action). [aspectRatio] is kept for the callers; the ratio
+ * itself is chosen in the sheet the resolution pill opens.
  */
 @Composable
 fun EditorHeader(
@@ -69,7 +73,14 @@ fun EditorHeader(
     modifier: Modifier = Modifier,
     /** Text of the resolution pill, e.g. "1080P". */
     resolutionLabel: String = "1080P",
-    onResolutionClick: () -> Unit = onAspectRatioClick
+    onResolutionClick: () -> Unit = onAspectRatioClick,
+    /** Build 214: the open project's name, shown at the bar's left. */
+    projectName: String = "",
+    /** Build 214: undo / redo live in the app bar now (they left the transport bar). */
+    canUndo: Boolean = false,
+    canRedo: Boolean = false,
+    onUndoClick: () -> Unit = {},
+    onRedoClick: () -> Unit = {}
 ) {
     val barH = (height - 4.dp).coerceAtMost(46.dp)
     val btnH = barH - 10.dp
@@ -87,49 +98,86 @@ fun EditorHeader(
                 .height(barH)
                 .glassSurface(CircleShape, fill = amBarBrush())
         ) {
-            // ── Close ──────────────────────────────────────────────
-            Box(
-                modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .padding(start = 12.dp)
-                    .width(btnH * 1.27f)
-                    .height(btnH)
-                    .semantics { contentDescription = "Back to projects" }
-                    .bouncyClickable(pressedScale = 0.92f, onClick = onBackClick)
-                    .testTag("header_back_button"),
-                contentAlignment = Alignment.Center
-            ) {
-                Canvas(Modifier.size(15.dp)) {
-                    val c = TextPrimary
-                    val w = 2.7.dp.toPx()
-                    val m = w / 2f
-                    drawLine(c, Offset(m, m), Offset(size.width - m, size.height - m), w, StrokeCap.Round)
-                    drawLine(c, Offset(size.width - m, m), Offset(m, size.height - m), w, StrokeCap.Round)
-                }
-            }
-
-            // ── Save frame icon (centre sits 104 dp from the bar's left edge): current frame -> PNG in the gallery ──
-            Box(
-                modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .offset(x = 104.dp - 20.dp)
-                    .size(40.dp)
-                    .semantics { contentDescription = "Save frame as picture" }
-                    .bouncyClickable(onClick = onSaveFrameClick)
-                    .testTag("header_save_frame_button"),
-                contentAlignment = Alignment.Center
-            ) {
-                SaveFrameGlyph()
-            }
-
-            // ── Resolution pill + Export ───────────────────────────
             Row(
                 modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .padding(end = 9.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    .fillMaxWidth()
+                    .height(barH)
+                    .padding(horizontal = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                // ── Close ──────────────────────────────────────────
+                Box(
+                    modifier = Modifier
+                        .width(38.dp)
+                        .height(btnH)
+                        .semantics { contentDescription = "Back to projects" }
+                        .bouncyClickable(pressedScale = 0.92f, onClick = onBackClick)
+                        .testTag("header_back_button"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Canvas(Modifier.size(14.dp)) {
+                        val c = TextPrimary
+                        val w = 2.7.dp.toPx()
+                        val m = w / 2f
+                        drawLine(c, Offset(m, m), Offset(size.width - m, size.height - m), w, StrokeCap.Round)
+                        drawLine(c, Offset(size.width - m, m), Offset(m, size.height - m), w, StrokeCap.Round)
+                    }
+                }
+
+                // ── Project name (the app bar's identity, left) ────
+                Text(
+                    projectName,
+                    color = TextPrimary,
+                    fontSize = 14.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 4.dp)
+                        .testTag("header_project_name")
+                )
+
+                // ── Undo / redo (the app bar owns them, build 214) ──
+                HeaderIconButton(
+                    enabled = canUndo,
+                    onClick = onUndoClick,
+                    tag = "header_undo_button",
+                    description = "Undo"
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.Undo, contentDescription = null,
+                        tint = if (canUndo) TextPrimary else AmTextDim.copy(alpha = 0.45f),
+                        modifier = Modifier.size(19.dp)
+                    )
+                }
+                HeaderIconButton(
+                    enabled = canRedo,
+                    onClick = onRedoClick,
+                    tag = "header_redo_button",
+                    description = "Redo"
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.Redo, contentDescription = null,
+                        tint = if (canRedo) TextPrimary else AmTextDim.copy(alpha = 0.45f),
+                        modifier = Modifier.size(19.dp)
+                    )
+                }
+
+                // ── Save frame: current frame -> PNG in the gallery ──
+                Box(
+                    modifier = Modifier
+                        .width(36.dp)
+                        .height(btnH)
+                        .semantics { contentDescription = "Save frame as picture" }
+                        .bouncyClickable(onClick = onSaveFrameClick)
+                        .testTag("header_save_frame_button"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    SaveFrameGlyph()
+                }
+
+                // ── Resolution pill ────────────────────────────────
                 Box(
                     modifier = Modifier
                         .height(btnH - 4.dp)
@@ -139,38 +187,68 @@ fun EditorHeader(
                     contentAlignment = Alignment.Center
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 14.dp),
+                        modifier = Modifier.padding(horizontal = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                    Text(resolutionLabel, color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                    Spacer(Modifier.width(8.dp))
-                    Canvas(Modifier.size(width = 8.dp, height = 5.5.dp)) {
-                        val p = Path().apply {
-                            moveTo(0f, 0f); lineTo(size.width, 0f); lineTo(size.width / 2f, size.height); close()
+                        Text(resolutionLabel, color = TextPrimary, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                        Spacer(Modifier.width(6.dp))
+                        Canvas(Modifier.size(width = 8.dp, height = 5.5.dp)) {
+                            val p = Path().apply {
+                                moveTo(0f, 0f); lineTo(size.width, 0f); lineTo(size.width / 2f, size.height); close()
+                            }
+                            drawPath(p, TextPrimary)
+                            drawPath(p, TextPrimary, style = Stroke(1.2.dp.toPx(), join = StrokeJoin.Round))
                         }
-                        drawPath(p, TextPrimary)
-                        drawPath(p, TextPrimary, style = Stroke(1.2.dp.toPx(), join = StrokeJoin.Round))
-                    }
                     }
                 }
-                GradientPillButton(
-                    onClick = onExportClick,
+
+                Spacer(Modifier.width(6.dp))
+
+                // ── Export: THE primary filled button (brand red) ──
+                Box(
                     modifier = Modifier
                         .height(btnH)
+                        .clip(CircleShape)
+                        .background(AmAccentViolet)
+                        .semantics { contentDescription = "Export" }
+                        .bouncyClickable(pressedScale = 0.94f, onClick = onExportClick)
                         .testTag("header_export_button"),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 11.dp)
+                    contentAlignment = Alignment.Center
                 ) {
-                    DownloadGlyph()
-                    Spacer(Modifier.width(9.dp))
-                    // Export is a white pill again (build 206 redesign): the
-                    // glyph, divider and label are ink on the white fill.
-                    Box(Modifier.width(1.dp).height(13.dp).background(AmInk.copy(alpha = 0.3f)))
-                    Spacer(Modifier.width(9.dp))
-                    Text("Export", color = AmInk, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        DownloadGlyph(Color.White)
+                        Spacer(Modifier.width(8.dp))
+                        Box(Modifier.width(1.dp).height(13.dp).background(Color.White.copy(alpha = 0.35f)))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Export", color = Color.White, fontSize = 14.5.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                    }
                 }
             }
         }
     }
+}
+
+/** One small icon button of the app bar (undo / redo). */
+@Composable
+private fun HeaderIconButton(
+    enabled: Boolean,
+    onClick: () -> Unit,
+    tag: String,
+    description: String,
+    content: @Composable () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .width(36.dp)
+            .height(36.dp)
+            .semantics { contentDescription = description }
+            .bouncyClickable(enabled = enabled, pressedScale = 0.9f, onClick = onClick)
+            .testTag(tag),
+        contentAlignment = Alignment.Center
+    ) { content() }
 }
 
 /** Camera (body, lens, top bump) - white, 28 dp: saves the current frame as a picture. */
@@ -198,9 +276,9 @@ private fun SaveFrameGlyph() {
     }
 }
 
-/** Arrow down into a tray (dark on the white button), 19 dp wide. */
+/** Arrow down into a tray, 19 dp wide (build 214: drawn in the Export button's content colour). */
 @Composable
-private fun DownloadGlyph() {
+private fun DownloadGlyph(tint: Color = AmInk) {
     Canvas(Modifier.size(20.dp)) {
         val u = size.width / 20f
         val st = Stroke(2.2f * u, cap = StrokeCap.Round, join = StrokeJoin.Round)
@@ -208,7 +286,7 @@ private fun DownloadGlyph() {
             moveTo(10f * u, 1.6f * u); lineTo(10f * u, 11.8f * u)
             moveTo(5.6f * u, 7.6f * u); lineTo(10f * u, 12f * u); lineTo(14.4f * u, 7.6f * u)
         }
-        drawPath(arrow, AmInk, style = st)
+        drawPath(arrow, tint, style = st)
         val tray = Path().apply {
             moveTo(1.6f * u, 12.5f * u); lineTo(1.6f * u, 16.2f * u)
             quadraticBezierTo(1.6f * u, 18.4f * u, 3.8f * u, 18.4f * u)
@@ -216,7 +294,7 @@ private fun DownloadGlyph() {
             quadraticBezierTo(18.4f * u, 18.4f * u, 18.4f * u, 16.2f * u)
             lineTo(18.4f * u, 12.5f * u)
         }
-        drawPath(tray, AmInk, style = st)
+        drawPath(tray, tint, style = st)
     }
 }
 

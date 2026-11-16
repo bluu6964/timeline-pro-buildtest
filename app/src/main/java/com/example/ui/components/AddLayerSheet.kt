@@ -21,6 +21,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Brush
 import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.CenterFocusWeak
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material.icons.filled.ViewStream
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Polyline
@@ -60,6 +64,11 @@ fun AddLayerSheet(
     onDraw: () -> Unit = {},
     /** Point-based Pen (build 177): tap places anchor points, drag pulls bezier handles — a vector path layer. */
     onPen: () -> Unit = {},
+    /** Helper layers (build 214: they lived on the old bottom toolbar; the dock's Add sheet is their home now). */
+    onNull: () -> Unit = {},
+    onController: () -> Unit = {},
+    onChain: () -> Unit = {},
+    onCamera: () -> Unit = {},
     onDismiss: () -> Unit
 ) {
     ModalBottomSheet(
@@ -92,6 +101,15 @@ fun AddLayerSheet(
                 Item("Draw", Icons.Default.Brush, "add_sheet_draw") { onDismiss(); onDraw() }
                 Item("Pen", Icons.Default.Polyline, "add_sheet_pen") { onDismiss(); onPen() }
                 Spacer(Modifier.weight(1f))
+            }
+            Spacer(Modifier.height(10.dp))
+            // Build 214: the helper layers (they were the old toolbar's
+            // Null / Controller / Chain / Camera items).
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Item("Null", Icons.Default.CenterFocusWeak, "add_sheet_null") { onDismiss(); onNull() }
+                Item("Controller", Icons.Default.Tune, "add_sheet_controller") { onDismiss(); onController() }
+                Item("Chain", Icons.Default.ViewStream, "add_sheet_chain") { onDismiss(); onChain() }
+                Item("Camera", Icons.Default.Videocam, "add_sheet_camera") { onDismiss(); onCamera() }
             }
         }
     }

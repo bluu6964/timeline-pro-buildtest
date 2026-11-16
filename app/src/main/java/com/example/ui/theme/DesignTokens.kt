@@ -32,20 +32,24 @@ import androidx.compose.ui.unit.sp
  */
 
 // ── Base & flat surfaces ─────────────────────────────────────────────────
-/** App base: near-black, neutral. */
-val AmBase = Color(0xFF0A0A0A)
+// Build 214 (UI ARCHITECTURE REDESIGN): warm near-black surfaces serving the
+// dock + panel-stage architecture; the accent is the brand red of Sarowar's
+// red/black logo (see AmAccentViolet below — the token name is kept for
+// call-site compatibility, its value is now the red).
+/** App base: warm near-black. */
+val AmBase = Color(0xFF0B0B0D)
 /** Pure black for recessed / canvas surround. */
 val AmBaseDeep = Color(0xFF000000)
-/** Primary panel surface — sheets, bottom bars, dialogs. */
-val AmPanel = Color(0xFF141414)
+/** Primary panel surface — sheets, bottom bars, dialogs, the panel stage. */
+val AmPanel = Color(0xFF121215)
 /** Raised surface — chips, selected pills, elevated cards. */
-val AmPanelHigh = Color(0xFF1F1F1F)
+val AmPanelHigh = Color(0xFF22222A)
 /** Slightly higher for interactive hover / pressed states. */
-val AmPanelElevated = Color(0xFF2A2A2A)
+val AmPanelElevated = Color(0xFF2A2A33)
 /** Default fill for small chrome items on base. */
-val AmGlassFill = Color(0xFF1A1A1A)
-/** Subtle 1px hairline. */
-val AmHairline = Color(0x22FFFFFF)
+val AmGlassFill = Color(0xFF17171C)
+/** Subtle 1px hairline (build 214: the architecture's hairline colour). */
+val AmHairline = Color(0xFF26262E)
 /** Stronger hairline for focused edges. */
 val AmHairlineStrong = Color(0x40FFFFFF)
 
@@ -71,31 +75,38 @@ val AmPink = Color(0xFFFFFFFF)
 /** Soft red — only for destructive actions. */
 val AmDanger = Color(0xFFFF5C5C)
 /**
- * Magenta-pink — reserved exclusively for the Effects parameter ruler thumb.
- * Do not use elsewhere in chrome.
+ * Brand red — reserved exclusively for the Effects parameter ruler thumb
+ * (build 214: the needle joins the architecture's accent; the token stays
+ * effects-only). Do not use elsewhere in chrome.
  */
-val AmFxAccent = Color(0xFFFF2E7E)
+val AmFxAccent = Color(0xFFFF3B47)
 /** Ink drawn on white fills (Export label, badges). */
 val AmInk = Color(0xFF0A0A0A)
 
 // ── Build 206: the redesign's surfaces + accent ──────────────────────────
-/** The one accent: primary actions and the tools-grid button (Sarowar's references). */
-val AmAccentViolet = Color(0xFF7C5CFF)
+/**
+ * The one accent (build 214: BRAND RED #FF3B47 — Sarowar's red/black logo;
+ * it marks selection, primary actions, slider fills and the dock's Add).
+ * The token keeps its build-206 name so call sites stay compatible.
+ */
+val AmAccentViolet = Color(0xFFFF3B47)
+/** Alias for new code (build 214): the same brand red, honestly named. */
+val AmAccent = AmAccentViolet
 /** Floating pill bars (transport, toolbars, header): near-black, a step above the base. */
-val AmBarSurface = Color(0xFF111114)
-/** The filled pill of a selected / active item inside a bar or grid. */
-val AmPillSelected = Color(0xFF2E2E33)
-/** Card surface on the base (project cards, the tools-grid sheet). */
-val AmCardSurface = Color(0xFF16161A)
+val AmBarSurface = Color(0xFF121215)
+/** The filled pill of a selected / active item inside a bar or grid (build 214: dark red tint). */
+val AmPillSelected = Color(0xFF2A1518)
+/** Card surface on the base (project cards, panel-stage panels). */
+val AmCardSurface = Color(0xFF17171C)
 
 /** Selected-layer header slate (build 211): the Alight reference's dark blue-grey bar, distinct from the editor black. */
 val AmSlateHeader = Color(0xFF262635)
 
 // ── Text hierarchy ───────────────────────────────────────────────────────
 /** Secondary text. */
-val AmTextDim = Color(0xFFA3A3A3)
+val AmTextDim = Color(0xFFA7A7B3)
 /** Tertiary / disabled text. */
-val AmTextFaint = Color(0xFF6B6B6B)
+val AmTextFaint = Color(0xFF6E6E78)
 /** Primary text (explicit token for new code). */
 val AmTextPrimary = Color(0xFFF5F5F7)
 
@@ -115,10 +126,10 @@ fun amBarBrush(): Brush = SolidColor(AmBarSurface)
 // Bars and buttons are full pills (CircleShape at the call site); these
 // tokens size the rounded surfaces. Functional round shapes (play disc,
 // thumbs, etc.) stay circular and are not affected by these tokens.
-/** Large cards / dialogs. */
-val AmCornerCard = 24.dp
-/** Bottom sheets: top corners (build 207 applies them across the sheets). */
-val AmCornerSheet = 28.dp
+/** Large cards / dialogs (build 214: cards are 20 dp). */
+val AmCornerCard = 20.dp
+/** Bottom sheets / the panel stage: top corners (build 214: 24 dp). */
+val AmCornerSheet = 24.dp
 /** Panels, major containers. */
 val AmCornerPanel = 20.dp
 /** Toolbar items, medium chips, buttons. */
