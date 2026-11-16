@@ -5,6 +5,16 @@ import com.example.ui.theme.AmCornerSheet
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.material.icons.filled.BorderColor
+import androidx.compose.material.icons.filled.CropSquare
+import androidx.compose.material.icons.filled.FormatLineSpacing
+import androidx.compose.material.icons.filled.Keyboard
+import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Timeline
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.runtime.key
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -73,24 +83,15 @@ import com.example.ui.theme.TextSecondary
 import kotlinx.coroutines.launch
 
 /**
- * Bottom panel of "Text edit" (build 212 rebuild): text box, the quick row
- * (Italic / Underline / Strikethrough + Align), then ONE vertically scrolling
- * column of grouped cards — Style, Font, Stroke, Shadow, Background, Spacing,
- * Reveal, Path. Every change is applied to the layer at once, so the canvas
- * above shows it live.
+ * Bottom panel of "Text edit" (build 213 redesign): ONE small panel at a time, chosen from a
+ * horizontally scrolling icon toolbar pinned to the bottom (Edit, Font, Style, Stroke, Shadow,
+ * Box, Space, Reveal, Path). Edit = the text box + the quick row (Italic / Underline /
+ * Strikethrough + Align). Every change is applied to the layer at once, so the canvas above
+ * shows it live.
  *
- * The tab system this replaces overflowed 360 dp ("Shadow" clipped to "Sh"),
- * and each tab body was a separate nested scroll column squeezed into the
- * ~79 dp left under the sheet's fixed chrome (handle + text field + chip row)
- * inside a hand-computed sheet height — so rows were cut at an invisible fold,
- * slider rows stacked into each other at the fold, and switching tabs ghosted
- * the previous tab's rows over the new one. Now the sheet is sized by layout
- * (the caller's weight in the lower zone) and every row takes its natural
- * height in the single scroll column; nothing is clipped and there is no tab
- * swap to ghost. While the keyboard is open the sheet shows ONLY the text box
- * + the quick row, raised above the keyboard — the canvas keeps its fixed
- * height (canvas law); the space comes from the lower zone, whose timescale +
- * layer row the caller hides in that state.
+ * While the keyboard is open the sheet shows ONLY the Edit panel (no toolbar), raised above the
+ * keyboard — the canvas keeps its fixed height (canvas law); the space comes from the lower
+ * zone, whose timescale + layer row the caller hides in that state.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -103,116 +104,161 @@ fun TextEditSheet(
     pathLayers: List<TimelineClip> = emptyList()
 ) {
     var text by remember(clip.id) { mutableStateOf(clip.text.orEmpty()) }
-    var focused by remember { mutableStateOf(false) }
+    var tool by remember(clip.id) { mutableStateOf(TextTool.EDIT) }
     val imeVisible = WindowInsets.isImeVisible
+
+    val onText: (String) -> Unit = { v ->
+        text = v
+        onUpdate { it.copy(text = v, name = if (v.isBlank()) "Text" else "Text: ${v.take(24)}") }
+    }
 
     Column(
         modifier = modifier
-            // Rises above the keyboard; while it is open the sheet is only the text box + quick row.
+            // Rises above the keyboard; while it is open the sheet is only the Edit panel.
             .imePadding()
             .clip(RoundedCornerShape(topStart = AmCornerSheet, topEnd = AmCornerSheet))
             .background(SheetBg)
-            // The parent sheet already owns this area. Do not intercept pointer gestures here:
-            // doing so prevents nested font/style controls from receiving vertical scroll drags.
-            .padding(horizontal = 16.dp)
     ) {
-        if (!imeVisible) {
-            // Drag-handle look from the reference
+        if (imeVisible) {
+            Column(modifier = Modifier.padding(horizontal = 16.dp).padding(top = 12.dp, bottom = 12.dp)) {
+                TextBoxField(text, onText)
+                Spacer(Modifier.height(12.dp))
+                TextQuickRow(clip, onUpdate)
+            }
+        } else {
             Box(
                 modifier = Modifier
-                    .padding(top = 12.dp, bottom = 14.dp)
+                    .padding(top = 10.dp, bottom = 6.dp)
                     .align(Alignment.CenterHorizontally)
-                    .width(50.dp)
-                    .height(5.dp)
+                    .width(44.dp)
+                    .height(4.dp)
                     .clip(CircleShape)
                     .background(Color(0xFF4A4A4E))
             )
-        }
-
-        TextField(
-            value = text,
-            onValueChange = { v ->
-                text = v
-                onUpdate { it.copy(text = v, name = if (v.isBlank()) "Text" else "Text: ${v.take(24)}") }
-            },
-            placeholder = { Text("Write Text", color = Color(0xFF8A8A8E), fontSize = 20.sp) },
-            leadingIcon = {
-                Icon(Icons.Default.TextFields, null, tint = TextPrimary, modifier = Modifier.size(30.dp))
-            },
-            maxLines = 3,
-            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 20.sp),
-            shape = RoundedCornerShape(AmCornerCard),
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = FieldBg,
-                unfocusedContainerColor = FieldBg,
-                focusedIndicatorColor = Color.Transparent,
-                unfocusedIndicatorColor = Color.Transparent,
-                focusedTextColor = Color.White,
-                unfocusedTextColor = Color.White,
-                cursorColor = Color.White
-            ),
-            modifier = Modifier
-                .fillMaxWidth()
-                .onFocusChanged { focused = it.isFocused }
-                .then(
-                    if (focused) Modifier.border(2.dp, Color(0xFFBDBDBD), RoundedCornerShape(AmCornerCard))
-                    else Modifier
-                )
-        )
-
-        Spacer(Modifier.height(12.dp))
-
-        TextQuickRow(clip, onUpdate)
-
-        if (!imeVisible) {
-            Spacer(Modifier.height(12.dp))
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-                    .padding(bottom = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                TextCard("STYLE") { StyleCardContent(clip, onUpdate, onEyedropper) }
-                TextCard("FONT") {
-                    FontsTab(clip, onUpdate)
-                    Spacer(Modifier.height(12.dp))
-                    FontWeightRow(clip, onUpdate)
+            // One panel at a time; a fresh scroll state per tool so switching never keeps an old fold.
+            key(tool) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    when (tool) {
+                        TextTool.EDIT -> {
+                            TextBoxField(text, onText)
+                            Spacer(Modifier.height(4.dp))
+                            TextQuickRow(clip, onUpdate)
+                        }
+                        TextTool.FONT -> {
+                            FontsTab(clip, onUpdate)
+                            FontWeightRow(clip, onUpdate)
+                        }
+                        TextTool.STYLE -> StyleCardContent(clip, onUpdate, onEyedropper)
+                        TextTool.STROKE -> StrokeTab(clip, onUpdate, onEyedropper)
+                        TextTool.SHADOW -> ShadowTab(clip, onUpdate, onEyedropper)
+                        TextTool.BOX -> BackgroundTab(clip, onUpdate, onEyedropper)
+                        TextTool.SPACE -> SpacingTab(clip, onUpdate)
+                        TextTool.REVEAL -> RevealBlock(clip, onUpdate)
+                        TextTool.PATH -> PathTab(clip, pathLayers, onUpdate)
+                    }
                 }
-                TextCard("STROKE") { StrokeTab(clip, onUpdate, onEyedropper) }
-                TextCard("SHADOW") { ShadowTab(clip, onUpdate, onEyedropper) }
-                TextCard("BACKGROUND") { BackgroundTab(clip, onUpdate, onEyedropper) }
-                TextCard("SPACING") { SpacingTab(clip, onUpdate) }
-                TextCard("REVEAL") { RevealBlock(clip, onUpdate) }
-                TextCard("PATH") { PathTab(clip, pathLayers, onUpdate) }
             }
-        } else {
-            Spacer(Modifier.height(12.dp))
+            TextToolBar(selected = tool, onSelect = { tool = it })
         }
     }
 }
 
-/** One grouped card of the sheet's scroll column (pill system: #17171B, 20 dp radius). */
+/** The tools of the bottom toolbar, in display order. */
+private enum class TextTool(val label: String, val icon: ImageVector) {
+    EDIT("Edit", Icons.Default.Keyboard),
+    FONT("Font", Icons.Default.TextFields),
+    STYLE("Style", Icons.Default.Palette),
+    STROKE("Stroke", Icons.Default.BorderColor),
+    SHADOW("Shadow", Icons.Default.Layers),
+    BOX("Box", Icons.Default.CropSquare),
+    SPACE("Space", Icons.Default.FormatLineSpacing),
+    REVEAL("Reveal", Icons.Default.Visibility),
+    PATH("Path", Icons.Default.Timeline)
+}
+
+private val ToolbarBg = Color(0xFF141417)
+private val ToolAccent = Color(0xFF7C5CFF)
+private val ToolIdle = Color(0xFF9A9AA0)
+
+/** Bottom icon toolbar: scrolls sideways, one 64 dp cell per tool, the active one in a violet pill. */
 @Composable
-private fun TextCard(title: String, content: @Composable () -> Unit) {
-    Column(
+private fun TextToolBar(selected: TextTool, onSelect: (TextTool) -> Unit) {
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .background(Color(0xFF17171B))
-            .padding(horizontal = 12.dp, vertical = 12.dp)
+            .background(ToolbarBg)
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 4.dp, vertical = 6.dp)
     ) {
-        Text(
-            title,
-            color = AmTextDim,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 1.5.sp
-        )
-        Spacer(Modifier.height(10.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) { content() }
+        TextTool.values().forEach { t ->
+            val on = t == selected
+            Column(
+                modifier = Modifier
+                    .width(64.dp)
+                    .bouncyClickable(pressedScale = 0.92f) { onSelect(t) }
+                    .padding(vertical = 4.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
+                    modifier = Modifier
+                        .width(44.dp)
+                        .height(30.dp)
+                        .clip(RoundedCornerShape(15.dp))
+                        .background(if (on) ToolAccent else Color.Transparent),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(t.icon, contentDescription = t.label, tint = if (on) Color.White else ToolIdle, modifier = Modifier.size(22.dp))
+                }
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    t.label,
+                    color = if (on) Color.White else ToolIdle,
+                    fontSize = 11.sp,
+                    maxLines = 1
+                )
+            }
+        }
     }
+}
+
+/** The text box of the Edit panel (tap-to-type; the layer's text updates on every keystroke). */
+@Composable
+private fun TextBoxField(text: String, onText: (String) -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    TextField(
+        value = text,
+        onValueChange = onText,
+        placeholder = { Text("Write Text", color = Color(0xFF8A8A8E), fontSize = 18.sp) },
+        leadingIcon = {
+            Icon(Icons.Default.TextFields, null, tint = TextPrimary, modifier = Modifier.size(26.dp))
+        },
+        maxLines = 3,
+        textStyle = androidx.compose.ui.text.TextStyle(fontSize = 18.sp),
+        shape = RoundedCornerShape(AmCornerCard),
+        colors = TextFieldDefaults.colors(
+            focusedContainerColor = FieldBg,
+            unfocusedContainerColor = FieldBg,
+            focusedIndicatorColor = Color.Transparent,
+            unfocusedIndicatorColor = Color.Transparent,
+            focusedTextColor = Color.White,
+            unfocusedTextColor = Color.White,
+            cursorColor = Color.White
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .onFocusChanged { focused = it.isFocused }
+            .then(
+                if (focused) Modifier.border(2.dp, Color(0xFFBDBDBD), RoundedCornerShape(AmCornerCard))
+                else Modifier
+            )
+    )
 }
 
 /**

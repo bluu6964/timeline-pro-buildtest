@@ -381,7 +381,7 @@ fun TimelineLayerPanel(
         // right after the speech was done. Lanes outside the window are plain spacers of the same
         // height, so the scroll length and every position stay exactly the same.
         val laneHeights = remember(tracks) {
-            tracks.map { t -> t.clips.maxOfOrNull { laneHeightFor(it.type) } ?: 26.dp }
+            tracks.map { t -> t.clips.maxOfOrNull { laneHeightFor(it.type) } ?: 24.dp }
         }
         val laneTopsPx = remember(laneHeights, dpToPx) {
             val tops = FloatArray(laneHeights.size + 1)
@@ -462,7 +462,7 @@ fun TimelineLayerPanel(
         }
 
         // 1. Left layer controls (eye + thumb) + timeline tracks, shared vertical scroll.
-        val leftRailWidth = 92.dp
+        val leftRailWidth = 68.dp
         // The timeline content fills the whole width and runs UNDER the left controls (like Alight
         // Motion): layers are no longer cut off by a black strip, they show between / behind the
         // eye + thumbnail pills. The rail is drawn on top.
@@ -524,7 +524,7 @@ fun TimelineLayerPanel(
             ) {
                 tracks.forEachIndexed { laneIndex, track ->
                     val clip = track.clips.firstOrNull()
-                    val rowH = clip?.let { laneHeightFor(it.type) } ?: 26.dp
+                    val rowH = clip?.let { laneHeightFor(it.type) } ?: 24.dp
                     if (laneIndex !in laneWindow) {
                         Spacer(Modifier.height(rowH))
                         return@forEachIndexed
@@ -892,9 +892,9 @@ private fun LayerLaneControl(
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(start = 8.5.dp, end = 8.dp),
+                .padding(start = 6.dp, end = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             if (isMulti) {
                 // Multi-select: the eye turns into a check circle (empty when not checked).
@@ -925,7 +925,7 @@ private fun LayerLaneControl(
                 // 30 dp hit box around the 24 dp eye glyph: hide/show is a frequent tap and the
                 // lane pill is only 34-40 dp tall, so the target grows as far as the pill allows.
                 modifier = Modifier
-                    .size(30.dp)
+                    .size(24.dp)
                     .bouncyClickable(pressedScale = 1f, onClick = { onToggleVisibility(clip.id) }),
                 contentAlignment = Alignment.Center
             ) {
@@ -933,16 +933,9 @@ private fun LayerLaneControl(
                     imageVector = if (clip.isVisible) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff,
                     contentDescription = if (clip.isVisible) "Hide layer" else "Show layer",
                     tint = if (clip.isVisible) LaneEyeTint else LaneEyeTint.copy(alpha = 0.35f),
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier.size(18.dp)
                 )
             }
-            // thin divider between eye and thumbnail
-            Box(
-                Modifier
-                    .width(1.dp)
-                    .fillMaxHeight(0.55f)
-                    .background(Color.White.copy(alpha = 0.20f))
-            )
             LayerThumb(clip = clip, thumbColor = thumbColor)
         }
     }
@@ -965,7 +958,7 @@ private fun LayerThumb(clip: TimelineClip, thumbColor: Color) {
     }
     Box(
         modifier = Modifier
-            .size(25.dp)
+            .size(22.dp)
             .clip(shape)
             .background(fill)
             .then(
@@ -983,7 +976,7 @@ private fun LayerThumb(clip: TimelineClip, thumbColor: Color) {
         contentAlignment = Alignment.Center
     ) {
         when (clip.type) {
-            LayerType.TEXT -> Text("T", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold)
+            LayerType.TEXT -> Text("T", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
             LayerType.AUDIO -> Icon(Icons.Default.Mic, null, tint = Color.White, modifier = Modifier.size(14.dp))
             else -> {}
         }
@@ -1016,7 +1009,7 @@ fun TimelineTrackRow(
     columnShiftPx: () -> Float = { 0f }
 ) {
     // Alight Motion: one layer per line → fixed row height by layer type.
-    val trackHeight = track.clips.maxOfOrNull { laneHeightFor(it.type) } ?: 26.dp
+    val trackHeight = track.clips.maxOfOrNull { laneHeightFor(it.type) } ?: 24.dp
     // Build 187: the capsule bar's height — the row minus the inset, centred in the row.
     val barHeight = trackHeight - LaneBarInset
     val density = LocalDensity.current
@@ -1354,14 +1347,15 @@ private fun FadeHandle(
 // VIDEO/AUDIO 40 -> 30, SHAPE/CHAIN/OVERLAY/TEXT 38 -> 28, GROUP 36 -> 27, else 34 -> 26.
 // A third was NOT taken: the left rail's 25 dp thumbnail and the eye hit box set the floor
 // (the slimmest row, 26 dp, still holds both), and trim handles keep the full row height.
+// Build 214: rail thumb 22 dp + eye hit box 24 dp, so rows are cut a further 2 dp (slimmest 24 dp).
 internal fun laneHeightFor(type: LayerType): Dp = when (type) {
-    LayerType.VIDEO -> 30.dp
-    LayerType.AUDIO -> 30.dp
-    LayerType.SHAPE -> 28.dp
-    LayerType.CHAIN -> 28.dp
-    LayerType.OVERLAY, LayerType.TEXT -> 28.dp
-    LayerType.GROUP -> 27.dp
-    else -> 26.dp
+    LayerType.VIDEO -> 28.dp
+    LayerType.AUDIO -> 28.dp
+    LayerType.SHAPE -> 26.dp
+    LayerType.CHAIN -> 26.dp
+    LayerType.OVERLAY, LayerType.TEXT -> 26.dp
+    LayerType.GROUP -> 25.dp
+    else -> 24.dp
 }
 
 /** Build 187: the capsule bar is this much shorter than its lane row (centred in it). */
@@ -1641,14 +1635,7 @@ fun TimelineClipItem(
         // fully inside the bar when the clip is SELECTED (the right trim handle sits
         // exactly at the bar's end and must stay clear) or too short to straddle safely
         // (width < 56 dp — badge + label + trim clearance no longer fit the straddle).
-        if (!isChain && layerNumber != null) {
-            LayerBadge(
-                clip = clip,
-                number = layerNumber,
-                inside = isSelected || width < 56.dp,
-                modifier = Modifier.align(Alignment.CenterEnd)
-            )
-        }
+        // Build 214: the bar-end number badge is gone — the selected lane is marked by its white edge.
     }
 }
 
@@ -1740,7 +1727,7 @@ private fun CapsuleBar(
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(start = 12.dp, end = 34.dp)
+                modifier = Modifier.padding(start = 12.dp, end = 12.dp)
             )
         }
     }

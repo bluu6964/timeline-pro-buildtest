@@ -2653,25 +2653,6 @@ fun VideoEditorScreen(
             // bar's 68) INSIDE the panel — the bars are gone now (their
             // actions are tiles in the grid), so the reserve is 0 and
             // the rows' exact height is the whole floor.
-            val selIdForRestrict = selectedClipId
-            val restrictIds: Set<String>? = when {
-                !toolsPanelOpen -> null
-                selIdForRestrict != null -> setOf(selIdForRestrict)
-                multiSelectIds.isNotEmpty() -> multiSelectIds
-                else -> null
-            }
-            val restrictedTracks = restrictIds?.let { ids ->
-                shownTracks.filter { t -> t.clips.any { c -> c.id in ids } }
-                    .takeIf { it.isNotEmpty() }
-            }
-            val restrictedLanesH = restrictedTracks?.let { rt ->
-                val lanesDp = rt.sumOf { t ->
-                    (t.clips.maxOfOrNull { c -> com.example.ui.components.laneHeightFor(c.type) }
-                        ?: 26.dp).value.toDouble() + 6.0
-                } - 6.0 // the column's spacedBy leaves no gap after the last lane
-                val chromeDp = 0f // build 211: no bar renders inside the panel — no reserve
-                (9f + lanesDp.toFloat() + chromeDp).dp
-            }
             val minLayerZoneH = 64.dp
             val lowerZoneH = totalHeight - headerH - canvasH - playControlsH
             // Build 211 (NO STICKY TOOL LINES): while the tools panel is
@@ -2684,6 +2665,36 @@ fun VideoEditorScreen(
             val footerH = if (toolsPanelOpen && selectedClipId != null) 0.dp else toolbarH
             val zonePoolH = (lowerZoneH - timescaleH - footerH - onionRowH - scopesPanelH)
                 .coerceAtLeast(0.dp)
+            // Build 215: the tools panel is now ONE row, so when EVERY layer's lane still fits in the
+            // zone beside it, all layers stay visible (the selected one keeps its white edge);
+            // only when they would not fit does the build-210 rule apply (selected rows only).
+            val allLanesH = if (shownTracks.isEmpty()) 0.dp else (shownTracks.sumOf { t ->
+                (t.clips.maxOfOrNull { c -> com.example.ui.components.laneHeightFor(c.type) }
+                    ?: 24.dp).value.toDouble() + 6.0
+            } - 6.0 + 9.0).toFloat().dp
+            val oneRowGridH = com.example.ui.components
+                .toolsGridHeightDp(maxOf(toolsGridTiles, 1), 1).dp
+            val allLanesFit = allLanesH + oneRowGridH <= zonePoolH
+            val selIdForRestrict = selectedClipId
+            val restrictIds: Set<String>? = when {
+                !toolsPanelOpen -> null
+                allLanesFit -> null
+                selIdForRestrict != null -> setOf(selIdForRestrict)
+                multiSelectIds.isNotEmpty() -> multiSelectIds
+                else -> null
+            }
+            val restrictedTracks = restrictIds?.let { ids ->
+                shownTracks.filter { t -> t.clips.any { c -> c.id in ids } }
+                    .takeIf { it.isNotEmpty() }
+            }
+            val restrictedLanesH = restrictedTracks?.let { rt ->
+                val lanesDp = rt.sumOf { t ->
+                    (t.clips.maxOfOrNull { c -> com.example.ui.components.laneHeightFor(c.type) }
+                        ?: 24.dp).value.toDouble() + 6.0
+                } - 6.0 // the column's spacedBy leaves no gap after the last lane
+                val chromeDp = 0f // build 211: no bar renders inside the panel — no reserve
+                (9f + lanesDp.toFloat() + chromeDp).dp
+            }
             var toolsGridH = 0.dp
             var toolsGridRows = 0
             if (toolsPanelOpen) {

@@ -13,6 +13,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items as rowItems
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -112,11 +115,9 @@ fun toolsGridHeightDp(totalTiles: Int): Int = toolsGridHeightDp(totalTiles, TOOL
  */
 fun toolsGridHeightDp(totalTiles: Int, maxRows: Int): Int {
     if (totalTiles <= 0 || maxRows <= 0) return 0
-    val rows = minOf(
-        (totalTiles + TOOLS_GRID_COLUMNS - 1) / TOOLS_GRID_COLUMNS,
-        maxRows
-    )
-    return 2 * TOOLS_GRID_PAD_V_DP + rows * TOOLS_GRID_TILE_H_DP + (rows - 1) * TOOLS_GRID_GAP_DP
+    // Build 215: the tools panel is ONE horizontally scrolling row (it was a 4-column grid
+    // of up to 4 rows); [maxRows] only decides whether the panel shows at all.
+    return 2 * TOOLS_GRID_PAD_V_DP + TOOLS_GRID_TILE_H_DP
 }
 
 /** How many whole grid rows fit inside a height budget of [heightDp] dp. */
@@ -236,7 +237,13 @@ fun ToolsGridSheet(
     // 211's no-sticky-lines law): bar actions first, then the clip
     // panel's tools, utility tools last — every tile in this single
     // grid scrolls together; nothing is pinned above or below it.
-    val entries = barEntries + clipEntries + utilityEntries
+    // Build 215: the single row leads with the tools used most (Edit / Effects / Animations /
+    // Color / Transform), then the bar actions (Delete last), then the other clip tools, then
+    // the utility tools.
+    val primaryIds = setOf("edit_group", "edit_text", "edit_shape", "edit_points", "effects", "animations", "color", "transform")
+    val primaryTags = clipOverflow?.tools?.filter { it.id in primaryIds }?.map { clipOverflow.tileTag(it.id) }?.toSet() ?: emptySet()
+    val (primaryClip, restClip) = clipEntries.partition { it.tag in primaryTags }
+    val entries = primaryClip + barEntries.sortedBy { it.destructive } + restClip + utilityEntries
 
     Column(
         modifier = modifier
@@ -247,16 +254,14 @@ fun ToolsGridSheet(
             .padding(vertical = TOOLS_GRID_PAD_V_DP.dp)
             .testTag("tools_grid_sheet")
     ) {
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(TOOLS_GRID_COLUMNS),
+        LazyRow(
             contentPadding = PaddingValues(horizontal = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(TOOLS_GRID_GAP_DP.dp),
-            verticalArrangement = Arrangement.spacedBy(TOOLS_GRID_GAP_DP.dp),
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
         ) {
-            items(entries, key = { it.tag }) { entry ->
+            rowItems(entries, key = { it.tag }) { entry ->
                 GridTile(entry) {
                     if (entry.enabled) {
                         entry.onClick()
@@ -276,7 +281,7 @@ fun ToolsGridSheet(
 private fun GridTile(entry: GridEntry, onClick: () -> Unit) {
     Box(
         modifier = Modifier
-            .fillMaxWidth()
+            .width(68.dp)
             .height(TOOLS_GRID_TILE_H_DP.dp)
             .semantics { contentDescription = entry.description }
             .bouncyClickable(pressedScale = 0.92f, onClick = onClick)
