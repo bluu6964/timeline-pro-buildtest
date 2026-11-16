@@ -12,7 +12,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -22,6 +21,7 @@ import androidx.compose.ui.unit.sp
 import com.example.engine.AudioWaveform
 import com.example.model.TIMELINE_PX_PER_MS
 import com.example.model.TimelineClip
+import com.example.ui.theme.NeonBarGreen
 import java.util.Locale
 
 /**
@@ -37,31 +37,20 @@ fun AudioClipBody(
     visibleToMs: Long,
     isSelected: Boolean = false
 ) {
-    // Build 187: a selected audio bar runs its own indigo into its lighter shade along
-    // the bar (the gradient reference), like every other selected clip.
-    val base = Color(0xFF4B4BC8)
+    // Build 215: the audio bar is the reference's SOLID neon green, selected or not
+    // (build 187's selected gradient into a lighter shade is superseded — selection
+    // is the white edge alone). [isSelected] is kept for the call site.
+    val base = NeonBarGreen
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                if (isSelected) Brush.horizontalGradient(
-                    listOf(base, androidx.compose.ui.graphics.lerp(base, Color.White, 0.45f))
-                ) else androidx.compose.ui.graphics.SolidColor(base)
-            )
+            .background(androidx.compose.ui.graphics.SolidColor(base))
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
-            // Build 187: diagonal stripes UNDER the waveform (the striped reference) —
-            // darker stripes of the bar's own indigo leaning like ////, so the white
-            // waveform bars stay on top and legible at the slim bar height.
-            val stripe = androidx.compose.ui.graphics.lerp(base, Color.Black, 0.20f)
-            val stripeW = 3.dp.toPx()
-            val stripePeriod = 7.dp.toPx()
-            val lean = size.height * 0.5f
-            var sx = -size.height
-            while (sx < size.width + size.height) {
-                drawLine(stripe, Offset(sx, size.height), Offset(sx + lean, 0f), strokeWidth = stripeW)
-                sx += stripePeriod
-            }
+            // Build 215: the shared white crosshatch UNDER the waveform (Sarowar's
+            // neon-bars reference), so the white waveform bars stay on top and
+            // legible at the slim bar height.
+            drawNeonCrosshatch()
             val barStep = 3.dp.toPx()
             val barWidth = 1.5.dp.toPx()
             val pxPerMs = TIMELINE_PX_PER_MS.dp.toPx()
@@ -112,7 +101,9 @@ fun AudioClipBody(
                 .align(Alignment.TopStart)
                 .padding(start = 4.dp, top = 2.dp)
                 .clip(RoundedCornerShape(5.dp))
-                .background(Color(0xFF34349A))
+                // Build 215: the badge takes the timeline name-chip treatment
+                // (black 55%) now that the bar is neon green, not the old indigo.
+                .background(Color.Black.copy(alpha = 0.55f))
                 .padding(horizontal = 4.dp, vertical = 1.dp)
         )
     }

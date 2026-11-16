@@ -81,6 +81,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import com.example.model.keyframeTimes
 import androidx.compose.ui.geometry.Offset
@@ -141,6 +142,13 @@ import com.example.ui.theme.amMintCyanBrush
 import com.example.ui.util.bouncyClickable
 import com.example.ui.theme.NeonLime
 import com.example.ui.theme.NeonLimeDeep
+import com.example.ui.theme.NeonBarBlue
+import com.example.ui.theme.NeonBarCyan
+import com.example.ui.theme.NeonBarGreen
+import com.example.ui.theme.NeonBarIndigo
+import com.example.ui.theme.NeonBarOrange
+import com.example.ui.theme.NeonBarPink
+import com.example.ui.theme.NeonBarViolet
 import com.example.ui.theme.GoldClip
 import com.example.ui.theme.GoldClipDeep
 import com.example.ui.theme.GoldThumbTop
@@ -153,7 +161,6 @@ import com.example.ui.theme.TimelineBlack
 import com.example.ui.theme.LanePillDark
 import com.example.ui.theme.LaneEyeTint
 import com.example.ui.theme.LaneThumbWhite
-import com.example.ui.theme.ShapeBarMid
 import com.example.ui.theme.ShapeBarBottom
 import com.example.ui.util.enterPop
 import kotlinx.coroutines.Job
@@ -1365,8 +1372,8 @@ private val LaneBarInset = 4.dp
 private val LaneTrackColor = Color(0xFF161616)
 /** Build 187: the Controller's settled teal marker colour (same as CanvasArea's). */
 private val ControllerTeal = Color(0xFF00B8A9)
-/** Build 187: the audio bar's own colour (AudioClipBody's fill). */
-private val AudioBarColor = Color(0xFF4B4BC8)
+/** Build 215: the audio bar's own colour (AudioClipBody's fill) — the reference's neon green. */
+private val AudioBarColor = NeonBarGreen
 
 @Composable
 fun TimelineClipItem(
@@ -1394,11 +1401,12 @@ fun TimelineClipItem(
 
     // A Chain is a faint grey band fixed on the screen, edge to edge: no start, no end, no corners, no grip.
     val isChain = clip.type == LayerType.CHAIN
-    // Build 187 (Sarowar's reference design): the clip is a slim CAPSULE bar on the lane's
-    // dark track. The outer box is the bar's layout box — deliberately UNCLIPPED, so the
-    // number badge can straddle the bar's right end like the references; the capsule
-    // itself (clipped, clickable) is the inner box. A Chain keeps its rectangle band.
-    val barShape = if (isChain) RectangleShape else RoundedCornerShape(percent = 50)
+    // Build 187 (Sarowar's reference design): the clip is a slim bar on the lane's
+    // dark track. The outer box is the bar's layout box — deliberately UNCLIPPED; the
+    // bar itself (clipped, clickable) is the inner box. A Chain keeps its rectangle band.
+    // Build 215: the bar is a ROUNDED RECT, corner radius ≈ 26% of the bar height
+    // (Sarowar's neon-bars reference) — no longer a full capsule.
+    val barShape = if (isChain) RectangleShape else RoundedCornerShape(percent = 26)
     Box(
         modifier = Modifier.width(width)
             .fillMaxHeight()
@@ -1423,6 +1431,17 @@ fun TimelineClipItem(
                 }
             )
     ) {
+        // Build 215: a video / image bar's neon body — solid fill + crosshatch UNDER
+        // its frame strip (the reference draw order: fill, stripes, content on top).
+        // Blue for video, cyan for an image; the frames draw over it as before.
+        if (clip.type == LayerType.VIDEO) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(if (clip.isImage) NeonBarCyan else NeonBarBlue)
+                    .neonCrosshatch()
+            )
+        }
         when (clip.type) {
             LayerType.VIDEO -> {
                 if (clip.uri != null) {
@@ -1471,12 +1490,12 @@ fun TimelineClipItem(
                     )
                 } else {
                     // Old demo audio layer (no file): the placeholder bars, on the audio
-                    // colour with the build-187 diagonal stripes like a real audio bar.
+                    // colour with the build-215 crosshatch like a real audio bar.
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
                             .background(AudioBarColor)
-                            .audioStripes()
+                            .neonCrosshatch()
                     ) {
                         Row(
                             modifier = Modifier
@@ -1511,7 +1530,7 @@ fun TimelineClipItem(
                 }
             }
 
-            LayerType.SHAPE -> CapsuleBar(ShapeBarMid, clip.name, isSelected)
+            LayerType.SHAPE -> CapsuleBar(NeonBarViolet, clip.name, isSelected)
             // Chain: a see-through grey band with dashed edges (a little clearer while it is selected or checked).
             // It looks like a rail the layers sit on, not like a layer.
             LayerType.CHAIN -> {
@@ -1532,14 +1551,14 @@ fun TimelineClipItem(
                 )
             }
             LayerType.TEXT -> CapsuleBar(
-                GoldClip,
+                NeonBarPink,
                 clip.text?.takeIf { it.isNotBlank() } ?: clip.name,
                 isSelected
             )
-            LayerType.OVERLAY, LayerType.STICKER -> CapsuleBar(Color(0xFFF5A44B), clip.name, isSelected)
-            // Real Group: its settled green identity, carried inside the capsule language
-            // (its layers below keep their green start edge, and the rail thumb stays green).
-            LayerType.GROUP -> CapsuleBar(Color(0xFF3F8F43), clip.name, isSelected)
+            LayerType.OVERLAY, LayerType.STICKER -> CapsuleBar(NeonBarOrange, clip.name, isSelected)
+            // Real Group: the reference's indigo (its layers below keep an indigo start
+            // edge in the same family).
+            LayerType.GROUP -> CapsuleBar(NeonBarIndigo, clip.name, isSelected)
             // Controller (build 187): Sarowar ordered a DIFFERENT design from every other
             // layer — a HOLLOW teal outline in its settled marker colour (0xFF00B8A9, the
             // CanvasArea marker), transparent fill, teal label and badge. Instantly
@@ -1549,22 +1568,12 @@ fun TimelineClipItem(
             // outline, dim label), deliberately NOT the Controller's teal design.
             LayerType.NULL, LayerType.CAMERA -> QuietBar(clip.name, isSelected)
 
-            else -> CapsuleBar(Color(0xFFF5A44B), clip.name, isSelected)
+            // No other LayerType exists today; the catch-all takes the reference's
+            // indigo — the adjustment / effect-layer colour of the mapping.
+            else -> CapsuleBar(NeonBarIndigo, clip.name, isSelected)
         }
-        // Build 187: a selected VIDEO bar gets the gradient treatment as a lightening
-        // wash over its frames (a video bar's "colour" is its frames): brightest at the
-        // left, running out along the bar — the gradient reference mapped onto media.
-        if (isSelected && clip.type == LayerType.VIDEO) {
-            Box(
-                Modifier.fillMaxSize().background(
-                    Brush.horizontalGradient(
-                        0.0f to Color.White.copy(alpha = 0.30f),
-                        0.65f to Color.Transparent,
-                        1.0f to Color.Transparent
-                    )
-                )
-            )
-        }
+        // Build 215: the build-187 selected-VIDEO gradient wash is gone — selection
+        // is the white edge alone (Sarowar's build-213 marking), on every bar alike.
         // Video / photo / audio lanes show a picture strip or waveform, so the layer name goes on a small chip.
         if ((clip.type == LayerType.VIDEO || clip.type == LayerType.AUDIO) && clip.name.isNotBlank()) {
             Text(
@@ -1581,14 +1590,15 @@ fun TimelineClipItem(
                     .padding(horizontal = 5.dp, vertical = 1.dp)
             )
         }
-        // A layer inside a real Group: a thin green edge at its start.
+        // A layer inside a real Group: a thin edge at its start, in the Group's
+        // colour (build 215: indigo, following the Group bar's new colour).
         if (clip.groupId != null) {
             Box(
                 modifier = Modifier
                     .align(Alignment.CenterStart)
                     .fillMaxHeight()
                     .width(3.dp)
-                    .background(Color(0xFF5BB85D))
+                    .background(NeonBarIndigo)
             )
         }
 
@@ -1696,12 +1706,12 @@ private fun badgeStyleFor(type: LayerType): Triple<Color, Color, Color> = when (
 
 
 /**
- * Build 187 — a clip's capsule body in Sarowar's reference design: a FLAT clip-type
- * colour (the vertical gradient, glossy sheen and rim of the old bar are gone) and the
- * layer name in dark bold. A SELECTED clip runs its own colour into its lighter shade
- * along the bar's length (the gradient reference) — that gradient is the clip's
- * content-colour treatment per his reference, not chrome, so the build-183 boxless /
- * B-W chrome law is untouched everywhere else.
+ * Build 215 — a clip's bar body in Sarowar's neon-bars reference: a SOLID vivid
+ * clip-type colour with the shared white crosshatch texture over it, and the layer
+ * name in dark bold on top. (Build 187's flat capsule; its selected-state gradient
+ * into a lighter shade is superseded — a selected bar keeps the solid colour and
+ * is marked by the white edge alone, Sarowar's build-213 marking.) The [selected]
+ * parameter is kept for the call sites; the fill no longer depends on it.
  */
 @Composable
 private fun CapsuleBar(
@@ -1712,11 +1722,8 @@ private fun CapsuleBar(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                if (selected) Brush.horizontalGradient(
-                    listOf(color, lerpColor(color, Color.White, 0.45f))
-                ) else androidx.compose.ui.graphics.SolidColor(color)
-            ),
+            .background(androidx.compose.ui.graphics.SolidColor(color))
+            .neonCrosshatch(),
         contentAlignment = Alignment.CenterStart
     ) {
         if (!label.isNullOrBlank()) {
@@ -1742,7 +1749,9 @@ private fun CapsuleBar(
  */
 @Composable
 private fun ControllerBar(label: String?, selected: Boolean) {
-    val shape = RoundedCornerShape(percent = 50)
+    // Build 215: the outline follows the timeline's new bar shape (26%); the hollow
+    // teal treatment itself is unchanged.
+    val shape = RoundedCornerShape(percent = 26)
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -1777,7 +1786,9 @@ private fun QuietBar(label: String?, selected: Boolean) {
             .border(
                 1.dp,
                 Color.White.copy(alpha = if (selected) 0.65f else 0.28f),
-                RoundedCornerShape(percent = 50)
+                // Build 215: follows the new bar shape (26%); the quiet hollow
+                // treatment itself is unchanged.
+                RoundedCornerShape(percent = 26)
             ),
         contentAlignment = Alignment.CenterStart
     ) {
@@ -1796,22 +1807,32 @@ private fun QuietBar(label: String?, selected: Boolean) {
 }
 
 /**
- * Build 187 — diagonal stripes over an audio bar, per the striped reference: darker
- * stripes of the bar's own colour leaning like //// (top end shifted right by half the
- * bar height, the reference's ~63°), drawn BEHIND the content, so the white waveform
- * stays on top and legible — the audio reading (indigo + white wave) is unmistakable.
+ * Build 215 — the neon bars' shared texture (Sarowar's neon-bars reference): thin
+ * WHITE stripes at 28% opacity crossing BOTH ways (45° and −45°) — a crosshatch.
+ * At phone scale the reference works out to a ~0.7 dp line on an ~8.6 dp period
+ * (the period is the perpendicular measure, as in the CSS repeating gradient:
+ * stepping the 45° lines along x by period × √2 yields that perpendicular period).
+ * Drawn behind the bar's content (labels, the audio waveform), and clipped to the
+ * bar's rounded shape by the bar's own clip. Replaces build 187's darker
+ * single-lean audio stripes.
  */
-private fun Modifier.audioStripes(base: Color = AudioBarColor): Modifier = drawBehind {
-    val stripe = lerpColor(base, Color.Black, 0.20f)
-    val w = 3.dp.toPx()
-    val period = 7.dp.toPx()
-    val lean = size.height * 0.5f
+internal fun DrawScope.drawNeonCrosshatch() {
+    val ink = Color.White.copy(alpha = 0.28f)
+    val w = 0.7.dp.toPx()
+    val step = 8.6.dp.toPx() * 1.41421356f
     var x = -size.height
     while (x < size.width + size.height) {
-        drawLine(stripe, Offset(x, size.height), Offset(x + lean, 0f), strokeWidth = w)
-        x += period
+        drawLine(ink, Offset(x, size.height), Offset(x + size.height, 0f), strokeWidth = w)
+        x += step
+    }
+    var x2 = -size.height
+    while (x2 < size.width + size.height) {
+        drawLine(ink, Offset(x2, 0f), Offset(x2 + size.height, size.height), strokeWidth = w)
+        x2 += step
     }
 }
+
+private fun Modifier.neonCrosshatch(): Modifier = drawBehind { drawNeonCrosshatch() }
 
 private fun lerpColor(a: Color, b: Color, t: Float): Color =
     androidx.compose.ui.graphics.lerp(a, b, t)

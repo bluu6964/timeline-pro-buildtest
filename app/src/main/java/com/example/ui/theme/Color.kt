@@ -80,6 +80,16 @@ val LaneThumbWhite = Color(0xFFDEDEDE)
 val ShapeBarTop = Color(0xFFA0E24C)
 val ShapeBarMid = Color(0xFF80CE22)
 val ShapeBarBottom = Color(0xFF69BD07)
+
+// ---- Build 215: neon timeline bars (Sarowar's reference, neon-bars.html) ----
+// Solid vivid bar bodies, every one carrying the same white crosshatch texture.
+val NeonBarPink = Color(0xFFEE1070)    // TEXT
+val NeonBarBlue = Color(0xFF0F70F5)    // VIDEO
+val NeonBarViolet = Color(0xFF8014E0)  // SHAPE
+val NeonBarCyan = Color(0xFF12B8D2)    // IMAGE (a VIDEO clip with isImage)
+val NeonBarOrange = Color(0xFFFF940F)  // STICKER / OVERLAY
+val NeonBarGreen = Color(0xFF14D430)   // AUDIO
+val NeonBarIndigo = Color(0xFF3A1AE8)  // GROUP / adjustment
 val FabCyan = Color(0xFFFFFFFF)
 val FabBlueDeep = Color(0xFF2E2E2E)
 val FabBlueMid = Color(0xFF5A5A5A)
