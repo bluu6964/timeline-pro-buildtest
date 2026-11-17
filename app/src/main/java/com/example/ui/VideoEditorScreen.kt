@@ -220,7 +220,6 @@ fun VideoEditorScreen(
     val multiSelectIds by viewModel.multiSelectIds.collectAsState()
     val isMasterMuted by viewModel.isMasterMuted.collectAsState()
     val beatMarks by viewModel.beatMarks.collectAsState()
-    val markers by viewModel.markers.collectAsState()
     val onionSkin by viewModel.onionSkin.collectAsState()
     val scopesOn by viewModel.scopesOn.collectAsState()
     // Build 199: snap switch (A3), export range points (A10), layer clipboard (A7), solo (A6).
@@ -233,10 +232,6 @@ fun VideoEditorScreen(
     // frame at the playhead; null while no frame has been read (the panel then
     // shows its honest empty state). Filled by the refresh effect below.
     var scopeData by remember { mutableStateOf<ScopeData?>(null) }
-    // Named-marker dialogs (build 188): add-at-playhead, or edit the marker the user
-    // long-pressed on the ruler / the one already sitting at the playhead.
-    var showAddMarker by remember { mutableStateOf(false) }
-    var markerEditTarget by remember { mutableStateOf<com.example.model.TimelineMarker?>(null) }
     // Tools panel (build 202's "More tools", re-hosted in layout flow by
     // build 206; TOOLS PANEL LAW, build 210 — Sarowar 2026-11-15 ~16:00):
     // the panel AUTO-SHOWS the moment a layer is selected and closes on
@@ -2536,30 +2531,6 @@ fun VideoEditorScreen(
         if (eyedropperCallback != null) eyedropperCallback = null else editingColorId = null
     }
 
-    // Buddy (the app's companion, ui/buddy) reacts to what happens here.
-    run {
-        val clipCount = tracks.sumOf { it.clips.size }
-        var prevCount by remember { androidx.compose.runtime.mutableIntStateOf(-1) }
-        LaunchedEffect(clipCount) {
-            if (prevCount >= 0) {
-                if (clipCount > prevCount) com.example.ui.buddy.BuddyBrain.react(com.example.ui.buddy.BuddyEvent.CLIP_ADDED)
-                else if (clipCount < prevCount) com.example.ui.buddy.BuddyBrain.react(com.example.ui.buddy.BuddyEvent.CLIP_REMOVED)
-            }
-            prevCount = clipCount
-        }
-        LaunchedEffect(selectedClipId) {
-            if (selectedClipId != null) com.example.ui.buddy.BuddyBrain.react(com.example.ui.buddy.BuddyEvent.LAYER_SELECTED)
-        }
-        LaunchedEffect(isPlaying) { com.example.ui.buddy.BuddyBrain.setPlaying(isPlaying) }
-        val busyNow = isExporting || cutoutProgress != null || captionStatus != null || faceProgress != null || trackProgress != null
-        LaunchedEffect(busyNow) {
-            com.example.ui.buddy.BuddyBrain.setBusy(busyNow, if (isExporting) "Rendering your video…" else "Working on it…")
-        }
-        LaunchedEffect(exportDone) {
-            if (exportDone) com.example.ui.buddy.BuddyBrain.react(com.example.ui.buddy.BuddyEvent.EXPORT_DONE)
-        }
-    }
-
     androidx.compose.runtime.CompositionLocalProvider(
         com.example.ui.theme.LocalCanvasColor provides androidx.compose.ui.graphics.Color(canvasColor)
     ) {
@@ -3189,18 +3160,13 @@ fun VideoEditorScreen(
 
                 // 3. Play & Full Screen Section (1/18 of screen) — always visible (universal)
                 // Build 206: the tools grid's utility actions — the same wiring
-                // the build-202 More panel carried (beat mark, marker, snap with
+                // the build-202 More panel carried (beat mark, snap with
                 // its build-199 persistence), hoisted so the transport row and
                 // the grid sheet share the exact lambdas.
                 val onBeatMarkAction: () -> Unit = {
                     val added = viewModel.toggleBeatMark(playheadState.value)
                     snackbarHostState.currentSnackbarData?.dismiss()
                     scope.launch { snackbarHostState.showSnackbar(if (added) "Beat mark added" else "Beat mark removed") }
-                }
-                val onMarkerAction: () -> Unit = {
-                    // A marker already at the playhead is edited; otherwise a new one is named.
-                    val near = viewModel.markerNear(playheadState.value)
-                    if (near != null) markerEditTarget = near else showAddMarker = true
                 }
                 val onSnapAction: () -> Unit = {
                     val next = !snapEnabled
@@ -3229,8 +3195,8 @@ fun VideoEditorScreen(
                     onPreviousClick = { viewModel.jumpPrevious() },
                     onPlayPauseClick = { viewModel.togglePlayPause() },
                     onNextClick = { viewModel.jumpNext() },
-                    onUndoClick = { viewModel.undo(); com.example.ui.buddy.BuddyBrain.react(com.example.ui.buddy.BuddyEvent.UNDO) },
-                    onRedoClick = { viewModel.redo(); com.example.ui.buddy.BuddyBrain.react(com.example.ui.buddy.BuddyEvent.REDO) },
+                    onUndoClick = { viewModel.undo() },
+                    onRedoClick = { viewModel.redo() },
                     // Build 214: the transport bar no longer carries a
                     // tools disc — the dock below owns panel opening (the
                     // no-selection toolbar's More item, the layer header's
@@ -3244,18 +3210,19 @@ fun VideoEditorScreen(
                     toolsGridActive = snapEnabled || onionSkin.enabled || scopesOn ||
                         exportInMs != null || exportOutMs != null ||
                         (moreClipSection?.let { s -> s.tools.any { it.id in s.usedTools } } == true),
-                    // Build 214: snap + marker toggles live in the transport bar.
+                    // Build 222: the controls bar's first right-group button
+                    // is the SNAP toggle (it was the transform-box toggle —
+                    // Sarowar found it useless; the selection-frame toggle
+                    // lives in the options sheet's Frame tile now). Snap's
+                    // build-199 persistence rides along, as before.
                     snapOn = snapEnabled,
                     onSnapClick = onSnapAction,
-                    onMarkerClick = onMarkerAction,
-                    // Build 217: the reference's controls-bar right group —
-                    // the transform-box toggle, the grid toggle (both were
-                    // the build-216 workspace row) and Add-Keyframe, which
-                    // drops POSITION+SCALE+ROTATION keyframes at the
-                    // playhead on the selected layer (the view model's
-                    // own keyframe toggle).
-                    transformBoxOn = transformBoxOn,
-                    onTransformBoxClick = { transformBoxOn = !transformBoxOn },
+                    // Build 217: the rest of the reference's controls-bar
+                    // right group — the grid toggle (the build-216
+                    // workspace row) and Add-Keyframe, which drops
+                    // POSITION+SCALE+ROTATION keyframes at the playhead
+                    // on the selected layer (the view model's own
+                    // keyframe toggle).
                     gridOn = gridOn,
                     onGridClick = { gridOn = !gridOn },
                     onAddKeyframeClick = {
@@ -3297,9 +3264,6 @@ fun VideoEditorScreen(
                     totalDurationMs = totalDurationMs,
                     pxPerMs = timelinePxPerMs,
                     beatMarksMs = beatMarks,
-                    markers = markers,
-                    onMarkerTap = { m -> viewModel.seekTo(m.timeMs) },
-                    onMarkerLongPress = { m -> markerEditTarget = m },
                     exportInMs = exportInMs,
                     exportOutMs = exportOutMs,
                     // Build 217: the layer-count pill shows the REAL layer
@@ -3489,7 +3453,6 @@ fun VideoEditorScreen(
                         }
                     },
                     onSplitClip = {
-                        com.example.ui.buddy.BuddyBrain.react(com.example.ui.buddy.BuddyEvent.SPLIT)
                         viewModel.splitSelectedClip()
                     },
                     onDeleteClip = {
@@ -3606,13 +3569,17 @@ fun VideoEditorScreen(
                             onExportInClick = { viewModel.toggleExportInAtPlayhead() },
                             onExportOutClick = { viewModel.toggleExportOutAtPlayhead() },
                             onBeatMarkClick = onBeatMarkAction,
-                            onMarkerClick = onMarkerAction,
                             onionSkinOn = onionSkin.enabled,
                             onOnionSkinClick = { viewModel.setOnionSkinEnabled(!onionSkin.enabled) },
                             scopesOn = scopesOn,
                             onScopesClick = { viewModel.setScopesOn(!scopesOn) },
                             snapOn = snapEnabled,
                             onSnapClick = onSnapAction,
+                            // Build 222: the selection-frame (transform box)
+                            // visibility toggle, displaced from the controls
+                            // bar by the snap toggle — same local state.
+                            frameOn = transformBoxOn,
+                            onFrameClick = { transformBoxOn = !transformBoxOn },
                             onCanvasClick = { showAspectRatioSheet = true },
                             // Build 217: the displaced functions, housed
                             // in this sheet (see ToolsGridSheet).
@@ -4250,7 +4217,6 @@ fun VideoEditorScreen(
                                         action219("split", "Split", Icons.Default.ContentCut,
                                             enabled = type219 != LayerType.CHAIN,
                                             onClick = {
-                                                com.example.ui.buddy.BuddyBrain.react(com.example.ui.buddy.BuddyEvent.SPLIT)
                                                 viewModel.splitSelectedClip()
                                             }),
                                         action219("trim_right", "Trim Right", Icons.Default.BorderRight,
@@ -4451,10 +4417,6 @@ fun VideoEditorScreen(
                     snackbarHostState.currentSnackbarData?.dismiss()
                     scope.launch { snackbarHostState.showSnackbar(if (added) "Beat mark added" else "Beat mark removed") }
                 }
-                val onMarkerAction219: () -> Unit = {
-                    val near = viewModel.markerNear(playheadState.value)
-                    if (near != null) markerEditTarget = near else showAddMarker = true
-                }
                 val onSnapAction219: () -> Unit = {
                     val next = !snapEnabled
                     viewModel.setSnapEnabled(next)
@@ -4506,7 +4468,6 @@ fun VideoEditorScreen(
                             onExportInClick = { viewModel.toggleExportInAtPlayhead() },
                             onExportOutClick = { viewModel.toggleExportOutAtPlayhead() },
                             onBeatMarkClick = onBeatMarkAction219,
-                            onMarkerClick = onMarkerAction219,
                             onionSkinOn = onionSkin.enabled,
                             onOnionSkinClick = { viewModel.setOnionSkinEnabled(!onionSkin.enabled) },
                             scopesOn = scopesOn,
@@ -4882,8 +4843,8 @@ fun VideoEditorScreen(
                         canRedo = canRedo,
                         onTogglePlay = { viewModel.togglePlayPause() },
                         onSeekTo = { viewModel.seekTo(it) },
-                        onUndo = { viewModel.undo(); com.example.ui.buddy.BuddyBrain.react(com.example.ui.buddy.BuddyEvent.UNDO) },
-                        onRedo = { viewModel.redo(); com.example.ui.buddy.BuddyBrain.react(com.example.ui.buddy.BuddyEvent.REDO) },
+                        onUndo = { viewModel.undo() },
+                        onRedo = { viewModel.redo() },
                         onDismiss = { showTransformMode = false },
                         panelOnly = true,
                         // A Null / Controller has no picture of its own to tilt: no 3D tab for them.
@@ -5681,8 +5642,8 @@ fun VideoEditorScreen(
                     canRedo = canRedo,
                     onTogglePlay = { viewModel.togglePlayPause() },
                     onSeekTo = { viewModel.seekTo(it) },
-                    onUndo = { viewModel.undo(); com.example.ui.buddy.BuddyBrain.react(com.example.ui.buddy.BuddyEvent.UNDO) },
-                    onRedo = { viewModel.redo(); com.example.ui.buddy.BuddyBrain.react(com.example.ui.buddy.BuddyEvent.REDO) },
+                    onUndo = { viewModel.undo() },
+                    onRedo = { viewModel.redo() },
                     onDismiss = { showClipCropSheet = false },
                     onApplyCrop = { w, h, horiz, vert, preset ->
                         val targetId = selectedClip?.id ?: selectedClipId
@@ -5746,37 +5707,6 @@ fun VideoEditorScreen(
         )
     }
 
-    // Named markers (build 188): name a new marker at the playhead.
-    if (showAddMarker) {
-        com.example.ui.components.MarkerNameDialog(
-            marker = null,
-            timeLabel = com.example.ui.components.formatTimeCode(playheadState.value),
-            suggestedName = "Marker ${markers.size + 1}",
-            onConfirm = { name ->
-                viewModel.addMarker(playheadState.value, name)
-                showAddMarker = false
-            },
-            onDismiss = { showAddMarker = false }
-        )
-    }
-
-    // Named markers (build 188): rename / delete the marker at the playhead or long-pressed on the ruler.
-    markerEditTarget?.let { m ->
-        com.example.ui.components.MarkerNameDialog(
-            marker = m,
-            timeLabel = com.example.ui.components.formatTimeCode(m.timeMs),
-            suggestedName = m.name,
-            onConfirm = { name ->
-                viewModel.renameMarker(m.id, name)
-                markerEditTarget = null
-            },
-            onDelete = {
-                viewModel.deleteMarker(m.id)
-                markerEditTarget = null
-            },
-            onDismiss = { markerEditTarget = null }
-        )
-    }
 
     // Layer colour label (build 199, A2): pick the timeline label colour of one layer.
     labelTargetId?.let { lid ->
@@ -6165,7 +6095,6 @@ fun VideoEditorScreen(
                         viewModel.setExporting(false)
                         viewModel.setExportProgress(0f)
                         showExportDialog = false
-                        com.example.ui.buddy.BuddyBrain.react(com.example.ui.buddy.BuddyEvent.EXPORT_FAIL)
                         scope.launch { snackbarHostState.showSnackbar("Export failed: $msg") }
                     },
                     // Build 199 (A10): the range is read at tap time, so what exports is

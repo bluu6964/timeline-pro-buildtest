@@ -85,15 +85,17 @@ private val IconWhite = Color(0xFFF2F2F2)
  * selected clip panel's tools — published through [MorePanelState];
  * while the sheet is open the section carries the panel's FULL list
  * (primary tools first, then its overflow), and the panel's own fixed
- * primary row is not rendered — then the 8 utility tools (the build-201
- * utility row's IN/OUT, beat mark, marker, onion, scopes, snap, canvas
- * — the same entries, tags and semantics the More panel carried). The grid is
+ * primary row is not rendered — then the utility tools (the build-201
+ * utility row's IN/OUT, beat mark, onion, scopes, snap, frame, canvas
+ * — the same entries, tags and semantics the More panel carried; the
+ * named Marker was removed in build 222 and the selection-frame toggle
+ * took its slot). The grid is
  * 4 columns of icon + label tiles; every label is a full word (two
  * lines allowed, never truncated); past the viewport the grid scrolls
  * VERTICALLY inside the sheet — no horizontal scroll, no clipped rows,
- * nothing pinned. Momentary entries (IN, OUT, beat, marker, canvas)
+ * nothing pinned. Momentary entries (IN, OUT, beat, canvas)
  * close the sheet on tap via [onCloseRequest]; toggles (snap, onion,
- * scopes) and clip tools keep it open, as the More panel did.
+ * scopes, frame) and clip tools keep it open, as the More panel did.
  *
  * Geometry (dp, 360 dp reference width): sheet padding 10 dp each side +
  * 3 gaps of 8 dp → tile width (360 − 16 sheet margin − 20 − 24) / 4 = 75 dp;
@@ -106,8 +108,8 @@ const val TOOLS_GRID_GAP_DP = 8
 const val TOOLS_GRID_PAD_V_DP = 8
 const val TOOLS_GRID_MAX_ROWS = 4
 
-/** Tiles in the grid's utility section (IN, OUT, beat, marker, onion, scopes, snap, canvas). */
-const val TOOLS_GRID_UTILITY_COUNT = 16 // build 217: + Prev frame, Next frame, Preview, Save frame, Master, Density; build 218: + Templates, Controller
+/** Tiles in the grid's utility section (IN, OUT, beat, onion, scopes, snap, frame, canvas + the displaced chrome). */
+const val TOOLS_GRID_UTILITY_COUNT = 16 // build 217: + Prev frame, Next frame, Preview, Save frame, Master, Density; build 218: + Templates, Controller; build 222: Marker out, Frame in (count unchanged)
 
 /**
  * The sheet's exact height for [totalTiles] tiles: vertical padding + whole
@@ -160,8 +162,6 @@ fun ToolsGridSheet(
     onExportOutClick: () -> Unit,
     /** Beat mark: puts a beat mark at the playhead. */
     onBeatMarkClick: () -> Unit,
-    /** Marker: adds a NAMED marker at the playhead (or edits the one already there). */
-    onMarkerClick: () -> Unit,
     /** Onion skin (build 190): toggles the ghost frames on the canvas. White = on. */
     onionSkinOn: Boolean,
     onOnionSkinClick: () -> Unit,
@@ -171,13 +171,21 @@ fun ToolsGridSheet(
     /** Snap toggle (build 199, A3): canvas + transform-pad snapping. White = on. */
     snapOn: Boolean,
     onSnapClick: () -> Unit,
+    /**
+     * Selection frame toggle (build 222): the transform box's visibility on
+     * the canvas. It lived in the controls bar until build 221; Sarowar gave
+     * that slot to the snap toggle, so the frame toggle lives here now.
+     * White = on.
+     */
+    frameOn: Boolean = true,
+    onFrameClick: () -> Unit = {},
     /** Canvas button: the aspect / project format sheet. */
     onCanvasClick: () -> Unit,
     /** The selected clip panel's tools, published via [MorePanelState] (full list while the panel is open, build 210); null = utility section only. */
     clipOverflow: ClipOverflowSection?,
     /**
-     * Build 214 — ITEM 1 (Sarowar, 2026-11-16): the 8 utility tools
-     * (Range in/out, Beat mark, Marker, Onion, Scopes, Snap, Canvas) are
+     * Build 214 — ITEM 1 (Sarowar, 2026-11-16): the utility tools
+     * (Range in/out, Beat mark, Onion, Scopes, Snap, Frame, Canvas) are
      * UNIVERSAL tools, not any layer's tools. They are included ONLY in
      * the no-selection (project) panel; a selected layer's panel carries
      * ONLY that layer's tools. The screen passes this from the selection
@@ -224,10 +232,10 @@ fun ToolsGridSheet(
             Text("OUT", color = if (exportOutSet) IconWhite else IconDisabled, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
         },
         GridEntry("Beat mark", false, "beat_mark_button", "Beat mark", closeOnTap = true, onClick = onBeatMarkClick) { BeatMarkGlyph() },
-        GridEntry("Marker", false, "marker_button", "Marker", closeOnTap = true, onClick = onMarkerClick) { MarkerGlyph() },
         GridEntry("Onion", onionSkinOn, "onion_skin_button", "Onion skin", closeOnTap = false, onClick = onOnionSkinClick) { OnionGlyph(onionSkinOn) },
         GridEntry("Scopes", scopesOn, "scopes_button", "Scopes", closeOnTap = false, onClick = onScopesClick) { ScopesGlyph(scopesOn) },
         GridEntry("Snap", snapOn, "snap_button", "Snap", closeOnTap = false, onClick = onSnapClick) { MagnetGlyph(snapOn) },
+        GridEntry("Frame", frameOn, "frame_button", "Selection frame", closeOnTap = false, onClick = onFrameClick) { FrameGlyph(frameOn) },
         GridEntry("Canvas", false, "grid_button", "Canvas", closeOnTap = true, onClick = onCanvasClick) { GridGlyph() },
         // Build 217: displaced chrome, housed in this sheet — frame
         // stepping (was the transport), the preview-resolution sheet
@@ -429,21 +437,21 @@ private fun GridGlyph() {
     }
 }
 
-/** A flag on a pole (the named marker's ruler glyph): opens the marker name dialog. */
+/**
+ * The selection frame (build 222): a handled rectangle — the transform box
+ * the canvas draws around the selected layer. White = on, grey = off —
+ * the used-tool state law, like every other state in this bar.
+ */
 @Composable
-private fun MarkerGlyph() {
+private fun FrameGlyph(on: Boolean) {
     Canvas(Modifier.size(24.dp)) {
         val u = size.width / 24f
-        val c = Color(0xFFF2F2F2)
-        drawLine(c, Offset(7f * u, 3.2f * u), Offset(7f * u, 20.8f * u), 2.2f * u, StrokeCap.Round)
-        val flag = Path().apply {
-            moveTo(7f * u, 3.6f * u)
-            lineTo(19.5f * u, 7.2f * u)
-            lineTo(7f * u, 10.8f * u)
-            close()
+        val c = if (on) Color(0xFFF2F2F2) else IconDisabled
+        drawRoundRect(c, Offset(5f * u, 5f * u), androidx.compose.ui.geometry.Size(14f * u, 14f * u), androidx.compose.ui.geometry.CornerRadius(1.6f * u), style = Stroke(1.7f * u))
+        val sq = 3.4f * u
+        for ((hx, hy) in listOf(5f to 5f, 19f to 5f, 5f to 19f, 19f to 19f)) {
+            drawRoundRect(c, Offset(hx * u - sq / 2f, hy * u - sq / 2f), androidx.compose.ui.geometry.Size(sq, sq), androidx.compose.ui.geometry.CornerRadius(0.8f * u))
         }
-        drawPath(flag, c)
-        drawPath(flag, c, style = Stroke(1.4f * u, join = StrokeJoin.Round))
     }
 }
 

@@ -7,8 +7,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -41,11 +39,6 @@ fun CutoutProgressBar(
             .padding(horizontal = 14.dp, vertical = 10.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            com.example.ui.buddy.BuddyFace(
-                mood = com.example.ui.buddy.BuddyMood.WORKING,
-                modifier = Modifier.size(34.dp)
-            )
-            androidx.compose.foundation.layout.Spacer(Modifier.width(8.dp))
             Text(
                 text = "$label ${(p * 100).toInt()}%",
                 color = Color.White,

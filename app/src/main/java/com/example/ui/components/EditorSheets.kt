@@ -458,11 +458,6 @@ fun ExportModalDialog(
                     )
                 } else {
                 Spacer(modifier = Modifier.weight(1f))
-                // Buddy works while rendering and celebrates when it is done.
-                com.example.ui.buddy.BuddyFace(
-                    mood = if (isCompleted) com.example.ui.buddy.BuddyMood.CELEBRATE else com.example.ui.buddy.BuddyMood.WORKING,
-                    modifier = Modifier.fillMaxWidth().height(340.dp)
-                )
                 Spacer(modifier = Modifier.height(20.dp))
 
                 when {

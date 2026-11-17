@@ -8,11 +8,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.statusBarsPadding
 import com.example.ui.VideoEditorScreen
-import com.example.ui.buddy.BuddyHost
-import com.example.ui.buddy.buddyGaze
 import com.example.ui.theme.AfterMotionTheme
 
 class MainActivity : ComponentActivity() {
@@ -31,11 +27,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             AfterMotionTheme {
-                // Buddy (the app's companion) floats above the editor; buddyGaze() on the root lets it see every touch.
-                androidx.compose.foundation.layout.Box(Modifier.fillMaxSize().buddyGaze()) {
-                    VideoEditorScreen(modifier = Modifier.fillMaxSize())
-                    BuddyHost(Modifier.statusBarsPadding().navigationBarsPadding())
-                }
+                VideoEditorScreen(modifier = Modifier.fillMaxSize())
             }
         }
     }

@@ -379,26 +379,14 @@ class VideoEditorViewModel : ViewModel() {
         return merged.size - before.size
     }
 
-    // ---- Named timeline markers (build 188): labelled flags on the ruler, saved with the project ----
+    // ---- Named timeline markers (build 188): the marker TOOL was removed in
+    // build 222 (Sarowar's order) — nothing displays, adds or edits markers
+    // any more. The state stays as INERT project data only: it is still
+    // loaded from and written back to the snapshot untouched, so projects
+    // saved with markers keep their data and keep loading byte-identically.
     private val _markers = MutableStateFlow<List<TimelineMarker>>(emptyList())
-    /** Named markers, sorted by time. Like the beat marks they live OUTSIDE the track undo history. */
+    /** Inert since build 222: carried through save/load, never shown. */
     val markers: StateFlow<List<TimelineMarker>> = _markers.asStateFlow()
-
-    fun addMarker(timeMs: Long, name: String) {
-        _markers.value = ProjectMarkers.add(_markers.value, timeMs, name)
-    }
-
-    fun renameMarker(id: String, name: String) {
-        _markers.value = ProjectMarkers.rename(_markers.value, id, name)
-    }
-
-    fun deleteMarker(id: String) {
-        _markers.value = ProjectMarkers.remove(_markers.value, id)
-    }
-
-    /** The marker at [timeMs] (within [MARKER_TOLERANCE_MS]), if any — the marker button then edits it instead of adding a second one on the same spot. */
-    fun markerNear(timeMs: Long): TimelineMarker? =
-        ProjectMarkers.nearest(_markers.value, timeMs, MARKER_TOLERANCE_MS)
 
     // ---- Onion skin (build 190): ghost frames around the playhead on the canvas ----
     private val _onionSkin = MutableStateFlow(OnionSkinSettings())
@@ -2836,6 +2824,3 @@ class VideoEditorViewModel : ViewModel() {
 
 /** A beat mark closer than this to the playhead counts as "the same spot" (the plus button then removes it). */
 const val BEAT_MARK_TOLERANCE_MS = 100L
-
-/** A named marker closer than this to the playhead counts as "at the playhead" (the marker button edits it instead of adding another). */
-const val MARKER_TOLERANCE_MS = 150L

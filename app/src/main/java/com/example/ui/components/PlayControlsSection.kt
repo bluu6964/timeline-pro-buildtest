@@ -48,19 +48,21 @@ import com.example.ui.util.bouncyClickable
  * THE CONTROLS BAR (build 217 — Sarowar's HTML reference, copied exactly):
  * one slim row on the app background, padding 6 / 16, a #1A1A20 hairline
  * under it. LEFT group (gap 14): Undo, Redo, the "Full" outline badge.
- * CENTRE: Play / Pause. RIGHT group (gap 14): the transform-box toggle,
- * the grid toggle, and Add-Keyframe with its orange dot. Ctrl glyphs are
- * #E4E4E7, an active toggle turns LIME, a disabled one #45454D.
+ * CENTRE: Play / Pause. RIGHT group (gap 14): the snap toggle, the grid
+ * toggle, and Add-Keyframe with its orange dot. Ctrl glyphs are #E4E4E7,
+ * an active toggle turns LIME, a disabled one #45454D — except the snap
+ * magnet, which follows Sarowar's own icon language: WHITE = on, GREY = off.
  *
- * Jobs (the reference's own, mapped to the app's real actions): the Full
- * badge opens the fullscreen player; Play toggles playback; the two
- * toggles drive the canvas grid / selection-frame visibility; the shield
- * adds a transform keyframe at the playhead for the selected layer.
- * Previous / next frame, the marker and snap left this bar (the
- * reference does not have them) — they live in the timeline options
- * sheet behind the ruler's layer-count pill. The preview-resolution
- * cycle (the build-216 "Full" chip's old job) lives there too, as the
- * Preview tile.
+ * Jobs (mapped to the app's real actions): the Full badge opens the
+ * fullscreen player; Play toggles playback; the magnet flips snapping
+ * (build 222 — it took the transform-box toggle's slot at Sarowar's
+ * order; the selection-frame toggle lives in the timeline options
+ * sheet's Frame tile now); the grid toggle drives the canvas thirds
+ * grid; the shield adds a transform keyframe at the playhead for the
+ * selected layer. Previous / next frame live in the timeline options
+ * sheet behind the ruler's layer-count pill (the named Marker tool was
+ * removed entirely in build 222). The preview-resolution cycle (the
+ * build-216 "Full" chip's old job) lives there too, as the Preview tile.
  *
  * [showEditorControls] false = a chrome-only host (CropView, audit S-3):
  * the editor-only right group is omitted and the host's own wired
@@ -89,13 +91,13 @@ fun PlayControlsSection(
     toolsGridExpanded: Boolean = false,
     onToolsGridExpandedChange: (Boolean) -> Unit = {},
     toolsGridActive: Boolean = false,
-    /** Kept for caller compatibility: snap / marker live in the timeline options sheet now. */
+    /**
+     * Build 222: the snap toggle — the controls bar's first right-group
+     * button (the transform-box toggle's old slot). White magnet = on,
+     * grey = off.
+     */
     snapOn: Boolean = false,
     onSnapClick: () -> Unit = {},
-    onMarkerClick: () -> Unit = {},
-    /** Build 217: the transform-box (selection frame) visibility toggle of the controls bar. */
-    transformBoxOn: Boolean = false,
-    onTransformBoxClick: () -> Unit = {},
     /** Build 217: the canvas grid toggle of the controls bar. */
     gridOn: Boolean = false,
     onGridClick: () -> Unit = {},
@@ -179,12 +181,12 @@ fun PlayControlsSection(
             Spacer(Modifier.weight(1f))
 
             if (showEditorControls) {
-                // ── Right group: transform · grid · add-keyframe ──
+                // ── Right group: snap · grid · add-keyframe ──
                 CtrlButton(
-                    enabled = true, onClick = onTransformBoxClick, active = transformBoxOn,
-                    tag = "workspace_transform_toggle", description = "Transform box"
+                    enabled = true, onClick = onSnapClick, active = snapOn,
+                    tag = "workspace_snap_toggle", description = "Snap"
                 ) {
-                    TransformGlyph(transformBoxOn)
+                    MagnetGlyph(snapOn)
                 }
                 Spacer(Modifier.size(14.dp))
                 CtrlButton(
@@ -331,30 +333,29 @@ private fun FrameGlyph() {
     }
 }
 
-/** The reference's transform-box glyph: a handled frame with an inner frame (21 dp). Lime while on. */
+/** The snap magnet (build 222): a horseshoe magnet, WHITE while on, GREY while off (21 dp). */
 @Composable
-private fun TransformGlyph(on: Boolean) {
+private fun MagnetGlyph(on: Boolean) {
     Canvas(Modifier.size(21.dp)) {
         val u = size.width / 24f
-        val c = if (on) RefLime else RefCtrl
-        val st = Stroke(1.8f * u, cap = StrokeCap.Round, join = StrokeJoin.Round)
-        drawRoundRect(
-            c, Offset(5f * u, 5f * u), Size(14f * u, 14f * u),
-            CornerRadius(2f * u), style = st
+        val c = if (on) RefCtrl else RefCtrlDisabled
+        val w = 3.6f * u
+        // The U: a top semicircle joining two legs.
+        drawArc(
+            color = c,
+            startAngle = 180f,
+            sweepAngle = 180f,
+            useCenter = false,
+            topLeft = Offset(5.2f * u, 3.4f * u),
+            size = Size(13.6f * u, 13.6f * u),
+            style = Stroke(width = w, cap = StrokeCap.Butt)
         )
-        // corner ticks
-        for ((x1, y1, x2, y2) in listOf(
-            listOf(3f, 5f, 5f, 5f), listOf(19f, 5f, 21f, 5f),
-            listOf(3f, 19f, 5f, 19f), listOf(19f, 19f, 21f, 19f),
-            listOf(5f, 3f, 5f, 5f), listOf(19f, 3f, 19f, 5f),
-            listOf(5f, 19f, 5f, 21f), listOf(19f, 19f, 19f, 21f)
-        )) {
-            drawLine(c, Offset(x1 * u, y1 * u), Offset(x2 * u, y2 * u), 1.8f * u, StrokeCap.Round)
-        }
-        drawRoundRect(
-            c, Offset(8f * u, 8f * u), Size(8f * u, 8f * u),
-            CornerRadius(1f * u), style = Stroke(1.4f * u, join = StrokeJoin.Round)
-        )
+        drawLine(c, Offset(5.2f * u, 10.2f * u), Offset(5.2f * u, 19.6f * u), w, StrokeCap.Butt)
+        drawLine(c, Offset(18.8f * u, 10.2f * u), Offset(18.8f * u, 19.6f * u), w, StrokeCap.Butt)
+        // Pole tips: the legs' last stretch reads brighter while on.
+        val tip = if (on) Color.White else c
+        drawLine(tip, Offset(5.2f * u, 16.4f * u), Offset(5.2f * u, 19.6f * u), w, StrokeCap.Butt)
+        drawLine(tip, Offset(18.8f * u, 16.4f * u), Offset(18.8f * u, 19.6f * u), w, StrokeCap.Butt)
     }
 }
 
