@@ -585,6 +585,19 @@ class VideoEditorViewModel : ViewModel() {
 
     fun deleteSelectedClip() {
         val clipId = _selectedClipId.value ?: return
+        deleteClipById(clipId)
+        setSelected(null)
+    }
+
+    /**
+     * Deletes one layer by id (build 218: the chain section's x buttons — the
+     * section x deletes the Chain, a child x deletes just that layer). The
+     * deletion set is exactly [deleteSelectedClip]'s: the layer itself, a
+     * Chain's layers inside it, and a Group's descendants. The selection is
+     * cleared only when the selected layer is among the deleted — deleting a
+     * chain child keeps the Chain selected, as the reference's section does.
+     */
+    fun deleteClipById(clipId: String) {
         if (_tracks.value.flatMap { it.clips }.none { it.id == clipId }) return
         pushHistory()
         // Media is a normal layer (like text/shape): no special gap-closing.
@@ -595,7 +608,7 @@ class VideoEditorViewModel : ViewModel() {
             track.copy(clips = track.clips.filter { it.id !in gone })
         }
         _tracks.value = LaneLayout.normalize(withoutClip)
-        setSelected(null)
+        if (_selectedClipId.value in gone) setSelected(null)
         recomputeTotal()
     }
 
@@ -1187,7 +1200,10 @@ class VideoEditorViewModel : ViewModel() {
             strokeColor = strokeColor,
             transformX = drawn.offsetX,
             transformY = drawn.offsetY,
-            scalePercent = (drawn.shapeScale * 100f).coerceAtLeast(1f)
+            scalePercent = (drawn.shapeScale * 100f).coerceAtLeast(1f),
+            // Build 218: the creation-tool marker (transient — never serialised;
+            // the timeline colours Pen layers apart from freehand ones by it).
+            pathTool = if (name == "Pen") "pen" else "draw"
         )
         _tracks.value = placeNewLayer(_tracks.value, newClip)
         setSelected(newClip.id)
@@ -1317,6 +1333,19 @@ class VideoEditorViewModel : ViewModel() {
     /** Adds a Chain layer at the playhead and selects it. While it (or a layer in it) is selected, added layers go inside it. */
     fun addChainLayer(durationMs: Long = 4000L) {
         addClip(type = LayerType.CHAIN, name = "Chain ${_tracks.value.flatMap { it.clips }.count { it.type == LayerType.CHAIN } + 1}", durationMs = durationMs.coerceIn(250L, 60_000L))
+    }
+
+    /**
+     * Adds an EMPTY Group layer at the playhead and selects it (build 218: the
+     * dock's Group tile — Sarowar's reference adds a "Group" layer directly).
+     * The model supports it: [GroupOps.fitGroups] only refits a group that HAS
+     * layers inside, so an empty group keeps its own place and length, and
+     * layers grouped later (multi-select Group, or the group-edit scope) fill
+     * it exactly like a group created around layers.
+     */
+    fun addGroupLayer(durationMs: Long = 5000L) {
+        val n = _tracks.value.flatMap { it.clips }.count { it.type == LayerType.GROUP } + 1
+        addClip(type = LayerType.GROUP, name = "Group $n", durationMs = durationMs.coerceIn(250L, 60_000L))
     }
 
     /** Adds a Null object (invisible helper layer, parent for other layers) at the playhead and selects it. */

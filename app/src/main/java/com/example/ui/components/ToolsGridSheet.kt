@@ -3,9 +3,11 @@ package com.example.ui.components
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeOff
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.ViewStream
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -105,7 +107,7 @@ const val TOOLS_GRID_PAD_V_DP = 8
 const val TOOLS_GRID_MAX_ROWS = 4
 
 /** Tiles in the grid's utility section (IN, OUT, beat, marker, onion, scopes, snap, canvas). */
-const val TOOLS_GRID_UTILITY_COUNT = 14 // build 217: + Prev frame, Next frame, Preview, Save frame, Master, Density
+const val TOOLS_GRID_UTILITY_COUNT = 16 // build 217: + Prev frame, Next frame, Preview, Save frame, Master, Density; build 218: + Templates, Controller
 
 /**
  * The sheet's exact height for [totalTiles] tiles: vertical padding + whole
@@ -201,6 +203,11 @@ fun ToolsGridSheet(
     onMasterAudioClick: () -> Unit = {},
     densityComfort: Boolean = false,
     onDensityClick: () -> Unit = {},
+    // Build 218: the two adds the new 12-tile dock has no tile for —
+    // Templates and Controller live HERE, inside this sheet (the old
+    // AddLayerSheet's remaining entries are all dock tiles now).
+    onTemplatesClick: () -> Unit = {},
+    onControllerClick: () -> Unit = {},
     /** Momentary entries ask the host to close the sheet after their tap. */
     onCloseRequest: () -> Unit,
     /** Visible-row budget granted by the screen's lower-zone layout math (CANVAS LAW, build 207). */
@@ -254,6 +261,14 @@ fun ToolsGridSheet(
                 tint = if (densityComfort) IconWhite else AmTextDim,
                 modifier = Modifier.size(23.dp)
             )
+        },
+        // Build 218: displaced by the 12-tile dock (no dock tile of their
+        // own) — the Templates library and the Controller add live here.
+        GridEntry("Templates", false, "templates_button", "Templates", closeOnTap = true, onClick = onTemplatesClick) {
+            Icon(Icons.Default.Layers, null, tint = IconWhite, modifier = Modifier.size(23.dp))
+        },
+        GridEntry("Controller", false, "controller_button", "Add controller layer", closeOnTap = true, onClick = onControllerClick) {
+            Icon(Icons.Default.Tune, null, tint = IconWhite, modifier = Modifier.size(23.dp))
         }
     )
     // The selected panel's tools ride FIRST, in the panel's own order,

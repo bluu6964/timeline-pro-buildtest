@@ -3367,6 +3367,8 @@ fun VideoEditorScreen(
                     onDeleteClip = {
                         viewModel.deleteSelectedClip()
                     },
+                    // Build 218: the chain section's x buttons delete by id.
+                    onDeleteClipById = { viewModel.deleteClipById(it) },
                     onDuplicateClip = {
                         viewModel.duplicateSelectedClip()
                     },
@@ -3496,6 +3498,10 @@ fun VideoEditorScreen(
                             onMasterAudioClick = { viewModel.toggleMasterAudio() },
                             densityComfort = comfortDensity,
                             onDensityClick = { comfortDensity = !comfortDensity },
+                            // Build 218: the adds the 12-tile dock has no
+                            // tile for live in this sheet.
+                            onTemplatesClick = { showTemplates = true },
+                            onControllerClick = { viewModel.addControllerLayer() },
                             clipOverflow = moreClipSection,
                             includeUtilities = selectedClipId == null && multiSelectIds.isEmpty(),
                             // Build 211: the bar actions head the list
@@ -4033,14 +4039,21 @@ fun VideoEditorScreen(
                     } else {
                         BottomToolbar(
                             height = footerH,
-                            // Build 217: EXACTLY the reference's six
-                            // tiles. Video/Photo opens the Add-layer sheet
-                            // (its content carries every add — Media,
-                            // Text, Shape, Audio, Stickers, Templates,
-                            // Null, Controller, Chain, Camera — and the
-                            // Canvas size entry); Fx opens the tools
-                            // stage; Null adds a Null layer directly.
-                            onMediaClick = { showAddLayerSheet = true },
+                            // Build 218 (Sarowar's HTML reference v3):
+                            // EXACTLY the reference's TWELVE tiles, each
+                            // performing its own add directly — Video/Photo
+                            // opens the media picker itself now (build
+                            // 217's Add-layer-sheet detour is replaced);
+                            // Fx opens the tools stage; the two adds with
+                            // no tile (Templates, Controller) live in the
+                            // options sheet (see the ToolsGridSheet call).
+                            onMediaClick = {
+                                mediaPicker.launch(
+                                    androidx.activity.result.PickVisualMediaRequest(
+                                        androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageAndVideo
+                                    )
+                                )
+                            },
                             onAudioClick = { showAddAudioSheet = true },
                             onFxClick = { toolsPanelManual = true },
                             fxActive = toolsPanelOpen,
@@ -4052,7 +4065,22 @@ fun VideoEditorScreen(
                                 if (id.isNotEmpty()) editingTextId = id
                             },
                             onShapesClick = { showAddShapeSheet = true },
-                            onNullClick = { viewModel.addNullLayer() }
+                            onNullClick = { viewModel.addNullLayer() },
+                            onStickerClick = { showStickerSheet = true },
+                            onVectorClick = {
+                                penAnchors = emptyList()
+                                penClosed = false
+                                viewModel.pause()
+                                showPenMode = true
+                            },
+                            onDrawingClick = {
+                                drawPoints = emptyList()
+                                viewModel.pause()
+                                showDrawMode = true
+                            },
+                            onCameraClick = { viewModel.addCameraLayer() },
+                            onGroupClick = { viewModel.addGroupLayer() },
+                            onChainClick = { viewModel.addChainLayer() }
                         )
                     }
                 }

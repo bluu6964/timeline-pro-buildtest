@@ -69,14 +69,18 @@ import com.example.ui.util.bouncyClickable
 /**
  * The editor DOCK (build 217 — Sarowar's HTML reference, copied
  * exactly): a top hairline (#1E1E24), then a horizontally scrolling row
- * of SIX tiles in the reference's order — Video/Photo, Music, Fx, Text,
- * Shapes, Null. A tile = a 58 dp square box (r14, surface fill, 1 dp
+ * of tiles. A tile = a 58 dp square box (r14, surface fill, 1 dp
  * white-at-4% border) with its glyph, and the label UNDER it (11 sp/600,
- * muted). No button is added and none removed (Sarowar's rule): the
- * functions the build-216 dock carried (Canvas settings, the Add sheet,
- * the media picker) live inside the sheets these tiles open — the
- * Video/Photo tile opens the Add-layer sheet, which also carries the
- * canvas size entry; the Fx tile opens the tools stage.
+ * muted).
+ *
+ * Build 218 (Sarowar's HTML reference v3): the dock is the ALL-LAYER add
+ * dock — exactly TWELVE tiles in the reference's order: Video/Photo,
+ * Music, Fx, Text, Shapes, Sticker, Vector, Drawing, Null, 3D Camera,
+ * Group, Chain. Every tile performs its own add directly (build 217's
+ * arrangement, where Video/Photo opened the Add-layer sheet, is
+ * replaced); Fx keeps its job — it opens the effects stage, it is not a
+ * layer add. Twelve tiles are wider than the screen, so the row scrolls,
+ * exactly as the reference's dock does (its overflow-x: auto).
  */
 @Composable
 fun BottomToolbar(
@@ -88,7 +92,14 @@ fun BottomToolbar(
     onShapesClick: () -> Unit,
     onNullClick: () -> Unit,
     modifier: Modifier = Modifier,
-    fxActive: Boolean = false
+    fxActive: Boolean = false,
+    /** Build 218: the new tiles' direct adds. */
+    onStickerClick: () -> Unit = {},
+    onVectorClick: () -> Unit = {},
+    onDrawingClick: () -> Unit = {},
+    onCameraClick: () -> Unit = {},
+    onGroupClick: () -> Unit = {},
+    onChainClick: () -> Unit = {}
 ) {
     Column(
         modifier = modifier
@@ -122,7 +133,23 @@ fun BottomToolbar(
             DockTile("Fx", "toolbar_fx_button", onFxClick) { DockFxGlyph() }
             DockTile("Text", "toolbar_text_button", onTextClick) { DockTextGlyph() }
             DockTile("Shapes", "toolbar_shapes_button", onShapesClick) { DockShapesGlyph() }
+            DockTile("Sticker", "toolbar_sticker_button", onStickerClick) {
+                Icon(
+                    Icons.Default.SentimentSatisfiedAlt, contentDescription = null,
+                    tint = com.example.ui.theme.RefCtrl, modifier = Modifier.size(24.dp)
+                )
+            }
+            DockTile("Vector", "toolbar_vector_button", onVectorClick) { DockVectorGlyph() }
+            DockTile("Drawing", "toolbar_drawing_button", onDrawingClick) { DockDrawingGlyph() }
             DockTile("Null", "toolbar_null_button", onNullClick) { DockNullGlyph() }
+            DockTile("3D Camera", "toolbar_camera_button", onCameraClick) {
+                Icon(
+                    Icons.Default.Videocam, contentDescription = null,
+                    tint = com.example.ui.theme.RefCtrl, modifier = Modifier.size(24.dp)
+                )
+            }
+            DockTile("Group", "toolbar_group_button", onGroupClick) { DockGroupGlyph() }
+            DockTile("Chain", "toolbar_chain_button", onChainClick) { DockChainGlyph() }
         }
     }
 }
@@ -261,6 +288,85 @@ private fun DockNullGlyph() {
                 style = Stroke(1.5f * u)
             )
         }
+    }
+}
+
+/** Build 218: the Vector tile's glyph — a node polyline (the Pen tool). */
+@Composable
+private fun DockVectorGlyph() {
+    Canvas(Modifier.size(25.dp)) {
+        val u = size.width / 25f
+        val c = Color(0xFFE4E4E7)
+        val pts = listOf(5f to 19f, 10f to 7.5f, 15f to 14.5f, 20f to 6f)
+        for (i in 0 until pts.size - 1) {
+            drawLine(
+                c, Offset(pts[i].first * u, pts[i].second * u),
+                Offset(pts[i + 1].first * u, pts[i + 1].second * u),
+                1.8f * u, StrokeCap.Round
+            )
+        }
+        pts.forEach { pt -> drawCircle(c, radius = 2f * u, center = Offset(pt.first * u, pt.second * u)) }
+    }
+}
+
+/** Build 218: the Drawing tile's glyph — a freehand scribble stroke. */
+@Composable
+private fun DockDrawingGlyph() {
+    Canvas(Modifier.size(25.dp)) {
+        val u = size.width / 25f
+        val c = Color(0xFFE4E4E7)
+        val p = Path().apply {
+            moveTo(4f * u, 16f * u)
+            cubicTo(7f * u, 6f * u, 10.5f * u, 20f * u, 13.5f * u, 10.5f * u)
+            cubicTo(15.5f * u, 5.5f * u, 18f * u, 13f * u, 21f * u, 9.5f * u)
+        }
+        drawPath(p, c, style = Stroke(2f * u, cap = StrokeCap.Round))
+    }
+}
+
+/** Build 218: the Group tile's glyph — two overlapping rounded squares. */
+@Composable
+private fun DockGroupGlyph() {
+    Canvas(Modifier.size(25.dp)) {
+        val u = size.width / 25f
+        val c = Color(0xFFE4E4E7)
+        drawRoundRect(
+            c.copy(alpha = 0.55f),
+            topLeft = Offset(4f * u, 4f * u),
+            size = Size(13.5f * u, 13.5f * u),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(3f * u),
+            style = Stroke(1.9f * u)
+        )
+        drawRoundRect(
+            c,
+            topLeft = Offset(8.5f * u, 8.5f * u),
+            size = Size(12.5f * u, 12.5f * u),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(3f * u),
+            style = Stroke(1.9f * u)
+        )
+    }
+}
+
+/** Build 218: the Chain tile's glyph — two interlocked rounded links. */
+@Composable
+private fun DockChainGlyph() {
+    Canvas(Modifier.size(25.dp)) {
+        val u = size.width / 25f
+        val c = Color(0xFFE4E4E7)
+        drawRoundRect(
+            c,
+            topLeft = Offset(3f * u, 9.5f * u),
+            size = Size(10.5f * u, 6.5f * u),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(3.25f * u),
+            style = Stroke(2f * u)
+        )
+        drawRoundRect(
+            c,
+            topLeft = Offset(11.5f * u, 9.5f * u),
+            size = Size(10.5f * u, 6.5f * u),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(3.25f * u),
+            style = Stroke(2f * u)
+        )
     }
 }
 

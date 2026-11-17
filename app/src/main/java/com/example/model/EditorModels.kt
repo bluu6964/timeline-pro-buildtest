@@ -489,10 +489,33 @@ data class TimelineClip(
      */
     val isExcludeMask: Boolean = false,
     /** Text animators imported from an Alight Motion XML (stored; drawn by the C++ text engine in a later step), see [TextAnimator]. */
-    val textAnimators: List<TextAnimator> = emptyList()
+    val textAnimators: List<TextAnimator> = emptyList(),
+    /**
+     * Build 218: which drawing tool created this PATH layer — "pen" (the point-based
+     * Pen, build 177) or "draw" (the freehand Draw) — stamped by
+     * [com.example.viewmodel.VideoEditorViewModel.addDrawnPath] so the timeline can
+     * colour Pen layers apart from freehand ones (both are SHAPE / "PATH" layers,
+     * told apart only by their creation name before this field).
+     * [Transient] ON PURPOSE: the marker must never reach project.json or any
+     * exported form — every serialised byte stays exactly as before build 218.
+     * After a save / reload the marker is null again and the colour rule falls
+     * back to the creation name ("Pen" / "Drawing"), the pre-218 signal.
+     * Null = not a drawn path (built-in shape kinds, imported Alight paths,
+     * boolean results).
+     */
+    @kotlinx.serialization.Transient
+    val pathTool: String? = null
 ) {
     val endMs: Long
         get() = startMs + durationMs
+
+    /** Build 218: a PATH layer made by the point-based Pen tool (see [pathTool]). */
+    val isPenPath: Boolean
+        get() = shapePattern == "PATH" && (pathTool == "pen" || (pathTool == null && name == "Pen"))
+
+    /** Build 218: a PATH layer made by the freehand Draw tool (see [pathTool]). */
+    val isDrawPath: Boolean
+        get() = shapePattern == "PATH" && (pathTool == "draw" || (pathTool == null && name == "Drawing"))
 
     fun isActiveAt(timeMs: Long): Boolean {
         return timeMs in startMs until endMs

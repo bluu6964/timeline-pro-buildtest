@@ -59,6 +59,7 @@ import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.Flip
 import androidx.compose.material.icons.filled.FlipCameraAndroid
 import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.SmartButton
 import androidx.compose.material.icons.filled.Visibility
@@ -77,6 +78,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.drawBehind
@@ -166,6 +168,19 @@ import com.example.ui.theme.ClipFilmBody
 import com.example.ui.theme.LanePill
 import com.example.ui.theme.LanePillDark
 import com.example.ui.theme.NeonBarGold
+import com.example.ui.theme.ChainBridge
+import com.example.ui.theme.ChainEmptyInk
+import com.example.ui.theme.ChainEmptyInkSelected
+import com.example.ui.theme.ChainSectionBg
+import com.example.ui.theme.ChainSectionBgSelected
+import com.example.ui.theme.ChainSectionBorder
+import com.example.ui.theme.ClipCameraIndigo
+import com.example.ui.theme.ClipDrawingRose
+import com.example.ui.theme.ClipGroupTeal
+import com.example.ui.theme.ClipStickerAmber
+import com.example.ui.theme.ClipVectorCyan
+import com.example.ui.theme.RefEyeBg
+import com.example.ui.theme.RefEyeHidden
 import com.example.ui.theme.LaneEyeTint
 import com.example.ui.theme.LaneThumbWhite
 import com.example.ui.theme.ShapeBarBottom
@@ -195,6 +210,8 @@ fun TimelineLayerPanel(
     onClipSelect: (String?) -> Unit,
     onSplitClip: () -> Unit,
     onDeleteClip: () -> Unit,
+    /** Build 218: delete one layer by id (the chain section's x buttons). */
+    onDeleteClipById: (String) -> Unit = {},
     onDuplicateClip: () -> Unit,
     onToggleMasterAudio: () -> Unit,
     /** Horizontal drag on a layer: move it earlier/later on the timeline (ms delta). */
@@ -518,6 +535,7 @@ fun TimelineLayerPanel(
                             onTrimClipEdge = onTrimClipEdge,
                             onSetClipFades = onSetClipFades,
                             onDeleteClip = onDeleteClip,
+                            onDeleteClipById = onDeleteClipById,
                             pxPerMs = pxPerMs,
                             visibleFromMs = visibleFromMs,
                             visibleToMs = visibleToMs,
@@ -541,23 +559,38 @@ fun TimelineLayerPanel(
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 tracks.forEachIndexed { laneIndex, track ->
-                    val clip = track.clips.firstOrNull()
-                    val rowH = clip?.let { laneHeightFor(it.type, comfortDensity) } ?: 24.dp
+                    // Build 218: a chain lane's rail cell belongs to the Chain
+                    // clip (the section's eye + link glyph), wherever it sits
+                    // in the lane's clip order; other lanes keep the head clip.
+                    val chainClip = track.clips.firstOrNull { it.type == LayerType.CHAIN }
+                    val clip = chainClip ?: track.clips.firstOrNull()
+                    val rowH = laneHeights[laneIndex]
                     if (laneIndex !in laneWindow) {
                         Spacer(Modifier.height(rowH))
                         return@forEachIndexed
                     }
-                    LayerLaneControl(
-                        clip = clip,
-                        height = rowH,
-                        isMulti = isMulti,
-                        isChecked = clip != null && clip.id in multiSelectIds,
-                        isSelected = clip != null && clip.id == selectedClipId,
-                        onToggleVisibility = { id -> onToggleClipVisibility(id) },
-                        onSelect = { id -> onClipSelect(id) },
-                        onLongPress = onLongPressLane,
-                        onToggleMulti = onToggleMulti
-                    )
+                    if (chainClip != null && !isMulti) {
+                        ChainLaneControl(
+                            chain = chainClip,
+                            height = rowH,
+                            isSelected = chainClip.id == selectedClipId,
+                            onToggleVisibility = { id -> onToggleClipVisibility(id) },
+                            onSelect = { id -> onClipSelect(id) },
+                            onLongPress = onLongPressLane
+                        )
+                    } else {
+                        LayerLaneControl(
+                            clip = clip,
+                            height = rowH,
+                            isMulti = isMulti,
+                            isChecked = clip != null && clip.id in multiSelectIds,
+                            isSelected = clip != null && clip.id == selectedClipId,
+                            onToggleVisibility = { id -> onToggleClipVisibility(id) },
+                            onSelect = { id -> onClipSelect(id) },
+                            onLongPress = onLongPressLane,
+                            onToggleMulti = onToggleMulti
+                        )
+                    }
                 }
             }
         }
@@ -961,6 +994,74 @@ private fun LayerThumb(clip: TimelineClip, thumbColor: Color) {
     }
 }
 
+/**
+ * Build 218 (Sarowar's HTML reference v3): the chain lane's left cell — the
+ * reference's `.chain-eye-cell`: full section height, #1E1E24 fill, a 1 dp
+ * right border and the section's top/bottom hairlines, holding the eye
+ * (the chain's visibility toggle — the eye-btn's job for this lane) over a
+ * small chain-link glyph. Tapping the cell selects the Chain; a long press
+ * opens multi-select, exactly like a normal lane cell.
+ */
+@Composable
+private fun ChainLaneControl(
+    chain: TimelineClip,
+    height: Dp,
+    isSelected: Boolean,
+    onToggleVisibility: (String) -> Unit,
+    onSelect: (String) -> Unit,
+    onLongPress: (String) -> Unit
+) {
+    val eyeTint = when {
+        !chain.isVisible -> RefEyeHidden
+        isSelected -> Color.White
+        else -> LaneEyeTint
+    }
+    Box(
+        modifier = Modifier
+            .width(42.dp)
+            .height(height)
+            .background(RefEyeBg)
+            .drawBehind {
+                val hair = if (isSelected) 1.5.dp.toPx() else 1.dp.toPx()
+                val hairColor = if (isSelected) Color.White else ChainSectionBorder
+                drawRect(hairColor, Offset(size.width - 1.dp.toPx(), 0f), Size(1.dp.toPx(), size.height))
+                drawRect(hairColor, Offset(0f, 0f), Size(size.width, hair))
+                drawRect(hairColor, Offset(0f, size.height - hair), Size(size.width, hair))
+            }
+            .pointerInput(chain.id) {
+                detectTapGestures(
+                    onTap = { onSelect(chain.id) },
+                    onLongPress = { onLongPress(chain.id) }
+                )
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(
+                modifier = Modifier
+                    .size(20.dp)
+                    .pointerInput(chain.id) {
+                        detectTapGestures(onTap = { onToggleVisibility(chain.id) })
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = if (!chain.isVisible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
+                    contentDescription = if (!chain.isVisible) "Show chain" else "Hide chain",
+                    tint = eyeTint,
+                    modifier = Modifier.size(17.dp)
+                )
+            }
+            Icon(
+                imageVector = Icons.Default.Link,
+                contentDescription = null,
+                tint = eyeTint,
+                modifier = Modifier.size(11.dp)
+            )
+        }
+    }
+}
+
 @Composable
 fun TimelineTrackRow(
     track: TimelineTrack,
@@ -976,6 +1077,9 @@ fun TimelineTrackRow(
     onSetClipFades: (clipId: String, fadeInMs: Long, fadeOutMs: Long) -> Unit = { _, _, _ -> },
     /** Build 217: the selected bar's in-bar delete x — deletes the selected clip. */
     onDeleteClip: () -> Unit = {},
+    /** Build 218: delete one layer by id (the chain section's x buttons: the
+     *  section x deletes the Chain, a child x deletes just that child). */
+    onDeleteClipById: (String) -> Unit = {},
     pxPerMs: Float = TIMELINE_PX_PER_MS,
     visibleFromMs: Long = Long.MIN_VALUE / 4,
     visibleToMs: Long = Long.MAX_VALUE / 4,
@@ -1001,6 +1105,11 @@ fun TimelineTrackRow(
 
     // Room on the left so the left trim handle of a layer at 0:00 is still inside the lane.
     val handlePx = with(density) { TrimHandleWidth.toPx() }
+    // Build 218: a Chain lane renders as the reference's full-width SECTION —
+    // the Chain clip's own bar is replaced by the section drawn below.
+    val chainClip = track.clips.firstOrNull { it.type == LayerType.CHAIN }
+    val chainChildren = if (chainClip != null) track.clips.filter { it.chainId == chainClip.id } else emptyList()
+    val chainSelected = chainClip != null && chainClip.id == selectedClipId
     var dragOffsetX by remember { mutableStateOf(0f) }
     var dragOffsetY by remember { mutableStateOf(0f) }
     var isDragging by remember { mutableStateOf(false) }
@@ -1053,6 +1162,67 @@ fun TimelineTrackRow(
                     .background(LaneTrackColor, RoundedCornerShape(percent = 50))
             )
         }
+        // Build 218 (Sarowar's HTML reference v3): the CHAIN SECTION — a
+        // full-width band pinned to the screen (it cancels the lane column's
+        // shift, exactly like the old chain band), #18181D with 1 dp
+        // hairlines; selected (the Chain itself is the selection) the
+        // hairlines turn 1.5 dp white on #1D1D24; a hidden chain dims the
+        // section to 35%. The bridges between adjacent children and the
+        // empty-chain label are drawn here; the children themselves are
+        // rendered by the normal clip loop below, restyled by TimelineClipItem.
+        if (chainClip != null) {
+            Box(
+                Modifier
+                    .offset { IntOffset(0, 0) }
+                    .graphicsLayer { translationX = -columnShiftPx() }
+                    .width(viewWidth)
+                    .height(trackHeight)
+                    .alpha(if (!chainClip.isVisible) 0.35f else 1f)
+                    .background(if (chainSelected) ChainSectionBgSelected else ChainSectionBg)
+                    .drawBehind {
+                        val hair = if (chainSelected) 1.5.dp.toPx() else 1.dp.toPx()
+                        val hairColor = if (chainSelected) Color.White else ChainSectionBorder
+                        drawRect(hairColor, Offset(0f, 0f), Size(size.width, hair))
+                        drawRect(hairColor, Offset(0f, size.height - hair), Size(size.width, hair))
+                        // Bridges: a 2 dp #3A3A46 line spanning the gap
+                        // between each pair of adjacent children, mid-height.
+                        if (chainChildren.size > 1) {
+                            val sorted = chainChildren.sortedBy { it.startMs }
+                            val midY = size.height / 2f
+                            val bh = 2.dp.toPx()
+                            for (i in 0 until sorted.size - 1) {
+                                val a = sorted[i]
+                                val b = sorted[i + 1]
+                                val x1 = columnShiftPx() + (a.endMs * pxPerMs * pxPerDp) + handlePx
+                                val x2 = columnShiftPx() + (b.startMs * pxPerMs * pxPerDp) + handlePx
+                                if (x2 > x1) drawRect(ChainBridge, Offset(x1, midY - bh / 2f), Size(x2 - x1, bh))
+                            }
+                        }
+                    }
+            ) {
+                if (chainChildren.isEmpty()) {
+                    Row(
+                        Modifier
+                            .align(Alignment.CenterStart)
+                            .offset { IntOffset((columnShiftPx() + 54.dp.toPx()).roundToInt(), 0) },
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Link, null,
+                            tint = if (chainSelected) ChainEmptyInkSelected else ChainEmptyInk,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            "Chain",
+                            color = if (chainSelected) ChainEmptyInkSelected else ChainEmptyInk,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+        }
         // One clip per lane, except a Chain lane: the chain bar first (behind), its layers on top of it.
         val laneClips = if (track.clips.size > 1) track.clips.sortedBy { if (it.type == LayerType.CHAIN) 0 else 1 } else track.clips
         laneClips.forEach { clip ->
@@ -1067,7 +1237,9 @@ fun TimelineTrackRow(
                             x = if (clip.type == LayerType.CHAIN) 0
                             else (clip.startMs * pxPerMs * pxPerDp + handlePx + if (dragging) dragOffsetX else 0f).roundToInt(),
                             // Build 187: the capsule bar is centred in its (taller) row; a Chain keeps the full row.
+                            // Build 218: a chain child sits inside the section with a 4 dp top inset.
                             y = if (clip.type == LayerType.CHAIN) 0
+                            else if (chainClip != null && clip.chainId == chainClip.id) (4.dp.value * pxPerDp).roundToInt()
                             else (LaneBarInset.value / 2f * pxPerDp).roundToInt()
                         )
                     }
@@ -1078,8 +1250,10 @@ fun TimelineTrackRow(
                     )
                     // Build 187: the touch box is the BAR (barHeight), not the whole row —
                     // the drag/trim gestures themselves are unchanged. A Chain keeps the row.
+                    // Build 218: a chain child's touch box is the section minus its 4 dp insets.
                     .then(
                         if (clip.type == LayerType.CHAIN) Modifier
+                        else if (chainClip != null && clip.chainId == chainClip.id) Modifier.height(trackHeight - 8.dp)
                         else Modifier.height(barHeight)
                     )
                     .pointerInput(clip.id, laneIndex, laneCount, pxPerMs) {
@@ -1140,7 +1314,11 @@ fun TimelineTrackRow(
                     waveform = clip.uri?.let { waveforms[it] },
                     pxPerMs = pxPerMs,
                     // Build 187: the badge number = the lane's order in the displayed stack.
-                    layerNumber = laneIndex + 1
+                    layerNumber = laneIndex + 1,
+                    // Build 218: chain children render as the section's flat clips.
+                    inChain = chainClip != null && clip.chainId == chainClip.id,
+                    chainSectionSelected = chainSelected,
+                    onDeleteSelf = { onDeleteClipById(clip.id) }
                 )
             }
 
@@ -1207,6 +1385,41 @@ fun TimelineTrackRow(
                     onBegin = onBeginClipTimeDrag,
                     onFadeDelta = { d -> onSetClipFades(clip.id, clip.fadeInMs, clip.fadeOutMs - d) }
                 )
+            }
+        }
+
+        // Build 218 (reference): the SELECTED section's delete x — pinned to
+        // the screen's right edge of the section (8 dp in), vertically
+        // centred: a 20 dp box on rgba(0,0,0,0.45), r6 (32 dp touch box).
+        // It deletes the Chain — with its children, the app's chain-delete
+        // semantics (deleteClipById).
+        if (chainClip != null && chainSelected) {
+            Box(
+                modifier = Modifier
+                    .offset {
+                        IntOffset(
+                            (columnShiftPx() + (viewWidth.value - 28f) * pxPerDp).roundToInt(),
+                            ((trackHeight.value - 32f) / 2f * pxPerDp).roundToInt()
+                        )
+                    }
+                    .size(32.dp)
+                    .bouncyClickable(pressedScale = 0.9f, onClick = { onDeleteClipById(chainClip.id) })
+                    .testTag("chain_section_delete_x"),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(20.dp)
+                        .background(Color.Black.copy(alpha = 0.45f), RoundedCornerShape(6.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Canvas(Modifier.size(10.dp)) {
+                        val w = 1.8.dp.toPx()
+                        val m = w / 2f
+                        drawLine(Color.White, Offset(m, m), Offset(size.width - m, size.height - m), w, StrokeCap.Round)
+                        drawLine(Color.White, Offset(size.width - m, m), Offset(m, size.height - m), w, StrokeCap.Round)
+                    }
+                }
             }
         }
     }
@@ -1345,7 +1558,11 @@ private fun FadeHandle(
 // (the slimmest row, 26 dp, still holds both), and trim handles keep the full row height.
 // Build 214: rail thumb 22 dp + eye hit box 24 dp, so rows are cut a further 2 dp (slimmest 24 dp).
 internal fun laneHeightFor(type: LayerType, comfort: Boolean = false): Dp = when (type) {
-    // Build 217 (Sarowar's HTML reference): EVERY track row is 32 dp —
+    // Build 218 (Sarowar's HTML reference v3): a Chain lane is the new
+    // full-width SECTION — 44 dp (54 in the comfort density), taller than
+    // a normal row so its children sit inside with a 4 dp inset.
+    LayerType.CHAIN -> if (comfort) 54.dp else 44.dp
+    // Build 217 (Sarowar's HTML reference): EVERY other track row is 32 dp —
     // the reference's compact lane height (bars fill the row; the
     // eye-button is 42 dp wide and full row height). The reference's
     // comfort density (its layer-count pill toggle) makes rows 44 dp.
@@ -1361,6 +1578,46 @@ private val LaneTrackColor = Color(0xFF121215) // build 217: no visible groove o
 private val ControllerTeal = Color(0xFF00B8A9)
 /** Build 215: the audio bar's own colour (AudioClipBody's fill) — the reference's neon green. */
 private val AudioBarColor = NeonBarGreen
+
+/**
+ * Build 218 (Sarowar's HTML reference v3): the flat bar colour of a layer —
+ * the reference's colour table, shared by the normal bars and the chain
+ * section's children. PATH shapes split by creation tool (see
+ * [TimelineClip.isPenPath] / [TimelineClip.isDrawPath]): a freehand layer
+ * takes the drawing rose; a Pen layer — and any other PATH (an imported
+ * Alight path, a boolean result) — takes the vector cyan.
+ */
+internal fun barColorFor(clip: TimelineClip): Color = when {
+    clip.type == LayerType.VIDEO -> NeonBarBlue
+    clip.type == LayerType.AUDIO -> NeonBarGreen
+    clip.type == LayerType.TEXT -> NeonBarPink
+    clip.isDrawPath -> ClipDrawingRose
+    clip.type == LayerType.SHAPE && clip.shapePattern == "PATH" -> ClipVectorCyan
+    clip.type == LayerType.SHAPE -> NeonBarGold
+    clip.type == LayerType.STICKER -> ClipStickerAmber
+    clip.type == LayerType.OVERLAY -> NeonBarViolet
+    clip.type == LayerType.GROUP -> ClipGroupTeal
+    clip.type == LayerType.CAMERA -> ClipCameraIndigo
+    clip.type == LayerType.NULL -> com.example.ui.theme.RefNullPink
+    else -> NeonBarGold
+}
+
+/** Build 218: the [BarTypeIcon] kind of a layer (chain children and the
+ *  recoloured bars draw their type glyph from it). */
+internal fun barGlyphFor(clip: TimelineClip): String = when {
+    clip.type == LayerType.TEXT -> "text"
+    clip.isDrawPath -> "drawing"
+    clip.type == LayerType.SHAPE && clip.shapePattern == "PATH" -> "vector"
+    clip.type == LayerType.SHAPE -> "shape"
+    clip.type == LayerType.STICKER -> "sticker"
+    clip.type == LayerType.CAMERA -> "camera"
+    clip.type == LayerType.GROUP -> "group"
+    clip.type == LayerType.NULL -> "null"
+    clip.type == LayerType.VIDEO -> "video"
+    clip.type == LayerType.AUDIO -> "music"
+    clip.type == LayerType.CHAIN -> "chain"
+    else -> "fx"
+}
 
 @Composable
 fun TimelineClipItem(
@@ -1379,7 +1636,16 @@ fun TimelineClipItem(
     /** Build 217: the selected bar's in-bar delete x (the panel's delete-selected action). */
     onDelete: () -> Unit = {},
     /** Build 217: comfort density — bars are r10 instead of r9. */
-    comfort: Boolean = false
+    comfort: Boolean = false,
+    /** Build 218: this clip is a child inside a Chain section — a flat r8
+     *  clip (type colour + glyph + 12.5 sp name, no filmstrip / waveform /
+     *  drag handle); its delete x also shows while the SECTION is selected
+     *  and deletes just this clip ([onDeleteSelf]). */
+    inChain: Boolean = false,
+    /** Build 218: the Chain section this child sits in is the selection. */
+    chainSectionSelected: Boolean = false,
+    /** Build 218: delete just this clip (the chain child's x). */
+    onDeleteSelf: () -> Unit = {}
 ) {
     val selectScale by animateFloatAsState(
         targetValue = 1f, // no grow/pop on touch or select: layers stay perfectly still while scrolling
@@ -1397,7 +1663,8 @@ fun TimelineClipItem(
     // bar itself (clipped, clickable) is the inner box. A Chain keeps its rectangle band.
     // Build 217 (Sarowar's HTML reference): the bar is a rounded rect of
     // r9 (r10 in the comfort density) — the reference's exact corners.
-    val barCorner = if (comfort) 10.dp else 9.dp
+    // Build 218: a chain child is r8, the reference's chain-clip corner.
+    val barCorner = if (inChain) 8.dp else if (comfort) 10.dp else 9.dp
     val barShape = if (isChain) RectangleShape else RoundedCornerShape(barCorner)
     Box(
         modifier = Modifier.width(width)
@@ -1450,14 +1717,26 @@ fun TimelineClipItem(
         // Build 215: a video / image bar's neon body — solid fill + crosshatch UNDER
         // its frame strip (the reference draw order: fill, stripes, content on top).
         // Blue for video, cyan for an image; the frames draw over it as before.
-        if (clip.type == LayerType.VIDEO) {
+        if (clip.type == LayerType.VIDEO && !inChain) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(if (clip.isImage) NeonBarCyan else ClipFilmBody)
             )
         }
-        when (clip.type) {
+        if (inChain) {
+            // Build 218: a chain child is a FLAT clip inside the section —
+            // the type colour, its glyph and its name at 12.5 sp (no
+            // filmstrip, no waveform, no name chip).
+            CapsuleBar(
+                barColorFor(clip),
+                if (clip.type == LayerType.TEXT) clip.text?.takeIf { it.isNotBlank() } ?: clip.name else clip.name,
+                isSelected,
+                fontSize = 12.5.sp,
+                endPad = 24.dp,
+                icon = { BarTypeIcon(barGlyphFor(clip)) }
+            )
+        } else when (clip.type) {
             LayerType.VIDEO -> {
                 if (clip.uri != null) {
                     // Real frames taken from the clip itself, spread over its full width.
@@ -1544,47 +1823,37 @@ fun TimelineClipItem(
                 }
             }
 
-            LayerType.SHAPE -> CapsuleBar(NeonBarGold, clip.name, isSelected, icon = { BarTypeIcon("shape") }) // build 217: shape = #3EB1F7 (the reference)
-            // Chain: a see-through grey band with dashed edges (a little clearer while it is selected or checked).
-            // It looks like a rail the layers sit on, not like a layer.
-            LayerType.CHAIN -> {
-                val on = isSelected || isMultiSelected
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color(0xFFB4B4B4).copy(alpha = if (on) 0.24f else 0.11f))
-                        .drawBehind {
-                            val dash = androidx.compose.ui.graphics.PathEffect.dashPathEffect(
-                                floatArrayOf(6.dp.toPx(), 4.dp.toPx()), 0f
-                            )
-                            val line = Color(0xFF9A9AA0).copy(alpha = if (on) 0.7f else 0.45f) // build 216: visible on white
-                            val w = 1.dp.toPx()
-                            drawLine(line, androidx.compose.ui.geometry.Offset(0f, w / 2), androidx.compose.ui.geometry.Offset(size.width, w / 2), w, pathEffect = dash)
-                            drawLine(line, androidx.compose.ui.geometry.Offset(0f, size.height - w / 2), androidx.compose.ui.geometry.Offset(size.width, size.height - w / 2), w, pathEffect = dash)
-                        }
-                )
-            }
+            LayerType.SHAPE -> CapsuleBar(barColorFor(clip), clip.name, isSelected, icon = { BarTypeIcon(barGlyphFor(clip)) }) // build 218: shape = #3EB1F7; a PATH splits by tool — Pen #06B6D4, freehand #FB7185
+            // Build 218: the Chain's own bar is GONE — TimelineTrackRow draws
+            // the full-width SECTION (fill, hairlines, bridges) behind the
+            // children instead; this item stays transparent and only carries
+            // the tap / long-press lane gestures.
+            LayerType.CHAIN -> Box(Modifier.fillMaxSize())
             LayerType.TEXT -> CapsuleBar(
                 NeonBarPink,
                 clip.text?.takeIf { it.isNotBlank() } ?: clip.name,
                 isSelected,
                 icon = { BarTypeIcon("text") }
             )
-            LayerType.OVERLAY, LayerType.STICKER -> CapsuleBar(NeonBarViolet, clip.name, isSelected, icon = { BarTypeIcon("fx") }) // build 217: fx/sticker = #F54BBF (the reference)
-            // Real Group: the reference's indigo (its layers below keep an indigo start
-            // edge in the same family).
-            LayerType.GROUP -> CapsuleBar(NeonBarIndigo, clip.name, isSelected, icon = { BarTypeIcon("group") })
+            LayerType.OVERLAY -> CapsuleBar(NeonBarViolet, clip.name, isSelected, icon = { BarTypeIcon("fx") }) // build 217: overlay/fx = #F54BBF (the reference)
+            // Build 218: the reference gives Sticker its own colour — amber #F59E0B.
+            LayerType.STICKER -> CapsuleBar(ClipStickerAmber, clip.name, isSelected, icon = { BarTypeIcon("sticker") })
+            // Real Group: build 218 — the reference's teal #14B8A6 (its layers
+            // below keep a start edge in the same colour).
+            LayerType.GROUP -> CapsuleBar(ClipGroupTeal, clip.name, isSelected, icon = { BarTypeIcon("group") })
             // Controller (build 187): Sarowar ordered a DIFFERENT design from every other
             // layer — a HOLLOW teal outline in its settled marker colour (0xFF00B8A9, the
             // CanvasArea marker), transparent fill, teal label and badge. Instantly
             // distinct from every filled bar; its fan-out semantics are untouched.
+            // Build 218: the reference has no Controller colour — the hollow
+            // treatment stays.
             LayerType.CONTROLLER -> ControllerBar(clip.name, isSelected || isMultiSelected)
-            // Null / Camera: invisible utility layers — a quiet dark hollow bar (grey
-            // outline, dim label), deliberately NOT the Controller's teal design.
             // Build 217: the Null bar is the reference's PINK capsule
-            // (#F9326A) with the null glyph; Camera keeps its quiet bar.
+            // (#F9326A) with the null glyph.
+            // Build 218: Camera takes the reference's flat indigo #6366F1
+            // capsule (it was the quiet hollow bar before).
             LayerType.NULL -> CapsuleBar(com.example.ui.theme.RefNullPink, clip.name, isSelected, icon = { BarTypeIcon("null") })
-            LayerType.CAMERA -> QuietBar(clip.name, isSelected)
+            LayerType.CAMERA -> CapsuleBar(ClipCameraIndigo, clip.name, isSelected, icon = { BarTypeIcon("camera") })
 
             // No other LayerType exists today; the catch-all takes the reference's
             // indigo — the adjustment / effect-layer colour of the mapping.
@@ -1593,7 +1862,7 @@ fun TimelineClipItem(
         // Build 215: the build-187 selected-VIDEO gradient wash is gone — selection
         // is the white edge alone (Sarowar's build-213 marking), on every bar alike.
         // Video / photo / audio lanes show a picture strip or waveform, so the layer name goes on a small chip.
-        if ((clip.type == LayerType.VIDEO || clip.type == LayerType.AUDIO) && clip.name.isNotBlank()) {
+        if (!inChain && (clip.type == LayerType.VIDEO || clip.type == LayerType.AUDIO) && clip.name.isNotBlank()) {
             Text(
                 text = clip.name,
                 color = Color.White,
@@ -1609,19 +1878,19 @@ fun TimelineClipItem(
             )
         }
         // A layer inside a real Group: a thin edge at its start, in the Group's
-        // colour (build 215: indigo, following the Group bar's new colour).
-        if (clip.groupId != null) {
+        // colour (build 218: teal, following the Group bar's new colour).
+        if (!inChain && clip.groupId != null) {
             Box(
                 modifier = Modifier
                     .align(Alignment.CenterStart)
                     .fillMaxHeight()
                     .width(3.dp)
-                    .background(NeonBarIndigo)
+                    .background(ClipGroupTeal)
             )
         }
 
         // Video with sound: waveform along the bottom of the frames (no file name / path text).
-        if (clip.type == LayerType.VIDEO && clip.uri != null && !clip.isImage) {
+        if (!inChain && clip.type == LayerType.VIDEO && clip.uri != null && !clip.isImage) {
             VideoWaveformStrip(
                 clip = clip,
                 waveform = waveform,
@@ -1632,7 +1901,7 @@ fun TimelineClipItem(
             )
         }
         // Keyframe diamonds of the selected layer (one per keyframe time, any property).
-        if (isSelected && clip.keyframes.isNotEmpty()) {
+        if (!inChain && isSelected && clip.keyframes.isNotEmpty()) {
             val times = remember(clip.keyframes) { clip.keyframeTimes() }
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val half = 8.dp.toPx()
@@ -1666,18 +1935,25 @@ fun TimelineClipItem(
                     .padding(end = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (isSelected) {
+                // Build 218: a chain child's x (17 dp, r5) shows when the
+                // child is selected OR the section is, and deletes just the
+                // child; a normal bar's x (20 dp, r6) is selected-only and
+                // deletes the selected clip, as in 217.
+                if (isSelected || (inChain && chainSectionSelected)) {
                     Box(
                         modifier = Modifier
                             .size(32.dp)
-                            .bouncyClickable(pressedScale = 0.9f, onClick = onDelete)
+                            .bouncyClickable(pressedScale = 0.9f, onClick = if (inChain) onDeleteSelf else onDelete)
                             .testTag("bar_delete_x"),
                         contentAlignment = Alignment.Center
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(20.dp)
-                                .background(Color.Black.copy(alpha = 0.35f), RoundedCornerShape(6.dp)),
+                                .size(if (inChain) 17.dp else 20.dp)
+                                .background(
+                                    Color.Black.copy(alpha = 0.35f),
+                                    RoundedCornerShape(if (inChain) 5.dp else 6.dp)
+                                ),
                             contentAlignment = Alignment.Center
                         ) {
                             Canvas(Modifier.size(10.dp)) {
@@ -1689,17 +1965,21 @@ fun TimelineClipItem(
                         }
                     }
                 }
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(2.5.dp),
-                    modifier = Modifier.padding(horizontal = 4.dp)
-                ) {
-                    repeat(3) {
-                        Box(
-                            Modifier
-                                .width(18.dp)
-                                .height(1.6.dp)
-                                .background(Color.White.copy(alpha = 0.55f), RoundedCornerShape(1.dp))
-                        )
+                // Build 218: chain children carry no drag handle (the
+                // reference's chain clips have none).
+                if (!inChain) {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(2.5.dp),
+                        modifier = Modifier.padding(horizontal = 4.dp)
+                    ) {
+                        repeat(3) {
+                            Box(
+                                Modifier
+                                    .width(18.dp)
+                                    .height(1.6.dp)
+                                    .background(Color.White.copy(alpha = 0.55f), RoundedCornerShape(1.dp))
+                            )
+                        }
                     }
                 }
             }
@@ -1708,7 +1988,7 @@ fun TimelineClipItem(
       // Build 217 (reference): the fx badge of a bar with effects — a
       // 17 dp circle (#27272E, 1.5 dp app-bg border) with italic "fx",
       // overlapping the bar's top-left corner (top -2, left 2).
-      if (!isChain && clip.effects.isNotEmpty()) {
+      if (!isChain && !inChain && clip.effects.isNotEmpty()) {
           Box(
               modifier = Modifier
                   .align(Alignment.TopStart)
@@ -1807,6 +2087,10 @@ private fun CapsuleBar(
     color: Color,
     label: String? = null,
     selected: Boolean = false,
+    /** Build 218: chain children label at 12.5 sp (the reference). */
+    fontSize: androidx.compose.ui.unit.TextUnit = 13.sp,
+    /** Build 218: chain children end padding (no drag handle to clear). */
+    endPad: Dp = 40.dp,
     icon: (@Composable () -> Unit)? = null
 ) {
     // Build 217 (Sarowar's HTML reference): the flat type colour, the
@@ -1822,7 +2106,7 @@ private fun CapsuleBar(
     ) {
         if (!label.isNullOrBlank()) {
             Row(
-                modifier = Modifier.padding(start = 11.dp, end = 40.dp),
+                modifier = Modifier.padding(start = 11.dp, end = endPad),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (icon != null) {
@@ -1832,7 +2116,7 @@ private fun CapsuleBar(
                 Text(
                     text = label,
                     color = Color.White,
-                    fontSize = 13.sp,
+                    fontSize = fontSize,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -1904,6 +2188,78 @@ private fun BarTypeIcon(kind: String) {
                         style = Stroke(1.3f * u)
                     )
                 }
+            }
+            // Build 218 kinds (the reference's per-type glyphs, drawn in the
+            // same 24-unit hand style): sticker = smiley, camera = video
+            // camera, vector = node polyline, drawing = freehand scribble,
+            // video = film frame, music = note, chain = link.
+            "sticker" -> {
+                drawCircle(c, radius = 7.5f * u, center = Offset(12f * u, 12f * u), style = Stroke(1.8f * u))
+                drawCircle(c, radius = 1.1f * u, center = Offset(9.3f * u, 10f * u))
+                drawCircle(c, radius = 1.1f * u, center = Offset(14.7f * u, 10f * u))
+                val smile = Path().apply {
+                    moveTo(8.8f * u, 13.8f * u)
+                    quadraticBezierTo(12f * u, 16.6f * u, 15.2f * u, 13.8f * u)
+                }
+                drawPath(smile, c, style = Stroke(1.8f * u, cap = StrokeCap.Round))
+            }
+            "camera" -> {
+                drawRoundRect(
+                    c, topLeft = Offset(3.5f * u, 8f * u), size = Size(11.5f * u, 8.5f * u),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(2f * u)
+                )
+                val tri = Path().apply {
+                    moveTo(15f * u, 11f * u); lineTo(20.5f * u, 8.5f * u)
+                    lineTo(20.5f * u, 16f * u); lineTo(15f * u, 13.5f * u); close()
+                }
+                drawPath(tri, c)
+            }
+            "vector" -> {
+                val pts = listOf(5f to 18f, 9.5f to 7f, 14.5f to 14f, 19f to 5.5f)
+                for (i in 0 until pts.size - 1) {
+                    drawLine(
+                        c, Offset(pts[i].first * u, pts[i].second * u),
+                        Offset(pts[i + 1].first * u, pts[i + 1].second * u),
+                        1.7f * u, StrokeCap.Round
+                    )
+                }
+                pts.forEach { pt -> drawCircle(c, radius = 1.9f * u, center = Offset(pt.first * u, pt.second * u)) }
+            }
+            "drawing" -> {
+                val scribble = Path().apply {
+                    moveTo(4f * u, 15f * u)
+                    cubicTo(7f * u, 6f * u, 10f * u, 19f * u, 13f * u, 10f * u)
+                    cubicTo(15f * u, 5f * u, 17.5f * u, 12f * u, 20f * u, 9f * u)
+                }
+                drawPath(scribble, c, style = Stroke(1.9f * u, cap = StrokeCap.Round))
+            }
+            "video" -> {
+                drawRoundRect(
+                    c, topLeft = Offset(4f * u, 5.5f * u), size = Size(16f * u, 13f * u),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.5f * u),
+                    style = Stroke(1.8f * u)
+                )
+                drawLine(c, Offset(9f * u, 5.5f * u), Offset(9f * u, 18.5f * u), 1.4f * u)
+                drawLine(c, Offset(15f * u, 5.5f * u), Offset(15f * u, 18.5f * u), 1.4f * u)
+            }
+            "music" -> {
+                drawCircle(c, radius = 2.6f * u, center = Offset(8.5f * u, 17f * u))
+                drawCircle(c, radius = 2.6f * u, center = Offset(17.5f * u, 15f * u))
+                drawLine(c, Offset(11.1f * u, 17f * u), Offset(11.1f * u, 6.5f * u), 1.8f * u, StrokeCap.Round)
+                drawLine(c, Offset(20.1f * u, 15f * u), Offset(20.1f * u, 4.5f * u), 1.8f * u, StrokeCap.Round)
+                drawLine(c, Offset(11.1f * u, 6.5f * u), Offset(20.1f * u, 4.5f * u), 2.2f * u, StrokeCap.Round)
+            }
+            "chain" -> {
+                drawRoundRect(
+                    c, topLeft = Offset(3.5f * u, 9f * u), size = Size(10f * u, 6.5f * u),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(3.25f * u),
+                    style = Stroke(1.9f * u)
+                )
+                drawRoundRect(
+                    c, topLeft = Offset(10.5f * u, 9f * u), size = Size(10f * u, 6.5f * u),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(3.25f * u),
+                    style = Stroke(1.9f * u)
+                )
             }
             else -> drawCircle(c, radius = 4f * u, center = Offset(12f * u, 12f * u))
         }

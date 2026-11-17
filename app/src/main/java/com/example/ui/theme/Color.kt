@@ -148,5 +148,29 @@ val RefPillBg = Color(0xFF1D1D24)
 val RefPillBorder = Color(0xFF2A2A34)
 /** fx badge fill of the reference. */
 val RefFxBadge = Color(0xFF27272E)
+
+/** Build 218 (Sarowar's HTML reference v3, ai_studio_code__39.html): the
+ *  layer-bar colours the new reference changes or adds. Media / music /
+ *  text / shape / null / overlay keep their build-217 hexes. */
+/** Sticker bar — the reference's amber (was the fx magenta in 217). */
+val ClipStickerAmber = Color(0xFFF59E0B)
+/** Vector (Pen) bar — the reference's cyan. */
+val ClipVectorCyan = Color(0xFF06B6D4)
+/** Drawing (freehand) bar — the reference's rose. */
+val ClipDrawingRose = Color(0xFFFB7185)
+/** 3D Camera bar — the reference's indigo (a flat bar now, not the quiet hollow). */
+val ClipCameraIndigo = Color(0xFF6366F1)
+/** Group bar — the reference's teal (was indigo in 217). */
+val ClipGroupTeal = Color(0xFF14B8A6)
+/** Chain section fill (build 218) and its selected fill. */
+val ChainSectionBg = Color(0xFF18181D)
+val ChainSectionBgSelected = Color(0xFF1D1D24)
+/** Chain section top/bottom hairlines (build 218). */
+val ChainSectionBorder = Color(0xFF262630)
+/** Chain bridge line between adjacent children (build 218). */
+val ChainBridge = Color(0xFF3A3A46)
+/** Empty-chain label ink (build 218); brighter while the section is selected. */
+val ChainEmptyInk = Color(0xFF71717A)
+val ChainEmptyInkSelected = Color(0xFFD4D4D8)
 /** Modal card border of the reference. */
 val RefCardBorder = Color(0xFF2D2D37)
