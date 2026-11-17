@@ -1,22 +1,12 @@
 package com.example.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
@@ -27,10 +17,8 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -42,7 +30,6 @@ import com.example.model.FILL_GRADIENT
 import com.example.model.FILL_NONE
 import com.example.model.FILL_SOLID
 import com.example.model.TimelineClip
-import com.example.model.cropVisibleRect
 import com.example.model.effectiveScalePercent
 import com.example.model.depthX
 import com.example.model.depthY
@@ -175,46 +162,31 @@ fun TextLayerContent(
 }
 
 /**
- * A text layer placed on the canvas: shows the transform (move / scale / rotate / 3D), can be
- * dragged, tapped (select) and double-tapped (open Text edit).
+ * A text layer placed on the canvas: shows the transform (move / scale / rotate / 3D).
+ *
+ * Build 225: this composable only DRAWS. Taps, double-taps and drags are measured by
+ * the fixed full-canvas CanvasDragLayer (the drag-shake fix — the handlers used to sit
+ * on an inner box covering the crop-visible part of THIS box, which moves with the
+ * layer, so every drag amount was measured in a space that had itself just moved).
+ * The crop law is unchanged: the drag layer's hit test hugs the same crop-visible
+ * rect (build 182/186), so a touch on a cropped-away part still falls through.
  */
 @Composable
 fun TextLayerOnCanvas(
     clip: TimelineClip,
     frameWidth: Dp,
     isSelected: Boolean,
-    onMove: (clipId: String, offsetX: Float, offsetY: Float) -> Unit,
-    /** Called when the drag ends (build 176: clears the snap guides). */
-    onDragEnd: () -> Unit = {},
-    onTap: (clipId: String) -> Unit,
-    onDoubleTap: (clipId: String) -> Unit,
     modifier: Modifier = Modifier,
     /** Reports the unscaled size of the text box (for the bounding box on the canvas). */
     onLayoutSize: (id: String, widthPx: Float, heightPx: Float) -> Unit = { _, _, _ -> },
     /** Drawn on top of the text inside the same transformed box (gradient handles). */
     overlay: @Composable androidx.compose.foundation.layout.BoxScope.() -> Unit = {},
-    /** The C++ preview draws this layer: keep the (invisible) box for size, selection and touch only. */
+    /** The C++ preview draws this layer: keep the (invisible) box for size and selection only. */
     hideContent: Boolean = false
 ) {
-    val x by rememberUpdatedState(clip.transformX)
-    val y by rememberUpdatedState(clip.transformY)
-    // Drag moves are stored before the depth factor, so the drag uses the plain scale.
-    val scale by rememberUpdatedState((clip.scalePercent / 100f).coerceAtLeast(0.01f))
-    val rotation by rememberUpdatedState(clip.rotationDeg)
-    val flipX by rememberUpdatedState(if (clip.isFlippedH) -1f else 1f)
-    val flipY by rememberUpdatedState(if (clip.isFlippedV) -1f else 1f)
-    val move by rememberUpdatedState(onMove)
-    val tap by rememberUpdatedState(onTap)
-    val doubleTap by rememberUpdatedState(onDoubleTap)
-    // Build 186: the layer's own measured size (the same numbers onLayoutSize reports),
-    // so the touch box below can be clipped to the visible (cropped) part of the box.
-    var boxSize by remember { mutableStateOf(IntSize.Zero) }
-    val densityNow = LocalDensity.current
-
     Box(
         modifier = modifier
             .onSizeChanged {
-                boxSize = it
                 onLayoutSize(clip.id, it.width.toFloat(), it.height.toFloat())
             }
             .graphicsLayer {
@@ -229,65 +201,6 @@ fun TextLayerOnCanvas(
                 cameraDistance = 12f * density
             }
     ) {
-        // Build 186: taps and drags live on an inner box covering only the VISIBLE part of
-        // the layer. Crop clips a text layer's own box in place (the cropMask below), so a
-        // touch on the cropped-away part must not select or drag the layer — it never
-        // reaches this box and falls through to whatever is beneath (the same
-        // cropVisibleRect law the selection frame follows, build 182). With no crop the
-        // rect is the whole box and nothing changes. The handlers themselves are the ones
-        // that used to sit on the outer box, moved unchanged: drag deltas are
-        // translation-invariant, and the tap handlers never read the touch offset. Until
-        // the first measure lands there is no touch box at all (one layout pass).
-        val visRect = if (boxSize.width > 0 && boxSize.height > 0) {
-            clip.cropVisibleRect(boxSize.width.toFloat(), boxSize.height.toFloat())
-        } else {
-            null
-        }
-        if (visRect != null) {
-            Box(
-                modifier = Modifier
-                    .offset(
-                        x = with(densityNow) { visRect.left.toDp() },
-                        y = with(densityNow) { visRect.top.toDp() }
-                    )
-                    .size(
-                        with(densityNow) { visRect.width.toDp() },
-                        with(densityNow) { visRect.height.toDp() }
-                    )
-                    .pointerInput(clip.id) {
-                        detectTapGestures(
-                            onTap = { tap(clip.id) },
-                            onDoubleTap = { doubleTap(clip.id) }
-                        )
-                    }
-                    .pointerInput(clip.id) {
-                        var dragX = 0f
-                        var dragY = 0f
-                        detectDragGestures(
-                            onDragStart = {
-                                dragX = x
-                                dragY = y
-                                tap(clip.id)
-                            },
-                            onDragEnd = { onDragEnd() },
-                            onDragCancel = { onDragEnd() },
-                            onDrag = { change, amount ->
-                                change.consume()
-                                // The drag arrives in the layer's own (scaled + rotated) space:
-                                // turn it back into canvas pixels.
-                                val rad = Math.toRadians(rotation.toDouble())
-                                val c = cos(rad).toFloat()
-                                val s = sin(rad).toFloat()
-                                val ax = amount.x * flipX
-                                val ay = amount.y * flipY
-                                dragX += (ax * c - ay * s) * scale
-                                dragY += (ax * s + ay * c) * scale
-                                move(clip.id, dragX, dragY)
-                            }
-                        )
-                    }
-            )
-        }
         TextLayerContent(
             clip = clip, frameWidth = frameWidth,
             modifier = Modifier.cropMask(clip).then(if (hideContent) Modifier.alpha(0f) else Modifier)

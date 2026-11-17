@@ -3146,6 +3146,8 @@ fun VideoEditorScreen(
                     selectedClipId = selectedClipId,
                     onTogglePlayPause = { viewModel.togglePlayPause() },
                     onUpdateClipTransform = { id, x, y -> viewModel.updateClipTransform(id, x, y) },
+                    onDragBake = { c, x, y -> viewModel.bakeDragClip(c, x, y) },
+                    canvasDragEnabled = true,
                     onClipSelect = { viewModel.selectClip(it) },
                     onTextDoubleTap = { id ->
                         viewModel.selectClip(id)

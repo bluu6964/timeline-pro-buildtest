@@ -35,7 +35,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -82,9 +81,7 @@ import androidx.compose.ui.unit.sp
 import com.example.model.AspectRatio
 import com.example.model.CanvasSnap
 import com.example.model.CropVisibleBox
-import com.example.model.CropVisibleRect
 import com.example.model.cropVisibleBox
-import com.example.model.cropVisibleRect
 import com.example.model.LayerType
 import com.example.model.SnapRect
 import com.example.model.at
@@ -123,6 +120,20 @@ fun CanvasArea(
     onUpdateClipTransform: (clipId: String, offsetX: Float, offsetY: Float) -> Unit = { _, _, _ -> },
     onClipSelect: (clipId: String) -> Unit = {},
     onTextDoubleTap: (clipId: String) -> Unit = {},
+    /**
+     * Build 225: the stored form a canvas move WOULD write (the ViewModel's bake) —
+     * the drag preview draws the dragged layer from it while a drag runs; the real
+     * commit at drag end still goes through [onUpdateClipTransform]. Default = no
+     * bake (the fullscreen player, where drags are inert as before).
+     */
+    onDragBake: (clip: TimelineClip, offsetX: Float, offsetY: Float) -> TimelineClip = { c, _, _ -> c },
+    /**
+     * Build 225: the fixed full-canvas drag layer for text / shape layers is live
+     * only where the caller wires real drag callbacks (the editor). The fullscreen
+     * player leaves it off — its build-224 handlers wrote to no-op callbacks, so
+     * layers there never moved, selected or opened; with the layer off they don't.
+     */
+    canvasDragEnabled: Boolean = false,
     /** Layer whose Color editor is open: its two gradient points are shown on the canvas. */
     gradientEditId: String? = null,
     onGradientPoints: (id: String, x1: Float, y1: Float, x2: Float, y2: Float) -> Unit = { _, _, _, _, _ -> },
@@ -198,6 +209,19 @@ fun CanvasArea(
             LaunchedEffect(frameW, frameH) {
                 onPreviewFrame(with(frameDensity) { frameW.toPx() }, frameDensity.density)
             }
+            // Build 225: the drag preview state. While a text / shape drag runs,
+            // the dragged layer is DISPLAYED from the bake of the proposed position
+            // (the stored form the end commit will write — see bakeIfLive and the
+            // engine tracks inside the frame); the project state itself is written
+            // once, at drag end, so a drag no longer rewrites the whole project
+            // (keyframe commit + Controller fan-out + a full recomposition of
+            // everything that reads the tracks) on every pointer event.
+            val dragBakeNow by mediaRememberUpdatedState(onDragBake)
+            var liveDrag by remember { mutableStateOf<LiveDragPos?>(null) }
+            val bakeIfLive: (TimelineClip) -> TimelineClip = { clip ->
+                val ld = liveDrag
+                if (ld != null && clip.id == ld.clipId) dragBakeNow(clip, ld.x, ld.y) else clip
+            }
             Box(
                 modifier = Modifier
                     .size(width = frameW, height = frameH)
@@ -228,10 +252,18 @@ fun CanvasArea(
                             .sortedBy { it.transformZ }
                     }
                 }
+                // Build 225: while a drag runs, the engine draws the dragged layer
+                // from its baked form (the stored form the end commit will write);
+                // every other layer is handed over exactly as stored.
+                val ldNow = liveDrag
+                val engineTracks = if (ldNow == null) nativeTracks else nativeTracks.map { tr ->
+                    if (tr.clips.none { it.id == ldNow.clipId }) tr
+                    else tr.copy(clips = tr.clips.map { c -> if (c.id == ldNow.clipId) dragBakeNow(c, ldNow.x, ldNow.y) else c })
+                }
                 if (nativePreview != null) {
                     NativePreviewSurface(
                         engine = nativePreview,
-                        tracks = nativeTracks,
+                        tracks = engineTracks,
                         playheadMs = playheadMs,
                         isPlaying = isPlaying,
                         canvasArgb = canvasArgb,
@@ -262,7 +294,13 @@ fun CanvasArea(
                 val snapSizesNow by mediaRememberUpdatedState(textSizes)
                 val snapEnabledNow by mediaRememberUpdatedState(snapEnabled)
                 val clearSnapGuides: () -> Unit = { snapGuideX = null; snapGuideY = null }
-                val snappedMove: (String, Float, Float) -> Unit = { id, sx, sy ->
+                // Build 225: the snap decision, split from the write. snappedMove keeps
+                // its build-224 shape (decide + write in one call) for the media and
+                // sticker paths; the text / shape drag layer decides per move event
+                // through computeSnapped and writes ONCE at drag end. [othersClips]
+                // lets that layer hand in the snap targets as they stand mid-drag
+                // (see overlayLiveMove); null = measure them from the project as-is.
+                val computeSnapped: (String, Float, Float, List<TimelineClip>?) -> Pair<Float, Float> = { id, sx, sy, othersClips ->
                     var outX = sx
                     var outY = sy
                     var gx: Float? = null
@@ -277,7 +315,7 @@ fun CanvasArea(
                         val moved = dragged.copy(transformX = sx, transformY = sy, shapeOffsetX = sx, shapeOffsetY = sy)
                         val rect = snapRectOf(moved, fwPx, fhPx, frameDensity.density, snapSizesNow, forDragged = true)
                         if (rect != null) {
-                            val others = clipsNow.filter { it.id != id }
+                            val others = (othersClips ?: clipsNow.filter { it.id != id })
                                 .mapNotNull { snapRectOf(it, fwPx, fhPx, frameDensity.density, snapSizesNow, forDragged = false) }
                             val res = CanvasSnap.snap(rect, fwPx, fhPx, others, 8f * frameDensity.density)
                             // Canvas px -> stored units: the stored position is drawn times the depth factor.
@@ -291,7 +329,39 @@ fun CanvasArea(
                     }
                     snapGuideX = gx
                     snapGuideY = gy
+                    outX to outY
+                }
+                val snappedMove: (String, Float, Float) -> Unit = { id, sx, sy ->
+                    val (outX, outY) = computeSnapped(id, sx, sy, null)
                     onUpdateClipTransform(id, outX, outY)
+                }
+                val overlayLiveMove: (String, Float, Float) -> Pair<Float, Float> = { id, sx, sy ->
+                    // A Controller drag in build 224 fanned its connected layers out
+                    // per event, so the snap targets stood at their fanned positions
+                    // (as of the previous event). Reproduce that stand for the snap
+                    // decision: the targets fanned by the drag's previous position.
+                    var others: List<TimelineClip>? = null
+                    val prev = liveDrag
+                    if (prev != null && prev.clipId == id && snapEnabledNow) {
+                        val t = playheadMs()
+                        val clipsNow = snapTracksNow.asReversed().flatMap { it.clips }
+                            .filter { it.isVisible && !it.isMask && it.isActiveAt(t) && !it.isBehindCamera }
+                            .map { com.example.engine.NativeRenderAt.renderAt(it, t, t) }
+                        val dragged = clipsNow.firstOrNull { it.id == id }
+                        if (dragged != null && dragged.type == LayerType.CONTROLLER) {
+                            val prevAfter = dragged.copy(transformX = prev.x, transformY = prev.y, shapeOffsetX = prev.x, shapeOffsetY = prev.y)
+                            others = clipsNow.filter { it.id != id }
+                                .map { com.example.model.ControllerFanOut.fanned(it, dragged, prevAfter, t) }
+                        }
+                    }
+                    val snapped = computeSnapped(id, sx, sy, others)
+                    liveDrag = LiveDragPos(id, snapped.first, snapped.second)
+                    snapped
+                }
+                val overlayCommit: (String, Float, Float) -> Unit = { id, x, y ->
+                    liveDrag = null
+                    onUpdateClipTransform(id, x, y)
+                    clearSnapGuides()
                 }
                 if (activeMediaClips.isNotEmpty()) {
                     // Tap a picture / video to select it, drag to move it (like text and shapes).
@@ -349,7 +419,7 @@ fun CanvasArea(
                             .asReversed()
                             .flatMap { it.clips }
                             .filter { it.isVisible && !it.isMask && (it.type == LayerType.SHAPE || it.type == LayerType.NULL || it.type == LayerType.GROUP || it.type == LayerType.CONTROLLER || it.type == LayerType.STICKER || it.text != null) && it.isActiveAt(t) }
-                            .map { com.example.engine.NativeRenderAt.renderAt(it, t, t) }
+                            .map { com.example.engine.NativeRenderAt.renderAt(bakeIfLive(it), t, t) }
                             .filter { !it.isBehindCamera }
                             .sortedBy { it.transformZ }
                     }
@@ -379,10 +449,6 @@ fun CanvasArea(
                         clip = clip,
                         frameWidth = frameW,
                         isSelected = clip.id == selectedClipId,
-                        onMove = snappedMove,
-                        onDragEnd = clearSnapGuides,
-                        onTap = onClipSelect,
-                        onDoubleTap = onTextDoubleTap,
                         hideContent = com.example.engine.nativeTextEligible(clip),
                         modifier = Modifier.align(Alignment.Center),
                         onLayoutSize = { id, w, h -> textSizes[id] = androidx.compose.ui.geometry.Size(w, h) },
@@ -397,8 +463,6 @@ fun CanvasArea(
                         }
                     )
                   } else {
-                    val latestShape by androidx.compose.runtime.rememberUpdatedState(clip)
-
                     val effectiveTransX = clip.depthX
                     val effectiveTransY = clip.depthY
                     val effectiveScale = clip.effectiveScalePercent / 100f
@@ -420,60 +484,15 @@ fun CanvasArea(
                             }
                             .size(baseSize)
                     ) {
-                        // Build 186: the touch box hugs the VISIBLE part of the layer. Crop clips a
-                        // shape's own box in place (build 182), so the drag lives on an inner box
-                        // covering only the cropped window (model/CropBounds.cropVisibleRect — the
-                        // same law the selection frame follows): a drag starting on the cropped-away
-                        // part never reaches this box and falls through to whatever is beneath, as
-                        // if that part were not there. Null / Group / Controller have no cropped
-                        // picture, so their touch box stays the whole box, exactly as before. The
-                        // drag deltas are translation-invariant, so moving the handler onto the
-                        // offset inner box changes nothing once a drag has started inside it.
-                        val boxPx = with(frameDensity) { baseSize.toPx() }
-                        val touchRect = if (clip.type == LayerType.SHAPE) {
-                            clip.cropVisibleRect(boxPx, boxPx) ?: CropVisibleRect(0f, 0f, boxPx, boxPx)
-                        } else {
-                            CropVisibleRect(0f, 0f, boxPx, boxPx)
-                        }
-                        Box(
-                            modifier = Modifier
-                                .offset(
-                                    x = with(frameDensity) { touchRect.left.toDp() },
-                                    y = with(frameDensity) { touchRect.top.toDp() }
-                                )
-                                .size(
-                                    with(frameDensity) { touchRect.width.toDp() },
-                                    with(frameDensity) { touchRect.height.toDp() }
-                                )
-                                .pointerInput(clip.id) {
-                                    var currentDragX = 0f
-                                    var currentDragY = 0f
-                                    detectDragGestures(
-                                        onDragStart = {
-                                            currentDragX = latestShape.transformX
-                                            currentDragY = latestShape.transformY
-                                        },
-                                        onDragEnd = { clearSnapGuides() },
-                                        onDragCancel = { clearSnapGuides() },
-                                        onDrag = { change, dragAmount ->
-                                            change.consume()
-                                            // The finger moves in the layer's own space (scaled, rotated and
-                                            // maybe flipped): turn it back into canvas pixels.
-                                            val l = latestShape
-                                            val rad = Math.toRadians(l.rotationDeg.toDouble())
-                                            val c = Math.cos(rad).toFloat()
-                                            val sn = Math.sin(rad).toFloat()
-                                            val sc = (l.scalePercent / 100f).coerceAtLeast(0.01f) // stored moves are before the depth factor
-                                            val sx = sc * (if (l.isFlippedH) -1f else 1f)
-                                            val sy = sc * (if (l.isFlippedV) -1f else 1f)
-                                            currentDragX += dragAmount.x * sx * c - dragAmount.y * sy * sn
-                                            currentDragY += dragAmount.x * sx * sn + dragAmount.y * sy * c
-                                            snappedMove(l.id, currentDragX, currentDragY)
-                                        }
-                                    )
-                                }
-                        )
-                        // The shape picture is drawn by the C++ engine (NativePreviewEngine); this box only takes the touch.
+                        // Build 225: this box only DRAWS now (the marker below and the
+                        // gradient handles). The drag that used to live on an inner
+                        // touch box here — hugging the crop-visible window (build 186)
+                        // — is measured by the fixed full-canvas CanvasDragLayer,
+                        // whose hit test hugs the same crop-visible box in canvas
+                        // space: a drag starting on the cropped-away part still
+                        // falls through to whatever is beneath, as if that part
+                        // were not there.
+                        // The shape picture is drawn by the C++ engine (NativePreviewEngine).
                         // Helper layers have no picture: a GROUP shows this editing marker (dashed box + cross),
                         // never exported. A Null / Controller shows NOTHING while unselected (build 155 —
                         // Sarowar's display correction, CanvasMarkRule); selected, the white bounding box
@@ -508,6 +527,23 @@ fun CanvasArea(
                     }
                 }
                 }
+                }
+
+                // Build 225: the fixed full-canvas gesture layer for the text /
+                // shape-family layers drawn above (below the selection frame, so
+                // its handles keep priority through consumption — see
+                // CanvasDragLayer). Off where the caller wires no real drag
+                // callbacks (the fullscreen player).
+                if (canvasDragEnabled && activeOverlayClips.isNotEmpty()) {
+                    CanvasDragLayer(
+                        clips = activeOverlayClips,
+                        textSizes = textSizes,
+                        onSelect = onClipSelect,
+                        onDoubleTap = onTextDoubleTap,
+                        onMove = overlayLiveMove,
+                        onCommit = overlayCommit,
+                        modifier = Modifier.fillMaxSize()
+                    )
                 }
 
                 // Bounding box of the selected shape / text layer (Alight Motion style).
@@ -630,7 +666,7 @@ fun CanvasArea(
                     tracks.flatMap { it.clips }.firstOrNull {
                         it.id == selectedClipId && it.type == LayerType.VIDEO &&
                             it.isVisible && it.uri != null && it.isActiveAt(t)
-                    }?.let { com.example.engine.NativeRenderAt.renderAt(it, t, t) }
+                    }?.let { com.example.engine.NativeRenderAt.renderAt(bakeIfLive(it), t, t) }
                 }
             }
             val mediaSel = selMedia
@@ -658,6 +694,9 @@ fun CanvasArea(
         }
     }
 }
+
+/** Build 225: an in-flight canvas drag's latest applied (snapped) stored position. */
+private data class LiveDragPos(val clipId: String, val x: Float, val y: Float)
 
 /** Size (px) of the visible part of a media layer: the picture fitted into the canvas, after crop. */
 internal fun mediaVisibleSize(mc: com.example.model.TimelineClip, fw: Float, fh: Float): androidx.compose.ui.geometry.Size {

@@ -2264,28 +2264,53 @@ class VideoEditorViewModel : ViewModel() {
         val before = clipNow(clipId)
         _tracks.value = _tracks.value.map { track ->
             track.copy(clips = track.clips.map { clip ->
-                if (clip.id == clipId) {
-                    // The canvas draws a tracked layer at (own position + tracking offset); take the
-                    // tracking offset out again so only the user's own move is stored.
-                    val (fx, fy) = clip.trackOffsetAt(_currentPlayheadMs.value)
-                    val ox = offsetX - fx
-                    val oy = offsetY - fy
-                    // Built on the layer as it looks at the playhead, so a moved layer with position
-                    // keyframes gets a keyframe at the playhead instead of silently changing the stored value.
-                    commitKeyframed(clip, clip.at(_currentPlayheadMs.value).copy(
-                        shapeOffsetX = ox,
-                        shapeOffsetY = oy,
-                        shapeScaleX = scaleX,
-                        shapeScaleY = scaleY,
-                        transformX = ox,
-                        transformY = oy,
-                        scalePercent = if (scaleX != 1f) (scaleX * 100f).coerceAtLeast(1f) else clip.scalePercent
-                    ), vsResolved = true)
-                } else clip
+                if (clip.id == clipId) bakedMove(clip, offsetX, offsetY, scaleX, scaleY) else clip
             })
         }
         if (before != null) applyControllerFanOut(before)
     }
+
+    /**
+     * The stored form a canvas move of [clip] to the drawn position ([offsetX], [offsetY])
+     * takes: the tracking offset taken back out, built on the layer as it looks at the
+     * playhead and run through the keyframe rule — exactly the value [updateClipTransform]
+     * writes for the moved layer.
+     */
+    private fun bakedMove(
+        clip: TimelineClip,
+        offsetX: Float,
+        offsetY: Float,
+        scaleX: Float,
+        scaleY: Float
+    ): TimelineClip {
+        // The canvas draws a tracked layer at (own position + tracking offset); take the
+        // tracking offset out again so only the user's own move is stored.
+        val (fx, fy) = clip.trackOffsetAt(_currentPlayheadMs.value)
+        val ox = offsetX - fx
+        val oy = offsetY - fy
+        // Built on the layer as it looks at the playhead, so a moved layer with position
+        // keyframes gets a keyframe at the playhead instead of silently changing the stored value.
+        return commitKeyframed(clip, clip.at(_currentPlayheadMs.value).copy(
+            shapeOffsetX = ox,
+            shapeOffsetY = oy,
+            shapeScaleX = scaleX,
+            shapeScaleY = scaleY,
+            transformX = ox,
+            transformY = oy,
+            scalePercent = if (scaleX != 1f) (scaleX * 100f).coerceAtLeast(1f) else clip.scalePercent
+        ), vsResolved = true)
+    }
+
+    /**
+     * Build 225: the stored form [updateClipTransform] WOULD write if the stored [clip]
+     * were moved to the drawn position ([offsetX], [offsetY]) — computed WITHOUT writing
+     * anything. The canvas drag preview draws from this bake while a drag runs (no
+     * per-event keyframe commit, no per-event Controller fan-out); the one real commit
+     * at drag end goes through [updateClipTransform] itself, so the end state is the
+     * same computation, not a copy of it.
+     */
+    fun bakeDragClip(clip: TimelineClip, offsetX: Float, offsetY: Float): TimelineClip =
+        bakedMove(clip, offsetX, offsetY, 1f, 1f)
 
     /**
      * Moves several layers by per-layer deltas (STORED units) as ONE undo step — the write
