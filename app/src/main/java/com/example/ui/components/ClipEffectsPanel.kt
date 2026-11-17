@@ -849,7 +849,7 @@ private fun FxTileArtwork(def: FxDef, modifier: Modifier = Modifier) {
  */
 @Composable
 fun FxInfoDialog(def: FxDef, onDismiss: () -> Unit) {
-    androidx.compose.material3.AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
         containerColor = com.example.ui.theme.AmPanel,
         shape = RoundedCornerShape(AmCornerCard),

@@ -141,8 +141,8 @@ val AmCornerChip = 6.dp
 val AmCornerMicro = 4.dp
 /**
  * The bottom-sheet shape (build 207): [AmCornerSheet] top corners, square
- * bottom (the sheet sits on the screen edge). Every ModalBottomSheet in the
- * UI layer uses this one shape.
+ * bottom (the sheet sits on the screen edge). Every bottom sheet in the
+ * UI layer (AppBottomSheet since build 226) uses this one shape.
  */
 val AmSheetShape = RoundedCornerShape(topStart = AmCornerSheet, topEnd = AmCornerSheet)
 

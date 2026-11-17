@@ -122,7 +122,7 @@ fun PillToolItem(
 /**
  * Build 207 — the centred drag-handle pill every bottom sheet carries:
  * a 36 x 5 dp capsule in the raised-surface grey, with breathing room above
- * and below. Pass it as a ModalBottomSheet's `dragHandle`.
+ * and below. Pass it as an AppBottomSheet's `dragHandle`.
  */
 @Composable
 fun SheetDragHandle() {

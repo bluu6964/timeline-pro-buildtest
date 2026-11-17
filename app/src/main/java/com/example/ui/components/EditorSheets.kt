@@ -60,12 +60,10 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -156,9 +154,8 @@ fun AspectRatioSheet(
 ) {
     var showPicker by remember { mutableStateOf(false) }
 
-    ModalBottomSheet(
+    AppBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = AmPanel,
         shape = AmSheetShape,
         dragHandle = { SheetDragHandle() }
@@ -311,7 +308,7 @@ fun ResolutionSheet(
     onResolutionSelected: (PreviewResolution) -> Unit,
     onDismiss: () -> Unit
 ) {
-    ModalBottomSheet(
+    AppBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = AmPanel,
         shape = AmSheetShape,
@@ -425,6 +422,7 @@ fun ExportModalDialog(
             decorFitsSystemWindows = false
         )
     ) {
+        DialogMotion180(fadeOnly = true)
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -911,7 +909,7 @@ fun AddAudioSheet(
     onExtractFromVideo: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    ModalBottomSheet(
+    AppBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = AmPanel,
         shape = AmSheetShape,
@@ -985,7 +983,7 @@ fun AddTextSheet(
     var textInput by remember { mutableStateOf("আমার নতুন ভিডিও") }
     var selectedColor by remember { mutableStateOf(0xFFFFFFFF) }
 
-    ModalBottomSheet(
+    AppBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = AmPanel,
         shape = AmSheetShape,
@@ -1063,9 +1061,8 @@ fun AddShapeSheet(
     onAddShape: (name: String, pattern: String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    ModalBottomSheet(
+    AppBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = AmPanel,
         shape = AmSheetShape,
         dragHandle = { SheetDragHandle() }
@@ -1245,6 +1242,7 @@ fun FullscreenPlayerModal(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
+        DialogMotion180(fadeOnly = true)
         Box(
             modifier = Modifier
                 .enterPop()

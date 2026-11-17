@@ -25,7 +25,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -138,7 +137,7 @@ fun TemplatesDialog(
         durationMs = carouselSeconds * 1000L,
         clockwise = carouselClockwise
     )
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
         containerColor = AmPanel,
         shape = RoundedCornerShape(AmCornerCard),
@@ -367,7 +366,7 @@ fun TemplatesDialog(
         }
     )
     pendingDelete?.let { tpl ->
-        AlertDialog(
+        AppAlertDialog(
             onDismissRequest = { pendingDelete = null },
             containerColor = AmPanel,
             shape = RoundedCornerShape(AmCornerCard),

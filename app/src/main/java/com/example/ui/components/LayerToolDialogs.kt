@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -42,7 +41,7 @@ fun RenameLayerDialog(
     onDismiss: () -> Unit
 ) {
     var text by remember { mutableStateOf(initial) }
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
         containerColor = AmPanel,
         shape = RoundedCornerShape(AmCornerCard),
@@ -74,7 +73,7 @@ fun SaveTemplateDialog(
     onDismiss: () -> Unit
 ) {
     var text by remember { mutableStateOf(initial) }
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
         containerColor = AmPanel,
         shape = RoundedCornerShape(AmCornerCard),

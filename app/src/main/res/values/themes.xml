@@ -2,4 +2,17 @@
 <resources>
 
     <style name="Theme.MyApplication" parent="android:Theme.DeviceDefault.NoActionBar" />
+
+    <!-- Build 226: dialog window animations on the standard chrome
+         spec (180 ms, fast_out_slow_in — see res/anim/dialog_motion_*).
+         Applied per-window from DialogMotion180 in AppDialog.kt. -->
+    <style name="TimelinePro_DialogMotion">
+        <item name="android:windowEnterAnimation">@anim/dialog_motion_enter</item>
+        <item name="android:windowExitAnimation">@anim/dialog_motion_exit</item>
+    </style>
+
+    <style name="TimelinePro_DialogMotionFade">
+        <item name="android:windowEnterAnimation">@anim/dialog_motion_fade_enter</item>
+        <item name="android:windowExitAnimation">@anim/dialog_motion_fade_exit</item>
+    </style>
 </resources>

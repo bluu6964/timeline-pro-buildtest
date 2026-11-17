@@ -32,7 +32,6 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -382,7 +381,7 @@ fun ProjectsDialog(
 
     renaming?.let { p ->
         var text by remember(p.id) { mutableStateOf(p.name) }
-        AlertDialog(
+        AppAlertDialog(
             onDismissRequest = { renaming = null },
             containerColor = DialogFill,
             shape = RoundedCornerShape(AmCornerCard),
@@ -401,7 +400,7 @@ fun ProjectsDialog(
     }
 
     deleting?.let { p ->
-        AlertDialog(
+        AppAlertDialog(
             onDismissRequest = { deleting = null },
             containerColor = DialogFill,
             shape = RoundedCornerShape(AmCornerCard),

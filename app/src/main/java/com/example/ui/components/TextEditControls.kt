@@ -172,6 +172,7 @@ fun ColorPickerDialog(
     val hueColor = Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, 1f, 1f)))
 
     Dialog(onDismissRequest = onDismiss) {
+        DialogMotion180(fadeOnly = false)
         Column(
             modifier = Modifier
                 .enterPop()

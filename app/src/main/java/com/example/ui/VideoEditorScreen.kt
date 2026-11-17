@@ -371,7 +371,7 @@ fun VideoEditorScreen(
         }
     }
     askModelDownload?.let { pending ->
-        androidx.compose.material3.AlertDialog(
+        com.example.ui.components.AppAlertDialog(
             onDismissRequest = { askModelDownload = null },
             containerColor = AmPanel,
             shape = androidx.compose.foundation.shape.RoundedCornerShape(AmCornerCard),
@@ -498,7 +498,7 @@ fun VideoEditorScreen(
     askFaceAi?.let { pending ->
         val modelReady = com.example.engine.FaceModelDownloader.isDownloaded(context)
         val hasBlur = pending.faceBlurDir != null
-        androidx.compose.material3.AlertDialog(
+        com.example.ui.components.AppAlertDialog(
             onDismissRequest = { askFaceAi = null },
             containerColor = AmPanel,
             shape = androidx.compose.foundation.shape.RoundedCornerShape(AmCornerCard),
@@ -665,7 +665,7 @@ fun VideoEditorScreen(
     }
     askCaptions?.let { pending ->
         val modelReady = com.example.engine.WhisperModelDownloader.isDownloaded(context)
-        androidx.compose.material3.AlertDialog(
+        com.example.ui.components.AppAlertDialog(
             onDismissRequest = { askCaptions = null },
             containerColor = AmPanel,
             shape = androidx.compose.foundation.shape.RoundedCornerShape(AmCornerCard),
@@ -1243,7 +1243,7 @@ fun VideoEditorScreen(
 
     removeMenuFor?.let { id ->
         val hasPatch = tracks.flatMap { it.clips }.firstOrNull { it.id == id }?.planarRemove != null
-        androidx.compose.material3.AlertDialog(
+        com.example.ui.components.AppAlertDialog(
             onDismissRequest = { removeMenuFor = null },
             containerColor = AmPanel,
             shape = androidx.compose.foundation.shape.RoundedCornerShape(AmCornerCard),
@@ -1752,7 +1752,7 @@ fun VideoEditorScreen(
     }
     askFaceSwap?.let { pending ->
         val modelReady = com.example.engine.FaceModelDownloader.isDownloaded(context)
-        androidx.compose.material3.AlertDialog(
+        com.example.ui.components.AppAlertDialog(
             onDismissRequest = { askFaceSwap = null },
             containerColor = AmPanel,
             shape = androidx.compose.foundation.shape.RoundedCornerShape(AmCornerCard),
@@ -1814,7 +1814,7 @@ fun VideoEditorScreen(
         val clip = tracks.flatMap { it.clips }.firstOrNull { it.id == id }
         val has = clip != null && com.example.engine.StabilizeBuilder.isStabilize(clip)
         val followerPin = clip?.cornerPin != null && !has
-        androidx.compose.material3.AlertDialog(
+        com.example.ui.components.AppAlertDialog(
             onDismissRequest = { stabilizeMenuFor = null },
             containerColor = AmPanel,
             shape = androidx.compose.foundation.shape.RoundedCornerShape(AmCornerCard),
@@ -5573,6 +5573,7 @@ fun VideoEditorScreen(
                 onDismissRequest = { showClipCropSheet = false },
                 properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
             ) {
+                com.example.ui.components.DialogMotion180(fadeOnly = true)
                 com.example.ui.components.CropView(
                     // The layer as it looks at the playhead (keyframes applied).
                     clip = selectedClip?.at(playheadState.value),
@@ -5974,7 +5975,7 @@ fun VideoEditorScreen(
     }
 
     projectBusy?.let { msg ->
-        androidx.compose.material3.AlertDialog(
+        com.example.ui.components.AppAlertDialog(
             onDismissRequest = {},
             containerColor = AmPanel,
             shape = androidx.compose.foundation.shape.RoundedCornerShape(AmCornerCard),
@@ -6259,6 +6260,7 @@ fun VideoEditorScreen(
             onDismissRequest = { showEditShapeMode = false; editShapeClipId = null },
             properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
         ) {
+            com.example.ui.components.DialogMotion180(fadeOnly = true)
             com.example.ui.components.EditShapeView(
                 aspectRatio = selectedAspectRatio,
                 currentPlayheadMs = playheadState.value,
@@ -6422,6 +6424,7 @@ fun VideoEditorScreen(
             onDismissRequest = { showAppliedEffectsMode = false },
             properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
         ) {
+            com.example.ui.components.DialogMotion180(fadeOnly = true)
             AppliedEffectsView(
                 aspectRatio = selectedAspectRatio,
                 onDismiss = { showAppliedEffectsMode = false },

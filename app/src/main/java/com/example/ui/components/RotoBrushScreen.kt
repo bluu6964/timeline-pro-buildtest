@@ -268,6 +268,7 @@ fun RotoBrushScreen(
         onDismissRequest = { if (runJob == null) onClose() },
         properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = false)
     ) {
+        DialogMotion180(fadeOnly = true)
         Column(
             Modifier
                 .fillMaxSize()

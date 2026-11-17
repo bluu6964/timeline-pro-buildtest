@@ -26,7 +26,6 @@ import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.PlayCircleOutline
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -73,7 +72,7 @@ fun ClipEffectsSheet(
         "Dream Glow"
     )
 
-    ModalBottomSheet(
+    AppBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = AmPanel,
         shape = AmSheetShape,
@@ -134,7 +133,7 @@ fun ClipReplaceSheet(
         Triple(R.drawable.sample_cyan_dots_1791121437975, "Cyan Graphic", "Alpha Overlay")
     )
 
-    ModalBottomSheet(
+    AppBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = AmPanel,
         shape = AmSheetShape,
@@ -192,7 +191,7 @@ fun ClipBlendSheet(
 ) {
     val blendModes = listOf("Normal", "Screen", "Multiply", "Overlay", "Lighten", "Darken", "Color Dodge")
 
-    ModalBottomSheet(
+    AppBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = AmPanel,
         shape = AmSheetShape,
@@ -244,7 +243,7 @@ fun ClipCropSheet(
 ) {
     val cropRatios = listOf("Free", "1:1", "16:9", "9:16", "4:3", "21:9")
 
-    ModalBottomSheet(
+    AppBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = AmPanel,
         shape = AmSheetShape,
