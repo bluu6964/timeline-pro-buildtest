@@ -179,7 +179,7 @@ fun CanvasArea(
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 0.dp, vertical = 4.dp),
+                .padding(horizontal = 6.dp, vertical = 0.dp), // build 217: the reference's preview gutter
             contentAlignment = Alignment.Center
         ) {
             val maxW = maxWidth
@@ -201,8 +201,9 @@ fun CanvasArea(
             Box(
                 modifier = Modifier
                     .size(width = frameW, height = frameH)
-                    .clip(RectangleShape)
-                    .background(canvasColor),
+                    .clip(RoundedCornerShape(6.dp)) // build 217: the reference's canvas corners
+                    .background(canvasColor)
+                    .border(1.dp, Color(0xFF1E1E24), RoundedCornerShape(6.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 val anyActiveClip by remember(tracks) {

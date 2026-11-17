@@ -31,6 +31,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -71,197 +72,220 @@ fun EditorHeader(
     aspectRatio: AspectRatio,
     onBackClick: () -> Unit,
     onAspectRatioClick: () -> Unit,
-    /** The icon next to the close button: saves the current frame as a PNG. */
-    onSaveFrameClick: () -> Unit,
     onExportClick: () -> Unit,
     modifier: Modifier = Modifier,
-    /** Text of the resolution pill, e.g. "1080P". */
+    /** Text of the resolution pill: the app's REAL current export resolution, e.g. "1080P". */
     resolutionLabel: String = "1080P",
-    onResolutionClick: () -> Unit = onAspectRatioClick,
-    /** Build 214: the open project's name, shown at the bar's left. */
-    projectName: String = "",
-    // Build 216: undo / redo moved DOWN to the workspace controls row —
-    // at 360 dp the app bar (close, name, save-frame, resolution, export)
-    // has no room for them, and the reference's bar carries none.
     /**
-     * Build 216: the resolution pill's popover — the app's REAL export
-     * resolutions (labels as stored in ExportSettings). Non-empty = the
-     * pill opens this popover instead of [onResolutionClick]; the current
-     * value (the raw stored label) gets the ✓. The mock's 2K / 4K are NOT
-     * offered: the exporter caps at 1080p (ExportMaxResolution).
+     * Build 217: the resolution pill's popover lists the app's REAL export
+     * resolutions (the stored ExportSettings labels); the current one is
+     * the lime-tinted active item. The popover's position and style copy
+     * Sarowar's HTML reference; the values are the app's own.
      */
     resolutionOptions: List<String> = emptyList(),
     currentResolution: String = "",
-    onResolutionPick: (String) -> Unit = {}
+    onResolutionPick: (String) -> Unit = {},
+    /** Build 217: the aspect-ratio popover lists the app's REAL canvas ratios; the current one is active. */
+    ratioOptions: List<AspectRatio> = emptyList(),
+    onRatioPick: (AspectRatio) -> Unit = {}
 ) {
-    // Build 216 (Sarowar's HTML reference): the bar is FLAT on white —
-    // the glass pill is gone. Controls are 44 dp pill-surface buttons
-    // (r13); the slot is ~44 dp, so a button is the slot height minus
-    // breathing room, floored at the 40 dp touch minimum.
-    val btnH = (height - 4.dp).coerceIn(40.dp, 44.dp)
-    Box(
+    // Build 217 (Sarowar's HTML reference, copied exactly): the bar is
+    // flat on the app background, padding 8 / 14. Left: ONLY the close
+    // button (42 dp, r12, surface fill, white-4% border). Right group
+    // (gap 10): the aspect-ratio icon button (42 dp), the resolution
+    // pill (42 dp tall, r12, surface), and EXPORT as a 42 dp LIME icon
+    // button with the lime glow. No project name, no save-frame button
+    // (Save frame lives in the timeline options sheet now).
+    val btnShape = RoundedCornerShape(12.dp)
+    val btnBorder = Color.White.copy(alpha = 0.04f)
+    Row(
         modifier = modifier
             .fillMaxWidth()
             .height(height)
             .background(AmBase)
-            .padding(horizontal = 8.dp),
-        contentAlignment = Alignment.Center
+            .padding(horizontal = 14.dp)
+            .testTag("editor_top_bar"),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(height),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // ── Close ──────────────────────────────────────────
-                Box(
-                    modifier = Modifier
-                        .size(btnH)
-                        .clip(RoundedCornerShape(13.dp))
-                        .background(AmPanelHigh)
-                        .semantics { contentDescription = "Back to projects" }
-                        .bouncyClickable(pressedScale = 0.92f, onClick = onBackClick)
-                        .testTag("header_back_button"),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Canvas(Modifier.size(15.dp)) {
-                        val c = TextPrimary
-                        val w = 2.7.dp.toPx()
-                        val m = w / 2f
-                        drawLine(c, Offset(m, m), Offset(size.width - m, size.height - m), w, StrokeCap.Round)
-                        drawLine(c, Offset(size.width - m, m), Offset(m, size.height - m), w, StrokeCap.Round)
-                    }
-                }
-
-                // ── Project name (the app bar's identity, left) ────
-                Text(
-                    projectName,
-                    color = TextPrimary,
-                    fontSize = 14.5.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(start = 10.dp, end = 4.dp)
-                        .testTag("header_project_name")
-                )
-
-                // ── Save frame: current frame -> PNG in the gallery ──
-                Box(
-                    modifier = Modifier
-                        .size(btnH)
-                        .clip(RoundedCornerShape(13.dp))
-                        .background(AmPanelHigh)
-                        .semantics { contentDescription = "Save frame as picture" }
-                        .bouncyClickable(onClick = onSaveFrameClick)
-                        .testTag("header_save_frame_button"),
-                    contentAlignment = Alignment.Center
-                ) {
-                    SaveFrameGlyph()
-                }
-
-                // ── Resolution pill (build 216: pill surface, r13, opens
-                // the export-resolution popover) ──────────────────────
-                var resMenuOpen by remember { mutableStateOf(false) }
-                Box {
-                    Box(
-                        modifier = Modifier
-                            .height(btnH)
-                            .clip(RoundedCornerShape(13.dp))
-                            .background(AmPanelHigh)
-                            .semantics { contentDescription = "Export resolution" }
-                            .bouncyClickable(pressedScale = 0.95f, onClick = {
-                                if (resolutionOptions.isNotEmpty()) resMenuOpen = true else onResolutionClick()
-                            })
-                            .testTag("header_resolution_pill"),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 11.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(resolutionLabel, color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                            Spacer(Modifier.width(5.dp))
-                            Canvas(Modifier.size(width = 8.dp, height = 5.5.dp)) {
-                                val p = Path().apply {
-                                    moveTo(0f, 0f); lineTo(size.width, 0f); lineTo(size.width / 2f, size.height); close()
-                                }
-                                drawPath(p, TextPrimary)
-                                drawPath(p, TextPrimary, style = Stroke(1.2.dp.toPx(), join = StrokeJoin.Round))
-                            }
-                        }
-                    }
-                    DropdownMenu(
-                        expanded = resMenuOpen,
-                        onDismissRequest = { resMenuOpen = false },
-                        modifier = Modifier
-                            .background(Color.White, RoundedCornerShape(14.dp))
-                    ) {
-                        resolutionOptions.forEach { option ->
-                            val isCurrent = option == currentResolution
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        option.substringBefore(' ').uppercase(),
-                                        color = TextPrimary, fontSize = 13.5.sp,
-                                        fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium
-                                    )
-                                },
-                                trailingIcon = if (isCurrent) {
-                                    { Text("✓", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
-                                } else null,
-                                onClick = {
-                                    resMenuOpen = false
-                                    onResolutionPick(option)
-                                }
-                            )
-                        }
-                    }
-                }
-
-                Spacer(Modifier.width(6.dp))
-
-                // ── Export (build 216): the lime icon button, 44 dp, r13,
-                // dark glyph — the reference's one lime control up here. ──
-                Box(
-                    modifier = Modifier
-                        .size(btnH)
-                        .clip(RoundedCornerShape(13.dp))
-                        .background(AmAccentViolet)
-                        .semantics { contentDescription = "Export" }
-                        .bouncyClickable(pressedScale = 0.94f, onClick = onExportClick)
-                        .testTag("header_export_button"),
-                    contentAlignment = Alignment.Center
-                ) {
-                    DownloadGlyph(AmInk)
-                }
+        // ── Close ──────────────────────────────────────────────
+        Box(
+            modifier = Modifier
+                .size(42.dp)
+                .clip(btnShape)
+                .background(com.example.ui.theme.RefSurface)
+                .border(1.dp, btnBorder, btnShape)
+                .semantics { contentDescription = "Back to projects" }
+                .bouncyClickable(pressedScale = 0.92f, onClick = onBackClick)
+                .testTag("header_back_button"),
+            contentAlignment = Alignment.Center
+        ) {
+            Canvas(Modifier.size(15.dp)) {
+                val c = TextPrimary
+                val w = 2.7.dp.toPx()
+                val m = w / 2f
+                drawLine(c, Offset(m, m), Offset(size.width - m, size.height - m), w, StrokeCap.Round)
+                drawLine(c, Offset(size.width - m, m), Offset(m, size.height - m), w, StrokeCap.Round)
             }
         }
+
+        Spacer(Modifier.weight(1f))
+
+        // ── Right group: aspect ratio · resolution · export ────
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Aspect ratio (42 dp icon button + the ratio popover).
+            var ratioMenuOpen by remember { mutableStateOf(false) }
+            Box {
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(btnShape)
+                        .background(com.example.ui.theme.RefSurface)
+                        .border(1.dp, btnBorder, btnShape)
+                        .semantics { contentDescription = "Aspect ratio" }
+                        .bouncyClickable(pressedScale = 0.92f, onClick = {
+                            if (ratioOptions.isNotEmpty()) ratioMenuOpen = true else onAspectRatioClick()
+                        })
+                        .testTag("header_ratio_button"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    RatioGlyph()
+                }
+                DropdownMenu(
+                    expanded = ratioMenuOpen,
+                    onDismissRequest = { ratioMenuOpen = false },
+                    modifier = Modifier
+                        .background(com.example.ui.theme.RefPopoverBg, RoundedCornerShape(14.dp))
+                        .border(1.dp, com.example.ui.theme.RefPopoverBorder, RoundedCornerShape(14.dp))
+                ) {
+                    ratioOptions.forEach { option ->
+                        val isCurrent = option.label == aspectRatio.label
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    option.label,
+                                    color = if (isCurrent) com.example.ui.theme.RefLime else com.example.ui.theme.RefPopoverText,
+                                    fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1
+                                )
+                            },
+                            onClick = {
+                                ratioMenuOpen = false
+                                onRatioPick(option)
+                            },
+                            modifier = if (isCurrent) Modifier.background(
+                                com.example.ui.theme.RefLime.copy(alpha = 0.14f), RoundedCornerShape(9.dp)
+                            ) else Modifier,
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                        )
+                    }
+                }
+            }
+
+            // Resolution pill (42 dp, r12) + the resolution popover.
+            var resMenuOpen by remember { mutableStateOf(false) }
+            Box {
+                Box(
+                    modifier = Modifier
+                        .height(42.dp)
+                        .clip(btnShape)
+                        .background(com.example.ui.theme.RefSurface)
+                        .border(1.dp, btnBorder, btnShape)
+                        .semantics { contentDescription = "Export resolution" }
+                        .bouncyClickable(pressedScale = 0.95f, onClick = { resMenuOpen = true })
+                        .testTag("header_resolution_pill"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(
+                        modifier = Modifier.padding(start = 14.dp, end = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(resolutionLabel, color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                        Spacer(Modifier.width(6.dp))
+                        Canvas(Modifier.size(10.dp)) {
+                            val p = Path().apply {
+                                val u = size.width / 12f
+                                moveTo(3f * u, 4.5f * u); lineTo(9f * u, 4.5f * u); lineTo(6f * u, 8.5f * u); close()
+                            }
+                            drawPath(p, TextPrimary)
+                        }
+                    }
+                }
+                DropdownMenu(
+                    expanded = resMenuOpen,
+                    onDismissRequest = { resMenuOpen = false },
+                    modifier = Modifier
+                        .background(com.example.ui.theme.RefPopoverBg, RoundedCornerShape(14.dp))
+                        .border(1.dp, com.example.ui.theme.RefPopoverBorder, RoundedCornerShape(14.dp))
+                ) {
+                    resolutionOptions.forEach { option ->
+                        val isCurrent = option == currentResolution
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    option.substringBefore(' ').uppercase(),
+                                    color = if (isCurrent) com.example.ui.theme.RefLime else com.example.ui.theme.RefPopoverText,
+                                    fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1
+                                )
+                            },
+                            onClick = {
+                                resMenuOpen = false
+                                onResolutionPick(option)
+                            },
+                            modifier = if (isCurrent) Modifier.background(
+                                com.example.ui.theme.RefLime.copy(alpha = 0.14f), RoundedCornerShape(9.dp)
+                            ) else Modifier,
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                        )
+                    }
+                }
+            }
+
+            // Export: the 42 dp LIME button with its glow (the reference's one lime control up here).
+            Box(
+                modifier = Modifier
+                    .size(42.dp)
+                    .shadow(
+                        elevation = 7.dp, shape = btnShape, clip = false,
+                        ambientColor = com.example.ui.theme.RefLime.copy(alpha = 0.25f),
+                        spotColor = com.example.ui.theme.RefLime.copy(alpha = 0.25f)
+                    )
+                    .clip(btnShape)
+                    .background(com.example.ui.theme.RefLime)
+                    .semantics { contentDescription = "Export" }
+                    .bouncyClickable(pressedScale = 0.94f, onClick = onExportClick)
+                    .testTag("header_export_button"),
+                contentAlignment = Alignment.Center
+            ) {
+                DownloadGlyph(com.example.ui.theme.RefLimeInk)
+            }
+        }
+    }
 }
 
-/** Camera (body, lens, top bump) - white, 28 dp: saves the current frame as a picture. */
+/** The reference's aspect-ratio glyph: four frame corners, two dots and the crossed diagonals (21 dp). */
 @Composable
-private fun SaveFrameGlyph() {
-    Canvas(Modifier.size(24.dp)) {
+private fun RatioGlyph() {
+    Canvas(Modifier.size(21.dp)) {
         val u = size.width / 24f
-        val c = AmCyan
-        val st = Stroke(2.5f * u, cap = StrokeCap.Round, join = StrokeJoin.Round)
-        val body = Path().apply {
-            moveTo(3.5f * u, 9.5f * u)
-            lineTo(8.2f * u, 9.5f * u); lineTo(10.2f * u, 6.2f * u); lineTo(17.8f * u, 6.2f * u); lineTo(19.8f * u, 9.5f * u)
-            lineTo(24.5f * u, 9.5f * u)
-            quadraticBezierTo(26f * u, 9.5f * u, 26f * u, 11f * u)
-            lineTo(26f * u, 21.5f * u)
-            quadraticBezierTo(26f * u, 23f * u, 24.5f * u, 23f * u)
-            lineTo(3.5f * u, 23f * u)
-            quadraticBezierTo(2f * u, 23f * u, 2f * u, 21.5f * u)
-            lineTo(2f * u, 11f * u)
-            quadraticBezierTo(2f * u, 9.5f * u, 3.5f * u, 9.5f * u)
-            close()
+        val c = TextPrimary
+        val st = Stroke(1.8f * u, cap = StrokeCap.Round, join = StrokeJoin.Round)
+        fun corner(points: List<Offset>) {
+            val p = Path().apply {
+                moveTo(points[0].x * u, points[0].y * u)
+                for (pt in points.drop(1)) lineTo(pt.x * u, pt.y * u)
+            }
+            drawPath(p, c, style = st)
         }
-        drawPath(body, c, style = st)
-        drawCircle(c, 4.6f * u, Offset(14f * u, 16.3f * u), style = st)
+        corner(listOf(Offset(7f, 3f), Offset(5f, 3f), Offset(3f, 5f), Offset(3f, 7f)))
+        corner(listOf(Offset(17f, 3f), Offset(19f, 3f), Offset(21f, 5f), Offset(21f, 7f)))
+        corner(listOf(Offset(7f, 21f), Offset(5f, 21f), Offset(3f, 19f), Offset(3f, 17f)))
+        corner(listOf(Offset(17f, 21f), Offset(19f, 21f), Offset(21f, 19f), Offset(21f, 17f)))
+        drawCircle(c, 1.8f * u, Offset(9.5f * u, 14.5f * u), style = st)
+        drawCircle(c, 1.8f * u, Offset(14.5f * u, 14.5f * u), style = st)
+        drawLine(c, Offset(10.8f * u, 13.2f * u), Offset(15f * u, 8f * u), 1.8f * u, StrokeCap.Round)
+        drawLine(c, Offset(13.2f * u, 13.2f * u), Offset(9f * u, 8f * u), 1.8f * u, StrokeCap.Round)
     }
 }
 
@@ -444,102 +468,5 @@ fun LayerHeader(
                 }
             }
         }
-    }
-}
-
-/**
- * Build 216 — the CONTEXTUAL BAR (Sarowar's HTML reference): shown in the
- * lower zone directly above the dock while ONE layer is selected. White,
- * hairline on top: "Layer" + the layer's name on the left (tap = rename,
- * the build-211 header's rename affordance, kept reachable), then the
- * text actions Edit / Duplicate / Delete and a black Done pill
- * (deselect). Every action wires to the SAME callback the build-211/214
- * layer header used. It replaces that slate header in the header slot —
- * the app bar above now stays the project bar in every state.
- */
-@Composable
-fun LayerContextBar(
-    name: String,
-    onRename: () -> Unit,
-    onEdit: () -> Unit,
-    onDuplicate: () -> Unit,
-    onDelete: () -> Unit,
-    onDone: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(AmBase)
-            .testTag("layer_context_bar")
-    ) {
-        Box(Modifier.fillMaxWidth().height(1.dp).background(com.example.ui.theme.AmHairline))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(47.dp)
-                .padding(horizontal = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .semantics { contentDescription = "Rename layer" }
-                    .bouncyClickable(pressedScale = 0.98f, onClick = onRename)
-                    .testTag("context_bar_name"),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Layer", color = AmTextDim, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1)
-                Spacer(Modifier.width(7.dp))
-                Text(
-                    name, color = TextPrimary, fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold,
-                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                )
-            }
-            ContextBarTextButton("Edit", onEdit, "context_bar_edit")
-            ContextBarTextButton("Duplicate", onDuplicate, "context_bar_duplicate")
-            ContextBarTextButton("Delete", onDelete, "context_bar_delete", danger = true)
-            Box(
-                modifier = Modifier
-                    .padding(start = 4.dp)
-                    .clip(CircleShape)
-                    .background(TextPrimary)
-                    .semantics { contentDescription = "Done" }
-                    .bouncyClickable(pressedScale = 0.94f, onClick = onDone)
-                    .testTag("context_bar_done"),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    "Done", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(horizontal = 15.dp, vertical = 8.dp)
-                )
-            }
-        }
-    }
-}
-
-/** One plain text action of the contextual bar (13.5 sp medium ink; Delete carries the danger red). */
-@Composable
-private fun ContextBarTextButton(
-    label: String,
-    onClick: () -> Unit,
-    tag: String,
-    danger: Boolean = false
-) {
-    Box(
-        modifier = Modifier
-            .height(40.dp)
-            .semantics { contentDescription = label }
-            .bouncyClickable(pressedScale = 0.94f, onClick = onClick)
-            .testTag(tag),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            label,
-            color = if (danger) com.example.ui.theme.AmDanger else TextPrimary,
-            fontSize = 13.5.sp,
-            fontWeight = FontWeight.Medium,
-            modifier = Modifier.padding(horizontal = 9.dp)
-        )
     }
 }

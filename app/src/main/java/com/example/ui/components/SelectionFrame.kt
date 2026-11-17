@@ -29,6 +29,8 @@ import com.example.model.effectiveScalePercent
 import com.example.model.depthX
 import com.example.model.depthY
 import kotlin.math.cos
+import kotlin.math.PI
+import kotlin.math.atan2
 import kotlin.math.hypot
 import kotlin.math.roundToInt
 import kotlin.math.sin
@@ -120,8 +122,7 @@ internal class FrameGeo(
  * CapCut-style selection bounding box:
  * - Thin white outline with subtle dark edge
  * - 8 small white handles (4 corners + 4 edge mids) with thin black border
- * - Small center pivot dot
- * - No rotation handle
+ * - Rotation handle above the top edge (build 217, Sarowar's HTML reference)
  */
 @Composable
 fun SelectionFrameOverlay(
@@ -171,10 +172,13 @@ fun SelectionFrameOverlay(
             }
     ) {
         Canvas(Modifier.fillMaxSize()) {
-            // Build 216 (Sarowar's HTML reference): the transform box is a
-            // 1.5 dp DASHED LIME border with 8 dp LIME SQUARE handles
-            // (r2) — drawing only; every gesture below is untouched.
-            val lime = Color(0xFFC8F91F)
+            // Build 217 (Sarowar's HTML reference): the transform box is
+            // a 1.5 dp DASHED BLUE (#3EB1F7) border with 8 dp WHITE
+            // square handles (1.5 dp #1689F5 border, r2), and the lime
+            // ROTATION handle 22 dp above the top edge — drawing only;
+            // the scale gestures below are untouched, and the rotation
+            // handle gets its own new touch target.
+            val frameBlue = com.example.ui.theme.RefFrameBlue
             val p = Path().apply {
                 val c0 = geo.corner(0)
                 moveTo(c0.x, c0.y)
@@ -183,7 +187,7 @@ fun SelectionFrameOverlay(
             }
             drawPath(
                 p,
-                lime,
+                frameBlue,
                 style = Stroke(
                     1.5f * density,
                     join = StrokeJoin.Round,
@@ -193,22 +197,48 @@ fun SelectionFrameOverlay(
                 )
             )
 
-            // Center pivot dot
-            val c = geo.center
-            drawCircle(Color.Black.copy(alpha = 0.35f), radius = 2.2f * density, center = c)
-            drawCircle(lime, radius = 1.4f * density, center = c)
-
-            // 8 handles: lime squares, 8 dp, radius 2 dp
+            // 8 handles: white squares, 8 dp, radius 2 dp, blue border
             val hs = 8f * density
             for (i in 0..7) {
                 val hp = handlePos(i, geo)
                 drawRoundRect(
-                    lime,
+                    Color.White,
                     topLeft = Offset(hp.x - hs / 2f, hp.y - hs / 2f),
                     size = androidx.compose.ui.geometry.Size(hs, hs),
                     cornerRadius = androidx.compose.ui.geometry.CornerRadius(2f * density)
                 )
+                drawRoundRect(
+                    com.example.ui.theme.RefHandleBlue,
+                    topLeft = Offset(hp.x - hs / 2f, hp.y - hs / 2f),
+                    size = androidx.compose.ui.geometry.Size(hs, hs),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(2f * density),
+                    style = Stroke(1.5f * density)
+                )
             }
+
+            // The rotation handle: an 8 dp lime circle with a dark
+            // border, centred 22 dp above the top edge (along the
+            // frame's up direction, so it follows the layer's rotation).
+            val topMid = geo.edge(0)
+            val cen = geo.center
+            val nx = topMid.x - cen.x
+            val ny = topMid.y - cen.y
+            val nl = hypot(nx, ny).coerceAtLeast(0.001f)
+            val rotPos = Offset(
+                topMid.x + nx / nl * 22f * density,
+                topMid.y + ny / nl * 22f * density
+            )
+            drawCircle(
+                com.example.ui.theme.RefLime,
+                radius = 4f * density,
+                center = rotPos
+            )
+            drawCircle(
+                Color(0xFF111114),
+                radius = 4f * density,
+                center = rotPos,
+                style = Stroke(1.5f * density)
+            )
         }
 
         // Touch targets for all 8 handles (uniform scale from center)
@@ -252,5 +282,63 @@ fun SelectionFrameOverlay(
                     }
             )
         }
+        // Build 217: the ROTATION handle's touch target — a NEW handle;
+        // the eight scale handles above are untouched. Dragging it
+        // rotates the layer about its centre: the pointer's angle from
+        // the centre, relative to the drag-start angle, is added to the
+        // layer's rotation at drag start; the scale passes through
+        // unchanged, through the same onTransform channel.
+        Box(
+            modifier = Modifier
+                .offset {
+                    val g = geoNow
+                    val tm = g.edge(0)
+                    val cn = g.center
+                    val ux = tm.x - cn.x
+                    val uy = tm.y - cn.y
+                    val ul = hypot(ux, uy).coerceAtLeast(0.001f)
+                    val hx = tm.x + ux / ul * 22f * density
+                    val hy = tm.y + uy / ul * 22f * density
+                    val r = touch.toPx() / 2f
+                    IntOffset((hx - r).roundToInt(), (hy - r).roundToInt())
+                }
+                .size(touch)
+                .testTag("selection_rotate")
+                .pointerInput(clip.id) {
+                    var startAngle = 0f
+                    var startRotation = 0f
+                    var center = Offset.Zero
+                    var handle0 = Offset.Zero
+                    detectDragGestures(
+                        onDragStart = {
+                            begin()
+                            val g = geoNow
+                            center = g.center
+                            val tm = g.edge(0)
+                            val ux = tm.x - center.x
+                            val uy = tm.y - center.y
+                            val ul = hypot(ux, uy).coerceAtLeast(0.001f)
+                            handle0 = Offset(
+                                tm.x + ux / ul * 22f * density,
+                                tm.y + uy / ul * 22f * density
+                            )
+                            startAngle = atan2(handle0.y - center.y, handle0.x - center.x)
+                            startRotation = g.clip.rotationDeg
+                        }
+                    ) { change, _ ->
+                        change.consume()
+                        val r = touch.toPx() / 2f
+                        val pointer = Offset(
+                            handle0.x - r + change.position.x,
+                            handle0.y - r + change.position.y
+                        )
+                        val ang = atan2(pointer.y - center.y, pointer.x - center.x)
+                        var delta = (ang - startAngle) * 180f / PI.toFloat()
+                        while (delta > 180f) delta -= 360f
+                        while (delta < -180f) delta += 360f
+                        send(clip.id, clip.scalePercent, startRotation + delta)
+                    }
+                }
+        )
     }
 }

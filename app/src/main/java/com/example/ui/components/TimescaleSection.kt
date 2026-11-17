@@ -3,7 +3,10 @@ package com.example.ui.components
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,6 +25,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import com.example.ui.theme.AmTextDim
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -62,7 +69,7 @@ private val BarHeight = 16.5.dp
 private val MinBarPitch = 8.dp
 private val BeatMarkColor = AmCyanBright
 /** Named markers (build 188): gold, so they never read as cyan beat marks or the orange playhead bars. */
-private val MarkerColor = Color(0xFFFF7A1A) // build 216: named markers are orange dots
+private val MarkerColor = Color(0xFFF97316) // build 217: the reference orange
 private val TickSteps = longArrayOf(200L, 500L, 1000L, 2000L, 5000L, 10_000L, 30_000L, 60_000L)
 
 /**
@@ -89,7 +96,17 @@ fun TimescaleSection(
     onMarkerLongPress: ((TimelineMarker) -> Unit)? = null,
     /** Export range points (build 199, A10): when both are set, the ranged span is banded on the ruler. */
     exportInMs: Long? = null,
-    exportOutMs: Long? = null
+    exportOutMs: Long? = null,
+    /**
+     * Build 217: the layer-count pill at the ruler's left end (the
+     * reference's pill, showing the REAL layer count). Null = no pill
+     * (panel hosts). Its tap opens the timeline options sheet — the
+     * universal tools live there now (Sarowar's no-added-buttons rule).
+     */
+    layerCount: Int? = null,
+    onLayerPillClick: (() -> Unit)? = null,
+    /** Build 217: keyframe times (project ms) of the selected layer — orange diamonds on the ruler. */
+    keyframeTimesMs: List<Long> = emptyList()
 ) {
     val markersNow by rememberUpdatedState(markers)
     val markerTapNow by rememberUpdatedState(onMarkerTap)
@@ -174,8 +191,9 @@ fun TimescaleSection(
             val halfSpanMs = (centerPx / pxPerMsPx).toLong() + step
             val firstTick = (((currentMs - halfSpanMs).coerceAtLeast(0L)) / step) * step
             val lastTick = currentMs + halfSpanMs
-            val tickTop = 3.dp.toPx()
-            val tickW = 1.5.dp.toPx()
+            // Build 217 (reference): minor ticks are 1 x 7 dp white at
+            // 20%, majors 1.5 x 17 dp white at 34%, all from top 4 dp.
+            val tickTop = 4.dp.toPx()
             val majorEvery = step * 5
 
             var t = firstTick
@@ -186,8 +204,8 @@ fun TimescaleSection(
                     drawLine(
                         color = if (major) RulerTickColor else RulerSubTickColor,
                         start = Offset(x, tickTop),
-                        end = Offset(x, tickTop + (if (major) 14.dp.toPx() else 8.dp.toPx())),
-                        strokeWidth = tickW
+                        end = Offset(x, tickTop + (if (major) 17.dp.toPx() else 7.dp.toPx())),
+                        strokeWidth = if (major) 1.5.dp.toPx() else 1.dp.toPx()
                     )
                 }
                 t += step
@@ -202,21 +220,21 @@ fun TimescaleSection(
                 val bandR = minOf(xOut, areaEnd)
                 if (bandR > bandL) {
                     drawRect(
-                        color = Color.Black.copy(alpha = 0.06f),
+                        color = Color.White.copy(alpha = 0.07f),
                         topLeft = Offset(bandL, 0f),
                         size = Size(bandR - bandL, size.height)
                     )
                 }
                 val edgeW = 1.6.dp.toPx()
                 if (xIn >= areaStart && xIn <= areaEnd) {
-                    drawLine(Color(0xFF18181B), Offset(xIn, 0f), Offset(xIn, size.height), edgeW)
+                    drawLine(Color.White.copy(alpha = 0.4f), Offset(xIn, 0f), Offset(xIn, size.height), edgeW)
                 }
                 if (xOut >= areaStart && xOut <= areaEnd) {
-                    drawLine(Color(0xFF18181B), Offset(xOut, 0f), Offset(xOut, size.height), edgeW)
+                    drawLine(Color.White.copy(alpha = 0.4f), Offset(xOut, 0f), Offset(xOut, size.height), edgeW)
                 }
             }
 
-            // Beat marks: ink, taller than the ticks (BeatMarkColor).
+            // Beat marks: white at 50%, taller than the ticks.
             if (beatMarksMs.isNotEmpty()) {
                 val markW = 3.dp.toPx()
                 val markH = 20.dp.toPx()
@@ -224,7 +242,7 @@ fun TimescaleSection(
                     val x = centerPx + (m - currentMs) * pxPerMsPx
                     if (x >= areaStart && x <= areaEnd) {
                         drawRoundRect(
-                            color = BeatMarkColor,
+                            color = Color.White.copy(alpha = 0.5f),
                             topLeft = Offset(x - markW / 2f, tickTop),
                             size = Size(markW, markH),
                             cornerRadius = CornerRadius(markW / 2f)
@@ -233,14 +251,14 @@ fun TimescaleSection(
                 }
             }
 
-            // Named markers (build 216): an ORANGE DOT (7 dp) at the tick
-            // line with the name beside it in orange where it fits. The
-            // tap / long-press mapping above is unchanged.
+            // Named markers: an ORANGE DOT (7 dp) at top 13 dp with the
+            // name beside it in orange where it fits. The tap /
+            // long-press mapping above is unchanged.
             if (markers.isNotEmpty()) {
                 val dotR = 3.5.dp.toPx()
-                val dotY = tickTop + 7.dp.toPx()
+                val dotY = 13.dp.toPx()
                 val namePaint = android.graphics.Paint().apply {
-                    color = android.graphics.Color.rgb(0xFF, 0x7A, 0x1A)
+                    color = android.graphics.Color.rgb(0xF9, 0x73, 0x16)
                     textSize = 9.dp.toPx()
                     isAntiAlias = true
                 }
@@ -259,22 +277,50 @@ fun TimescaleSection(
                 }
             }
 
-            // The CENTRED playhead cap (build 216): a black nub (2.5 x 12 dp)
-            // at the top centre with the LIME nub (5 x 7 dp) over its top —
-            // the timecode text below it is a composable (see below), and
-            // the line itself continues through the tracks in the layer
-            // panel (PlayheadColor, now ink).
+            // Keyframe diamonds of the selected layer (build 217, the
+            // reference): 6 dp orange squares rotated 45 degrees, their
+            // centres at top 13 dp.
+            if (keyframeTimesMs.isNotEmpty()) {
+                val half = 3.dp.toPx()
+                val cy = 13.dp.toPx()
+                for (kt in keyframeTimesMs) {
+                    val x = centerPx + (kt - currentMs) * pxPerMsPx
+                    if (x < areaStart || x > areaEnd) continue
+                    val d = Path().apply {
+                        moveTo(x, cy - half)
+                        lineTo(x + half, cy)
+                        lineTo(x, cy + half)
+                        lineTo(x - half, cy)
+                        close()
+                    }
+                    drawPath(d, MarkerColor)
+                }
+            }
+
+            // The CENTRED playhead (build 217, the reference): a WHITE
+            // needle (2 x 15 dp, rounded) at the top centre from top
+            // 3 dp, a LIME square (6 x 6 dp, r1.5) tucked at its
+            // top-right (its left edge 2.5 dp right of centre), and the
+            // 2 dp white line resuming BELOW the timecode (top 39 dp)
+            // to the ruler's bottom — the layer panel continues it
+            // through the tracks.
             drawRoundRect(
-                color = Color(0xFF18181B),
-                topLeft = Offset(centerPx - 1.25.dp.toPx(), 0f),
-                size = Size(2.5.dp.toPx(), 12.dp.toPx()),
-                cornerRadius = CornerRadius(1.25.dp.toPx())
+                color = Color.White,
+                topLeft = Offset(centerPx - 1.dp.toPx(), 3.dp.toPx()),
+                size = Size(2.dp.toPx(), 15.dp.toPx()),
+                cornerRadius = CornerRadius(1.dp.toPx())
             )
             drawRoundRect(
-                color = Color(0xFFC8F91F),
-                topLeft = Offset(centerPx - 2.5.dp.toPx(), 0f),
-                size = Size(5.dp.toPx(), 7.dp.toPx()),
-                cornerRadius = CornerRadius(2.dp.toPx())
+                color = Color(0xFFC4F934),
+                topLeft = Offset(centerPx + 2.5.dp.toPx(), 3.dp.toPx()),
+                size = Size(6.dp.toPx(), 6.dp.toPx()),
+                cornerRadius = CornerRadius(1.5.dp.toPx())
+            )
+            drawLine(
+                Color.White,
+                Offset(centerPx, 39.dp.toPx()),
+                Offset(centerPx, size.height),
+                strokeWidth = 2.dp.toPx()
             )
         }
 
@@ -284,14 +330,14 @@ fun TimescaleSection(
         Box(
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .padding(top = 16.dp)
+                .padding(top = 22.dp)
                 .testTag("playhead_time_pill"),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = formatTimeCode(playheadMs()),
                 color = TextPrimary,
-                fontSize = 13.5.sp,
+                fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
                 maxLines = 1,
@@ -315,6 +361,54 @@ fun TimescaleSection(
                 maxLines = 1
             )
         }
+
+        // Build 217: the layer-count pill at the ruler's left end (the
+        // reference's pill — real count, chevron). Its tap opens the
+        // timeline options sheet (the universal tools' home now).
+        if (layerCount != null) {
+            Row(
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .padding(start = 10.dp)
+                    .clip(androidx.compose.foundation.shape.CircleShape)
+                    .background(com.example.ui.theme.RefPillBg)
+                    .border(1.dp, com.example.ui.theme.RefPillBorder, androidx.compose.foundation.shape.CircleShape)
+                    .bouncyClickable(pressedScale = 0.95f, onClick = { onLayerPillClick?.invoke() })
+                    .padding(horizontal = 9.dp, vertical = 3.dp)
+                    .testTag("layer_count_pill"),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "$layerCount Layers",
+                    color = AmTextDim,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1
+                )
+                Spacer(Modifier.width(5.dp))
+                Canvas(Modifier.size(11.dp)) {
+                    val u = size.width / 24f
+                    val c = AmTextDim
+                    val p1 = Path().apply {
+                        moveTo(7f * u, 15f * u); lineTo(12f * u, 20f * u); lineTo(17f * u, 15f * u)
+                    }
+                    val p2 = Path().apply {
+                        moveTo(7f * u, 9f * u); lineTo(12f * u, 4f * u); lineTo(17f * u, 9f * u)
+                    }
+                    drawPath(p1, c, style = Stroke(2.4f * u, cap = StrokeCap.Round, join = StrokeJoin.Round))
+                    drawPath(p2, c, style = Stroke(2.4f * u, cap = StrokeCap.Round, join = StrokeJoin.Round))
+                }
+            }
+        }
+
+        // The ruler row's bottom hairline (#19191F in the reference).
+        Box(
+            Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(Color(0xFF19191F))
+        )
     }
 }
 

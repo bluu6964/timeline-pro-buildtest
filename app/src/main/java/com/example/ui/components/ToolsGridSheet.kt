@@ -1,5 +1,12 @@
 package com.example.ui.components
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.VolumeOff
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material.icons.filled.ViewStream
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -98,7 +105,7 @@ const val TOOLS_GRID_PAD_V_DP = 8
 const val TOOLS_GRID_MAX_ROWS = 4
 
 /** Tiles in the grid's utility section (IN, OUT, beat, marker, onion, scopes, snap, canvas). */
-const val TOOLS_GRID_UTILITY_COUNT = 8
+const val TOOLS_GRID_UTILITY_COUNT = 14 // build 217: + Prev frame, Next frame, Preview, Save frame, Master, Density
 
 /**
  * The sheet's exact height for [totalTiles] tiles: vertical padding + whole
@@ -182,6 +189,18 @@ fun ToolsGridSheet(
      * list's HEAD tiles, in their bar order). Null = no bar section.
      */
     barActions: BarActionsSection? = null,
+    // Build 217: the functions displaced by Sarowar's no-added-buttons
+    // rule — they live HERE, inside the sheet the layer-count pill and
+    // the Fx tile open (sheet content is not layout).
+    onPrevFrameClick: () -> Unit = {},
+    onNextFrameClick: () -> Unit = {},
+    previewLabel: String = "Full",
+    onPreviewClick: () -> Unit = {},
+    onSaveFrameClick: () -> Unit = {},
+    masterMuted: Boolean = false,
+    onMasterAudioClick: () -> Unit = {},
+    densityComfort: Boolean = false,
+    onDensityClick: () -> Unit = {},
     /** Momentary entries ask the host to close the sheet after their tap. */
     onCloseRequest: () -> Unit,
     /** Visible-row budget granted by the screen's lower-zone layout math (CANVAS LAW, build 207). */
@@ -202,7 +221,40 @@ fun ToolsGridSheet(
         GridEntry("Onion", onionSkinOn, "onion_skin_button", "Onion skin", closeOnTap = false, onClick = onOnionSkinClick) { OnionGlyph(onionSkinOn) },
         GridEntry("Scopes", scopesOn, "scopes_button", "Scopes", closeOnTap = false, onClick = onScopesClick) { ScopesGlyph(scopesOn) },
         GridEntry("Snap", snapOn, "snap_button", "Snap", closeOnTap = false, onClick = onSnapClick) { MagnetGlyph(snapOn) },
-        GridEntry("Canvas", false, "grid_button", "Canvas", closeOnTap = true, onClick = onCanvasClick) { GridGlyph() }
+        GridEntry("Canvas", false, "grid_button", "Canvas", closeOnTap = true, onClick = onCanvasClick) { GridGlyph() },
+        // Build 217: displaced chrome, housed in this sheet — frame
+        // stepping (was the transport), the preview-resolution sheet
+        // (was the transport's resolution button), Save frame (was the
+        // top bar), the master mute (was the timeline's floating
+        // speaker) and the lane-density toggle (the reference's own
+        // layer-pill job, kept as a tile here).
+        GridEntry("Prev frame", false, "prev_frame_button", "Previous frame", closeOnTap = false, onClick = onPrevFrameClick) {
+            Icon(Icons.Default.SkipPrevious, null, tint = IconWhite, modifier = Modifier.size(23.dp))
+        },
+        GridEntry("Next frame", false, "next_frame_button", "Next frame", closeOnTap = false, onClick = onNextFrameClick) {
+            Icon(Icons.Default.SkipNext, null, tint = IconWhite, modifier = Modifier.size(23.dp))
+        },
+        GridEntry("Preview", false, "preview_resolution_button", "Preview resolution", closeOnTap = true, onClick = onPreviewClick) {
+            Text(previewLabel, color = IconWhite, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
+        },
+        GridEntry("Save frame", false, "save_frame_button", "Save current frame", closeOnTap = true, onClick = onSaveFrameClick) {
+            Icon(Icons.Default.PhotoCamera, null, tint = IconWhite, modifier = Modifier.size(23.dp))
+        },
+        GridEntry("Master", masterMuted, "master_audio_button", "Master audio mute", closeOnTap = false, onClick = onMasterAudioClick) {
+            Icon(
+                if (masterMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
+                null,
+                tint = if (masterMuted) IconWhite else AmTextDim,
+                modifier = Modifier.size(23.dp)
+            )
+        },
+        GridEntry("Density", densityComfort, "density_button", "Lane density (32 / 44 dp)", closeOnTap = false, onClick = onDensityClick) {
+            Icon(
+                Icons.Default.ViewStream, null,
+                tint = if (densityComfort) IconWhite else AmTextDim,
+                modifier = Modifier.size(23.dp)
+            )
+        }
     )
     // The selected panel's tools ride FIRST, in the panel's own order,
     // dispatched by the panel itself (build 210: while this sheet is the
@@ -439,7 +491,7 @@ private fun MagnetGlyph(on: Boolean) {
 private fun BeatMarkGlyph() {
     Canvas(Modifier.size(24.dp)) {
         val u = size.width / 24f
-        val cyan = Color(0xFF18181B) // build 216: ink glyph on the light panel
+        val cyan = Color(0xFFF2F2F2) // build 217: light glyph on the dark panel
         val d = Path().apply {
             moveTo(10f * u, 3.2f * u); lineTo(16.6f * u, 10f * u); lineTo(10f * u, 16.8f * u); lineTo(3.4f * u, 10f * u); close()
         }
@@ -449,7 +501,7 @@ private fun BeatMarkGlyph() {
         val px = 17.4f * u
         val py = 17.4f * u
         val arm = 3.6f * u
-        drawLine(Color(0xFF18181B), Offset(px - arm, py), Offset(px + arm, py), 2.1f * u, StrokeCap.Round)
-        drawLine(Color(0xFF18181B), Offset(px, py - arm), Offset(px, py + arm), 2.1f * u, StrokeCap.Round)
+        drawLine(Color(0xFFF2F2F2), Offset(px - arm, py), Offset(px + arm, py), 2.1f * u, StrokeCap.Round)
+        drawLine(Color(0xFFF2F2F2), Offset(px, py - arm), Offset(px, py + arm), 2.1f * u, StrokeCap.Round)
     }
 }

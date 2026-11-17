@@ -1,5 +1,7 @@
 package com.example.ui.components
 
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -38,7 +40,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
@@ -60,42 +67,29 @@ import com.example.ui.theme.TextPrimary
 import com.example.ui.util.bouncyClickable
 
 /**
- * THE DOCK's primary toolbar, no-selection state (build 214 — UI
- * ARCHITECTURE REDESIGN): the permanent bottom bar of the editor. It is
- * ALWAYS visible (the panel stage opens above it, never instead of it)
- * and carries the PROJECT tools with icon + label: Add (the primary —
- * the brand-red disc; the old + disc's role lives here now), Media,
- * Text, Audio, Canvas, and More — which opens the universal-tools panel
- * in the stage (Range in/out, Beat mark, Marker, Onion, Scopes, Snap,
- * Canvas: the UNIVERSAL tools — they are not any layer's tools, so they
- * live here in the no-selection dock, never in a layer's panel).
- * With a selection, this same dock slot carries the selected layer's
- * primary tools instead (the clip panels render them).
+ * The editor DOCK (build 217 — Sarowar's HTML reference, copied
+ * exactly): a top hairline (#1E1E24), then a horizontally scrolling row
+ * of SIX tiles in the reference's order — Video/Photo, Music, Fx, Text,
+ * Shapes, Null. A tile = a 58 dp square box (r14, surface fill, 1 dp
+ * white-at-4% border) with its glyph, and the label UNDER it (11 sp/600,
+ * muted). No button is added and none removed (Sarowar's rule): the
+ * functions the build-216 dock carried (Canvas settings, the Add sheet,
+ * the media picker) live inside the sheets these tiles open — the
+ * Video/Photo tile opens the Add-layer sheet, which also carries the
+ * canvas size entry; the Fx tile opens the tools stage.
  */
 @Composable
 fun BottomToolbar(
     height: Dp,
-    onAddClick: () -> Unit,
     onMediaClick: () -> Unit,
-    onTextClick: () -> Unit,
     onAudioClick: () -> Unit,
-    onCanvasClick: () -> Unit,
-    onMoreClick: () -> Unit,
+    onFxClick: () -> Unit,
+    onTextClick: () -> Unit,
+    onShapesClick: () -> Unit,
+    onNullClick: () -> Unit,
     modifier: Modifier = Modifier,
-    /** The universal panel is open in the stage (the More item reads selected). */
-    moreActive: Boolean = false,
-    /** Build 216: the Fx tile — opens the tools panel in the stage (as More does). */
-    onFxClick: () -> Unit = {},
-    /** Build 216: the Shapes tile — opens the Add Shape sheet. */
-    onShapesClick: () -> Unit = {}
+    fxActive: Boolean = false
 ) {
-    // Build 216 (Sarowar's HTML reference): the dock is a white,
-    // horizontally scrolling row of 68 dp tiles (r17, pill surface, ink
-    // icons) with the 11 sp muted label UNDER each tile. Active tile =
-    // black with a lime icon and a dark bold label. Order follows the
-    // reference: Media, Music, Fx, Text, Shapes, then build 214's
-    // remaining dock tools (Canvas, More) and Add (the Add sheet stays
-    // reachable — Null / Controller / Camera / Chain live there).
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -103,7 +97,12 @@ fun BottomToolbar(
             .background(AmBarSurface)
             .testTag("dock_toolbar")
     ) {
-        Box(Modifier.fillMaxWidth().height(1.dp).background(com.example.ui.theme.AmHairline))
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(Color(0xFF1E1E24))
+        )
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -113,67 +112,155 @@ fun BottomToolbar(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            DockTile("Media", Icons.Default.AddPhotoAlternate, "toolbar_media_button", onMediaClick)
-            DockTile("Music", Icons.Default.MusicNote, "toolbar_audio_button", onAudioClick)
-            DockTile("Fx", Icons.Default.AutoAwesome, "toolbar_fx_button", onFxClick, active = moreActive)
-            DockTile("Text", Icons.Default.TextFields, "toolbar_text_button", onTextClick)
-            DockTile("Shapes", Icons.Default.Category, "toolbar_shapes_button", onShapesClick)
-            DockTile("Canvas", Icons.Default.AspectRatio, "toolbar_canvas_button", onCanvasClick)
-            DockTile("More", Icons.Default.MoreHoriz, "toolbar_more_button", onMoreClick, active = moreActive)
-            DockTile(
-                "Add", Icons.Default.Add, "toolbar_add_button", onAddClick,
-                tileColor = com.example.ui.theme.AmAccentViolet, iconTint = com.example.ui.theme.AmInk
-            )
+            DockTile("Video/Photo", "toolbar_media_button", onMediaClick) { DockMediaGlyph() }
+            DockTile("Music", "toolbar_audio_button", onAudioClick) {
+                Icon(
+                    Icons.Default.MusicNote, contentDescription = null,
+                    tint = com.example.ui.theme.RefCtrl, modifier = Modifier.size(24.dp)
+                )
+            }
+            DockTile("Fx", "toolbar_fx_button", onFxClick) { DockFxGlyph() }
+            DockTile("Text", "toolbar_text_button", onTextClick) { DockTextGlyph() }
+            DockTile("Shapes", "toolbar_shapes_button", onShapesClick) { DockShapesGlyph() }
+            DockTile("Null", "toolbar_null_button", onNullClick) { DockNullGlyph() }
         }
     }
 }
 
-/** One dock tile (build 216): 68 dp r17 tile + the label under it. */
 @Composable
 private fun DockTile(
     label: String,
-    icon: ImageVector,
-    testTag: String,
+    tag: String,
     onClick: () -> Unit,
-    active: Boolean = false,
-    tileColor: Color? = null,
-    iconTint: Color? = null
+    glyph: @Composable () -> Unit
 ) {
     Column(
         modifier = Modifier
-            .width(68.dp)
+            .width(58.dp)
             .bouncyClickable(pressedScale = 0.94f, onClick = onClick)
-            .testTag(testTag),
+            .testTag(tag),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
             modifier = Modifier
-                .size(68.dp)
-                .clip(RoundedCornerShape(17.dp))
-                .background(
-                    tileColor
-                        ?: if (active) com.example.ui.theme.AmTextPrimary
-                        else com.example.ui.theme.AmPanelHigh
-                ),
+                .size(58.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(com.example.ui.theme.RefSurface)
+                .border(1.dp, Color.White.copy(alpha = 0.04f), RoundedCornerShape(14.dp)),
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                icon,
-                contentDescription = label,
-                tint = iconTint
-                    ?: if (active) com.example.ui.theme.AmAccentViolet
-                    else com.example.ui.theme.AmTextPrimary,
-                modifier = Modifier.size(27.dp)
-            )
+            glyph()
         }
         Spacer(Modifier.height(4.dp))
         Text(
-            label,
-            color = if (active) com.example.ui.theme.AmTextPrimary else AmTextDim,
+            text = label,
+            color = AmTextDim,
             fontSize = 11.sp,
-            fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
+            fontWeight = FontWeight.SemiBold,
             maxLines = 1
         )
+    }
+}
+
+/** The reference's media glyph: a rounded rect with a play triangle. */
+@Composable
+private fun DockMediaGlyph() {
+    Canvas(Modifier.size(24.dp)) {
+        val u = size.width / 24f
+        drawRoundRect(
+            Color(0xFFD4D4D8),
+            topLeft = Offset(3f * u, 5f * u),
+            size = Size(18f * u, 14f * u),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f * u),
+            style = Stroke(2f * u)
+        )
+        val tri = Path().apply {
+            moveTo(10.2f * u, 9.3f * u)
+            lineTo(15.2f * u, 12f * u)
+            lineTo(10.2f * u, 14.7f * u)
+            close()
+        }
+        drawPath(tri, Color(0xFFD4D4D8))
+    }
+}
+
+/** The reference's fx glyph: a small grey sparkle and a big white one. */
+@Composable
+private fun DockFxGlyph() {
+    Canvas(Modifier.size(25.dp)) {
+        val u = size.width / 25f
+        fun star(cx: Float, cy: Float, r: Float, col: Color) {
+            val path = Path()
+            val pts = listOf(
+                0f to -1f, 0.24f to -0.24f, 1f to 0f, 0.24f to 0.24f,
+                0f to 1f, -0.24f to 0.24f, -1f to 0f, -0.24f to -0.24f
+            )
+            pts.forEachIndexed { i, pt ->
+                val x = cx + pt.first * r; val y = cy + pt.second * r
+                if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+            }
+            path.close(); drawPath(path, col)
+        }
+        star(8.5f * u, 8.5f * u, 5.5f * u, Color(0xFF71717A))
+        star(16f * u, 16f * u, 7.5f * u, Color(0xFFF4F4F5))
+    }
+}
+
+/** The reference's text glyph: T strokes. */
+@Composable
+private fun DockTextGlyph() {
+    Canvas(Modifier.size(24.dp)) {
+        val u = size.width / 24f
+        val c = Color(0xFFD4D4D8)
+        val w = 2.3f * u
+        drawLine(c, Offset(6f * u, 6f * u), Offset(18f * u, 6f * u), w, StrokeCap.Round)
+        drawLine(c, Offset(12f * u, 6f * u), Offset(12f * u, 18f * u), w, StrokeCap.Round)
+        drawLine(c, Offset(9.5f * u, 18f * u), Offset(14.5f * u, 18f * u), w, StrokeCap.Round)
+    }
+}
+
+/** The reference's shapes glyph: a grey circle + a white rounded square. */
+@Composable
+private fun DockShapesGlyph() {
+    Canvas(Modifier.size(25.dp)) {
+        val u = size.width / 25f
+        drawCircle(Color(0xFF71717A), radius = 5.2f * u, center = Offset(9.8f * u, 9.8f * u))
+        drawRoundRect(
+            Color(0xFFF4F4F5),
+            topLeft = Offset(9.8f * u, 9.8f * u),
+            size = Size(10.8f * u, 10.8f * u),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.6f * u)
+        )
+    }
+}
+
+/** The reference's null glyph: a centre square + four corner squares. */
+@Composable
+private fun DockNullGlyph() {
+    Canvas(Modifier.size(25.dp)) {
+        val u = size.width / 25f
+        val c = Color(0xFFE4E4E7)
+        drawRoundRect(
+            c,
+            topLeft = Offset(6.5f * u, 6.5f * u),
+            size = Size(12f * u, 12f * u),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(1.5f * u)
+        )
+        listOf(4f to 4f, 17f to 4f, 4f to 17f, 17f to 17f).forEach { pt ->
+            drawRoundRect(
+                com.example.ui.theme.RefSurface,
+                topLeft = Offset(pt.first * u, pt.second * u),
+                size = Size(4f * u, 4f * u),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(1f * u)
+            )
+            drawRoundRect(
+                c,
+                topLeft = Offset(pt.first * u, pt.second * u),
+                size = Size(4f * u, 4f * u),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(1f * u),
+                style = Stroke(1.5f * u)
+            )
+        }
     }
 }
 

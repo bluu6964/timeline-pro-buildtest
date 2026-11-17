@@ -193,7 +193,7 @@ fun ProjectsDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(AmCornerCard))
-                    .background(Color(0xFF18181B)) // build 216: the New Project hero is BLACK with lime + white
+                    .background(com.example.ui.theme.RefLime) // build 217: the New Project hero is LIME with dark content (the reference's primary)
                     .clickable { onNew() }
                     .padding(horizontal = 18.dp, vertical = 18.dp)
                     .testTag("home_new_project"),
@@ -203,15 +203,15 @@ fun ProjectsDialog(
                     modifier = Modifier
                         .size(46.dp)
                         .clip(CircleShape)
-                        .background(AmAccent),
+                        .background(Color(0xFF111114)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Filled.Add, contentDescription = null, tint = com.example.ui.theme.AmInk, modifier = Modifier.size(26.dp))
+                    Icon(Icons.Filled.Add, contentDescription = null, tint = com.example.ui.theme.RefLime, modifier = Modifier.size(26.dp))
                 }
                 Spacer(Modifier.width(14.dp))
                 Column {
-                    Text("New Project", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                    Text("Start a fresh edit", color = Color.White.copy(alpha = 0.75f), fontSize = 12.5.sp, maxLines = 1)
+                    Text("New Project", color = com.example.ui.theme.RefLimeInk, fontSize = 17.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                    Text("Start a fresh edit", color = com.example.ui.theme.RefLimeInk.copy(alpha = 0.65f), fontSize = 12.5.sp, maxLines = 1)
                 }
             }
             Spacer(Modifier.height(10.dp))

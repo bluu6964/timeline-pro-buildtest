@@ -1283,15 +1283,6 @@ fun FullscreenPlayerModal(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(
-                    onClick = onDismiss,
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(Color.Black.copy(alpha = 0.5f), CircleShape)
-                ) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Exit Fullscreen", tint = Color.White)
-                }
                 Text(
                     text = "${formatTimeCode(currentPlayheadMs)} / ${formatTimeCode(totalDurationMs)}",
                     color = Color.White,
@@ -1302,6 +1293,21 @@ fun FullscreenPlayerModal(
                         .background(Color.Black.copy(alpha = 0.5f), CircleShape)
                         .padding(horizontal = 12.dp, vertical = 6.dp)
                 )
+                // Build 217 (the reference's fullscreen overlay): the
+                // "Exit Fullscreen" pill — dark glass fill, white-at-15%
+                // border, r10 — at the top right.
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color(0xFF202026).copy(alpha = 0.85f))
+                        .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(10.dp))
+                        .clickable(onClick = onDismiss)
+                        .padding(horizontal = 14.dp, vertical = 8.dp)
+                        .testTag("fullscreen_exit_button"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("Exit Fullscreen", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
             }
 
             // Bottom Play Overlay

@@ -1,6 +1,7 @@
 package com.example.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -139,8 +140,9 @@ fun PanelStage(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(AmCardSurface, RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp))
-            .clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)) // build 216: sheet radius 22
+            .background(AmCardSurface, RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)) // build 217: the reference's card radius
+            .border(1.dp, com.example.ui.theme.RefCardBorder, RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
+            .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)) // build 217: sheet radius 20
             .testTag("panel_stage")
     ) {
         PanelStageHeader(title = title, layerName = layerName, onClose = onClose)

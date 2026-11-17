@@ -1,5 +1,6 @@
 package com.example.ui
 
+import com.example.model.keyframeTimes
 import com.example.ui.theme.AmCornerCard
 import com.example.ui.theme.AmPanel
 import androidx.compose.ui.graphics.RectangleShape
@@ -218,6 +219,9 @@ fun VideoEditorScreen(
     // visibility). No engine / ViewModel state is touched by either.
     var gridOn by remember { mutableStateOf(false) }
     var transformBoxOn by remember { mutableStateOf(true) }
+    // Build 217: the reference's lane density (32 dp rows; comfort = 44 dp),
+    // toggled from the timeline options sheet's Density tile.
+    var comfortDensity by remember { mutableStateOf(false) }
     LaunchedEffect(selectedClipId) { toolsPanelManual = null }
     val toolsPanelOpen = toolsPanelManual ?: (selectedClipId != null)
     // The bridge the footer clip panels publish their tools through
@@ -2548,7 +2552,7 @@ fun VideoEditorScreen(
                     androidx.compose.material3.Snackbar(
                         data,
                         shape = RoundedCornerShape(percent = 50),
-                        containerColor = androidx.compose.ui.graphics.Color(0xF518181B),
+                        containerColor = androidx.compose.ui.graphics.Color(0xF0202026), // build 217: the reference toast rgba(32,32,38,0.94)
                         contentColor = androidx.compose.ui.graphics.Color.White
                     )
                 }
@@ -2672,6 +2676,11 @@ fun VideoEditorScreen(
             // actions are tiles in the grid), so the reserve is 0 and
             // the rows' exact height is the whole floor.
             val minLayerZoneH = 64.dp
+            // Build 217: the reference's top bar is a fixed 58 dp
+            // (8 padding + 42 dp buttons + 8 padding). canvasH above is
+            // computed from the screen fraction alone and is NOT touched
+            // (CANVAS LAW); the lower zone absorbs the difference.
+            headerH = 58.dp
             val lowerZoneH = totalHeight - headerH - canvasH - playControlsH
             // Build 214 (THE DOCK): the footer is the dock's primary
             // toolbar — it is ALWAYS visible (the project toolbar with
@@ -2680,23 +2689,24 @@ fun VideoEditorScreen(
             // above it is paid for from the layer panel's share, exactly
             // as the grid was (CANVAS LAW). This supersedes build 211's
             // footer-collapses-to-0 rule.
-            val footerH = if (toolbarH >= 92.dp) toolbarH else 92.dp // build 216: the dock's 68 dp tiles + labels need ~87 dp; 92 with margin
-            // Build 216: the ruler is 46 dp (reference), the workspace
-            // controls row is 36 dp and the contextual bar (selection)
-            // 48 dp — all paid from the lower zone like every extra row
-            // since build 207; canvasH above is never touched (CANVAS LAW).
-            val rulerH = 46.dp
-            val workspaceH = 36.dp
-            val contextualH = if (selectedClipId != null && multiSelectIds.isEmpty()) 48.dp else 0.dp
+            val footerH = if (toolbarH >= 88.dp) toolbarH else 88.dp // build 217: the dock's 58 dp tiles + labels + hairline need ~86 dp
+            // Build 217: the ruler is the reference's 44 dp. The build-216
+            // workspace row and contextual bar are GONE (their controls
+            // live in the controls bar and the sheets now — Sarowar's
+            // no-added-buttons rule), so both budget lines are 0.
+            // canvasH above is never touched (CANVAS LAW).
+            val rulerH = 44.dp
+            val workspaceH = 0.dp
+            val contextualH = 0.dp
             val zonePoolH = (lowerZoneH - rulerH - footerH - onionRowH - scopesPanelH - workspaceH - contextualH)
                 .coerceAtLeast(0.dp)
             // Build 215: the tools panel is now ONE row, so when EVERY layer's lane still fits in the
             // zone beside it, all layers stay visible (the selected one keeps its white edge);
             // only when they would not fit does the build-210 rule apply (selected rows only).
             val allLanesH = if (shownTracks.isEmpty()) 0.dp else (shownTracks.sumOf { t ->
-                (t.clips.maxOfOrNull { c -> com.example.ui.components.laneHeightFor(c.type) }
-                    ?: 24.dp).value.toDouble() + 6.0
-            } - 6.0 + 9.0).toFloat().dp
+                (t.clips.maxOfOrNull { c -> com.example.ui.components.laneHeightFor(c.type, comfortDensity) }
+                    ?: 24.dp).value.toDouble() + 4.0
+            } - 4.0 + 4.0).toFloat().dp
             // Build 214: the panel stage's header rides on top of the
             // tools row inside the stage — the fit test budgets both.
             val oneRowGridH = com.example.ui.components
@@ -2717,11 +2727,11 @@ fun VideoEditorScreen(
             }
             val restrictedLanesH = restrictedTracks?.let { rt ->
                 val lanesDp = rt.sumOf { t ->
-                    (t.clips.maxOfOrNull { c -> com.example.ui.components.laneHeightFor(c.type) }
-                        ?: 24.dp).value.toDouble() + 6.0
-                } - 6.0 // the column's spacedBy leaves no gap after the last lane
+                    (t.clips.maxOfOrNull { c -> com.example.ui.components.laneHeightFor(c.type, comfortDensity) }
+                        ?: 24.dp).value.toDouble() + 4.0
+                } - 4.0 // the column's spacedBy leaves no gap after the last lane
                 val chromeDp = 0f // build 211: no bar renders inside the panel — no reserve
-                (9f + lanesDp.toFloat() + chromeDp).dp
+                (4f + lanesDp.toFloat() + chromeDp).dp
             }
             var toolsGridH = 0.dp
             var toolsGridRows = 0
@@ -2787,6 +2797,27 @@ fun VideoEditorScreen(
                 // above the dock (see below), wired to the same callbacks
                 // this slot's build-211 LayerHeader used. Multi-select
                 // keeps its count header.
+                // Build 217: Save frame — the reference's top bar has no
+                // save-frame button, so the action (unchanged) now lives
+                // on the tools sheet's Save frame tile.
+                val onSaveFrameAction: () -> Unit = {
+                    // current canvas frame -> PNG in Pictures/MaxCut
+                    nativePreview.captureFrame { bmp ->
+                        if (bmp == null) {
+                            scope.launch { snackbarHostState.showSnackbar("Could not read the frame") }
+                        } else {
+                            scope.launch {
+                                val uri = withContext(Dispatchers.IO) {
+                                    try { com.example.engine.FrameSaver.savePng(context, bmp) } finally { bmp.recycle() }
+                                }
+                                snackbarHostState.currentSnackbarData?.dismiss()
+                                snackbarHostState.showSnackbar(
+                                    if (uri != null) "Frame saved (Pictures/MaxCut)" else "Could not save the frame"
+                                )
+                            }
+                        }
+                    }
+                }
                 if (multiSelectIds.isNotEmpty()) {
                     // Multi-select: the same slate bar with the honest
                     // count only (no rename / duplicate / delete — those
@@ -2802,34 +2833,18 @@ fun VideoEditorScreen(
                     aspectRatio = selectedAspectRatio,
                     onBackClick = { showProjects = true },
                     onAspectRatioClick = { showAspectRatioSheet = true },
-                    onSaveFrameClick = {
-                        // current canvas frame -> PNG in Pictures/MaxCut
-                        nativePreview.captureFrame { bmp ->
-                            if (bmp == null) {
-                                scope.launch { snackbarHostState.showSnackbar("Could not read the frame") }
-                            } else {
-                                scope.launch {
-                                    val uri = withContext(Dispatchers.IO) {
-                                        try { com.example.engine.FrameSaver.savePng(context, bmp) } finally { bmp.recycle() }
-                                    }
-                                    snackbarHostState.currentSnackbarData?.dismiss()
-                                    snackbarHostState.showSnackbar(
-                                        if (uri != null) "Frame saved (Pictures/MaxCut)" else "Could not save the frame"
-                                    )
-                                }
-                            }
-                        }
-                    },
+                    // Build 217 (Sarowar's rule): the pill shows the app's
+                    // REAL current export resolution and its popover lists
+                    // the app's REAL export resolutions — the reference
+                    // supplies only the pill's place, size and style.
                     resolutionLabel = exportSettings.resolution.substringBefore(' ').uppercase(),
-                    onResolutionClick = { showAspectRatioSheet = true },
-                    // Build 216: the pill's popover switches the REAL
-                    // export resolution (the exporter's own list — no
-                    // 2K/4K: ExportMaxResolution is 1080).
                     resolutionOptions = com.example.ui.components.ExportResolutions.map { it.first },
                     currentResolution = exportSettings.resolution,
                     onResolutionPick = { viewModel.setExportResolution(it) },
-                    // Build 214: the app bar shows the project name and owns undo / redo.
-                    projectName = projectList.find { it.id == projectId }?.name ?: "Untitled project",
+                    // The ratio popover lists the app's REAL canvas
+                    // aspect ratios in the reference's popover style.
+                    ratioOptions = com.example.model.AspectRatio.values(),
+                    onRatioPick = { viewModel.setAspectRatio(it) },
                     onExportClick = {
                         // Fresh state every time: a previous export must not leak into this one.
                         exportDone = false
@@ -3104,23 +3119,29 @@ fun VideoEditorScreen(
                     // Build 214: snap + marker toggles live in the transport bar.
                     snapOn = snapEnabled,
                     onSnapClick = onSnapAction,
-                    onMarkerClick = onMarkerAction
-                )
-
-                // 3a. Workspace controls row (build 216): the grid +
-                // transform-box view toggles from Sarowar's reference.
-                // Its 36 dp is paid from the lower zone (see workspaceH).
-                com.example.ui.components.WorkspaceControlsRow(
-                    gridOn = gridOn,
-                    onGridClick = { gridOn = !gridOn },
+                    onMarkerClick = onMarkerAction,
+                    // Build 217: the reference's controls-bar right group —
+                    // the transform-box toggle, the grid toggle (both were
+                    // the build-216 workspace row) and Add-Keyframe, which
+                    // drops POSITION+SCALE+ROTATION keyframes at the
+                    // playhead on the selected layer (the view model's
+                    // own keyframe toggle).
                     transformBoxOn = transformBoxOn,
                     onTransformBoxClick = { transformBoxOn = !transformBoxOn },
-                    // Build 216: undo / redo at the row's right end (the
-                    // app bar's build-214 wiring, moved down unchanged).
-                    canUndo = canUndo,
-                    canRedo = canRedo,
-                    onUndoClick = { viewModel.undo(); com.example.ui.buddy.BuddyBrain.react(com.example.ui.buddy.BuddyEvent.UNDO) },
-                    onRedoClick = { viewModel.redo(); com.example.ui.buddy.BuddyBrain.react(com.example.ui.buddy.BuddyEvent.REDO) }
+                    gridOn = gridOn,
+                    onGridClick = { gridOn = !gridOn },
+                    onAddKeyframeClick = {
+                        selectedClipId?.let { id ->
+                            viewModel.toggleKeyframes(
+                                id,
+                                listOf(
+                                    com.example.model.AnimProp.POSITION,
+                                    com.example.model.AnimProp.SCALE,
+                                    com.example.model.AnimProp.ROTATION
+                                )
+                            )
+                        }
+                    }
                 )
 
                 // 3b. Onion-skin settings row (build 190) — only while the ghosts are
@@ -3143,7 +3164,7 @@ fun VideoEditorScreen(
 
                 // 4. Timescale Section (1/30 of screen)
                 TimescaleSection(
-                    height = rulerH, // build 216: the reference's 46 dp ruler
+                    height = rulerH, // build 217: the reference's 44 dp ruler
                     playheadMs = playheadProvider,
                     totalDurationMs = totalDurationMs,
                     pxPerMs = timelinePxPerMs,
@@ -3152,7 +3173,20 @@ fun VideoEditorScreen(
                     onMarkerTap = { m -> viewModel.seekTo(m.timeMs) },
                     onMarkerLongPress = { m -> markerEditTarget = m },
                     exportInMs = exportInMs,
-                    exportOutMs = exportOutMs
+                    exportOutMs = exportOutMs,
+                    // Build 217: the layer-count pill shows the REAL layer
+                    // count; its tap opens the timeline options (the tools
+                    // stage in its no-selection form — the universal tools
+                    // and the displaced functions live there now).
+                    layerCount = shownTracks.sumOf { it.clips.size },
+                    onLayerPillClick = { toolsPanelManual = true },
+                    // The selected layer's keyframes as the reference's
+                    // orange diamonds on the ruler.
+                    keyframeTimesMs = selectedClipId?.let { sid ->
+                        tracks.flatMap { it.clips }.firstOrNull { it.id == sid }?.let { c ->
+                            c.keyframeTimes().map { t -> c.startMs + t }
+                        }
+                    } ?: emptyList()
                 )
 
                 // 5. Layer Panel (5/18 of screen). Inside a group (Edit Group) a green bar on top leads back out.
@@ -3388,7 +3422,8 @@ fun VideoEditorScreen(
                     // panel is open the panel's bars do not render — they
                     // publish their actions to the grid's head tiles.
                     toolsPanelOpen = toolsPanelOpen,
-                    barActionsPanel = barActionsState
+                    barActionsPanel = barActionsState,
+                    comfortDensity = comfortDensity
                     // No onAddClick since build 145: the "+" moved into the bottom toolbar
                     // (BottomToolbar's Add item opens the same AddLayerSheet).
                 )
@@ -3446,6 +3481,21 @@ fun VideoEditorScreen(
                             snapOn = snapEnabled,
                             onSnapClick = onSnapAction,
                             onCanvasClick = { showAspectRatioSheet = true },
+                            // Build 217: the displaced functions, housed
+                            // in this sheet (see ToolsGridSheet).
+                            onPrevFrameClick = { viewModel.jumpPrevious() },
+                            onNextFrameClick = { viewModel.jumpNext() },
+                            previewLabel = when (selectedResolution) {
+                                com.example.model.PreviewResolution.FULL -> "Full"
+                                com.example.model.PreviewResolution.HALF -> "1/2"
+                                com.example.model.PreviewResolution.QUARTER -> "1/4"
+                            },
+                            onPreviewClick = { showResolutionSheet = true },
+                            onSaveFrameClick = onSaveFrameAction,
+                            masterMuted = isMasterMuted,
+                            onMasterAudioClick = { viewModel.toggleMasterAudio() },
+                            densityComfort = comfortDensity,
+                            onDensityClick = { comfortDensity = !comfortDensity },
                             clipOverflow = moreClipSection,
                             includeUtilities = selectedClipId == null && multiSelectIds.isEmpty(),
                             // Build 211: the bar actions head the list
@@ -3456,22 +3506,6 @@ fun VideoEditorScreen(
                             modifier = Modifier
                         )
                     }
-                }
-
-                // 5b. Contextual bar (build 216): one layer selected ->
-                // "Layer" + name (tap = rename), Edit / Duplicate /
-                // Delete / Done, directly above the dock. The callbacks
-                // are the build-211 layer header's own. Its 48 dp is in
-                // the budget (contextualH).
-                if (headerClip != null && multiSelectIds.isEmpty()) {
-                    com.example.ui.components.LayerContextBar(
-                        name = headerClip.name,
-                        onRename = { renameTargetId = headerClip.id },
-                        onEdit = { toolsPanelManual = !toolsPanelOpen },
-                        onDuplicate = { viewModel.duplicateSelectedClip() },
-                        onDelete = { viewModel.deleteSelectedClip() },
-                        onDone = { viewModel.selectClip(null) }
-                    )
                 }
 
                 // 6. Footer: Clip Edit Tools Panel if clip is selected, otherwise Main Bottom Toolbar
@@ -3999,16 +4033,17 @@ fun VideoEditorScreen(
                     } else {
                         BottomToolbar(
                             height = footerH,
-                            // Build 214: the dock's project toolbar — Add /
-                            // Media / Text / Audio / Canvas / More (the
-                            // universal panel in the stage). Null / Controller /
-                            // Chain / Camera adds live in the Add sheet now.
-                            onAddClick = { showAddLayerSheet = true },
-                            onMediaClick = {
-                                mediaPicker.launch(
-                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
-                                )
-                            },
+                            // Build 217: EXACTLY the reference's six
+                            // tiles. Video/Photo opens the Add-layer sheet
+                            // (its content carries every add — Media,
+                            // Text, Shape, Audio, Stickers, Templates,
+                            // Null, Controller, Chain, Camera — and the
+                            // Canvas size entry); Fx opens the tools
+                            // stage; Null adds a Null layer directly.
+                            onMediaClick = { showAddLayerSheet = true },
+                            onAudioClick = { showAddAudioSheet = true },
+                            onFxClick = { toolsPanelManual = true },
+                            fxActive = toolsPanelOpen,
                             onTextClick = {
                                 val remaining = totalDurationMs - playheadState.value
                                 val id = viewModel.addTextLayer(
@@ -4016,15 +4051,8 @@ fun VideoEditorScreen(
                                 )
                                 if (id.isNotEmpty()) editingTextId = id
                             },
-                            onAudioClick = { showAddAudioSheet = true },
-                            onCanvasClick = { showAspectRatioSheet = true },
-                            onMoreClick = { toolsPanelManual = true },
-                            moreActive = toolsPanelOpen,
-                            // Build 216 dock tiles: Fx opens the tools
-                            // panel (as More does); Shapes opens the Add
-                            // Shape sheet (the chain panel's own wiring).
-                            onFxClick = { toolsPanelManual = true },
-                            onShapesClick = { showAddShapeSheet = true }
+                            onShapesClick = { showAddShapeSheet = true },
+                            onNullClick = { viewModel.addNullLayer() }
                         )
                     }
                 }
