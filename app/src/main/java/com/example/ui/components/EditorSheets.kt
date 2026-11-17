@@ -399,7 +399,7 @@ fun ExportModalDialog(
     onFormatChange: (String) -> Unit = {},
     gifFrameRate: Int = com.example.model.GifExport.DEFAULT_FPS,
     onGifFrameRateChange: (Int) -> Unit = {},
-    savedToLabel: String = "Saved to Movies/MaxCut",
+    savedToLabel: String = "Saved to Movies/Timeline Pro",
     /** Export range (build 199, A10): the set range as text ("0:12 – 0:20"), or null = whole project. */
     rangeLabel: String? = null,
     /** Clears the export range from inside the dialog. */

@@ -18,8 +18,8 @@ import java.io.File
 /**
  * Export entry point. The C++ engine ([NativeProjectExporter]) renders every project; the
  * chosen [ExportSettings.format] decides the container: an H.264/AAC MP4 saved to
- * Movies/MaxCut, an animated GIF saved to Pictures/MaxCut, or a PNG sequence saved to a
- * Pictures/MaxCut folder (build 189 — the raster formats ride the same frame-rendering
+ * Movies/Timeline Pro, an animated GIF saved to Pictures/Timeline Pro, or a PNG sequence saved to a
+ * Pictures/Timeline Pro folder (build 189 — the raster formats ride the same frame-rendering
  * path and the same progress / cancel / error surface). There is no Media3 / Transformer
  * path any more: if the native export cannot run or fails, [onError] gets the reason.
  *
@@ -88,12 +88,12 @@ class VideoExporter(private val context: Context) {
     }
 
     private fun saveToMovies(file: File): Uri {
-        val name = "MaxCut_${System.currentTimeMillis()}.mp4"
+        val name = "Timeline Pro_${System.currentTimeMillis()}.mp4"
         if (Build.VERSION.SDK_INT >= 29) {
             val values = ContentValues().apply {
                 put(MediaStore.Video.Media.DISPLAY_NAME, name)
                 put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
-                put(MediaStore.Video.Media.RELATIVE_PATH, "Movies/MaxCut")
+                put(MediaStore.Video.Media.RELATIVE_PATH, "Movies/Timeline Pro")
                 put(MediaStore.Video.Media.IS_PENDING, 1)
             }
             val resolver = context.contentResolver
@@ -114,14 +114,14 @@ class VideoExporter(private val context: Context) {
         return Uri.fromFile(dest)
     }
 
-    /** The finished GIF goes to Pictures/MaxCut, beside the frame saves. */
+    /** The finished GIF goes to Pictures/Timeline Pro, beside the frame saves. */
     private fun saveGifToPictures(file: File): Uri {
-        val name = "MaxCut_${System.currentTimeMillis()}.gif"
+        val name = "Timeline Pro_${System.currentTimeMillis()}.gif"
         if (Build.VERSION.SDK_INT >= 29) {
             val values = ContentValues().apply {
                 put(MediaStore.Images.Media.DISPLAY_NAME, name)
                 put(MediaStore.Images.Media.MIME_TYPE, "image/gif")
-                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/MaxCut")
+                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/Timeline Pro")
                 put(MediaStore.Images.Media.IS_PENDING, 1)
             }
             val resolver = context.contentResolver
@@ -139,7 +139,7 @@ class VideoExporter(private val context: Context) {
             file.delete()
             return uri
         }
-        val dir = File(context.getExternalFilesDir(Environment.DIRECTORY_PICTURES) ?: context.filesDir, "MaxCut")
+        val dir = File(context.getExternalFilesDir(Environment.DIRECTORY_PICTURES) ?: context.filesDir, "Timeline Pro")
         dir.mkdirs()
         val dest = File(dir, name)
         file.copyTo(dest, overwrite = true)
@@ -148,7 +148,7 @@ class VideoExporter(private val context: Context) {
     }
 
     /**
-     * The PNG frames of [dir] go to their own Pictures/MaxCut/MaxCut_<stamp> folder, in
+     * The PNG frames of [dir] go to their own Pictures/Timeline Pro/Timeline Pro_<stamp> folder, in
      * frame order. Returns the first frame's Uri. If any frame fails to save, the ones
      * already saved are removed again and the error propagates — a partial sequence is
      * never presented as a finished export.
@@ -157,7 +157,7 @@ class VideoExporter(private val context: Context) {
         val frames = dir.listFiles { f -> f.isFile && f.name.endsWith(".png") }
             ?.sortedBy { it.name } ?: emptyList()
         require(frames.isNotEmpty()) { "The PNG sequence is empty." }
-        val folder = "MaxCut_${System.currentTimeMillis()}"
+        val folder = "Timeline Pro_${System.currentTimeMillis()}"
         if (Build.VERSION.SDK_INT >= 29) {
             val resolver = context.contentResolver
             val saved = ArrayList<Uri>()
@@ -166,7 +166,7 @@ class VideoExporter(private val context: Context) {
                     val values = ContentValues().apply {
                         put(MediaStore.Images.Media.DISPLAY_NAME, frame.name)
                         put(MediaStore.Images.Media.MIME_TYPE, "image/png")
-                        put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/MaxCut/$folder")
+                        put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/Timeline Pro/$folder")
                         put(MediaStore.Images.Media.IS_PENDING, 1)
                     }
                     val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
@@ -184,7 +184,7 @@ class VideoExporter(private val context: Context) {
             dir.deleteRecursively()
             return saved.first()
         }
-        val base = File(context.getExternalFilesDir(Environment.DIRECTORY_PICTURES) ?: context.filesDir, "MaxCut")
+        val base = File(context.getExternalFilesDir(Environment.DIRECTORY_PICTURES) ?: context.filesDir, "Timeline Pro")
         val destDir = File(base, folder)
         destDir.mkdirs()
         for (frame in frames) frame.copyTo(File(destDir, frame.name), overwrite = true)

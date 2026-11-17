@@ -8,6 +8,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -59,8 +60,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -333,7 +338,7 @@ private fun PagerToolBtn(
     val iconTint = if (tool.enabled) Color.White else SelDisabled
     val labelColor = if (tool.enabled) SelLabel else SelDisabled
     Box(modifier = modifier.testTag("pager_tool_${tool.id}")) {
-        Column(
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
                 .clip(RoundedCornerShape(6.dp))
@@ -343,28 +348,71 @@ private fun PagerToolBtn(
                     else Modifier
                 )
                 .clickable(enabled = tool.enabled, onClick = tool.onClick)
-                .padding(horizontal = 2.dp, vertical = 4.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
         ) {
-            Icon(
-                tool.icon,
-                contentDescription = tool.label,
-                tint = iconTint,
+            // Build 220 (ITEM C — toolbar polish, Sarowar's phone
+            // correction on 219): the label is MEASURED against the
+            // button's real inner width and shrunk in 0.5 sp steps from
+            // its base size (9.5 small rows / 11 big rows) down to an
+            // 8 sp floor until it fits on ONE line; only a label that
+            // still cannot fit wraps to two centred lines, and then the
+            // icon/gap give up a few dp so the stack stays inside the
+            // button. No label is ever ellipsised or clipped again.
+            // includeFontPadding = false + an explicit line height make
+            // the stack's height exact, and the small rows' vertical
+            // padding drops 4 -> 2 dp: build 219's stack (22 icon + 2
+            // gap + font-padded 9.5 sp label + 8 padding) overflowed
+            // the 46 dp row and the labels rendered half-clipped.
+            val density = LocalDensity.current
+            val borderPx = if (tool.active) with(density) { 3.dp.roundToPx() } else 0
+            val innerW = constraints.maxWidth - with(density) { 4.dp.roundToPx() } - borderPx
+            val measurer = rememberTextMeasurer()
+            val baseSp = if (smallLabel) 9.5f else 11f
+            val floorSp = 8f
+            var fitSp = baseSp
+            var oneLine = false
+            while (true) {
+                val w = measurer.measure(
+                    text = tool.label,
+                    style = TextStyle(fontSize = fitSp.sp),
+                    softWrap = false
+                ).size.width
+                if (w <= innerW.coerceAtLeast(1)) { oneLine = true; break }
+                if (fitSp <= floorSp) break
+                fitSp = (fitSp - 0.5f).coerceAtLeast(floorSp)
+            }
+            val twoLine = !oneLine
+            val effIcon = if (twoLine) minOf(iconSizeDp, 20) else iconSizeDp
+            val effGap = if (twoLine) 2 else labelGapDp
+            Column(
                 modifier = Modifier
-                    .size(iconSizeDp.dp)
-                    .then(if (tool.iconRotate != 0f) Modifier.rotate(tool.iconRotate) else Modifier)
-            )
-            Spacer(Modifier.height(labelGapDp.dp))
-            Text(
-                text = tool.label,
-                color = labelColor,
-                fontSize = if (smallLabel) 9.5.sp else 11.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
+                    .fillMaxSize()
+                    .padding(horizontal = 2.dp, vertical = if (smallLabel) 2.dp else 4.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    tool.icon,
+                    contentDescription = tool.label,
+                    tint = iconTint,
+                    modifier = Modifier
+                        .size(effIcon.dp)
+                        .then(if (tool.iconRotate != 0f) Modifier.rotate(tool.iconRotate) else Modifier)
+                )
+                Spacer(Modifier.height(effGap.dp))
+                Text(
+                    text = tool.label,
+                    color = labelColor,
+                    fontSize = fitSp.sp,
+                    lineHeight = (fitSp * 1.18f).sp,
+                    style = TextStyle(
+                        platformStyle = PlatformTextStyle(includeFontPadding = false)
+                    ),
+                    maxLines = if (twoLine) 2 else 1,
+                    overflow = if (twoLine) TextOverflow.Clip else TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         }
         if (tool.badge != null) {
             Box(
@@ -466,7 +514,11 @@ fun SelectedToolsPager219(
                                     // small row 22, page-2 small row 18,
                                     // big rows 24 (page-2 row-4: 23).
                                     iconSizeDp = when {
-                                        row.heightDp == 46 -> if (page == 0) 22 else 18
+                                        // Build 220: page-1 small-row icon
+                                        // 22 -> 20, so the 46 dp stack
+                                        // (padding 2 + icon + gap 2 +
+                                        // label) fits with slack.
+                                        row.heightDp == 46 -> if (page == 0) 20 else 18
                                         page == 1 && rowIdx == 2 -> 23
                                         else -> 24
                                     },

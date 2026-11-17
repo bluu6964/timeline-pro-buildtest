@@ -2763,10 +2763,16 @@ fun VideoEditorScreen(
             val allLanesFit = allLanesH + oneRowGridH <= zonePoolH
             val selIdForRestrict = selectedClipId
             val restrictIds: Set<String>? = when {
-                // Build 219: the selected state's panel is the pager, not
-                // the stage — no lane restriction in that state (the
-                // reference shows the full lane list under its header).
-                sel219 -> null
+                // Build 220 (Sarowar's phone correction on 219): in the
+                // selected (pager) state the timeline shows ONLY the
+                // selected layer's lane — the build-210 tools-panel law.
+                // Build 219 left the full list in place, so the lane
+                // visible above the pager was the one ABOVE the selection.
+                // A chain's lane is its whole section (the chain clip and
+                // its children live in one track), exactly as the <=218
+                // panel state filtered it. sel219 guarantees a single
+                // selection here, so this never touches multi-select.
+                sel219 -> selIdForRestrict?.let { setOf(it) }
                 !toolsPanelOpen -> null
                 allLanesFit -> null
                 selIdForRestrict != null -> setOf(selIdForRestrict)
@@ -2789,7 +2795,9 @@ fun VideoEditorScreen(
             var toolsGridRows = 0
             // Build 219: in the selected state the in-flow stage stays
             // closed (the grid is the header-Layers sheet above the
-            // pager instead), so the timeline keeps the whole pool.
+            // pager instead); the publisher panels still publish their
+            // full lists to that sheet, while the LANES follow the
+            // build-220 restriction above (selected layer only).
             if (toolsPanelOpen && !sel219) {
                 val layerFloor = restrictedLanesH ?: minLayerZoneH
                 val gridBudgetH = (zonePoolH - layerFloor).coerceAtLeast(0.dp)
@@ -2856,7 +2864,7 @@ fun VideoEditorScreen(
                 // save-frame button, so the action (unchanged) now lives
                 // on the tools sheet's Save frame tile.
                 val onSaveFrameAction: () -> Unit = {
-                    // current canvas frame -> PNG in Pictures/MaxCut
+                    // current canvas frame -> PNG in Pictures/Timeline Pro
                     nativePreview.captureFrame { bmp ->
                         if (bmp == null) {
                             scope.launch { snackbarHostState.showSnackbar("Could not read the frame") }
@@ -2867,7 +2875,7 @@ fun VideoEditorScreen(
                                 }
                                 snackbarHostState.currentSnackbarData?.dismiss()
                                 snackbarHostState.showSnackbar(
-                                    if (uri != null) "Frame saved (Pictures/MaxCut)" else "Could not save the frame"
+                                    if (uri != null) "Frame saved (Pictures/Timeline Pro)" else "Could not save the frame"
                                 )
                             }
                         }
@@ -4464,7 +4472,7 @@ fun VideoEditorScreen(
                                 }
                                 snackbarHostState.currentSnackbarData?.dismiss()
                                 snackbarHostState.showSnackbar(
-                                    if (uri != null) "Frame saved (Pictures/MaxCut)" else "Could not save the frame"
+                                    if (uri != null) "Frame saved (Pictures/Timeline Pro)" else "Could not save the frame"
                                 )
                             }
                         }
@@ -6123,9 +6131,9 @@ fun VideoEditorScreen(
             gifFrameRate = exportSettings.gifFrameRate,
             onGifFrameRateChange = { viewModel.setGifFrameRate(it) },
             savedToLabel = when (lastExportFormat) {
-                com.example.model.ExportFormats.GIF -> "Saved to Pictures/MaxCut"
-                com.example.model.ExportFormats.PNG_SEQUENCE -> "Saved to Pictures/MaxCut (PNG frames)"
-                else -> "Saved to Movies/MaxCut"
+                com.example.model.ExportFormats.GIF -> "Saved to Pictures/Timeline Pro"
+                com.example.model.ExportFormats.PNG_SEQUENCE -> "Saved to Pictures/Timeline Pro (PNG frames)"
+                else -> "Saved to Movies/Timeline Pro"
             },
             // Build 199 (A10): the export range, when the ruler points form one.
             rangeLabel = viewModel.exportRange()?.let { r ->
@@ -6151,8 +6159,8 @@ fun VideoEditorScreen(
                         exportDone = true
                         scope.launch {
                             snackbarHostState.showSnackbar(
-                                if (lastExportFormat == com.example.model.ExportFormats.MP4) "Saved to Movies/MaxCut"
-                                else "Saved to Pictures/MaxCut"
+                                if (lastExportFormat == com.example.model.ExportFormats.MP4) "Saved to Movies/Timeline Pro"
+                                else "Saved to Pictures/Timeline Pro"
                             )
                         }
                     },

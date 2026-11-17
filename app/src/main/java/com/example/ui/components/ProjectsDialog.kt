@@ -1,5 +1,6 @@
 package com.example.ui.components
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -48,6 +49,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -55,6 +57,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.example.R
 import com.example.model.ProjectMeta
 import com.example.ui.theme.AmAccent
 import com.example.ui.theme.AmBase
@@ -77,7 +80,7 @@ private val DialogFill = AmPanel
 /**
  * HOME (build 214 — UI ARCHITECTURE REDESIGN): the project list is the
  * app's home surface, presented full-screen over the editor: a brand
- * header (the red M mark + MaxCut), one large NEW PROJECT hero card,
+ * header (the clapperboard logo + Timeline Pro), one large NEW PROJECT hero card,
  * then the RECENT section — rich project cards (thumbnail block, name,
  * modified date, duration, ⋯ menu) in a 2-column grid. All actions are
  * the same callbacks the old dialog carried (open / new / rename /
@@ -135,18 +138,19 @@ fun ProjectsDialog(
                     .height(64.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
+                // Build 220: the brand tile is Sarowar's clapperboard
+                // logo (the same artwork as the launcher icon), not the
+                // old lime tile with an "M" letter.
+                Image(
+                    painter = painterResource(id = R.drawable.timeline_pro_logo),
+                    contentDescription = null,
                     modifier = Modifier
                         .size(40.dp)
                         .clip(RoundedCornerShape(12.dp))
-                        .background(AmAccent),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("M", color = com.example.ui.theme.AmInk, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold) // build 216: ink on the lime brand tile
-                }
+                )
                 Spacer(Modifier.width(12.dp))
                 Column {
-                    Text("MaxCut", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                    Text("Timeline Pro", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                     Text("Projects", color = AmTextDim, fontSize = 12.sp, maxLines = 1)
                 }
                 Spacer(Modifier.weight(1f))

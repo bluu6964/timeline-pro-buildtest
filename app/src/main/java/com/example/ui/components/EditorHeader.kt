@@ -315,7 +315,7 @@ private fun DownloadGlyph(tint: Color = AmInk) {
  * Header shown while a layer is selected (it replaces [EditorHeader]).
  *
  * Build 211 (Sarowar, with his Alight Motion reference): REDESIGNED to
- * the reference. Build 210 kept MaxCut's old two-line header (name +
+ * the reference. Build 210 kept Timeline Pro's old two-line header (name +
  * "Video · 0:00–0:56" subtitle + colour dot + eye) and only added
  * buttons — rejected. This is a single-row dark SLATE bar
  * ([AmSlateHeader] — a slate grey-violet distinct from the editor

@@ -212,7 +212,7 @@ object AlightXmlExporter {
             collectMedia()
             val sb = StringBuilder()
             sb.append("<?xml version='1.0' encoding='UTF-8'?>\n")
-            sb.append("<!-- Exported from MaxCut as an Alight Motion project -->\n")
+            sb.append("<!-- Exported from Timeline Pro as an Alight Motion project -->\n")
             sb.append("<scene title=\"").append(escAttr(name)).append("\"")
             sb.append(" width=\"").append(sceneW).append("\" height=\"").append(sceneH).append("\"")
             sb.append(" exportWidth=\"").append(sceneW).append("\" exportHeight=\"").append(sceneH).append("\"")
