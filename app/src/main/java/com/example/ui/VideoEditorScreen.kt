@@ -4701,8 +4701,15 @@ fun VideoEditorScreen(
                     height = headerH,
                     title = "Blending",
                     onReset = {
-                        viewModel.updateClip(editingBlend.id) {
-                            it.copy(opacity = 100f, blendMode = com.example.model.BlendModes.NORMAL)
+                        // Build 221: the panel no longer carries its own reset row (the
+                        // reference's design), so the header bar runs the OLD SHEET
+                        // reset's exact operation — values AND the opacity keyframes.
+                        viewModel.updateClipNoKeyframes(editingBlend.id) {
+                            it.copy(
+                                keyframes = it.keyframes.filterKeys { p -> p != com.example.model.AnimProp.OPACITY },
+                                opacity = 100f,
+                                blendMode = com.example.model.BlendModes.NORMAL
+                            )
                         }
                     },
                     modifier = Modifier
@@ -4745,16 +4752,6 @@ fun VideoEditorScreen(
                         onEasingChange = { prop, kfTime, easing ->
                             viewModel.setKeyframeEasing(editingBlend.id, prop, kfTime, easing)
                         },
-                        onReset = {
-                            viewModel.updateClipNoKeyframes(editingBlend.id) {
-                                it.copy(
-                                    keyframes = it.keyframes.filterKeys { p -> p != com.example.model.AnimProp.OPACITY },
-                                    opacity = 100f,
-                                    blendMode = com.example.model.BlendModes.NORMAL
-                                )
-                            }
-                        },
-                        onBack = { editingBlendId = null },
                         modifier = Modifier.weight(1f)
                     )
                 }
