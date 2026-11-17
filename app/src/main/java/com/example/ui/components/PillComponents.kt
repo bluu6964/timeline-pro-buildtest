@@ -186,7 +186,7 @@ fun DialogPrimaryButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     tag: String? = null
-) = PillActionButton(text, onClick, AmAccentViolet, Color.White, modifier, enabled, tag)
+) = PillActionButton(text, onClick, AmAccentViolet, com.example.ui.theme.AmInk, modifier, enabled, tag) // build 216: ink on lime
 
 /** The secondary dialog action: the filled selected-pill grey, white label. */
 @Composable

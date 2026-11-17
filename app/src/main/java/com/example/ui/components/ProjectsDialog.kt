@@ -1,6 +1,7 @@
 package com.example.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -141,7 +142,7 @@ fun ProjectsDialog(
                         .background(AmAccent),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("M", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
+                    Text("M", color = com.example.ui.theme.AmInk, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold) // build 216: ink on the lime brand tile
                 }
                 Spacer(Modifier.width(12.dp))
                 Column {
@@ -192,7 +193,7 @@ fun ProjectsDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(AmCornerCard))
-                    .background(AmAccent)
+                    .background(Color(0xFF18181B)) // build 216: the New Project hero is BLACK with lime + white
                     .clickable { onNew() }
                     .padding(horizontal = 18.dp, vertical = 18.dp)
                     .testTag("home_new_project"),
@@ -202,10 +203,10 @@ fun ProjectsDialog(
                     modifier = Modifier
                         .size(46.dp)
                         .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.22f)),
+                        .background(AmAccent),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Filled.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(26.dp))
+                    Icon(Icons.Filled.Add, contentDescription = null, tint = com.example.ui.theme.AmInk, modifier = Modifier.size(26.dp))
                 }
                 Spacer(Modifier.width(14.dp))
                 Column {
@@ -262,7 +263,8 @@ fun ProjectsDialog(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(AmCornerCard))
-                                .background(AmCardSurface)
+                                .background(AmPanelHigh) // build 216: pill-surface cards on the white home
+                                .border(1.dp, com.example.ui.theme.AmHairline, RoundedCornerShape(AmCornerCard))
                                 .clickable { onOpen(p.id) }
                                 .testTag("project_card_${p.id}")
                         ) {
@@ -273,7 +275,7 @@ fun ProjectsDialog(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(74.dp)
-                                    .background(AmPanelHigh),
+                                    .background(com.example.ui.theme.AmPanelElevated),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
@@ -291,7 +293,7 @@ fun ProjectsDialog(
                                             .background(AmAccent)
                                             .padding(horizontal = 7.dp, vertical = 2.dp)
                                     ) {
-                                        Text("OPEN", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold)
+                                        Text("OPEN", color = com.example.ui.theme.AmInk, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold)
                                     }
                                 }
                                 Box(
@@ -314,9 +316,9 @@ fun ProjectsDialog(
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         p.name,
-                                        color = if (isCurrent) AmAccent else TextPrimary,
+                                        color = TextPrimary, // build 216: the current project reads ink + bold, not lime text
                                         fontSize = 14.sp,
-                                        fontWeight = FontWeight.SemiBold,
+                                        fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.SemiBold,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )

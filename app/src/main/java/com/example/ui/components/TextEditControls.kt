@@ -61,10 +61,10 @@ import com.example.ui.theme.TextPrimary
 import java.util.Locale
 
 /** Colors used by the Text edit panel (taken from the reference screenshots). */
-internal val SheetBg = Color(0xFF17171C) // build 214: the card surface
-internal val FieldBg = Color(0xFF22222A) // build 214: the raised surface
-internal val ChipBg = Color(0xFF22222A) // build 214: the raised surface
-internal val ChipSelectedBg = Color(0xFFE8E4E4)
+internal val SheetBg = Color(0xFFFFFFFF) // build 216: the text sheet is white
+internal val FieldBg = Color(0xFFF3F3F4) // build 216: pill surface
+internal val ChipBg = Color(0xFF18181B) // build 216: chips stay ink (their labels are white) on the white sheet
+internal val ChipSelectedBg = Color(0xFFC8F91F) // build 216: selected chip = lime (its label is ink)
 
 private val Swatches = listOf(
     0xFF9C27B0, 0xFFE91E63, 0xFFF44336, 0xFFFFFFFF, 0xFF9E9E9E, 0xFF000000,
@@ -107,7 +107,7 @@ fun TextColorRow(
                         .background(Color(c))
                         .then(
                             if (c == selected) Modifier.border(2.5.dp, Color.White, RoundedCornerShape(11.dp))
-                            else Modifier.border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(11.dp))
+                            else Modifier.border(1.dp, Color.Black.copy(alpha = 0.10f), RoundedCornerShape(11.dp))
                         )
                         .bouncyClickable(pressedScale = 0.85f) { onSelect(c) }
                 )

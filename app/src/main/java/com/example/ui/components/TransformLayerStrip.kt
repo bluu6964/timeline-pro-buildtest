@@ -385,14 +385,14 @@ fun TransformLayerStrip(
                 modifier = Modifier
                     .size(22.dp)
                     .graphicsLayer { rotationZ = 45f }
-                    .border(1.5.dp, Color.White, RectangleShape)
+                    .border(1.5.dp, Color(0xFF18181B), RectangleShape) // build 216: ink on the light strip
                     .bouncyClickable(onClick = {}),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.Add,
                     contentDescription = "Keyframe",
-                    tint = Color.White,
+                    tint = Color(0xFF18181B),
                     modifier = Modifier.size(14.dp).graphicsLayer { rotationZ = -45f }
                 )
             }

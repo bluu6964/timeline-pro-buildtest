@@ -439,7 +439,7 @@ private fun MagnetGlyph(on: Boolean) {
 private fun BeatMarkGlyph() {
     Canvas(Modifier.size(24.dp)) {
         val u = size.width / 24f
-        val cyan = Color(0xFFFFFFFF)
+        val cyan = Color(0xFF18181B) // build 216: ink glyph on the light panel
         val d = Path().apply {
             moveTo(10f * u, 3.2f * u); lineTo(16.6f * u, 10f * u); lineTo(10f * u, 16.8f * u); lineTo(3.4f * u, 10f * u); close()
         }
@@ -449,7 +449,7 @@ private fun BeatMarkGlyph() {
         val px = 17.4f * u
         val py = 17.4f * u
         val arm = 3.6f * u
-        drawLine(Color.White, Offset(px - arm, py), Offset(px + arm, py), 2.1f * u, StrokeCap.Round)
-        drawLine(Color.White, Offset(px, py - arm), Offset(px, py + arm), 2.1f * u, StrokeCap.Round)
+        drawLine(Color(0xFF18181B), Offset(px - arm, py), Offset(px + arm, py), 2.1f * u, StrokeCap.Round)
+        drawLine(Color(0xFF18181B), Offset(px, py - arm), Offset(px, py + arm), 2.1f * u, StrokeCap.Round)
     }
 }

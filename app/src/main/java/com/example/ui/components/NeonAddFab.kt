@@ -37,13 +37,13 @@ fun NeonAddFab(
             val u = d / 61f                      // 1 reference dp in px
             val c = Offset(d / 2f, d / 2f)
 
-            // BARE plus (build 183): a dark under-stroke pass, then the white glyph.
+            // Build 216: a LIME disc with an ink plus (the reference's
+            // accent disc) — readable on the white timeline.
+            drawCircle(Color(0xFFC8F91F), radius = d / 2f - 1f * u, center = c)
             val arm = 10.5f * u
             val th = 3.6f * u
-            drawLine(Color.Black.copy(alpha = 0.55f), Offset(c.x - arm, c.y), Offset(c.x + arm, c.y), th + 2.4f * u, StrokeCap.Round)
-            drawLine(Color.Black.copy(alpha = 0.55f), Offset(c.x, c.y - arm), Offset(c.x, c.y + arm), th + 2.4f * u, StrokeCap.Round)
-            drawLine(Color.White, Offset(c.x - arm, c.y), Offset(c.x + arm, c.y), th, StrokeCap.Round)
-            drawLine(Color.White, Offset(c.x, c.y - arm), Offset(c.x, c.y + arm), th, StrokeCap.Round)
+            drawLine(Color(0xFF18181B), Offset(c.x - arm, c.y), Offset(c.x + arm, c.y), th, StrokeCap.Round)
+            drawLine(Color(0xFF18181B), Offset(c.x, c.y - arm), Offset(c.x, c.y + arm), th, StrokeCap.Round)
         }
     }
 }

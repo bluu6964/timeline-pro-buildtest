@@ -357,12 +357,15 @@ private fun OpacitySlider(
         val x = thumbR + (size.width - 2f * thumbR) * (value / 100f).coerceIn(0f, 1f)
         // B/W language: a flat white track line and a flat white thumb disc.
         // Geometry (thumb radius, span math) is untouched.
+        // Build 216: on the white panel the track is an ink wash and the
+        // white thumb carries an ink ring (geometry untouched).
         drawLine(
-            color = Color.White,
+            color = Color(0xFF18181B).copy(alpha = 0.25f),
             start = Offset(thumbR, y), end = Offset(size.width - thumbR, y),
             strokeWidth = 2.dp.toPx(), cap = StrokeCap.Round
         )
         drawCircle(color = Color.White, radius = thumbR, center = Offset(x, y))
+        drawCircle(color = Color(0xFF18181B), radius = thumbR, center = Offset(x, y), style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.5.dp.toPx()))
         drawCircle(color = AmInk, radius = thumbR * 0.35f, center = Offset(x, y))
     }
 }

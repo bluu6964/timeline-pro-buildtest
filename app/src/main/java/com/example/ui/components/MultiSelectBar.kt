@@ -40,7 +40,7 @@ import com.example.ui.theme.AmDanger
 import com.example.ui.theme.amGlassBrush
 import com.example.ui.util.bouncyClickable
 
-private val IconColor = Color.White
+private val IconColor = Color(0xFF18181B) // build 216: ink glyphs on the white bar
 
 /**
  * Bar shown at the bottom of the timeline while several layers are selected.
@@ -168,7 +168,7 @@ fun MultiSelectBar(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                MiniTile(label = "All", labelColor = Color.White.copy(alpha = 0.75f), onClick = onSelectAll) { drawSelectAllGlyph() }
+                MiniTile(label = "All", labelColor = Color(0xFF18181B).copy(alpha = 0.75f), onClick = onSelectAll) { drawSelectAllGlyph() }
                 MiniTile(label = "Delete", labelColor = AmDanger, onClick = onDeleteChecked) { drawTrashGlyph() }
             }
         }
@@ -286,7 +286,7 @@ private fun BooleanTile(
         Canvas(modifier = Modifier.size(width = 28.dp, height = 20.dp)) { drawBooleanGlyph(op) }
         Text(
             op.displayName,
-            color = Color.White.copy(alpha = 0.75f),
+            color = Color(0xFF18181B).copy(alpha = 0.75f),
             fontSize = 8.sp,
             fontWeight = FontWeight.Medium,
             maxLines = 1

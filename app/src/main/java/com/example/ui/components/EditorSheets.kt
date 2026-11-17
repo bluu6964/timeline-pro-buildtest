@@ -1,6 +1,7 @@
 package com.example.ui.components
 
 import com.example.ui.theme.AmCornerCard
+import com.example.ui.theme.AmAccentViolet
 import com.example.ui.theme.AmInk
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -466,10 +467,10 @@ fun ExportModalDialog(
 
                 when {
                     isCompleted -> {
-                        Text("Export Complete!", color = Color.White, fontSize = 30.sp,
+                        Text("Export Complete!", color = TextPrimary, fontSize = 30.sp,
                             fontWeight = FontWeight.Black, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text(savedToLabel, color = Color.White.copy(alpha = 0.7f),
+                        Text(savedToLabel, color = TextSecondary,
                             fontSize = 14.sp, fontWeight = FontWeight.Medium)
                         Spacer(modifier = Modifier.height(24.dp))
                         // Pill actions (build 209, the redesign language): Done is the
@@ -478,7 +479,7 @@ fun ExportModalDialog(
                             PillActionButton(
                                 text = "Done",
                                 onClick = onDismiss,
-                                containerColor = Color.White,
+                                containerColor = AmAccentViolet, // build 216: Done = the lime primary
                                 contentColor = AmInk,
                                 modifier = Modifier.weight(1f).height(48.dp)
                             )
@@ -493,9 +494,9 @@ fun ExportModalDialog(
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(Icons.Default.Share, contentDescription = null,
-                                        tint = Color.White, modifier = Modifier.size(16.dp))
+                                        tint = AmInk, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Share", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                    Text("Share", color = AmInk, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                                 }
                             }
                         }
@@ -515,13 +516,13 @@ fun ExportModalDialog(
                                 val inset = stroke / 2f
                                 val arcSize = Size(size.width - stroke, size.height - stroke)
                                 drawArc(
-                                    color = Color.White.copy(alpha = 0.15f),
+                                    color = Color(0xFF18181B).copy(alpha = 0.12f),
                                     startAngle = 0f, sweepAngle = 360f, useCenter = false,
                                     topLeft = Offset(inset, inset), size = arcSize,
                                     style = Stroke(width = stroke)
                                 )
                                 drawArc(
-                                    color = Color.White,
+                                    color = Color(0xFF18181B),
                                     startAngle = -90f,
                                     sweepAngle = progress.coerceIn(0f, 1f) * 360f,
                                     useCenter = false,
@@ -530,19 +531,19 @@ fun ExportModalDialog(
                                 )
                             }
                             Text(
-                                "${(progress * 100).toInt()}%", color = Color.White, fontSize = 40.sp,
+                                "${(progress * 100).toInt()}%", color = TextPrimary, fontSize = 40.sp,
                                 fontWeight = FontWeight.Black, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
                             )
                         }
                         Spacer(modifier = Modifier.height(10.dp))
                         Text(
                             "Remaining time approximately ${formatRemaining(remainingMs)}",
-                            color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
+                            color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center
                         )
                         Text(
                             "Please do not exit the application or lock the screen",
-                            color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
+                            color = TextSecondary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center
                         )
                     }
@@ -559,12 +560,12 @@ fun ExportModalDialog(
                     .width(96.dp)
                     .height(56.dp)
                     .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.10f), CircleShape)
+                    .background(AmPanelHigh, CircleShape) // build 216: the close tab on white
                     .clickable { if (isExporting) onCancel() else onDismiss() }
                     .testTag("export_close"),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White, modifier = Modifier.size(26.dp))
+                Icon(Icons.Default.Close, contentDescription = "Close", tint = TextPrimary, modifier = Modifier.size(26.dp))
             }
         }
     }
@@ -575,7 +576,7 @@ private fun formatRemaining(ms: Long?): String {
     return "%02d:%02d:%02d".format(total / 3600, (total % 3600) / 60, total % 60)
 }
 
-private val ExportAccent = Color(0xFFFFFFFF)
+private val ExportAccent = Color(0xFF18181B) // build 216: ink accent on the white export page
 
 /** Settings page: scrolling cards on top, "Export Now" pinned at the bottom (always visible). */
 @Composable
@@ -609,7 +610,7 @@ private fun ColumnScope.ExportSettingsPage(
         Spacer(modifier = Modifier.height(4.dp))
         ExportBadge(modifier = Modifier.fillMaxWidth().height(120.dp))
         Text(
-            "Export settings", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold,
+            "Export settings", color = TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(top = 4.dp)
         )
 
@@ -743,7 +744,7 @@ private fun ExportCard(title: String, value: String, hint: String, content: @Com
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(title, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                Text(title, color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                 Text(hint, color = TextTertiary, fontSize = 11.sp)
             }
             Text(value, color = ExportAccent, fontSize = 18.sp, fontWeight = FontWeight.Bold)
@@ -761,7 +762,7 @@ private fun ExportSlider(value: Float, range: ClosedFloatingPointRange<Float>, t
         colors = androidx.compose.material3.SliderDefaults.colors(
             thumbColor = ExportAccent,
             activeTrackColor = ExportAccent,
-            inactiveTrackColor = Color.White.copy(alpha = 0.15f)
+            inactiveTrackColor = Color(0xFF18181B).copy(alpha = 0.12f)
         ),
         modifier = Modifier.fillMaxWidth().testTag(tag)
     )
@@ -782,7 +783,7 @@ private fun ExportChip(text: String, selected: Boolean, onClick: () -> Unit) {
         modifier = Modifier
             .heightIn(min = 40.dp)
             .clip(CircleShape)
-            .background(if (selected) ExportAccent else Color.White.copy(alpha = 0.10f), CircleShape)
+            .background(if (selected) ExportAccent else AmPanelHigh, CircleShape)
             .bouncyClickable(pressedScale = 0.94f) { onClick() }
             .padding(horizontal = 14.dp),
         contentAlignment = Alignment.Center
@@ -791,7 +792,7 @@ private fun ExportChip(text: String, selected: Boolean, onClick: () -> Unit) {
             text = text,
             fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold,
-            color = if (selected) Color(0xFF0A0A0A) else Color(0xFFE5E5E7)
+            color = if (selected) Color.White else TextPrimary // build 216: white on the ink chip, ink on the pill chip
         )
     }
 }
@@ -827,7 +828,7 @@ private fun ExportBadge(modifier: Modifier = Modifier) {
             drawRingText(
                 text = "MAXCUT • PROFESSIONAL VIDEO EDITOR • ",
                 cx = cx, cy = cy, radius = outerR, textSizePx = outerR * 0.26f,
-                color = Color.White.copy(alpha = 0.13f), bold = true, rotationDeg = outerRot
+                color = Color(0xFF18181B).copy(alpha = 0.13f), bold = true, rotationDeg = outerRot
             )
 
             // Wavy seal
@@ -1042,7 +1043,7 @@ fun AddTextSheet(
                 modifier = Modifier.fillMaxWidth(),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
             ) {
-                Text("Add to Timeline", color = Color.White, fontWeight = FontWeight.Bold)
+                Text("Add to Timeline", color = AmInk, fontWeight = FontWeight.Bold) // build 216: ink on the lime pill
             }
         }
     }
@@ -1097,7 +1098,7 @@ fun AddShapeSheet(
                     modifier = Modifier
                         .size(32.dp)
                         .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.08f))
+                        .background(AmPanelHigh)
                         .bouncyClickable(pressedScale = 0.88f) { onDismiss() },
                     contentAlignment = Alignment.Center
                 ) {
@@ -1113,7 +1114,7 @@ fun AddShapeSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(1.dp)
-                    .background(Color.White.copy(alpha = 0.07f))
+                    .background(AmHairline)
             )
             Spacer(Modifier.height(14.dp))
 
@@ -1166,7 +1167,7 @@ private fun ShapePickerCard(
                 .aspectRatio(1f)
                 .clip(tile)
                 .background(AmPanelHigh)
-                .border(1.dp, Color.White.copy(alpha = 0.08f), tile),
+                .border(1.dp, AmHairline, tile),
             contentAlignment = Alignment.Center
         ) {
             Canvas(modifier = Modifier.fillMaxSize(0.52f)) {

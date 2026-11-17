@@ -229,7 +229,7 @@ fun EditShapeView(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFF0F0F0F))
+            .background(Color.White) // build 216: light shape editor
             .testTag("edit_shape_screen")
     ) {
         // 1. Header: Left close button, Center "Edit shape" title, Right "Add" button
@@ -656,7 +656,7 @@ fun EditShapeView(
                         .fillMaxWidth(progressFraction.coerceIn(0.2f, 1f))
                         .height(28.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(Color(0xFF2C2C2C))
+                        .background(Color(0xFFE8E8EB)) // build 216: raised track
                         .padding(horizontal = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -696,7 +696,7 @@ fun EditShapeView(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(topStart = AmCornerSheet, topEnd = AmCornerSheet))
-                .background(Color(0xFF141414))
+                .background(Color.White) // build 216: light bottom panel
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
             // Drag handle pill at top
@@ -1016,7 +1016,7 @@ fun EditShapeView(
             ) {
                 Text(
                     text = if (editing) "Save Shape" else "Add Shape to Timeline",
-                    color = Color.White,
+                    color = com.example.ui.theme.AmInk, // build 216: ink on the lime pill
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold
                 )

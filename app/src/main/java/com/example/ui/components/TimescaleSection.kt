@@ -45,6 +45,8 @@ import com.example.ui.theme.AmBarSurface
 import com.example.ui.theme.AmCyanBright
 import com.example.ui.theme.AmOrange
 import com.example.ui.theme.AmTextFaint
+import com.example.ui.theme.RulerSubTickColor
+import com.example.ui.theme.RulerTickColor
 import com.example.ui.theme.IconActive
 import com.example.ui.theme.TextPrimary
 import com.example.ui.util.bouncyClickable
@@ -60,7 +62,7 @@ private val BarHeight = 16.5.dp
 private val MinBarPitch = 8.dp
 private val BeatMarkColor = AmCyanBright
 /** Named markers (build 188): gold, so they never read as cyan beat marks or the orange playhead bars. */
-private val MarkerColor = Color(0xFFFFC02E)
+private val MarkerColor = Color(0xFFFF7A1A) // build 216: named markers are orange dots
 private val TickSteps = longArrayOf(200L, 500L, 1000L, 2000L, 5000L, 10_000L, 30_000L, 60_000L)
 
 /**
@@ -101,14 +103,6 @@ fun TimescaleSection(
             .background(AmBarSurface) // build 214: the ruler strip shares the transport bar's surface — one merged slim bar
             .testTag("timescale_section")
     ) {
-        val rightPillWidth = when {
-            totalDurationMs >= 3_600_000L -> 64.dp
-            totalDurationMs >= 600_000L -> 48.dp
-            else -> 42.dp
-        }
-        // The playhead pill widens the same way once the playhead itself passes an hour.
-        val leftPillWidth = if (playheadMs() >= 3_600_000L) 64.dp else LeftPillWidth
-
         if (onBack != null) {
             Box(
                 modifier = Modifier
@@ -163,49 +157,44 @@ fun TimescaleSection(
             val currentMs = playheadMs()
             val w = size.width
             val centerPx = w / 2f
-            val barW = BarWidth.toPx()
-            val barH = BarHeight.toPx()
-            val top = (size.height - barH) / 2f
-            val areaStart = (backInset + PillMargin + leftPillWidth + PillGap).toPx()
-            val areaEnd = w - (PillMargin + rightPillWidth + PillGap).toPx()
             val pxPerMsPx = pxPerMs.dp.toPx()
+            // Build 216 (Sarowar's HTML reference): the ruler area is the
+            // full width (the old left/right time pills are gone — the
+            // playhead timecode sits CENTRED under the playhead cap, the
+            // total length is small muted text at the right end).
+            val areaStart = (backInset + 6.dp).toPx()
+            val areaEnd = w - 6.dp.toPx()
 
-            // Step grows when the timeline is zoomed out so the bars never get closer than ~8 dp.
+            // Minor step: grows when zoomed out so ticks never crowd (~8 dp pitch).
             var step = TickSteps.last()
-            for (s in TickSteps) {
-                if (s * pxPerMsPx >= MinBarPitch.toPx()) { step = s; break }
+            for (s2 in TickSteps) {
+                if (s2 * pxPerMsPx >= MinBarPitch.toPx()) { step = s2; break }
             }
-            val pitch = step * pxPerMsPx
             val lastMs = if (totalDurationMs > 0L) totalDurationMs else Long.MAX_VALUE / 4
-
             val halfSpanMs = (centerPx / pxPerMsPx).toLong() + step
             val firstTick = (((currentMs - halfSpanMs).coerceAtLeast(0L)) / step) * step
             val lastTick = currentMs + halfSpanMs
-            val corner = CornerRadius(barW / 2f)
+            val tickTop = 3.dp.toPx()
+            val tickW = 1.5.dp.toPx()
+            val majorEvery = step * 5
 
             var t = firstTick
             while (t <= lastTick && t <= lastMs) {
-                val x = centerPx + (t - currentMs) * pxPerMsPx          // bar centre
-                val left = x - barW / 2f
-                if (left >= areaStart && left + barW <= areaEnd) {
-                    // 1 = elapsed (orange), 0 = upcoming (grey); the bar under the playhead mixes.
-                    val elapsed = ((centerPx - x) / pitch + 0.1f).coerceIn(0f, 1f)
-                    val leftFade = 0.15f + 0.85f * ((x - areaStart) / (pitch * 2.5f)).coerceIn(0f, 1f)
-                    val rightFade = 0.72f + 0.28f * ((areaEnd - x) / (pitch * 6f)).coerceIn(0f, 1f)
-                    val alpha = minOf(leftFade, rightFade)
-                    drawRoundRect(
-                        color = lerp(AmTextFaint, AmOrange, elapsed).copy(alpha = alpha),
-                        topLeft = Offset(left, top),
-                        size = Size(barW, barH),
-                        cornerRadius = corner
+                val x = centerPx + (t - currentMs) * pxPerMsPx
+                if (x >= areaStart && x <= areaEnd) {
+                    val major = t % majorEvery == 0L
+                    drawLine(
+                        color = if (major) RulerTickColor else RulerSubTickColor,
+                        start = Offset(x, tickTop),
+                        end = Offset(x, tickTop + (if (major) 14.dp.toPx() else 8.dp.toPx())),
+                        strokeWidth = tickW
                     )
                 }
                 t += step
             }
 
-            // Export range (build 199, A10): a translucent white band over the ranged span
-            // with a white edge line at each point — white because gold is the markers' and
-            // cyan the beat marks' colour in this ruler's language.
+            // Export range (build 199, A10): on white the band is a soft
+            // black wash with ink edges (was white-on-black).
             if (exportInMs != null && exportOutMs != null && exportOutMs > exportInMs) {
                 val xIn = centerPx + (exportInMs - currentMs) * pxPerMsPx
                 val xOut = centerPx + (exportOutMs - currentMs) * pxPerMsPx
@@ -213,32 +202,30 @@ fun TimescaleSection(
                 val bandR = minOf(xOut, areaEnd)
                 if (bandR > bandL) {
                     drawRect(
-                        color = Color.White.copy(alpha = 0.13f),
+                        color = Color.Black.copy(alpha = 0.06f),
                         topLeft = Offset(bandL, 0f),
                         size = Size(bandR - bandL, size.height)
                     )
                 }
                 val edgeW = 1.6.dp.toPx()
                 if (xIn >= areaStart && xIn <= areaEnd) {
-                    drawLine(Color.White, Offset(xIn, 0f), Offset(xIn, size.height), edgeW)
+                    drawLine(Color(0xFF18181B), Offset(xIn, 0f), Offset(xIn, size.height), edgeW)
                 }
                 if (xOut >= areaStart && xOut <= areaEnd) {
-                    drawLine(Color.White, Offset(xOut, 0f), Offset(xOut, size.height), edgeW)
+                    drawLine(Color(0xFF18181B), Offset(xOut, 0f), Offset(xOut, size.height), edgeW)
                 }
             }
 
-            // Beat marks: cyan, taller than the bars, so they stand out on the ruler.
+            // Beat marks: ink, taller than the ticks (BeatMarkColor).
             if (beatMarksMs.isNotEmpty()) {
                 val markW = 3.dp.toPx()
-                val markH = size.height * 0.82f
-                val markTop = (size.height - markH) / 2f
+                val markH = 20.dp.toPx()
                 for (m in beatMarksMs) {
                     val x = centerPx + (m - currentMs) * pxPerMsPx
-                    val left = x - markW / 2f
-                    if (left >= areaStart && left + markW <= areaEnd) {
+                    if (x >= areaStart && x <= areaEnd) {
                         drawRoundRect(
                             color = BeatMarkColor,
-                            topLeft = Offset(left, markTop),
+                            topLeft = Offset(x - markW / 2f, tickTop),
                             size = Size(markW, markH),
                             cornerRadius = CornerRadius(markW / 2f)
                         )
@@ -246,89 +233,91 @@ fun TimescaleSection(
                 }
             }
 
-            // Named markers (build 188): a gold flag — pole with a pennant at the top —
-            // and the marker's name beside the pennant when it fits inside the bar area.
+            // Named markers (build 216): an ORANGE DOT (7 dp) at the tick
+            // line with the name beside it in orange where it fits. The
+            // tap / long-press mapping above is unchanged.
             if (markers.isNotEmpty()) {
-                val poleTop = size.height * 0.07f
-                val poleBottom = size.height * 0.93f
-                val flagH = size.height * 0.36f
-                val flagW = 7.dp.toPx()
+                val dotR = 3.5.dp.toPx()
+                val dotY = tickTop + 7.dp.toPx()
                 val namePaint = android.graphics.Paint().apply {
-                    color = android.graphics.Color.rgb(0xFF, 0xC0, 0x2E)
+                    color = android.graphics.Color.rgb(0xFF, 0x7A, 0x1A)
                     textSize = 9.dp.toPx()
                     isAntiAlias = true
                 }
                 for (mk in markers) {
                     val x = centerPx + (mk.timeMs - currentMs) * pxPerMsPx
                     if (x < areaStart || x > areaEnd) continue
-                    drawLine(
-                        color = MarkerColor,
-                        start = Offset(x, poleTop + flagH),
-                        end = Offset(x, poleBottom),
-                        strokeWidth = 1.6.dp.toPx(),
-                        cap = StrokeCap.Round
-                    )
-                    val flag = Path().apply {
-                        moveTo(x, poleTop)
-                        lineTo(x + flagW, poleTop + flagH / 2f)
-                        lineTo(x, poleTop + flagH)
-                        close()
-                    }
-                    drawPath(flag, MarkerColor)
+                    drawCircle(color = MarkerColor, radius = dotR, center = Offset(x, dotY))
                     if (mk.name.isNotEmpty()) {
-                        val nameX = x + flagW + 2.5.dp.toPx()
+                        val nameX = x + dotR + 3.dp.toPx()
                         if (nameX + namePaint.measureText(mk.name) <= areaEnd) {
                             drawContext.canvas.nativeCanvas.drawText(
-                                mk.name, nameX, poleTop + flagH / 2f + 3.dp.toPx(), namePaint
+                                mk.name, nameX, dotY + 3.dp.toPx(), namePaint
                             )
                         }
                     }
                 }
             }
+
+            // The CENTRED playhead cap (build 216): a black nub (2.5 x 12 dp)
+            // at the top centre with the LIME nub (5 x 7 dp) over its top —
+            // the timecode text below it is a composable (see below), and
+            // the line itself continues through the tracks in the layer
+            // panel (PlayheadColor, now ink).
+            drawRoundRect(
+                color = Color(0xFF18181B),
+                topLeft = Offset(centerPx - 1.25.dp.toPx(), 0f),
+                size = Size(2.5.dp.toPx(), 12.dp.toPx()),
+                cornerRadius = CornerRadius(1.25.dp.toPx())
+            )
+            drawRoundRect(
+                color = Color(0xFFC8F91F),
+                topLeft = Offset(centerPx - 2.5.dp.toPx(), 0f),
+                size = Size(5.dp.toPx(), 7.dp.toPx()),
+                cornerRadius = CornerRadius(2.dp.toPx())
+            )
         }
 
-        // ── Current time (left) and project length (right) ─────────────
+        // ── Centred playhead timecode (build 216): 13.5 sp bold tabular,
+        // directly under the cap. Only this tiny text recomposes while
+        // the playhead moves. ────────────────────────────────────────────
         Box(
             modifier = Modifier
-                .align(Alignment.CenterStart)
-                .padding(start = backInset + PillMargin)
-                .width(leftPillWidth)
-                .height(PillHeight)
+                .align(Alignment.TopCenter)
+                .padding(top = 16.dp)
                 .testTag("playhead_time_pill"),
             contentAlignment = Alignment.Center
         ) {
-            FlatPill(Modifier.matchParentSize())
-            PillText { formatClock(playheadMs()) }
+            Text(
+                text = formatTimeCode(playheadMs()),
+                color = TextPrimary,
+                fontSize = 13.5.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                style = androidx.compose.ui.text.TextStyle(fontFeatureSettings = "tnum")
+            )
         }
+        // The project length: small muted text at the ruler's right end.
         Box(
             modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .padding(end = PillMargin)
-                .width(rightPillWidth)
-                .height(PillHeight)
+                .align(Alignment.BottomEnd)
+                .padding(end = 8.dp, bottom = 5.dp)
                 .testTag("total_time_pill"),
             contentAlignment = Alignment.Center
         ) {
-            FlatPill(Modifier.matchParentSize())
-            PillText { formatClock(totalDurationMs) }
+            Text(
+                text = formatClock(totalDurationMs),
+                color = AmTextFaint,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center,
+                maxLines = 1
+            )
         }
     }
 }
 
-/** Only this tiny text recomposes while the playhead moves. */
-@Composable
-private fun PillText(text: () -> String) {
-    Text(
-        text = text(),
-        color = TextPrimary,
-        fontSize = 13.sp,
-        fontWeight = FontWeight.Medium,
-        textAlign = TextAlign.Center,
-        maxLines = 1
-    )
-}
-
-/** "MM:SS" - the clock shown in the ruler pills; from one hour on it becomes "H:MM:SS" (it showed "75:00" before). */
 fun formatClock(ms: Long): String {
     val totalSeconds = (ms.coerceAtLeast(0L)) / 1000
     return if (totalSeconds >= 3600L) {

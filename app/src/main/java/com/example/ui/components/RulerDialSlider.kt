@@ -37,8 +37,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.theme.AmFxAccent
-import com.example.ui.theme.AmTickMajor
-import com.example.ui.theme.AmTickMinor
 import com.example.ui.theme.TextPrimary
 import java.util.Locale
 import kotlin.math.abs
@@ -71,7 +69,7 @@ fun RulerDial(
     step: Float = 1f,
     /**
      * Build 200: the Effects parameter editor's borrowed accent — the needle and
-     * thumb render in [AmFxAccent] magenta instead of white (Sarowar's reference
+     * thumb disc renders in [AmFxAccent] lime (build 216; the needle itself is ink)
      * layout). Every other host leaves this false and keeps the white needle.
      */
     accentNeedle: Boolean = false
@@ -177,18 +175,24 @@ fun RulerDial(
                 val tickHeight = if (isMajorTick) h * 0.75f else h * 0.42f
                 val yStart = (h - tickHeight) / 2f
                 drawLine(
-                    color = if (isMajorTick) AmTickMajor else AmTickMinor,
+                    // Build 216: the dial's own tick greys — the shared
+                    // AmTick* tokens now hold the TIMELINE ruler's reference
+                    // greys (#D0D0D4 / #B8B8BE), too faint to read a value
+                    // against on the white panels this dial lives on.
+                    color = if (isMajorTick) Color(0xFF9A9AA0) else Color(0xFFC9C9CE),
                     start = Offset(x, yStart),
                     end = Offset(x, yStart + tickHeight),
                     strokeWidth = 1.5.dp.toPx()
                 )
             }
 
-            // Center indicator (needle): a flat white line (B/W language; geometry
-            // and drag law unchanged), with a flat white thumb disc at its centre.
-            // In the Effects parameter editor (accentNeedle) the same needle renders
-            // in the one borrowed magenta — geometry and drag law identical.
-            val needleColor = if (accentNeedle) AmFxAccent else Color.White
+            // Center indicator (needle): geometry and drag law unchanged.
+            // In the Effects parameter editor (accentNeedle) the centre disc
+            // is lime; every other host gets the flat white thumb disc.
+            // Build 216: the needle is INK in both modes — it was white,
+            // which vanished on the light panels. The Effects dial keeps
+            // its distinction through the lime centre disc below.
+            val needleColor = com.example.ui.theme.AmTextPrimary
             val needleHeight = h * 0.82f
             val needleStart = (h - needleHeight) / 2f
             drawLine(

@@ -180,7 +180,7 @@ fun AppliedEffectsView(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFF0F0F0F))
+            .background(Color.White) // build 216: light screen
             .testTag("applied_effects_screen")
     ) {
         // 1. Header Bar (matching screenshot: Left down arrow button, Center Title)
@@ -429,7 +429,7 @@ fun AppliedEffectsView(
                         .offset(x = 120.dp)
                         .height(28.dp)
                         .clip(RectangleShape)
-                        .background(Color(0xFF2C2C2C))
+                        .background(Color(0xFFF3F3F4)) // build 216: pill surface
                         .padding(horizontal = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -473,7 +473,7 @@ fun AppliedEffectsView(
                         .align(Alignment.Center)
                 ) {
                     drawLine(
-                        color = Color.White,
+                        color = Color(0xFF18181B), // build 216: ink playhead on the light ruler strip
                         start = Offset(0f, 0f),
                         end = Offset(0f, size.height),
                         strokeWidth = 2.dp.toPx()
@@ -487,7 +487,7 @@ fun AppliedEffectsView(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
-                .background(Color(0xFF141414))
+                .background(Color.White) // build 216: light section
                 .padding(horizontal = 16.dp, vertical = 10.dp)
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
@@ -520,7 +520,7 @@ fun AppliedEffectsView(
                                         .fillMaxWidth()
                                         .height(46.dp)
                                         .clip(CircleShape)
-                                        .background(Color(0xFF2A2A2A), CircleShape)
+                                        .background(Color(0xFFF3F3F4), CircleShape) // build 216: pill-surface button
                                         .bouncyClickable(
                                             pressedScale = 0.96f,
                                             onClick = { screenMode = AppliedEffectsScreenMode.LIBRARY }
@@ -566,7 +566,7 @@ fun AppliedEffectsView(
                                                     .fillMaxWidth()
                                                     .height(48.dp)
                                                     .clip(RoundedCornerShape(14.dp))
-                                                    .background(Color(0xFF242424), RoundedCornerShape(14.dp))
+                                                    .background(Color(0xFFF3F3F4), RoundedCornerShape(14.dp)) // build 216
                                                     .padding(horizontal = 10.dp),
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {

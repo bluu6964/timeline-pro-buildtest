@@ -313,7 +313,7 @@ fun CropView(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFF0F0F0F))
+            .background(Color.White) // build 216: light crop screen (the canvas keeps its own dim)
             .then(
                 // Swipe down on the tools area (below the crop canvas) = back.
                 if (chrome != null) Modifier.swipeDownToDismiss(
@@ -785,8 +785,8 @@ fun CropView(
                 modifier = Modifier
                     .size(32.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF1D1D1D))
-                    .border(1.dp, Color(0xFF333333), CircleShape)
+                    .background(Color(0xFFF3F3F4))
+                    .border(1.dp, Color(0x0F000000), CircleShape)
                     .bouncyClickable(onClick = {
                         activePreset = "Free"
                         setRect(0f, 0f, 1f, 1f)
@@ -808,8 +808,8 @@ fun CropView(
                     .weight(1f)
                     .height(30.dp)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(Color(0xFF1E1E1E))
-                    .border(1.dp, Color(0xFF2C2C2C), RoundedCornerShape(10.dp))
+                    .background(Color(0xFFF3F3F4))
+                    .border(1.dp, Color(0x0F000000), RoundedCornerShape(10.dp))
                     .padding(horizontal = 6.dp),
                 contentAlignment = Alignment.CenterStart
             ) {

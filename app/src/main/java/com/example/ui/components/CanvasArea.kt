@@ -137,6 +137,8 @@ fun CanvasArea(
     nativePreview: com.example.engine.NativePreviewEngine? = null,
     /** True while an on-canvas editor (Masks) is open: the transform box of the selected layer is hidden. */
     selectionHidden: Boolean = false,
+    /** Build 216: the workspace row's grid toggle — white 24% thirds lines over the stage. View-only. */
+    showGrid: Boolean = false,
     /** Build 199 (A3): the editor's snap switch — off, canvas drags write the raw position and no snap guides show. */
     snapEnabled: Boolean = true,
     /**
@@ -169,7 +171,7 @@ fun CanvasArea(
         modifier = modifier
             .fillMaxWidth()
             .then(if (height != null) Modifier.height(height) else Modifier.fillMaxHeight())
-            .background(EditorBackground)
+            .background(com.example.ui.theme.AmBaseDeep) // build 216: the stage surround stays BLACK
             .testTag("canvas_preview_area"),
         contentAlignment = Alignment.Center
     ) {
@@ -602,6 +604,21 @@ fun CanvasArea(
                     }
                 }
 
+            }
+
+            // Build 216: the thirds grid (workspace toggle) — white 24%
+            // 1 px lines over the stage, under every selection overlay.
+            if (showGrid) {
+                androidx.compose.foundation.Canvas(Modifier.size(width = frameW, height = frameH)) {
+                    val col = Color.White.copy(alpha = 0.24f)
+                    val lw = 1.dp.toPx()
+                    val tx = size.width / 3f
+                    val ty = size.height / 3f
+                    drawLine(col, Offset(tx, 0f), Offset(tx, size.height), lw)
+                    drawLine(col, Offset(tx * 2, 0f), Offset(tx * 2, size.height), lw)
+                    drawLine(col, Offset(0f, ty), Offset(size.width, ty), lw)
+                    drawLine(col, Offset(0f, ty * 2), Offset(size.width, ty * 2), lw)
+                }
             }
 
             // Bounding box + corner / rotate handles of the selected picture / video layer.

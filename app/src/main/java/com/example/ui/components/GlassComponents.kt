@@ -161,6 +161,7 @@ fun GradientPillButton(
         Row(
             Modifier
                 .background(Color.White, CircleShape)
+                .border(1.dp, AmHairline, CircleShape) // build 216: the white pill needs its hairline on white panels
                 .clip(CircleShape)
                 .bouncyClickable(pressedScale = 0.94f, onClick = onClick)
                 .padding(contentPadding),

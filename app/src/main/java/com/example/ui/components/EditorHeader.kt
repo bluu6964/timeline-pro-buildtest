@@ -16,14 +16,18 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.border
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Redo
-import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -46,10 +50,10 @@ import com.example.ui.theme.AmAccentViolet
 import com.example.ui.theme.AmBase
 import com.example.ui.theme.AmCyan
 import com.example.ui.theme.AmInk
+import com.example.ui.theme.AmPanelHigh
 import com.example.ui.theme.AmSlateHeader
 import com.example.ui.theme.AmTextDim
 import com.example.ui.theme.TextPrimary
-import com.example.ui.theme.amBarBrush
 import com.example.ui.util.bouncyClickable
 
 /**
@@ -76,46 +80,51 @@ fun EditorHeader(
     onResolutionClick: () -> Unit = onAspectRatioClick,
     /** Build 214: the open project's name, shown at the bar's left. */
     projectName: String = "",
-    /** Build 214: undo / redo live in the app bar now (they left the transport bar). */
-    canUndo: Boolean = false,
-    canRedo: Boolean = false,
-    onUndoClick: () -> Unit = {},
-    onRedoClick: () -> Unit = {}
+    // Build 216: undo / redo moved DOWN to the workspace controls row —
+    // at 360 dp the app bar (close, name, save-frame, resolution, export)
+    // has no room for them, and the reference's bar carries none.
+    /**
+     * Build 216: the resolution pill's popover — the app's REAL export
+     * resolutions (labels as stored in ExportSettings). Non-empty = the
+     * pill opens this popover instead of [onResolutionClick]; the current
+     * value (the raw stored label) gets the ✓. The mock's 2K / 4K are NOT
+     * offered: the exporter caps at 1080p (ExportMaxResolution).
+     */
+    resolutionOptions: List<String> = emptyList(),
+    currentResolution: String = "",
+    onResolutionPick: (String) -> Unit = {}
 ) {
-    val barH = (height - 4.dp).coerceAtMost(46.dp)
-    val btnH = barH - 10.dp
+    // Build 216 (Sarowar's HTML reference): the bar is FLAT on white —
+    // the glass pill is gone. Controls are 44 dp pill-surface buttons
+    // (r13); the slot is ~44 dp, so a button is the slot height minus
+    // breathing room, floored at the 40 dp touch minimum.
+    val btnH = (height - 4.dp).coerceIn(40.dp, 44.dp)
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(height)
             .background(AmBase)
-            .padding(horizontal = 4.dp),
+            .padding(horizontal = 8.dp),
         contentAlignment = Alignment.Center
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(barH)
-                .glassSurface(CircleShape, fill = amBarBrush())
-        ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(barH)
-                    .padding(horizontal = 6.dp),
+                    .height(height),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // ── Close ──────────────────────────────────────────
                 Box(
                     modifier = Modifier
-                        .width(38.dp)
-                        .height(btnH)
+                        .size(btnH)
+                        .clip(RoundedCornerShape(13.dp))
+                        .background(AmPanelHigh)
                         .semantics { contentDescription = "Back to projects" }
                         .bouncyClickable(pressedScale = 0.92f, onClick = onBackClick)
                         .testTag("header_back_button"),
                     contentAlignment = Alignment.Center
                 ) {
-                    Canvas(Modifier.size(14.dp)) {
+                    Canvas(Modifier.size(15.dp)) {
                         val c = TextPrimary
                         val w = 2.7.dp.toPx()
                         val m = w / 2f
@@ -134,41 +143,16 @@ fun EditorHeader(
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     modifier = Modifier
                         .weight(1f)
-                        .padding(end = 4.dp)
+                        .padding(start = 10.dp, end = 4.dp)
                         .testTag("header_project_name")
                 )
-
-                // ── Undo / redo (the app bar owns them, build 214) ──
-                HeaderIconButton(
-                    enabled = canUndo,
-                    onClick = onUndoClick,
-                    tag = "header_undo_button",
-                    description = "Undo"
-                ) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.Undo, contentDescription = null,
-                        tint = if (canUndo) TextPrimary else AmTextDim.copy(alpha = 0.45f),
-                        modifier = Modifier.size(19.dp)
-                    )
-                }
-                HeaderIconButton(
-                    enabled = canRedo,
-                    onClick = onRedoClick,
-                    tag = "header_redo_button",
-                    description = "Redo"
-                ) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.Redo, contentDescription = null,
-                        tint = if (canRedo) TextPrimary else AmTextDim.copy(alpha = 0.45f),
-                        modifier = Modifier.size(19.dp)
-                    )
-                }
 
                 // ── Save frame: current frame -> PNG in the gallery ──
                 Box(
                     modifier = Modifier
-                        .width(36.dp)
-                        .height(btnH)
+                        .size(btnH)
+                        .clip(RoundedCornerShape(13.dp))
+                        .background(AmPanelHigh)
                         .semantics { contentDescription = "Save frame as picture" }
                         .bouncyClickable(onClick = onSaveFrameClick)
                         .testTag("header_save_frame_button"),
@@ -177,85 +161,90 @@ fun EditorHeader(
                     SaveFrameGlyph()
                 }
 
-                // ── Resolution pill ────────────────────────────────
-                Box(
-                    modifier = Modifier
-                        .height(btnH - 4.dp)
-                        .semantics { contentDescription = "Preview resolution" }
-                        .bouncyClickable(pressedScale = 0.95f, onClick = onResolutionClick)
-                        .testTag("header_resolution_pill"),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                // ── Resolution pill (build 216: pill surface, r13, opens
+                // the export-resolution popover) ──────────────────────
+                var resMenuOpen by remember { mutableStateOf(false) }
+                Box {
+                    Box(
+                        modifier = Modifier
+                            .height(btnH)
+                            .clip(RoundedCornerShape(13.dp))
+                            .background(AmPanelHigh)
+                            .semantics { contentDescription = "Export resolution" }
+                            .bouncyClickable(pressedScale = 0.95f, onClick = {
+                                if (resolutionOptions.isNotEmpty()) resMenuOpen = true else onResolutionClick()
+                            })
+                            .testTag("header_resolution_pill"),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Text(resolutionLabel, color = TextPrimary, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                        Spacer(Modifier.width(6.dp))
-                        Canvas(Modifier.size(width = 8.dp, height = 5.5.dp)) {
-                            val p = Path().apply {
-                                moveTo(0f, 0f); lineTo(size.width, 0f); lineTo(size.width / 2f, size.height); close()
+                        Row(
+                            modifier = Modifier.padding(horizontal = 11.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(resolutionLabel, color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                            Spacer(Modifier.width(5.dp))
+                            Canvas(Modifier.size(width = 8.dp, height = 5.5.dp)) {
+                                val p = Path().apply {
+                                    moveTo(0f, 0f); lineTo(size.width, 0f); lineTo(size.width / 2f, size.height); close()
+                                }
+                                drawPath(p, TextPrimary)
+                                drawPath(p, TextPrimary, style = Stroke(1.2.dp.toPx(), join = StrokeJoin.Round))
                             }
-                            drawPath(p, TextPrimary)
-                            drawPath(p, TextPrimary, style = Stroke(1.2.dp.toPx(), join = StrokeJoin.Round))
+                        }
+                    }
+                    DropdownMenu(
+                        expanded = resMenuOpen,
+                        onDismissRequest = { resMenuOpen = false },
+                        modifier = Modifier
+                            .background(Color.White, RoundedCornerShape(14.dp))
+                    ) {
+                        resolutionOptions.forEach { option ->
+                            val isCurrent = option == currentResolution
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        option.substringBefore(' ').uppercase(),
+                                        color = TextPrimary, fontSize = 13.5.sp,
+                                        fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium
+                                    )
+                                },
+                                trailingIcon = if (isCurrent) {
+                                    { Text("✓", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
+                                } else null,
+                                onClick = {
+                                    resMenuOpen = false
+                                    onResolutionPick(option)
+                                }
+                            )
                         }
                     }
                 }
 
                 Spacer(Modifier.width(6.dp))
 
-                // ── Export: THE primary filled button (brand red) ──
+                // ── Export (build 216): the lime icon button, 44 dp, r13,
+                // dark glyph — the reference's one lime control up here. ──
                 Box(
                     modifier = Modifier
-                        .height(btnH)
-                        .clip(CircleShape)
+                        .size(btnH)
+                        .clip(RoundedCornerShape(13.dp))
                         .background(AmAccentViolet)
                         .semantics { contentDescription = "Export" }
                         .bouncyClickable(pressedScale = 0.94f, onClick = onExportClick)
                         .testTag("header_export_button"),
                     contentAlignment = Alignment.Center
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        DownloadGlyph(Color.White)
-                        Spacer(Modifier.width(8.dp))
-                        Box(Modifier.width(1.dp).height(13.dp).background(Color.White.copy(alpha = 0.35f)))
-                        Spacer(Modifier.width(8.dp))
-                        Text("Export", color = Color.White, fontSize = 14.5.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                    }
+                    DownloadGlyph(AmInk)
                 }
             }
         }
-    }
-}
-
-/** One small icon button of the app bar (undo / redo). */
-@Composable
-private fun HeaderIconButton(
-    enabled: Boolean,
-    onClick: () -> Unit,
-    tag: String,
-    description: String,
-    content: @Composable () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .width(36.dp)
-            .height(36.dp)
-            .semantics { contentDescription = description }
-            .bouncyClickable(enabled = enabled, pressedScale = 0.9f, onClick = onClick)
-            .testTag(tag),
-        contentAlignment = Alignment.Center
-    ) { content() }
 }
 
 /** Camera (body, lens, top bump) - white, 28 dp: saves the current frame as a picture. */
 @Composable
 private fun SaveFrameGlyph() {
-    Canvas(Modifier.size(28.dp)) {
-        val u = size.width / 28f
+    Canvas(Modifier.size(24.dp)) {
+        val u = size.width / 24f
         val c = AmCyan
         val st = Stroke(2.5f * u, cap = StrokeCap.Round, join = StrokeJoin.Round)
         val body = Path().apply {
@@ -455,5 +444,102 @@ fun LayerHeader(
                 }
             }
         }
+    }
+}
+
+/**
+ * Build 216 — the CONTEXTUAL BAR (Sarowar's HTML reference): shown in the
+ * lower zone directly above the dock while ONE layer is selected. White,
+ * hairline on top: "Layer" + the layer's name on the left (tap = rename,
+ * the build-211 header's rename affordance, kept reachable), then the
+ * text actions Edit / Duplicate / Delete and a black Done pill
+ * (deselect). Every action wires to the SAME callback the build-211/214
+ * layer header used. It replaces that slate header in the header slot —
+ * the app bar above now stays the project bar in every state.
+ */
+@Composable
+fun LayerContextBar(
+    name: String,
+    onRename: () -> Unit,
+    onEdit: () -> Unit,
+    onDuplicate: () -> Unit,
+    onDelete: () -> Unit,
+    onDone: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(AmBase)
+            .testTag("layer_context_bar")
+    ) {
+        Box(Modifier.fillMaxWidth().height(1.dp).background(com.example.ui.theme.AmHairline))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(47.dp)
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .semantics { contentDescription = "Rename layer" }
+                    .bouncyClickable(pressedScale = 0.98f, onClick = onRename)
+                    .testTag("context_bar_name"),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Layer", color = AmTextDim, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+                Spacer(Modifier.width(7.dp))
+                Text(
+                    name, color = TextPrimary, fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold,
+                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+            }
+            ContextBarTextButton("Edit", onEdit, "context_bar_edit")
+            ContextBarTextButton("Duplicate", onDuplicate, "context_bar_duplicate")
+            ContextBarTextButton("Delete", onDelete, "context_bar_delete", danger = true)
+            Box(
+                modifier = Modifier
+                    .padding(start = 4.dp)
+                    .clip(CircleShape)
+                    .background(TextPrimary)
+                    .semantics { contentDescription = "Done" }
+                    .bouncyClickable(pressedScale = 0.94f, onClick = onDone)
+                    .testTag("context_bar_done"),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    "Done", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(horizontal = 15.dp, vertical = 8.dp)
+                )
+            }
+        }
+    }
+}
+
+/** One plain text action of the contextual bar (13.5 sp medium ink; Delete carries the danger red). */
+@Composable
+private fun ContextBarTextButton(
+    label: String,
+    onClick: () -> Unit,
+    tag: String,
+    danger: Boolean = false
+) {
+    Box(
+        modifier = Modifier
+            .height(40.dp)
+            .semantics { contentDescription = label }
+            .bouncyClickable(pressedScale = 0.94f, onClick = onClick)
+            .testTag(tag),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            label,
+            color = if (danger) com.example.ui.theme.AmDanger else TextPrimary,
+            fontSize = 13.5.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.padding(horizontal = 9.dp)
+        )
     }
 }

@@ -2,13 +2,20 @@ package com.example.ui.components
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Redo
+import androidx.compose.material.icons.automirrored.filled.Undo
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -20,6 +27,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
@@ -34,7 +42,7 @@ import com.example.ui.theme.IconDisabled
 import com.example.ui.theme.TextPrimary
 import com.example.ui.util.bouncyClickable
 
-private val IconWhite = Color(0xFFF2F2F2)
+private val IconWhite = Color(0xFF18181B) // build 216: transport glyphs are ink on white
 
 /**
  * The TRANSPORT BAR (build 214 — UI ARCHITECTURE REDESIGN): zone C's top
@@ -118,6 +126,9 @@ fun PlayControlsSection(
             androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
 
             // ── Right cluster: resolution · marker · snap · fullscreen ──
+            // Build 216: the reference's "Full" badge — a bordered chip;
+            // at Full (the reference's shown state) it is black with white
+            // text, a reduced preview reads as the plain bordered chip.
             Box(
                 modifier = Modifier
                     .size(44.dp)
@@ -126,16 +137,22 @@ fun PlayControlsSection(
                     .testTag("preview_resolution_button"),
                 contentAlignment = Alignment.Center
             ) {
+                val full = resolutionLabel == "Full"
                 Box(
                     modifier = Modifier
-                        .size(width = 26.dp, height = 17.5.dp),
+                        .height(27.dp)
+                        .then(
+                            if (full) Modifier.background(TextPrimary, RoundedCornerShape(9.dp))
+                            else Modifier.border(1.dp, Color(0xFFD8D8DC), RoundedCornerShape(9.dp))
+                        )
+                        .padding(horizontal = 9.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = resolutionLabel,
-                        color = TextPrimary,
-                        fontSize = 9.5.sp,
-                        fontWeight = FontWeight.ExtraBold,
+                        color = if (full) Color.White else TextPrimary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center,
                         maxLines = 1
                     )
@@ -145,7 +162,16 @@ fun PlayControlsSection(
                 IconButton44(enabled = true, onClick = onMarkerClick, tag = "marker_button", description = "Marker") {
                     MarkerGlyph()
                 }
-                IconButton44(enabled = true, onClick = onSnapClick, tag = "snap_button", description = "Snap") {
+                GlassIconButton(
+                    onClick = onSnapClick,
+                    description = "Snap",
+                    enabled = true,
+                    tag = "snap_button",
+                    modifier = if (snapOn) Modifier
+                        .clip(RoundedCornerShape(11.dp))
+                        .background(com.example.ui.theme.LimeWash)
+                    else Modifier
+                ) {
                     MagnetGlyph(snapOn)
                 }
             }
@@ -240,8 +266,8 @@ private fun PlayGlyph(isPlaying: Boolean) {
             val bw = 4.4f * u
             val bh = 17f * u
             val top = (size.height - bh) / 2f
-            drawRoundRect(Color.White, Offset(size.width / 2f - 6.4f * u, top), Size(bw, bh), CornerRadius(1.8f * u))
-            drawRoundRect(Color.White, Offset(size.width / 2f + 2.0f * u, top), Size(bw, bh), CornerRadius(1.8f * u))
+            drawRoundRect(IconWhite, Offset(size.width / 2f - 6.4f * u, top), Size(bw, bh), CornerRadius(1.8f * u))
+            drawRoundRect(IconWhite, Offset(size.width / 2f + 2.0f * u, top), Size(bw, bh), CornerRadius(1.8f * u))
         } else {
             // 14.6 x 17.2 dp triangle with rounded corners (fill + round-joined stroke of the same colour)
             val r = 1.6f * u
@@ -252,8 +278,8 @@ private fun PlayGlyph(isPlaying: Boolean) {
             val p = Path().apply {
                 moveTo(x0, y0); lineTo(x0 + w, y0 + h / 2f); lineTo(x0, y0 + h); close()
             }
-            drawPath(p, Color.White)
-            drawPath(p, Color.White, style = Stroke(width = 2 * r, join = StrokeJoin.Round))
+            drawPath(p, IconWhite)
+            drawPath(p, IconWhite, style = Stroke(width = 2 * r, join = StrokeJoin.Round))
         }
     }
 }
@@ -263,7 +289,7 @@ private fun PlayGlyph(isPlaying: Boolean) {
 private fun FrameGlyph() {
     Canvas(Modifier.size(24.dp)) {
         val u = size.width / 24f
-        val c = Color(0xFFF2F2F2)
+        val c = IconWhite
         val a = 4.7f * u
         val b = 19.3f * u
         drawLine(c, Offset(a, a), Offset(b, a), 1.4f * u, StrokeCap.Round)
@@ -272,8 +298,145 @@ private fun FrameGlyph() {
         drawLine(c, Offset(b, a), Offset(b, b), 1.4f * u, StrokeCap.Round)
         for (cx in listOf(a, b)) for (cy in listOf(a, b)) drawCircle(c, 1.95f * u, Offset(cx, cy))
         // lower-right layer first, upper-left one on top with a thin black gap
-        drawRoundRect(Color(0xFFE9E9E9), Offset(8.7f * u, 12.5f * u), Size(8.4f * u, 4.9f * u), CornerRadius(2.4f * u))
+        drawRoundRect(Color(0xFFD8D8DC), Offset(8.7f * u, 12.5f * u), Size(8.4f * u, 4.9f * u), CornerRadius(2.4f * u))
         drawRoundRect(Color.Black, Offset(6.4f * u, 6.3f * u), Size(9.1f * u, 6.1f * u), CornerRadius(3f * u), style = Stroke(1.2f * u))
-        drawRoundRect(Color(0xFFEFEFEF), Offset(7.0f * u, 6.9f * u), Size(8.0f * u, 5.0f * u), CornerRadius(2.5f * u))
+        drawRoundRect(Color.White, Offset(7.0f * u, 6.9f * u), Size(8.0f * u, 5.0f * u), CornerRadius(2.5f * u))
     }
+}
+
+/**
+ * Build 216 — the WORKSPACE CONTROLS row (Sarowar's HTML reference): a
+ * slim white row between the preview stage and the transport bar holding
+ * the two view toggles the reference puts at the left of its playback
+ * row — the thirds GRID overlay on the stage and the transform-box
+ * (selection frame) visibility. Both are view-only editor state: the
+ * grid draws over the stage, the transform toggle hides the selection
+ * frame's drawing (every gesture stays exactly as it was). Active =
+ * light-lime wash (the reference's active toggle state). The reference's
+ * preset pill is NOT here: the app's template entry lives in the Add
+ * sheet, not in this area, so per the brief's own rule it is skipped
+ * rather than invented.
+ */
+@Composable
+fun WorkspaceControlsRow(
+    gridOn: Boolean,
+    onGridClick: () -> Unit,
+    transformBoxOn: Boolean,
+    onTransformBoxClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    /** Build 216: undo / redo live at this row's right end (they left the app bar — no room at 360 dp). */
+    canUndo: Boolean = false,
+    canRedo: Boolean = false,
+    onUndoClick: () -> Unit = {},
+    onRedoClick: () -> Unit = {}
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(36.dp)
+            .background(AmBarSurface)
+            .padding(horizontal = 6.dp)
+            .testTag("workspace_controls_row"),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        WorkspaceToggle(
+            on = gridOn, onClick = onGridClick, tag = "workspace_grid_toggle", description = "Grid"
+        ) {
+            Canvas(Modifier.size(20.dp)) {
+                val c = IconWhite
+                val w = 1.6.dp.toPx()
+                val third = size.width / 3f
+                drawRect(c, style = Stroke(w))
+                drawLine(c, Offset(third, 0f), Offset(third, size.height), w)
+                drawLine(c, Offset(third * 2, 0f), Offset(third * 2, size.height), w)
+                drawLine(c, Offset(0f, third), Offset(size.width, third), w)
+                drawLine(c, Offset(0f, third * 2), Offset(size.width, third * 2), w)
+            }
+        }
+        WorkspaceToggle(
+            on = transformBoxOn, onClick = onTransformBoxClick, tag = "workspace_transform_toggle", description = "Transform box"
+        ) {
+            Canvas(Modifier.size(20.dp)) {
+                val c = IconWhite
+                val w = 1.6.dp.toPx()
+                val inset = 2.dp.toPx()
+                drawRect(
+                    c,
+                    topLeft = Offset(inset, inset),
+                    size = Size(size.width - inset * 2, size.height - inset * 2),
+                    style = Stroke(w)
+                )
+                val h = 4.5.dp.toPx()
+                for ((cx, cy) in listOf(
+                    inset to inset, size.width - inset to inset,
+                    inset to size.height - inset, size.width - inset to size.height - inset
+                )) {
+                    drawRect(
+                        IconWhite,
+                        topLeft = Offset(cx - h / 2, cy - h / 2),
+                        size = Size(h, h)
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.weight(1f))
+        WorkspaceHistoryButton(
+            enabled = canUndo, onClick = onUndoClick, tag = "workspace_undo_button", description = "Undo"
+        ) {
+            Icon(
+                Icons.AutoMirrored.Filled.Undo, contentDescription = null,
+                tint = if (canUndo) IconWhite else IconDisabled,
+                modifier = Modifier.size(19.dp)
+            )
+        }
+        WorkspaceHistoryButton(
+            enabled = canRedo, onClick = onRedoClick, tag = "workspace_redo_button", description = "Redo"
+        ) {
+            Icon(
+                Icons.AutoMirrored.Filled.Redo, contentDescription = null,
+                tint = if (canRedo) IconWhite else IconDisabled,
+                modifier = Modifier.size(19.dp)
+            )
+        }
+    }
+}
+
+/** One undo / redo button of the workspace row (40 dp target, bare glyph). */
+@Composable
+private fun WorkspaceHistoryButton(
+    enabled: Boolean,
+    onClick: () -> Unit,
+    tag: String,
+    description: String,
+    content: @Composable () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(40.dp)
+            .semantics { contentDescription = description }
+            .bouncyClickable(enabled = enabled, pressedScale = 0.9f, onClick = onClick)
+            .testTag(tag),
+        contentAlignment = Alignment.Center
+    ) { content() }
+}
+
+/** One 40 dp workspace toggle: plain ink glyph; the light-lime wash marks it on. */
+@Composable
+private fun WorkspaceToggle(
+    on: Boolean,
+    onClick: () -> Unit,
+    tag: String,
+    description: String,
+    content: @Composable () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(40.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .then(if (on) Modifier.background(com.example.ui.theme.LimeWash) else Modifier)
+            .semantics { contentDescription = description }
+            .bouncyClickable(pressedScale = 0.92f, onClick = onClick)
+            .testTag(tag),
+        contentAlignment = Alignment.Center
+    ) { content() }
 }

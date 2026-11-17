@@ -171,7 +171,10 @@ fun SelectionFrameOverlay(
             }
     ) {
         Canvas(Modifier.fillMaxSize()) {
-            // Bounding box outline
+            // Build 216 (Sarowar's HTML reference): the transform box is a
+            // 1.5 dp DASHED LIME border with 8 dp LIME SQUARE handles
+            // (r2) — drawing only; every gesture below is untouched.
+            val lime = Color(0xFFC8F91F)
             val p = Path().apply {
                 val c0 = geo.corner(0)
                 moveTo(c0.x, c0.y)
@@ -180,29 +183,30 @@ fun SelectionFrameOverlay(
             }
             drawPath(
                 p,
-                Color.Black.copy(alpha = 0.30f),
-                style = Stroke(2.8f * density, join = StrokeJoin.Round)
-            )
-            drawPath(
-                p,
-                Color.White,
-                style = Stroke(1.3f * density, join = StrokeJoin.Round)
+                lime,
+                style = Stroke(
+                    1.5f * density,
+                    join = StrokeJoin.Round,
+                    pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(
+                        floatArrayOf(6f * density, 4f * density), 0f
+                    )
+                )
             )
 
-            // Center pivot dot (like CapCut)
+            // Center pivot dot
             val c = geo.center
             drawCircle(Color.Black.copy(alpha = 0.35f), radius = 2.2f * density, center = c)
-            drawCircle(Color.White.copy(alpha = 0.85f), radius = 1.4f * density, center = c)
+            drawCircle(lime, radius = 1.4f * density, center = c)
 
-            // 8 handles: white fill + thin black ring
+            // 8 handles: lime squares, 8 dp, radius 2 dp
+            val hs = 8f * density
             for (i in 0..7) {
                 val hp = handlePos(i, geo)
-                drawCircle(Color.White, radius = handleR, center = hp)
-                drawCircle(
-                    Color.Black.copy(alpha = 0.75f),
-                    radius = handleR,
-                    center = hp,
-                    style = Stroke(handleStroke)
+                drawRoundRect(
+                    lime,
+                    topLeft = Offset(hp.x - hs / 2f, hp.y - hs / 2f),
+                    size = androidx.compose.ui.geometry.Size(hs, hs),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(2f * density)
                 )
             }
         }

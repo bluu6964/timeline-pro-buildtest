@@ -1,6 +1,8 @@
 package com.example.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +21,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CenterFocusWeak
 import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Category
@@ -80,90 +83,97 @@ fun BottomToolbar(
     onMoreClick: () -> Unit,
     modifier: Modifier = Modifier,
     /** The universal panel is open in the stage (the More item reads selected). */
-    moreActive: Boolean = false
+    moreActive: Boolean = false,
+    /** Build 216: the Fx tile — opens the tools panel in the stage (as More does). */
+    onFxClick: () -> Unit = {},
+    /** Build 216: the Shapes tile — opens the Add Shape sheet. */
+    onShapesClick: () -> Unit = {}
 ) {
-    Row(
+    // Build 216 (Sarowar's HTML reference): the dock is a white,
+    // horizontally scrolling row of 68 dp tiles (r17, pill surface, ink
+    // icons) with the 11 sp muted label UNDER each tile. Active tile =
+    // black with a lime icon and a dark bold label. Order follows the
+    // reference: Media, Music, Fx, Text, Shapes, then build 214's
+    // remaining dock tools (Canvas, More) and Add (the Add sheet stays
+    // reachable — Null / Controller / Camera / Chain live there).
+    Column(
         modifier = modifier
             .fillMaxWidth()
             .height(height)
-            .padding(vertical = 4.dp)
-            .background(AmBarSurface, RoundedCornerShape(24.dp))
-            .clip(RoundedCornerShape(24.dp))
-            .padding(horizontal = AmSpace.sm, vertical = AmSpace.xs)
-            .testTag("dock_toolbar"),
-        horizontalArrangement = Arrangement.spacedBy(AmSpace.xs),
-        verticalAlignment = Alignment.CenterVertically
+            .background(AmBarSurface)
+            .testTag("dock_toolbar")
     ) {
-        ToolbarItem("Add", Icons.Default.Add, "toolbar_add_button", onAddClick, primary = true)
-        ToolbarItem("Media", Icons.Default.AddPhotoAlternate, "toolbar_media_button", onMediaClick)
-        ToolbarItem("Text", Icons.Default.TextFields, "toolbar_text_button", onTextClick)
-        ToolbarItem("Audio", Icons.Default.MusicNote, "toolbar_audio_button", onAudioClick)
-        ToolbarItem("Canvas", Icons.Default.AspectRatio, "toolbar_canvas_button", onCanvasClick)
-        ToolbarItem("More", Icons.Default.MoreHoriz, "toolbar_more_button", onMoreClick, selected = moreActive)
+        Box(Modifier.fillMaxWidth().height(1.dp).background(com.example.ui.theme.AmHairline))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            DockTile("Media", Icons.Default.AddPhotoAlternate, "toolbar_media_button", onMediaClick)
+            DockTile("Music", Icons.Default.MusicNote, "toolbar_audio_button", onAudioClick)
+            DockTile("Fx", Icons.Default.AutoAwesome, "toolbar_fx_button", onFxClick, active = moreActive)
+            DockTile("Text", Icons.Default.TextFields, "toolbar_text_button", onTextClick)
+            DockTile("Shapes", Icons.Default.Category, "toolbar_shapes_button", onShapesClick)
+            DockTile("Canvas", Icons.Default.AspectRatio, "toolbar_canvas_button", onCanvasClick)
+            DockTile("More", Icons.Default.MoreHoriz, "toolbar_more_button", onMoreClick, active = moreActive)
+            DockTile(
+                "Add", Icons.Default.Add, "toolbar_add_button", onAddClick,
+                tileColor = com.example.ui.theme.AmAccentViolet, iconTint = com.example.ui.theme.AmInk
+            )
+        }
     }
 }
 
+/** One dock tile (build 216): 68 dp r17 tile + the label under it. */
 @Composable
-private fun RowScope.ToolbarItem(
+private fun DockTile(
     label: String,
     icon: ImageVector,
     testTag: String,
     onClick: () -> Unit,
-    primary: Boolean = false,
-    /** Selected state (the item's panel is open in the stage): the filled selected pill. */
-    selected: Boolean = false
+    active: Boolean = false,
+    tileColor: Color? = null,
+    iconTint: Color? = null
 ) {
-    Box(
+    Column(
         modifier = Modifier
-            .weight(1f)
-            .fillMaxHeight()
-            .then(
-                if (selected) Modifier
-                    .background(com.example.ui.theme.AmPillSelected, RoundedCornerShape(16.dp))
-                    .clip(RoundedCornerShape(16.dp))
-                else Modifier
-            )
-            .bouncyClickable(pressedScale = 0.94f, hoverScale = 1.02f, onClick = onClick)
+            .width(68.dp)
+            .bouncyClickable(pressedScale = 0.94f, onClick = onClick)
             .testTag(testTag),
-        contentAlignment = Alignment.Center
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Column(
+        Box(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = AmSpace.xxs, vertical = AmSpace.xs),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+                .size(68.dp)
+                .clip(RoundedCornerShape(17.dp))
+                .background(
+                    tileColor
+                        ?: if (active) com.example.ui.theme.AmTextPrimary
+                        else com.example.ui.theme.AmPanelHigh
+                ),
+            contentAlignment = Alignment.Center
         ) {
-            // Primary action gets the accent disc (build 214: the brand
-            // red marks the primary action).
-            Box(
-                modifier = Modifier
-                    .size(if (primary) 40.dp else 36.dp)
-                    .then(
-                        if (primary) {
-                            Modifier
-                                .clip(CircleShape)
-                                .background(AmAccentViolet)
-                        } else Modifier
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    icon,
-                    contentDescription = label,
-                    tint = if (primary || selected) AmTextPrimary else IconActive,
-                    modifier = Modifier.size(if (primary) 22.dp else 20.dp)
-                )
-            }
-            Spacer(Modifier.height(AmSpace.xxs))
-            Text(
-                label,
-                color = if (primary || selected) AmTextPrimary else AmTextDim,
-                fontSize = 10.sp,
-                fontWeight = if (primary || selected) FontWeight.SemiBold else FontWeight.Medium,
-                maxLines = 1
+            Icon(
+                icon,
+                contentDescription = label,
+                tint = iconTint
+                    ?: if (active) com.example.ui.theme.AmAccentViolet
+                    else com.example.ui.theme.AmTextPrimary,
+                modifier = Modifier.size(27.dp)
             )
         }
+        Spacer(Modifier.height(4.dp))
+        Text(
+            label,
+            color = if (active) com.example.ui.theme.AmTextPrimary else AmTextDim,
+            fontSize = 11.sp,
+            fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
+            maxLines = 1
+        )
     }
 }
 
@@ -272,7 +282,7 @@ fun ChainAddPanel(
         ) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, "Exit chain", tint = IconActive, modifier = Modifier.size(24.dp))
         }
-        Box(Modifier.width(1.dp).height(32.dp).background(Color(0xFF2C2C2C)))
+        Box(Modifier.width(1.dp).height(32.dp).background(com.example.ui.theme.AmHairline))
         Row(
             modifier = Modifier
                 .weight(1f)

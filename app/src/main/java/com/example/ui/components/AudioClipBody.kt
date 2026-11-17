@@ -47,10 +47,8 @@ fun AudioClipBody(
             .background(androidx.compose.ui.graphics.SolidColor(base))
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
-            // Build 215: the shared white crosshatch UNDER the waveform (Sarowar's
-            // neon-bars reference), so the white waveform bars stay on top and
-            // legible at the slim bar height.
-            drawNeonCrosshatch()
+            // Build 216: flat green body (the crosshatch is gone with the
+            // neon-bars finish); the white waveform draws on top as before.
             val barStep = 3.dp.toPx()
             val barWidth = 1.5.dp.toPx()
             val pxPerMs = TIMELINE_PX_PER_MS.dp.toPx()

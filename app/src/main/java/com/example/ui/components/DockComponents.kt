@@ -139,8 +139,8 @@ fun PanelStage(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(AmCardSurface, RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
-            .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+            .background(AmCardSurface, RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp))
+            .clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)) // build 216: sheet radius 22
             .testTag("panel_stage")
     ) {
         PanelStageHeader(title = title, layerName = layerName, onClose = onClose)

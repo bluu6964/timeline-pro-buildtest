@@ -37,41 +37,41 @@ import androidx.compose.ui.unit.sp
 // red/black logo (see AmAccentViolet below — the token name is kept for
 // call-site compatibility, its value is now the red).
 /** App base: warm near-black. */
-val AmBase = Color(0xFF0B0B0D)
+val AmBase = Color(0xFFFFFFFF)
 /** Pure black for recessed / canvas surround. */
 val AmBaseDeep = Color(0xFF000000)
 /** Primary panel surface — sheets, bottom bars, dialogs, the panel stage. */
-val AmPanel = Color(0xFF121215)
+val AmPanel = Color(0xFFFFFFFF)
 /** Raised surface — chips, selected pills, elevated cards. */
-val AmPanelHigh = Color(0xFF22222A)
+val AmPanelHigh = Color(0xFFF3F3F4)
 /** Slightly higher for interactive hover / pressed states. */
-val AmPanelElevated = Color(0xFF2A2A33)
+val AmPanelElevated = Color(0xFFE8E8EB)
 /** Default fill for small chrome items on base. */
-val AmGlassFill = Color(0xFF17171C)
+val AmGlassFill = Color(0xFFF3F3F4)
 /** Subtle 1px hairline (build 214: the architecture's hairline colour). */
-val AmHairline = Color(0xFF26262E)
+val AmHairline = Color(0x0F000000)
 /** Stronger hairline for focused edges. */
-val AmHairlineStrong = Color(0x40FFFFFF)
+val AmHairlineStrong = Color(0x40000000)
 
 // ── Accents — white / grey emphasis (names kept for compatibility) ───────
 /** Active / selected: pure white. */
-val AmMint = Color(0xFFFFFFFF)
+val AmMint = Color(0xFF18181B)
 /** Dimmed primary. */
-val AmMintDeep = Color(0xFFC8C8C8)
+val AmMintDeep = Color(0xFF3F3F46)
 /** Near-white glyph accent. */
-val AmCyan = Color(0xFFE8E8E8)
+val AmCyan = Color(0xFF18181B)
 /** Bright white. */
-val AmCyanBright = Color(0xFFFFFFFF)
+val AmCyanBright = Color(0xFF18181B)
 /** Light grey stroke / secondary accent. */
-val AmViolet = Color(0xFFCFCFCF)
+val AmViolet = Color(0xFF3F3F46)
 /** Mid grey. */
-val AmVioletDeep = Color(0xFFA8A8A8)
+val AmVioletDeep = Color(0xFF76767A)
 /** Legacy lime → white. */
-val AmLime = Color(0xFFFFFFFF)
+val AmLime = Color(0xFFC8F91F)
 /** Neutral light grey. */
-val AmOrange = Color(0xFFC8C8C8)
+val AmOrange = Color(0xFF76767A)
 /** White. */
-val AmPink = Color(0xFFFFFFFF)
+val AmPink = Color(0xFF18181B)
 /** Soft red — only for destructive actions. */
 val AmDanger = Color(0xFFFF5C5C)
 /**
@@ -79,7 +79,7 @@ val AmDanger = Color(0xFFFF5C5C)
  * (build 214: the needle joins the architecture's accent; the token stays
  * effects-only). Do not use elsewhere in chrome.
  */
-val AmFxAccent = Color(0xFFFF3B47)
+val AmFxAccent = Color(0xFFC8F91F) // build 216: was the build-214 brand red; the fx dial's accent disc is lime now
 /** Ink drawn on white fills (Export label, badges). */
 val AmInk = Color(0xFF0A0A0A)
 
@@ -89,36 +89,36 @@ val AmInk = Color(0xFF0A0A0A)
  * it marks selection, primary actions, slider fills and the dock's Add).
  * The token keeps its build-206 name so call sites stay compatible.
  */
-val AmAccentViolet = Color(0xFFFF3B47)
+val AmAccentViolet = Color(0xFFC8F91F)
 /** Alias for new code (build 214): the same brand red, honestly named. */
 val AmAccent = AmAccentViolet
 /** Floating pill bars (transport, toolbars, header): near-black, a step above the base. */
-val AmBarSurface = Color(0xFF121215)
+val AmBarSurface = Color(0xFFFFFFFF)
 /** The filled pill of a selected / active item inside a bar or grid (build 214: dark red tint). */
-val AmPillSelected = Color(0xFF2A1518)
+val AmPillSelected = Color(0xFFE9F9B0)
 /** Card surface on the base (project cards, panel-stage panels). */
-val AmCardSurface = Color(0xFF17171C)
+val AmCardSurface = Color(0xFFFFFFFF)
 
 /** Selected-layer header slate (build 211): the Alight reference's dark blue-grey bar, distinct from the editor black. */
-val AmSlateHeader = Color(0xFF262635)
+val AmSlateHeader = Color(0xFFFFFFFF)
 
 // ── Text hierarchy ───────────────────────────────────────────────────────
 /** Secondary text. */
-val AmTextDim = Color(0xFFA7A7B3)
+val AmTextDim = Color(0xFF76767A)
 /** Tertiary / disabled text. */
-val AmTextFaint = Color(0xFF6E6E78)
+val AmTextFaint = Color(0xFFAEAEB4)
 /** Primary text (explicit token for new code). */
-val AmTextPrimary = Color(0xFFF5F5F7)
+val AmTextPrimary = Color(0xFF18181B)
 
 // ── Slider / ruler ──────────────────────────────────────────────────────
-val AmTickMinor = Color(0xFF383838)
-val AmTickMajor = Color(0xFF787878)
+val AmTickMinor = Color(0xFFD0D0D4)
+val AmTickMajor = Color(0xFFB8B8BE)
 
 // ── Brush factories (still flat SolidColor for compatibility) ────────────
-fun amMintCyanBrush(): Brush = SolidColor(Color.White)
+fun amMintCyanBrush(): Brush = SolidColor(Color(0xFF18181B))
 fun amGlassBrush(): Brush = SolidColor(AmPanel)
 fun amGlassChipBrush(): Brush = SolidColor(AmPanelHigh)
-fun amCyanVioletBrush(): Brush = SolidColor(Color.White)
+fun amCyanVioletBrush(): Brush = SolidColor(Color(0xFF18181B))
 /** The floating-bar fill (build 206). */
 fun amBarBrush(): Brush = SolidColor(AmBarSurface)
 
@@ -129,7 +129,7 @@ fun amBarBrush(): Brush = SolidColor(AmBarSurface)
 /** Large cards / dialogs (build 214: cards are 20 dp). */
 val AmCornerCard = 20.dp
 /** Bottom sheets / the panel stage: top corners (build 214: 24 dp). */
-val AmCornerSheet = 24.dp
+val AmCornerSheet = 22.dp
 /** Panels, major containers. */
 val AmCornerPanel = 20.dp
 /** Toolbar items, medium chips, buttons. */

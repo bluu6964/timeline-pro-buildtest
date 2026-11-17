@@ -213,6 +213,11 @@ fun VideoEditorScreen(
     // sets it to false (build 206's close semantics, kept), and EVERY
     // selection change resets it to null so the auto rule re-arms.
     var toolsPanelManual by remember { mutableStateOf<Boolean?>(null) }
+    // Build 216: the workspace row's view toggles — view-only editor
+    // state (the thirds grid over the stage; the transform box's
+    // visibility). No engine / ViewModel state is touched by either.
+    var gridOn by remember { mutableStateOf(false) }
+    var transformBoxOn by remember { mutableStateOf(true) }
     LaunchedEffect(selectedClipId) { toolsPanelManual = null }
     val toolsPanelOpen = toolsPanelManual ?: (selectedClipId != null)
     // The bridge the footer clip panels publish their tools through
@@ -2536,7 +2541,16 @@ fun VideoEditorScreen(
                 // Square snackbar surface (Sarowar's square order 2026-11-14 —
                 // the Material default snackbar shape is rounded).
                 SnackbarHost(snackbarHostState) { data ->
-                    androidx.compose.material3.Snackbar(data, shape = RoundedCornerShape(AmCornerCard))
+                    // Build 216 (reference toast): a dark pill, white text.
+                    // (Position stays the Scaffold's snackbar slot — moving
+                    // it top-centre would restructure the host; the pill
+                    // styling follows the reference.)
+                    androidx.compose.material3.Snackbar(
+                        data,
+                        shape = RoundedCornerShape(percent = 50),
+                        containerColor = androidx.compose.ui.graphics.Color(0xF518181B),
+                        contentColor = androidx.compose.ui.graphics.Color.White
+                    )
                 }
             }
         },
@@ -2666,8 +2680,15 @@ fun VideoEditorScreen(
             // above it is paid for from the layer panel's share, exactly
             // as the grid was (CANVAS LAW). This supersedes build 211's
             // footer-collapses-to-0 rule.
-            val footerH = toolbarH
-            val zonePoolH = (lowerZoneH - timescaleH - footerH - onionRowH - scopesPanelH)
+            val footerH = if (toolbarH >= 92.dp) toolbarH else 92.dp // build 216: the dock's 68 dp tiles + labels need ~87 dp; 92 with margin
+            // Build 216: the ruler is 46 dp (reference), the workspace
+            // controls row is 36 dp and the contextual bar (selection)
+            // 48 dp — all paid from the lower zone like every extra row
+            // since build 207; canvasH above is never touched (CANVAS LAW).
+            val rulerH = 46.dp
+            val workspaceH = 36.dp
+            val contextualH = if (selectedClipId != null && multiSelectIds.isEmpty()) 48.dp else 0.dp
+            val zonePoolH = (lowerZoneH - rulerH - footerH - onionRowH - scopesPanelH - workspaceH - contextualH)
                 .coerceAtLeast(0.dp)
             // Build 215: the tools panel is now ONE row, so when EVERY layer's lane still fits in the
             // zone beside it, all layers stay visible (the selected one keeps its white edge);
@@ -2725,7 +2746,12 @@ fun VideoEditorScreen(
             // layer's strip takes the first layer row and the other layers are hidden behind the panel.
             // (The tools grid's height is NOT added here: these panels are bottom-anchored
             // over everything below the play controls, the in-flow grid included.)
-            val panelTop = headerH + canvasH + playControlsH + onionRowH + scopesPanelH
+            // Build 216: + workspaceH — the workspace controls row (36 dp)
+            // sits between the play controls and the ruler now; without it
+            // these panels would start 36 dp too high and cover that row
+            // (and the undo / redo that live there). Lands at the ruler's
+            // top, exactly the build-215 relationship.
+            val panelTop = headerH + canvasH + playControlsH + workspaceH + onionRowH + scopesPanelH
             val panelH = (totalHeight - panelTop).coerceAtLeast(140.dp)
 
             // The selected layer, drawn by the real timeline panel (identical look) as the first row.
@@ -2755,24 +2781,13 @@ fun VideoEditorScreen(
                 //    single-row slate design — back, the underlined name,
                 //    duplicate, delete, circled three-dots; nothing else).
                 val headerClip = selectedClipId?.let { sid -> tracks.flatMap { it.clips }.find { it.id == sid } }
-                if (headerClip != null) {
-                    com.example.ui.components.LayerHeader(
-                        height = headerH,
-                        name = headerClip.name,
-                        onBack = { viewModel.selectClip(null) },
-                        onRename = { renameTargetId = headerClip.id },
-                        // The reference's right side — duplicate (the
-                        // dedicated duplicate action, same as the selected
-                        // bar's Copy), delete (the existing delete,
-                        // undoable), and the circled three-dots toggling
-                        // the auto-show tools panel. The eye is NOT here:
-                        // visibility lives on the timeline lane control.
-                        onDuplicate = { viewModel.duplicateSelectedClip() },
-                        onDelete = { viewModel.deleteSelectedClip() },
-                        onToolsClick = { toolsPanelManual = !toolsPanelOpen },
-                        toolsPanelOpen = toolsPanelOpen
-                    )
-                } else if (multiSelectIds.isNotEmpty()) {
+                // Build 216: with ONE layer selected the app bar STAYS the
+                // project bar — the layer's actions (rename / Edit /
+                // Duplicate / Delete / Done) live in the contextual bar
+                // above the dock (see below), wired to the same callbacks
+                // this slot's build-211 LayerHeader used. Multi-select
+                // keeps its count header.
+                if (multiSelectIds.isNotEmpty()) {
                     // Multi-select: the same slate bar with the honest
                     // count only (no rename / duplicate / delete — those
                     // act through the multi actions); back exits the mode.
@@ -2807,12 +2822,14 @@ fun VideoEditorScreen(
                     },
                     resolutionLabel = exportSettings.resolution.substringBefore(' ').uppercase(),
                     onResolutionClick = { showAspectRatioSheet = true },
+                    // Build 216: the pill's popover switches the REAL
+                    // export resolution (the exporter's own list — no
+                    // 2K/4K: ExportMaxResolution is 1080).
+                    resolutionOptions = com.example.ui.components.ExportResolutions.map { it.first },
+                    currentResolution = exportSettings.resolution,
+                    onResolutionPick = { viewModel.setExportResolution(it) },
                     // Build 214: the app bar shows the project name and owns undo / redo.
                     projectName = projectList.find { it.id == projectId }?.name ?: "Untitled project",
-                    canUndo = canUndo,
-                    canRedo = canRedo,
-                    onUndoClick = { viewModel.undo(); com.example.ui.buddy.BuddyBrain.react(com.example.ui.buddy.BuddyEvent.UNDO) },
-                    onRedoClick = { viewModel.redo(); com.example.ui.buddy.BuddyBrain.react(com.example.ui.buddy.BuddyEvent.REDO) },
                     onExportClick = {
                         // Fresh state every time: a previous export must not leak into this one.
                         exportDone = false
@@ -2992,7 +3009,8 @@ fun VideoEditorScreen(
                     } else trackOverlay
                 CanvasArea(
                     nativePreview = nativePreview,
-                    selectionHidden = showClipMasksSheet || showDrawMode || showPenMode || editPointsClipId != null,
+                    selectionHidden = showClipMasksSheet || showDrawMode || showPenMode || editPointsClipId != null || !transformBoxOn,
+                    showGrid = gridOn,
                     snapEnabled = snapEnabled,
                     height = canvasH,
                     aspectRatio = selectedAspectRatio,
@@ -3089,6 +3107,22 @@ fun VideoEditorScreen(
                     onMarkerClick = onMarkerAction
                 )
 
+                // 3a. Workspace controls row (build 216): the grid +
+                // transform-box view toggles from Sarowar's reference.
+                // Its 36 dp is paid from the lower zone (see workspaceH).
+                com.example.ui.components.WorkspaceControlsRow(
+                    gridOn = gridOn,
+                    onGridClick = { gridOn = !gridOn },
+                    transformBoxOn = transformBoxOn,
+                    onTransformBoxClick = { transformBoxOn = !transformBoxOn },
+                    // Build 216: undo / redo at the row's right end (the
+                    // app bar's build-214 wiring, moved down unchanged).
+                    canUndo = canUndo,
+                    canRedo = canRedo,
+                    onUndoClick = { viewModel.undo(); com.example.ui.buddy.BuddyBrain.react(com.example.ui.buddy.BuddyEvent.UNDO) },
+                    onRedoClick = { viewModel.redo(); com.example.ui.buddy.BuddyBrain.react(com.example.ui.buddy.BuddyEvent.REDO) }
+                )
+
                 // 3b. Onion-skin settings row (build 190) — only while the ghosts are
                 // on; its height comes out of the lower zone's layer panel
                 // (CANVAS LAW, build 207), so the canvas never moves.
@@ -3109,7 +3143,7 @@ fun VideoEditorScreen(
 
                 // 4. Timescale Section (1/30 of screen)
                 TimescaleSection(
-                    height = timescaleH,
+                    height = rulerH, // build 216: the reference's 46 dp ruler
                     playheadMs = playheadProvider,
                     totalDurationMs = totalDurationMs,
                     pxPerMs = timelinePxPerMs,
@@ -3422,6 +3456,22 @@ fun VideoEditorScreen(
                             modifier = Modifier
                         )
                     }
+                }
+
+                // 5b. Contextual bar (build 216): one layer selected ->
+                // "Layer" + name (tap = rename), Edit / Duplicate /
+                // Delete / Done, directly above the dock. The callbacks
+                // are the build-211 layer header's own. Its 48 dp is in
+                // the budget (contextualH).
+                if (headerClip != null && multiSelectIds.isEmpty()) {
+                    com.example.ui.components.LayerContextBar(
+                        name = headerClip.name,
+                        onRename = { renameTargetId = headerClip.id },
+                        onEdit = { toolsPanelManual = !toolsPanelOpen },
+                        onDuplicate = { viewModel.duplicateSelectedClip() },
+                        onDelete = { viewModel.deleteSelectedClip() },
+                        onDone = { viewModel.selectClip(null) }
+                    )
                 }
 
                 // 6. Footer: Clip Edit Tools Panel if clip is selected, otherwise Main Bottom Toolbar
@@ -3948,7 +3998,7 @@ fun VideoEditorScreen(
                         )
                     } else {
                         BottomToolbar(
-                            height = toolbarH,
+                            height = footerH,
                             // Build 214: the dock's project toolbar — Add /
                             // Media / Text / Audio / Canvas / More (the
                             // universal panel in the stage). Null / Controller /
@@ -3969,7 +4019,12 @@ fun VideoEditorScreen(
                             onAudioClick = { showAddAudioSheet = true },
                             onCanvasClick = { showAspectRatioSheet = true },
                             onMoreClick = { toolsPanelManual = true },
-                            moreActive = toolsPanelOpen
+                            moreActive = toolsPanelOpen,
+                            // Build 216 dock tiles: Fx opens the tools
+                            // panel (as More does); Shapes opens the Add
+                            // Shape sheet (the chain panel's own wiring).
+                            onFxClick = { toolsPanelManual = true },
+                            onShapesClick = { showAddShapeSheet = true }
                         )
                     }
                 }

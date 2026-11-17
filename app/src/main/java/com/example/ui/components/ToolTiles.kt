@@ -71,13 +71,13 @@ fun ToolTile(
             Icon(
                 imageVector = tool.icon,
                 contentDescription = tool.label,
-                tint = if (used) Color.White else AmTextDim,
+                tint = if (used) Color(0xFF18181B) else AmTextDim, // build 216: used = ink on the lime wash
                 modifier = Modifier.size(ToolRowSplit.ICON_DP.dp)
             )
             Spacer(modifier = Modifier.height(3.dp))
             Text(
                 text = tool.label,
-                color = if (used) Color.White else AmTextDim,
+                color = if (used) Color(0xFF18181B) else AmTextDim,
                 fontSize = 11.sp,
                 fontWeight = if (used) FontWeight.Bold else FontWeight.Normal,
                 maxLines = 1,

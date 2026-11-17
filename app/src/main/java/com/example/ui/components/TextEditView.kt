@@ -192,7 +192,7 @@ private enum class TextTool(val label: String, val icon: ImageVector) {
 
 private val ToolbarBg = Color(0xFF121215)
 private val ToolAccent = AmAccentViolet // build 214: the brand red (the token's value)
-private val ToolIdle = Color(0xFF9A9AA0)
+private val ToolIdle = Color(0xFF76767A) // build 216: readable on white
 
 /** Section switcher (build 214: in the panel's header area): scrolls sideways, one 64 dp cell per tool, the active one in a brand-red pill. */
 @Composable
@@ -221,12 +221,12 @@ private fun TextToolBar(selected: TextTool, onSelect: (TextTool) -> Unit) {
                         .background(if (on) ToolAccent else Color.Transparent),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(t.icon, contentDescription = t.label, tint = if (on) Color.White else ToolIdle, modifier = Modifier.size(22.dp))
+                    Icon(t.icon, contentDescription = t.label, tint = if (on) Color(0xFF18181B) else ToolIdle, modifier = Modifier.size(22.dp)) // build 216: ink on the lime tab
                 }
                 Spacer(Modifier.height(2.dp))
                 Text(
                     t.label,
-                    color = if (on) Color.White else ToolIdle,
+                    color = if (on) TextPrimary else ToolIdle,
                     fontSize = 11.sp,
                     maxLines = 1
                 )
@@ -254,9 +254,9 @@ private fun TextBoxField(text: String, onText: (String) -> Unit) {
             unfocusedContainerColor = FieldBg,
             focusedIndicatorColor = Color.Transparent,
             unfocusedIndicatorColor = Color.Transparent,
-            focusedTextColor = Color.White,
-            unfocusedTextColor = Color.White,
-            cursorColor = Color.White
+            focusedTextColor = Color(0xFF18181B),
+            unfocusedTextColor = Color(0xFF18181B),
+            cursorColor = Color(0xFF18181B)
         ),
         modifier = Modifier
             .fillMaxWidth()
@@ -387,9 +387,9 @@ private fun FontsTab(clip: TimelineClip, onUpdate: ((TimelineClip) -> TimelineCl
                 unfocusedContainerColor = FieldBg,
                 focusedIndicatorColor = Color.Transparent,
                 unfocusedIndicatorColor = Color.Transparent,
-                focusedTextColor = Color.White,
-                unfocusedTextColor = Color.White,
-                cursorColor = Color.White
+                focusedTextColor = Color(0xFF18181B),
+                unfocusedTextColor = Color(0xFF18181B),
+                cursorColor = Color(0xFF18181B)
             ),
             modifier = Modifier.fillMaxWidth()
         )
@@ -450,7 +450,7 @@ private fun FontsTab(clip: TimelineClip, onUpdate: ((TimelineClip) -> TimelineCl
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Box(modifier = Modifier.height(46.dp).padding(end = 6.dp), contentAlignment = Alignment.CenterStart) {
-                        Text(category, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Text(category, color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                     }
                     fonts.forEach { f ->
                         FontChip(
@@ -702,7 +702,7 @@ private fun PathTab(
             Row(modifier = Modifier.fillMaxWidth().height(52.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Layer", color = TextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Medium,
                     modifier = Modifier.width(112.dp))
-                Text(attached.name, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold,
+                Text(attached.name, color = TextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Bold,
                     maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
             }
             TextRulerSlider("Start offset", clip.textPathStart * 100f,
