@@ -58,6 +58,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import com.example.ui.theme.AmAccentViolet
 import com.example.ui.theme.AmBarSurface
+import com.example.ui.theme.AmCardSurface
 import com.example.ui.theme.AmDanger
 import com.example.ui.theme.AmSpace
 import com.example.ui.theme.AmTextDim
@@ -112,7 +113,7 @@ fun BottomToolbar(
             Modifier
                 .fillMaxWidth()
                 .height(1.dp)
-                .background(Color(0xFF1E1E24))
+                .background(AmCardSurface)
         )
         Row(
             modifier = Modifier

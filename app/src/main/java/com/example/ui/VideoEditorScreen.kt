@@ -44,6 +44,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.example.ui.components.TextEditSheet
 import com.example.ui.components.swipeDownToDismiss
+import com.example.ui.util.amChromeSpec
 import com.example.ui.util.enterPop
 import com.example.ui.components.pickColorFromWindow
 import androidx.compose.material3.Scaffold
@@ -3615,18 +3616,15 @@ fun VideoEditorScreen(
                 // 6. Footer: Clip Edit Tools Panel if clip is selected, otherwise Main Bottom Toolbar
                 AnimatedContent(
                     targetState = selectedClipId,
-                    // Fast, springy swap (Alight Motion style): new bar slides up a little and fades in,
-                    // the old one fades out quickly. No slow tween, no scale pop.
+                    // Build 223: the standard chrome tween for the swap (was a spring):
+                    // new bar slides up a little and fades in, the old one fades out.
                     transitionSpec = {
-                        (fadeIn(androidx.compose.animation.core.tween(110, delayMillis = 40)) +
+                        (fadeIn(amChromeSpec()) +
                             androidx.compose.animation.slideInVertically(
-                                animationSpec = androidx.compose.animation.core.spring(
-                                    dampingRatio = 0.8f,
-                                    stiffness = 900f
-                                ),
+                                animationSpec = amChromeSpec(),
                                 initialOffsetY = { it / 3 }
                             )) togetherWith
-                            fadeOut(androidx.compose.animation.core.tween(80))
+                            fadeOut(amChromeSpec())
                     },
                     label = "toolbarTransition"
                 ) { targetClipId ->

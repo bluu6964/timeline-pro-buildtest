@@ -7,6 +7,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import com.example.ui.theme.AmAccent
+import com.example.ui.theme.AmInk
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.Dp
@@ -37,13 +39,12 @@ fun NeonAddFab(
             val u = d / 61f                      // 1 reference dp in px
             val c = Offset(d / 2f, d / 2f)
 
-            // Build 216: a LIME disc with an ink plus (the reference's
-            // accent disc) — readable on the white timeline.
-            drawCircle(Color(0xFFC8F91F), radius = d / 2f - 1f * u, center = c)
+            // The accent disc with an ink plus (build 223: tokenized).
+            drawCircle(AmAccent, radius = d / 2f - 1f * u, center = c)
             val arm = 10.5f * u
             val th = 3.6f * u
-            drawLine(Color(0xFF18181B), Offset(c.x - arm, c.y), Offset(c.x + arm, c.y), th, StrokeCap.Round)
-            drawLine(Color(0xFF18181B), Offset(c.x, c.y - arm), Offset(c.x, c.y + arm), th, StrokeCap.Round)
+            drawLine(AmInk, Offset(c.x - arm, c.y), Offset(c.x + arm, c.y), th, StrokeCap.Round)
+            drawLine(AmInk, Offset(c.x, c.y - arm), Offset(c.x, c.y + arm), th, StrokeCap.Round)
         }
     }
 }

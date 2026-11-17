@@ -1,8 +1,10 @@
 package com.example.ui.util
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -28,7 +30,20 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.input.pointer.pointerInput
 
 /**
- * Instant-feedback click with a springy press (Alight Motion / Apple feel).
+ * Build 223 (Sarowar's order): THE standard animation spec for ALL UI
+ * chrome — one fast, smooth tween (180 ms, FastOutSlowIn: quick start,
+ * gentle landing), NO spring anywhere, so nothing overshoots or bounces.
+ * Panels, dialogs, sheets, the tools pager, press feedback — every
+ * chrome animation uses this. Video-content animation (keyframe easing
+ * curves, layer animation playback, export) is NOT chrome and keeps its
+ * own data. Helper names in this file keep their historical "spring"
+ * wording for call-site compatibility; the specs are all this tween.
+ */
+fun <T> amChromeSpec(): FiniteAnimationSpec<T> =
+    tween(durationMillis = 180, easing = FastOutSlowInEasing)
+
+/**
+ * Instant-feedback click with a fast, smooth press (Alight Motion / Apple feel).
  *
  * Why the old version felt laggy: `clickable` inside a scrolling parent (the timeline, toolbars)
  * waits ~100 ms before it reports "pressed", so the press animation started late. Here the finger-down
@@ -62,7 +77,7 @@ fun Modifier.bouncyClickable(
             awaitEachGesture {
                 val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
                 scope.launch {
-                    scale.animateTo(pressedScale, spring(dampingRatio = 0.75f, stiffness = 1400f))
+                    scale.animateTo(pressedScale, amChromeSpec())
                 }
                 var clicked = false
                 while (true) {
@@ -77,7 +92,7 @@ fun Modifier.bouncyClickable(
                     if ((change.position - down.position).getDistance() > viewConfiguration.touchSlop) break
                 }
                 scope.launch {
-                    scale.animateTo(1f, spring(dampingRatio = 0.6f, stiffness = 600f))
+                    scale.animateTo(1f, amChromeSpec())
                 }
                 if (clicked) latestOnClick()
             }
@@ -91,7 +106,7 @@ fun Modifier.springPressFeedback(
 
     val scale by animateFloatAsState(
         targetValue = if (isPressed) pressedScale else 1f,
-        animationSpec = spring(dampingRatio = 0.9f, stiffness = 700f),
+        animationSpec = amChromeSpec(),
         label = "springPress"
     )
 
@@ -115,7 +130,7 @@ fun Modifier.springHover(
 
     val scale by animateFloatAsState(
         targetValue = if (isHovered) hoverScale else 1f,
-        animationSpec = spring(dampingRatio = 0.9f, stiffness = 700f),
+        animationSpec = amChromeSpec(),
         label = "springHover"
     )
 
@@ -124,13 +139,14 @@ fun Modifier.springHover(
 
 /**
  * Fast entrance for anything that appears (dialogs, panels, headers): fades in, rises a few dp and
- * scales up from 0.96 with a stiff spring, so it feels instant but never pops. [fromBottom] makes
- * big bottom panels slide up further. Runs once, in the draw phase only (no recomposition).
+ * scales up from 0.96 on the standard chrome tween (build 223: was a stiff spring), so it feels
+ * instant but never pops or overshoots. [fromBottom] makes big bottom panels slide up further.
+ * Runs once, in the draw phase only (no recomposition).
  */
 fun Modifier.enterPop(fromBottom: Boolean = false): Modifier = composed {
     val progress = remember { Animatable(0f) }
     androidx.compose.runtime.LaunchedEffect(Unit) {
-        progress.animateTo(1f, spring(dampingRatio = 0.85f, stiffness = 1100f))
+        progress.animateTo(1f, amChromeSpec())
     }
     this.graphicsLayer {
         val p = progress.value

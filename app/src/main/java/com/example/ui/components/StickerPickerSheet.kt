@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.sp
 import com.example.engine.StickerLibrary
 import com.example.model.at
 import com.example.ui.theme.AmPanel
+import com.example.ui.theme.AmPanelElevated
 import com.example.ui.theme.AmPanelHigh
 import com.example.ui.theme.AmPillSelected
 import com.example.ui.theme.AmSheetShape
@@ -145,7 +146,7 @@ private fun StickerTile(item: StickerLibrary.Item, onClick: () -> Unit) {
         modifier = Modifier
             .aspectRatio(1f)
             .clip(RoundedCornerShape(12.dp))
-            .background(Color(0xFF2B2B2B))
+            .background(AmPanelElevated)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {

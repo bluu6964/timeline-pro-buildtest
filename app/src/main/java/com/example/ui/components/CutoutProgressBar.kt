@@ -19,6 +19,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.theme.AmAccentViolet
+import com.example.ui.theme.AmCardSurface
+import com.example.ui.theme.AmPanelElevated
 
 /** Progress of the full-video cutout (RVM) with a Cancel button. */
 @Composable
@@ -35,7 +37,7 @@ fun CutoutProgressBar(
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 6.dp)
             .clip(RoundedCornerShape(16.dp))
-            .background(Color(0xFF1C1C1C))
+            .background(AmCardSurface)
             .padding(horizontal = 14.dp, vertical = 10.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -52,7 +54,7 @@ fun CutoutProgressBar(
                 .fillMaxWidth()
                 .height(5.dp)
                 .clip(CircleShape)
-                .background(Color(0xFF3A3A3A))
+                .background(AmPanelElevated)
         ) {
             Box(
                 Modifier

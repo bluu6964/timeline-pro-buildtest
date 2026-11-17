@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -71,26 +72,38 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.ui.theme.AmAccent
+import com.example.ui.util.amChromeSpec
+import com.example.ui.theme.AmBase
+import com.example.ui.theme.AmHairlineStrong
+import com.example.ui.theme.AmInk
+import com.example.ui.theme.AmPanel
+import com.example.ui.theme.AmPanelElevated
+import com.example.ui.theme.AmTextDim
+import com.example.ui.theme.AmTextFaint
+import com.example.ui.theme.AmTextPrimary
+import com.example.ui.theme.AmVioletDeep
 import kotlinx.coroutines.launch
 
 // Build 219 (Sarowar's HTML reference v4, ai_studio_code__44.html):
 // the SELECTED state's two surfaces — the header that replaces the top
 // bar while a layer is selected, and the 3-page tool pager that
-// replaces the add-dock. Colours and geometry are the reference's own
-// values for these two surfaces only; everything else in the editor
-// keeps build 218's finish.
-private val SelBg = Color(0xFF12141D)
-private val SelBtn = Color(0xFF212536)
-private val SelBtnActive = Color(0xFF2A2F45)
-private val SelActiveOutline = Color(0xFF596184)
-private val SelLabel = Color(0xFF7E849D)
-private val SelDisabled = Color(0xFF4D5266)
-private val SelBadge = Color(0xFFE2A918)
-private val SelBadgeText = Color(0xFF1A1A1A)
-private val SelName = Color(0xFFEAECEF)
-private val SelUnderline = Color(0xFF2A2E3F)
-private val SelAccent = Color(0xFF1BD8B8)
-private val SelDot = Color(0xFF353A4E)
+// replaces the add-dock. Geometry is the reference's own; build 223
+// (Sarowar's colour-balance order) moved the colours OFF the
+// reference's blue-grey palette onto the app's unified tokens —
+// layout, order and behaviour unchanged.
+private val SelBg = AmBase
+private val SelBtn = AmPanel
+private val SelBtnActive = AmPanelElevated
+private val SelActiveOutline = AmVioletDeep
+private val SelLabel = AmTextDim
+private val SelDisabled = AmTextFaint
+private val SelBadge = AmAccent
+private val SelBadgeText = AmInk
+private val SelName = AmTextPrimary
+private val SelUnderline = AmHairlineStrong
+private val SelAccent = AmAccent
+private val SelDot = AmHairlineStrong
 
 /** The pager's exact total height: page 202 + dots row 10 + bottom padding 10. */
 const val SELECTED_PAGER_HEIGHT_DP = 222
@@ -458,6 +471,11 @@ fun SelectedToolsPager219(
     ) {
         HorizontalPager(
             state = pagerState,
+            // Build 223: the pager snaps with the standard chrome tween — no spring.
+            flingBehavior = PagerDefaults.flingBehavior(
+                state = pagerState,
+                snapAnimationSpec = amChromeSpec()
+            ),
             modifier = Modifier
                 .fillMaxWidth()
                 .height(202.dp)
@@ -550,7 +568,7 @@ fun SelectedToolsPager219(
                         .height(6.dp)
                         .clip(RoundedCornerShape(3.dp))
                         .background(if (active) SelName else SelDot)
-                        .clickable { scope.launch { pagerState.animateScrollToPage(i) } }
+                        .clickable { scope.launch { pagerState.animateScrollToPage(i, animationSpec = amChromeSpec()) } }
                         .testTag("pager_dot_$i")
                 )
             }

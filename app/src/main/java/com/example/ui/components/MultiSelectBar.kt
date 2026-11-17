@@ -37,10 +37,11 @@ import com.example.model.ShapeBooleanOp
 import com.example.model.SpatialAction
 import com.example.ui.theme.AmCornerPanel
 import com.example.ui.theme.AmDanger
+import com.example.ui.theme.AmTextPrimary
 import com.example.ui.theme.amGlassBrush
 import com.example.ui.util.bouncyClickable
 
-private val IconColor = Color(0xFF18181B) // build 216: ink glyphs on the white bar
+private val IconColor = AmTextPrimary // build 223 (colour balance): light glyphs — the bar surface is the dark AmPanel (build 216's white bar is gone; its ink glyphs were invisible on dark)
 
 /**
  * Bar shown at the bottom of the timeline while several layers are selected.
@@ -168,7 +169,7 @@ fun MultiSelectBar(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                MiniTile(label = "All", labelColor = Color(0xFF18181B).copy(alpha = 0.75f), onClick = onSelectAll) { drawSelectAllGlyph() }
+                MiniTile(label = "All", labelColor = AmTextPrimary.copy(alpha = 0.75f), onClick = onSelectAll) { drawSelectAllGlyph() }
                 MiniTile(label = "Delete", labelColor = AmDanger, onClick = onDeleteChecked) { drawTrashGlyph() }
             }
         }
@@ -286,7 +287,7 @@ private fun BooleanTile(
         Canvas(modifier = Modifier.size(width = 28.dp, height = 20.dp)) { drawBooleanGlyph(op) }
         Text(
             op.displayName,
-            color = Color(0xFF18181B).copy(alpha = 0.75f),
+            color = AmTextPrimary.copy(alpha = 0.75f),
             fontSize = 8.sp,
             fontWeight = FontWeight.Medium,
             maxLines = 1

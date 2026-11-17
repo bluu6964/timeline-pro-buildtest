@@ -73,7 +73,14 @@ import com.example.model.indexOnTime
 import com.example.model.segmentIndexAt
 import com.example.model.LayerType
 import com.example.model.TimelineClip
+import com.example.ui.theme.AmAccent
+import com.example.ui.theme.AmBase
+import com.example.ui.theme.AmInk
+import com.example.ui.theme.IconDisabled
 import com.example.ui.theme.AmCornerPanel
+import com.example.ui.theme.AmHairlineStrong
+import com.example.ui.theme.AmPanelElevated
+import com.example.ui.theme.AmVioletDeep
 import com.example.ui.theme.AmPanel
 import com.example.ui.theme.AmPillSelected
 import com.example.ui.theme.CanvasBackground
@@ -313,7 +320,7 @@ fun CropView(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.White) // build 216: light crop screen (the canvas keeps its own dim)
+            .background(AmBase) // build 223 (colour balance): the unified background (was build 216's white; the canvas keeps its own dim)
             .then(
                 // Swipe down on the tools area (below the crop canvas) = back.
                 if (chrome != null) Modifier.swipeDownToDismiss(
@@ -497,7 +504,7 @@ fun CropView(
                     }
                 } else {
                     Canvas(modifier = Modifier.fillMaxSize()) {
-                        drawRect(color = Color(0xFF121212))
+                        drawRect(color = AmBase)
                         val w = size.width
                         val h = size.height
                         drawLine(color = Color.White.copy(alpha = 0.08f), start = Offset(w / 2f, 0f), end = Offset(w / 2f, h), strokeWidth = 1.dp.toPx())
@@ -602,7 +609,7 @@ fun CropView(
                             Offset(mx, t) to 5.dp, Offset(mx, b) to 5.dp, Offset(l, my) to 5.dp, Offset(r, my) to 5.dp
                         )
                         for ((o, rad) in pts) {
-                            drawCircle(Color(0xFFABE41D), radius = rad.toPx(), center = o)
+                            drawCircle(AmAccent, radius = rad.toPx(), center = o)
                             drawCircle(Color.White, radius = rad.toPx(), center = o, style = Stroke(width = 1.5.dp.toPx()))
                         }
                     }
@@ -707,7 +714,7 @@ fun CropView(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.Undo,
                         contentDescription = "Undo",
-                        tint = if (canUndo) IconActive else Color(0xFF4A4A4A),
+                        tint = if (canUndo) IconActive else IconDisabled,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -720,7 +727,7 @@ fun CropView(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.Redo,
                         contentDescription = "Redo",
-                        tint = if (canRedo) IconActive else Color(0xFF4A4A4A),
+                        tint = if (canRedo) IconActive else IconDisabled,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -785,8 +792,8 @@ fun CropView(
                 modifier = Modifier
                     .size(32.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFFF3F3F4))
-                    .border(1.dp, Color(0x0F000000), CircleShape)
+                    .background(AmPanelElevated)
+                    .border(1.dp, AmHairlineStrong, CircleShape)
                     .bouncyClickable(onClick = {
                         activePreset = "Free"
                         setRect(0f, 0f, 1f, 1f)
@@ -808,8 +815,8 @@ fun CropView(
                     .weight(1f)
                     .height(30.dp)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(Color(0xFFF3F3F4))
-                    .border(1.dp, Color(0x0F000000), RoundedCornerShape(10.dp))
+                    .background(AmPanelElevated)
+                    .border(1.dp, AmHairlineStrong, RoundedCornerShape(10.dp))
                     .padding(horizontal = 6.dp),
                 contentAlignment = Alignment.CenterStart
             ) {
@@ -822,7 +829,7 @@ fun CropView(
                         modifier = Modifier
                             .size(20.dp)
                             .graphicsLayer { rotationZ = 45f }
-                            .background(Color(0xFF3B3B3B), RectangleShape)
+                            .background(AmVioletDeep, RectangleShape)
                             .bouncyClickable(onClick = {}),
                         contentAlignment = Alignment.Center
                     ) {
@@ -918,15 +925,15 @@ fun CropView(
                         modifier = Modifier
                             .heightIn(min = 40.dp)
                             .clip(CircleShape)
-                            .background(if (isSelected) Color.White else Color(0xFF262626), CircleShape)
-                            .border(1.dp, if (isSelected) Color.White else Color(0xFF3D3D3D), CircleShape)
+                            .background(if (isSelected) AmAccent else AmPanelElevated, CircleShape)
+                            .border(1.dp, if (isSelected) AmAccent else AmHairlineStrong, CircleShape)
                             .bouncyClickable(onClick = { applyPresetRatio(preset) })
                             .padding(horizontal = 16.dp, vertical = 8.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = preset,
-                            color = if (isSelected) Color(0xFF0F0F0F) else TextPrimary,
+                            color = if (isSelected) AmInk else TextPrimary,
                             fontSize = 14.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                         )
@@ -997,7 +1004,7 @@ private fun CropCircleHandle(modifier: Modifier = Modifier, sizeDp: Dp = 16.dp) 
         modifier = modifier
             .size(sizeDp)
             .clip(CircleShape)
-            .background(Color(0xFFABE41D))
+            .background(AmAccent)
             .border(1.5.dp, Color.White, CircleShape)
     )
 }

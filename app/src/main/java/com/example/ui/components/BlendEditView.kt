@@ -59,20 +59,30 @@ import com.example.model.Easing
 import com.example.model.TimelineClip
 import com.example.model.indexOnTime
 import com.example.model.segmentIndexAt
+import com.example.ui.theme.AmAccent
+import com.example.ui.theme.AmBase
+import com.example.ui.theme.AmCardSurface
 import com.example.ui.theme.AmCornerPanel
+import com.example.ui.theme.AmInk
+import com.example.ui.theme.AmPanel
+import com.example.ui.theme.AmPanelElevated
+import com.example.ui.theme.AmTextDim
+import com.example.ui.theme.AmTextPrimary
 import com.example.ui.util.BlendThumbs
 import com.example.ui.util.bouncyClickable
 import kotlin.math.roundToInt
 
-// Build 221 (Sarowar's HTML reference v5, ai_studio_code__48.html): the panel's own
-// palette — pure black panel, soft green accent, dark-olive button ink.
-private val BlendGreen = Color(0xFF9CE67C)
-private val BlendSurface = Color(0xFF141713)
-private val BlendIconTint = Color(0xFFD8E1C8)
-private val BlendMuted = Color(0xFF9EA39A)
-private val BlendTrack = Color(0xFF262924)
-private val BlendInk = Color(0xFF0B1008)
-private val BlendCheckInk = Color(0xFF10150D)
+// Build 221 (Sarowar's HTML reference v5, ai_studio_code__48.html) gave this
+// panel its own palette; build 223 (Sarowar's colour-balance order) moved it
+// onto the app's unified tokens — layout and shapes unchanged, the panel's
+// green is now the one lime accent.
+private val BlendGreen = AmAccent
+private val BlendSurface = AmPanel
+private val BlendIconTint = AmTextPrimary
+private val BlendMuted = AmTextDim
+private val BlendTrack = AmPanelElevated
+private val BlendInk = AmInk
+private val BlendCheckInk = AmInk
 
 /**
  * "Blending & Opacity" editor of a layer (build 221, Sarowar's HTML reference v5):
@@ -139,7 +149,7 @@ fun BlendEditSheet(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(AmCornerPanel))
-            .background(Color.Black)
+            .background(AmBase)
             // swallow touches so nothing underneath can be hit
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
@@ -306,7 +316,7 @@ private fun BlendModeItem(
                 modifier = Modifier
                     .fillMaxSize()
                     .clip(shape)
-                    .background(Color(0xFF1A1A1A), shape)
+                    .background(AmCardSurface, shape)
             )
             if (selected) {
                 // The reference dims the chosen thumbnail to 62 % brightness — a black

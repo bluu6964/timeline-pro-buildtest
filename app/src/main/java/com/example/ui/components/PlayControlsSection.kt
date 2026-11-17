@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.theme.AmBase
+import com.example.ui.theme.AmHairline
 import com.example.ui.theme.RefCtrl
 import com.example.ui.theme.RefCtrlDisabled
 import com.example.ui.theme.RefLime
@@ -237,13 +238,13 @@ fun PlayControlsSection(
                 }
             }
         }
-        // The bar's bottom hairline (#1A1A20 in the reference).
+        // The bar's bottom hairline (build 223: the family hairline token).
         Box(
             Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .height(1.dp)
-                .background(Color(0xFF1A1A20))
+                .background(AmHairline)
         )
     }
 }

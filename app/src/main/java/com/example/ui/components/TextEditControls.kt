@@ -56,15 +56,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.example.ui.theme.AmAccent
+import com.example.ui.theme.AmBase
 import com.example.ui.theme.AmCornerCard
+import com.example.ui.theme.AmPanel
+import com.example.ui.theme.AmPanelElevated
 import com.example.ui.theme.TextPrimary
 import java.util.Locale
 
 /** Colors used by the Text edit panel (taken from the reference screenshots). */
-internal val SheetBg = Color(0xFFFFFFFF) // build 216: the text sheet is white
-internal val FieldBg = Color(0xFFF3F3F4) // build 216: pill surface
-internal val ChipBg = Color(0xFF18181B) // build 216: chips stay ink (their labels are white) on the white sheet
-internal val ChipSelectedBg = Color(0xFFC8F91F) // build 216: selected chip = lime (its label is ink)
+internal val SheetBg = AmPanel // build 223 (colour balance): the sheet joins the unified dark surfaces (was build 216's white)
+internal val FieldBg = AmPanelElevated // build 223: raised pill surface on the sheet
+internal val ChipBg = AmBase // build 223: chips stay the darkest surface (their labels are white) on the sheet
+internal val ChipSelectedBg = AmAccent // build 223: selected chip = the one lime (its label is ink)
 
 private val Swatches = listOf(
     0xFF9C27B0, 0xFFE91E63, 0xFFF44336, 0xFFFFFFFF, 0xFF9E9E9E, 0xFF000000,

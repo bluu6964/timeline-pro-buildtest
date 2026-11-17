@@ -32,11 +32,11 @@ import androidx.compose.ui.unit.sp
  */
 
 // ── Base & flat surfaces ─────────────────────────────────────────────────
-// Build 214 (UI ARCHITECTURE REDESIGN): warm near-black surfaces serving the
-// dock + panel-stage architecture; the accent is the brand red of Sarowar's
-// red/black logo (see AmAccentViolet below — the token name is kept for
-// call-site compatibility, its value is now the red).
-/** App base: warm near-black. */
+// THE unified palette (build 223, Sarowar's colour-balance order): every
+// panel, sheet, dialog and chrome surface in the app uses these tokens —
+// background #121215, surfaces of the #202026 family, ONE lime accent.
+// (Builds 214–221 each brought a reference palette; 223 retired them all.)
+/** App base: near-black. */
 val AmBase = Color(0xFF121215)
 /** Pure black for recessed / canvas surround. */
 val AmBaseDeep = Color(0xFF0A0A0C)
@@ -75,31 +75,32 @@ val AmPink = Color(0xFFF54BBF)
 /** Soft red — only for destructive actions. */
 val AmDanger = Color(0xFFFF5C5C)
 /**
- * Brand red — reserved exclusively for the Effects parameter ruler thumb
- * (build 214: the needle joins the architecture's accent; the token stays
- * effects-only). Do not use elsewhere in chrome.
+ * The lime accent in its Effects-ruler role (the fx dial's accent disc).
+ * Same value as [AmAccent]; the separate name survives from build 214.
  */
-val AmFxAccent = Color(0xFFD2FC32) // build 217: the fx dial's accent disc is the reference lime
+val AmFxAccent = Color(0xFFD2FC32)
 /** Ink drawn on white fills (Export label, badges). */
 val AmInk = Color(0xFF111114)
 
 // ── Build 206: the redesign's surfaces + accent ──────────────────────────
 /**
- * The one accent (build 214: BRAND RED #FF3B47 — Sarowar's red/black logo;
- * it marks selection, primary actions, slider fills and the dock's Add).
- * The token keeps its build-206 name so call sites stay compatible.
+ * The one accent: lime #D2FC32 (the editor's accent since build 217; the
+ * short-lived brand red of build 214 was retired in 217 and its last
+ * comments in 223). It marks selection, primary actions, slider fills
+ * and the dock's Add. The token keeps its build-206 name so call sites
+ * stay compatible.
  */
 val AmAccentViolet = Color(0xFFD2FC32)
-/** Alias for new code (build 214): the same brand red, honestly named. */
+/** Alias for new code: the same lime accent, honestly named. */
 val AmAccent = AmAccentViolet
 /** Floating pill bars (transport, toolbars, header): near-black, a step above the base. */
 val AmBarSurface = Color(0xFF121215)
-/** The filled pill of a selected / active item inside a bar or grid (build 214: dark red tint). */
+/** The filled pill of a selected / active item inside a bar or grid (lime wash). */
 val AmPillSelected = Color(0x24D2FC32)
 /** Card surface on the base (project cards, panel-stage panels). */
 val AmCardSurface = Color(0xFF1B1B21)
 
-/** Selected-layer header slate (build 211): the Alight reference's dark blue-grey bar, distinct from the editor black. */
+/** Selected-layer header slate (build 211's role; value is the card surface). */
 val AmSlateHeader = Color(0xFF1B1B21)
 
 // ── Text hierarchy ───────────────────────────────────────────────────────

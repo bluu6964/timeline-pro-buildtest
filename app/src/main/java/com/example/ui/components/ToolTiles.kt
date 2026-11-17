@@ -24,6 +24,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.ToolRowSplit
+import com.example.ui.theme.AmInk
 import com.example.ui.theme.AmPillSelected
 import com.example.ui.theme.AmTextDim
 import com.example.ui.util.bouncyClickable
@@ -71,13 +72,13 @@ fun ToolTile(
             Icon(
                 imageVector = tool.icon,
                 contentDescription = tool.label,
-                tint = if (used) Color(0xFF18181B) else AmTextDim, // build 216: used = ink on the lime wash
+                tint = if (used) AmInk else AmTextDim, // used = ink on the lime wash
                 modifier = Modifier.size(ToolRowSplit.ICON_DP.dp)
             )
             Spacer(modifier = Modifier.height(3.dp))
             Text(
                 text = tool.label,
-                color = if (used) Color(0xFF18181B) else AmTextDim,
+                color = if (used) AmInk else AmTextDim,
                 fontSize = 11.sp,
                 fontWeight = if (used) FontWeight.Bold else FontWeight.Normal,
                 maxLines = 1,

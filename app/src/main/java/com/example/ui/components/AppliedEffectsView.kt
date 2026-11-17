@@ -76,6 +76,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.model.AspectRatio
+import com.example.ui.theme.AmAccent
+import com.example.ui.theme.AmCardSurface
+import com.example.ui.theme.AmHairlineStrong
+import com.example.ui.theme.AmInk
+import com.example.ui.theme.AmPanel
+import com.example.ui.theme.AmPanelElevated
+import com.example.ui.theme.AmTextDim
+import com.example.ui.theme.AmTextFaint
+import com.example.ui.theme.AmTextPrimary
+import com.example.ui.theme.AmVioletDeep
 import com.example.ui.theme.CanvasBackground
 import com.example.ui.theme.IconActive
 import com.example.ui.theme.RulerSubTickColor
@@ -301,7 +311,7 @@ fun AppliedEffectsView(
                         val x = (cX + radius * Math.cos(angle)).toFloat()
                         val y = (cY + radius * Math.sin(angle)).toFloat()
                         drawCircle(
-                            color = Color(0xFFABE41D).copy(alpha = 0.85f),
+                            color = AmAccent.copy(alpha = 0.85f),
                             radius = 9.dp.toPx(),
                             center = Offset(x, y)
                         )
@@ -429,7 +439,7 @@ fun AppliedEffectsView(
                         .offset(x = 120.dp)
                         .height(28.dp)
                         .clip(RectangleShape)
-                        .background(Color(0xFFF3F3F4)) // build 216: pill surface
+                        .background(AmPanelElevated) // build 223: raised surface on the dark strip
                         .padding(horizontal = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -450,7 +460,7 @@ fun AppliedEffectsView(
                         modifier = Modifier
                             .size(20.dp)
                             .graphicsLayer { rotationZ = 45f }
-                            .background(Color(0xFF565656), RectangleShape)
+                            .background(AmVioletDeep, RectangleShape)
                             .bouncyClickable(onClick = {}),
                         contentAlignment = Alignment.Center
                     ) {
@@ -473,7 +483,7 @@ fun AppliedEffectsView(
                         .align(Alignment.Center)
                 ) {
                     drawLine(
-                        color = Color(0xFF18181B), // build 216: ink playhead on the light ruler strip
+                        color = Color.White, // build 223: white playhead on the dark strip
                         start = Offset(0f, 0f),
                         end = Offset(0f, size.height),
                         strokeWidth = 2.dp.toPx()
@@ -487,7 +497,7 @@ fun AppliedEffectsView(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
-                .background(Color.White) // build 216: light section
+                .background(AmPanel) // build 223 (colour balance): the section joins the unified dark surfaces (was build 216's white)
                 .padding(horizontal = 16.dp, vertical = 10.dp)
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
@@ -497,7 +507,7 @@ fun AppliedEffectsView(
                         .align(Alignment.CenterHorizontally)
                         .width(36.dp)
                         .height(4.dp)
-                        .background(Color(0xFF3F3F3F), CircleShape)
+                        .background(AmTextFaint, CircleShape)
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
@@ -520,7 +530,7 @@ fun AppliedEffectsView(
                                         .fillMaxWidth()
                                         .height(46.dp)
                                         .clip(CircleShape)
-                                        .background(Color(0xFFF3F3F4), CircleShape) // build 216: pill-surface button
+                                        .background(AmPanelElevated, CircleShape) // build 223: raised surface button
                                         .bouncyClickable(
                                             pressedScale = 0.96f,
                                             onClick = { screenMode = AppliedEffectsScreenMode.LIBRARY }
@@ -548,7 +558,7 @@ fun AppliedEffectsView(
                                     ) {
                                         Text(
                                             text = "See applied effects here, reorder them by dragging, and control their parameters",
-                                            color = Color(0xFF969696),
+                                            color = AmTextDim,
                                             fontSize = 13.sp,
                                             lineHeight = 19.sp,
                                             textAlign = TextAlign.Center
@@ -566,7 +576,7 @@ fun AppliedEffectsView(
                                                     .fillMaxWidth()
                                                     .height(48.dp)
                                                     .clip(RoundedCornerShape(14.dp))
-                                                    .background(Color(0xFFF3F3F4), RoundedCornerShape(14.dp)) // build 216
+                                                    .background(AmPanelElevated, RoundedCornerShape(14.dp)) // build 223
                                                     .padding(horizontal = 10.dp),
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
@@ -617,7 +627,7 @@ fun AppliedEffectsView(
                                                     Icon(
                                                         imageVector = if (effect.isEnabled) Icons.Default.Visibility else Icons.Default.VisibilityOff,
                                                         contentDescription = "Toggle visibility",
-                                                        tint = if (effect.isEnabled) IconActive else Color(0xFF757575),
+                                                        tint = if (effect.isEnabled) IconActive else AmTextFaint,
                                                         modifier = Modifier.size(20.dp)
                                                     )
                                                 }
@@ -636,7 +646,7 @@ fun AppliedEffectsView(
                                                         for (row in 0..2) {
                                                             for (col in 0..1) {
                                                                 drawCircle(
-                                                                    color = Color(0xFFA3A3A3),
+                                                                    color = AmTextDim,
                                                                     radius = dotR,
                                                                     center = Offset(col * spacingX + 2.dp.toPx(), row * spacingY + 2.dp.toPx())
                                                                 )
@@ -664,14 +674,14 @@ fun AppliedEffectsView(
                                         Box(
                                             modifier = Modifier
                                                 .clip(CircleShape)
-                                                .background(if (isSelected) Color(0xFFF3F4F6) else Color(0xFF232323), CircleShape)
+                                                .background(if (isSelected) AmAccent else AmPanelElevated, CircleShape)
                                                 .bouncyClickable(onClick = { selectedCategory = cat })
                                                 .padding(horizontal = 14.dp, vertical = 7.dp),
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Text(
                                                 text = cat,
-                                                color = if (isSelected) Color(0xFF111111) else Color(0xFFE5E7EB),
+                                                color = if (isSelected) AmInk else AmTextPrimary,
                                                 fontSize = 13.sp,
                                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                                             )
@@ -719,8 +729,8 @@ fun AppliedEffectsView(
                                                 modifier = Modifier
                                                     .size(62.dp)
                                                     .clip(RoundedCornerShape(12.dp))
-                                                    .background(Color(0xFF2A2A2A), RoundedCornerShape(12.dp))
-                                                    .border(1.dp, Color(0xFF3B3B3B), RoundedCornerShape(12.dp)),
+                                                    .background(AmCardSurface, RoundedCornerShape(12.dp))
+                                                    .border(1.dp, AmHairlineStrong, RoundedCornerShape(12.dp)),
                                                 contentAlignment = Alignment.Center
                                             ) {
                                                 // Stylized Rocket / Graphic Canvas

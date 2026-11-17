@@ -207,7 +207,7 @@ fun ProjectsDialog(
                     modifier = Modifier
                         .size(46.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFF111114)),
+                        .background(com.example.ui.theme.AmInk),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(Icons.Filled.Add, contentDescription = null, tint = com.example.ui.theme.RefLime, modifier = Modifier.size(26.dp))

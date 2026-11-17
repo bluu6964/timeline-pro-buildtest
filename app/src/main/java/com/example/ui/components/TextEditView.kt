@@ -77,8 +77,12 @@ import com.example.ui.text.FontCatalog
 import com.example.ui.text.FontEntry
 import com.example.ui.text.FontRepository
 import com.example.ui.text.rememberFontFamily
+import com.example.ui.theme.AmAccent
 import com.example.ui.theme.AmAccentViolet
+import com.example.ui.theme.AmBase
+import com.example.ui.theme.AmInk
 import com.example.ui.theme.AmTextDim
+import com.example.ui.theme.AmTextFaint
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import kotlinx.coroutines.launch
@@ -138,7 +142,7 @@ fun TextEditSheet(
                     .width(44.dp)
                     .height(4.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF4A4A4E))
+                    .background(AmTextFaint)
             )
             // Build 214: the section switcher sits in the panel's header
             // area (top), not pinned to the bottom.
@@ -190,9 +194,9 @@ private enum class TextTool(val label: String, val icon: ImageVector) {
     PATH("Path", Icons.Default.Timeline)
 }
 
-private val ToolbarBg = Color(0xFF121215)
-private val ToolAccent = AmAccentViolet // build 214: the brand red (the token's value)
-private val ToolIdle = Color(0xFF76767A) // build 216: readable on white
+private val ToolbarBg = AmBase // build 223: tokenized (same value)
+private val ToolAccent = AmAccentViolet // the one lime accent token
+private val ToolIdle = AmTextDim // build 223: the family's idle grey (was build 216's on-white grey)
 
 /** Section switcher (build 214: in the panel's header area): scrolls sideways, one 64 dp cell per tool, the active one in a brand-red pill. */
 @Composable
@@ -221,7 +225,7 @@ private fun TextToolBar(selected: TextTool, onSelect: (TextTool) -> Unit) {
                         .background(if (on) ToolAccent else Color.Transparent),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(t.icon, contentDescription = t.label, tint = if (on) Color(0xFF18181B) else ToolIdle, modifier = Modifier.size(22.dp)) // build 216: ink on the lime tab
+                    Icon(t.icon, contentDescription = t.label, tint = if (on) AmInk else ToolIdle, modifier = Modifier.size(22.dp)) // ink on the lime tab
                 }
                 Spacer(Modifier.height(2.dp))
                 Text(
@@ -242,7 +246,7 @@ private fun TextBoxField(text: String, onText: (String) -> Unit) {
     TextField(
         value = text,
         onValueChange = onText,
-        placeholder = { Text("Write Text", color = Color(0xFF8A8A8E), fontSize = 18.sp) },
+        placeholder = { Text("Write Text", color = AmTextDim, fontSize = 18.sp) },
         leadingIcon = {
             Icon(Icons.Default.TextFields, null, tint = TextPrimary, modifier = Modifier.size(26.dp))
         },
@@ -254,9 +258,9 @@ private fun TextBoxField(text: String, onText: (String) -> Unit) {
             unfocusedContainerColor = FieldBg,
             focusedIndicatorColor = Color.Transparent,
             unfocusedIndicatorColor = Color.Transparent,
-            focusedTextColor = Color(0xFF18181B),
-            unfocusedTextColor = Color(0xFF18181B),
-            cursorColor = Color(0xFF18181B)
+            focusedTextColor = TextPrimary,
+            unfocusedTextColor = TextPrimary,
+            cursorColor = AmAccent
         ),
         modifier = Modifier
             .fillMaxWidth()
@@ -331,7 +335,7 @@ private fun SheetChip(
         if (content != null) content() else {
             Text(
                 label,
-                color = if (selected) Color(0xFF1C1D20) else Color.White,
+                color = if (selected) AmInk else Color.White,
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1
@@ -387,9 +391,9 @@ private fun FontsTab(clip: TimelineClip, onUpdate: ((TimelineClip) -> TimelineCl
                 unfocusedContainerColor = FieldBg,
                 focusedIndicatorColor = Color.Transparent,
                 unfocusedIndicatorColor = Color.Transparent,
-                focusedTextColor = Color(0xFF18181B),
-                unfocusedTextColor = Color(0xFF18181B),
-                cursorColor = Color(0xFF18181B)
+                focusedTextColor = TextPrimary,
+                unfocusedTextColor = TextPrimary,
+                cursorColor = AmAccent
             ),
             modifier = Modifier.fillMaxWidth()
         )
@@ -422,7 +426,7 @@ private fun FontsTab(clip: TimelineClip, onUpdate: ((TimelineClip) -> TimelineCl
                         .padding(top = 4.dp, end = 4.dp)
                         .size(11.dp)
                         .clip(RoundedCornerShape(50))
-                        .background(Color(0xFFABE41D))
+                        .background(AmAccent)
                 )
             }
         }
@@ -547,7 +551,7 @@ private fun FontWeightRow(
                 ) {
                     Text(
                         "$w",
-                        color = if (clip.fontWeight == w) Color(0xFF1C1D20) else Color.White,
+                        color = if (clip.fontWeight == w) AmInk else Color.White,
                         fontSize = 17.sp, fontWeight = FontWeight.Bold
                     )
                 }
@@ -608,7 +612,7 @@ private fun StyleToggle(
     ) {
         Text(
             glyph,
-            color = if (on) Color(0xFF1C1D20) else Color.White,
+            color = if (on) AmInk else Color.White,
             fontSize = 20.sp, fontWeight = FontWeight.Bold,
             fontStyle = fontStyle, textDecoration = decoration
         )
@@ -674,7 +678,7 @@ private fun AlignButton(icon: ImageVector, on: Boolean, modifier: Modifier, onCl
             .bouncyClickable(pressedScale = 0.9f, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Icon(icon, null, tint = if (on) Color(0xFF1C1D20) else Color.White, modifier = Modifier.size(26.dp))
+        Icon(icon, null, tint = if (on) AmInk else Color.White, modifier = Modifier.size(26.dp))
     }
 }
 

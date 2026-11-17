@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.sp
 import com.example.model.TIMELINE_PX_PER_MS
 import com.example.ui.theme.AmBaseDeep
 import com.example.ui.theme.AmBarSurface
+import com.example.ui.theme.AmHairline
 import com.example.ui.theme.AmCyanBright
 import com.example.ui.theme.AmOrange
 import com.example.ui.theme.AmTextFaint
@@ -235,22 +236,16 @@ fun TimescaleSection(
 
             // The CENTRED playhead (build 217, the reference): a WHITE
             // needle (2 x 15 dp, rounded) at the top centre from top
-            // 3 dp, a LIME square (6 x 6 dp, r1.5) tucked at its
-            // top-right (its left edge 2.5 dp right of centre), and the
-            // 2 dp white line resuming BELOW the timecode (top 39 dp)
-            // to the ruler's bottom — the layer panel continues it
-            // through the tracks.
+            // 3 dp, and the 2 dp white line resuming BELOW the timecode
+            // (top 39 dp) to the ruler's bottom — the layer panel
+            // continues it through the tracks. Build 223 (Sarowar's
+            // order): the lime square that sat at the needle's top-right
+            // is REMOVED.
             drawRoundRect(
                 color = Color.White,
                 topLeft = Offset(centerPx - 1.dp.toPx(), 3.dp.toPx()),
                 size = Size(2.dp.toPx(), 15.dp.toPx()),
                 cornerRadius = CornerRadius(1.dp.toPx())
-            )
-            drawRoundRect(
-                color = Color(0xFFC4F934),
-                topLeft = Offset(centerPx + 2.5.dp.toPx(), 3.dp.toPx()),
-                size = Size(6.dp.toPx(), 6.dp.toPx()),
-                cornerRadius = CornerRadius(1.5.dp.toPx())
             )
             drawLine(
                 Color.White,
@@ -337,13 +332,13 @@ fun TimescaleSection(
             }
         }
 
-        // The ruler row's bottom hairline (#19191F in the reference).
+        // The ruler row's bottom hairline (build 223: the family hairline token).
         Box(
             Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .height(1.dp)
-                .background(Color(0xFF19191F))
+                .background(AmHairline)
         )
     }
 }

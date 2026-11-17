@@ -145,6 +145,7 @@ import com.example.ui.theme.SelectedClipBorder
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.amCyanVioletBrush
 import com.example.ui.theme.amMintCyanBrush
+import com.example.ui.util.amChromeSpec
 import com.example.ui.util.bouncyClickable
 import com.example.ui.theme.NeonLime
 import com.example.ui.theme.NeonLimeDeep
@@ -534,7 +535,6 @@ fun TimelineLayerPanel(
                             onReorderLane = onReorderLane,
                             onTrimClipEdge = onTrimClipEdge,
                             onSetClipFades = onSetClipFades,
-                            onDeleteClip = onDeleteClip,
                             onDeleteClipById = onDeleteClipById,
                             pxPerMs = pxPerMs,
                             visibleFromMs = visibleFromMs,
@@ -1075,8 +1075,6 @@ fun TimelineTrackRow(
     onTrimClipEdge: (clipId: String, isLeft: Boolean, deltaMs: Long) -> Unit = { _, _, _ -> },
     /** Audio fade handles (build 199, A9): a fade drag writes the layer's fade pair through this. */
     onSetClipFades: (clipId: String, fadeInMs: Long, fadeOutMs: Long) -> Unit = { _, _, _ -> },
-    /** Build 217: the selected bar's in-bar delete x — deletes the selected clip. */
-    onDeleteClip: () -> Unit = {},
     /** Build 218: delete one layer by id (the chain section's x buttons: the
      *  section x deletes the Chain, a child x deletes just that child). */
     onDeleteClipById: (String) -> Unit = {},
@@ -1123,18 +1121,18 @@ fun TimelineTrackRow(
         if (prevLaneIndex != laneIndex) {
             slideY.snapTo((prevLaneIndex - laneIndex) * laneStepPx)
             prevLaneIndex = laneIndex
-            slideY.animateTo(0f, spring(dampingRatio = 0.82f, stiffness = 700f))
+            slideY.animateTo(0f, amChromeSpec())
         }
     }
     // Lift animation while a layer is held / dragged.
     val lift by animateFloatAsState(
         targetValue = if (isDragging) 1f else 0f,
-        animationSpec = spring(dampingRatio = 0.7f, stiffness = 900f),
+        animationSpec = amChromeSpec(),
         label = "laneLift"
     )
     // New lane pops in.
     val appear = remember { Animatable(if (animateIn) 0f else 1f) }
-    LaunchedEffect(Unit) { if (animateIn) appear.animateTo(1f, spring(dampingRatio = 0.8f, stiffness = 600f)) }
+    LaunchedEffect(Unit) { if (animateIn) appear.animateTo(1f, amChromeSpec()) }
 
     Box(
         modifier = Modifier
@@ -1307,7 +1305,6 @@ fun TimelineTrackRow(
                     isSelected = isSelected || dragging,
                     isMultiSelected = clip.id in multiSelectIds,
                     onClick = { onClipSelect(clip.id) },
-                    onDelete = onDeleteClip,
                     comfort = comfort,
                     visibleFromMs = visibleFromMs,
                     visibleToMs = visibleToMs,
@@ -1485,7 +1482,7 @@ private fun TrimHandle(
                 modifier = Modifier
                     .width(2.dp)
                     .fillMaxHeight(0.52f)
-                    .background(Color(0xFF18181B), RoundedCornerShape(1.dp))
+                    .background(AmInk, RoundedCornerShape(1.dp))
             )
         }
     }
@@ -1633,8 +1630,6 @@ fun TimelineClipItem(
     /** Build 187: the layer's number in the displayed stack, drawn in the bar's end badge.
      *  Null = no badge (the Transform strip's lone row is not part of the stack display). */
     layerNumber: Int? = null,
-    /** Build 217: the selected bar's in-bar delete x (the panel's delete-selected action). */
-    onDelete: () -> Unit = {},
     /** Build 217: comfort density — bars are r10 instead of r9. */
     comfort: Boolean = false,
     /** Build 218: this clip is a child inside a Chain section — a flat r8
@@ -1649,10 +1644,7 @@ fun TimelineClipItem(
 ) {
     val selectScale by animateFloatAsState(
         targetValue = 1f, // no grow/pop on touch or select: layers stay perfectly still while scrolling
-        animationSpec = spring(
-            dampingRatio = 0.8f,
-            stiffness = Spring.StiffnessMedium
-        ),
+        animationSpec = amChromeSpec(),
         label = "clipSelectScale"
     )
 
@@ -1923,11 +1915,10 @@ fun TimelineClipItem(
         }
         // Build 217 (reference): the bar's right end carries the drag
         // handle (three white lines, 18 x 1.6 dp, 55% opacity) on every
-        // bar, and — ONLY on the selected bar — the delete x (20 dp,
-        // black at 35%, r6) before it. The x deletes the selected clip
-        // (the panel's own delete action); its touch box is padded to
-        // 32 dp invisibly. The reorder drag itself is unchanged
-        // (long-press drag anywhere on the bar).
+        // bar. Build 223 (Sarowar's order): the selected bar's in-bar
+        // delete x is REMOVED — deletion lives in the selected header's
+        // trash and the grid/More actions. The reorder drag itself is
+        // unchanged (long-press drag anywhere on the bar).
         if (!isChain) {
             Row(
                 modifier = Modifier
@@ -1936,23 +1927,23 @@ fun TimelineClipItem(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Build 218: a chain child's x (17 dp, r5) shows when the
-                // child is selected OR the section is, and deletes just the
-                // child; a normal bar's x (20 dp, r6) is selected-only and
-                // deletes the selected clip, as in 217.
-                if (isSelected || (inChain && chainSectionSelected)) {
+                // child is selected OR the section is, and deletes just
+                // the child. Build 223: chain x buttons stay (Sarowar's
+                // __39 design); only the regular bar's x was removed.
+                if (inChain && (isSelected || chainSectionSelected)) {
                     Box(
                         modifier = Modifier
                             .size(32.dp)
-                            .bouncyClickable(pressedScale = 0.9f, onClick = if (inChain) onDeleteSelf else onDelete)
+                            .bouncyClickable(pressedScale = 0.9f, onClick = onDeleteSelf)
                             .testTag("bar_delete_x"),
                         contentAlignment = Alignment.Center
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(if (inChain) 17.dp else 20.dp)
+                                .size(17.dp)
                                 .background(
                                     Color.Black.copy(alpha = 0.35f),
-                                    RoundedCornerShape(if (inChain) 5.dp else 6.dp)
+                                    RoundedCornerShape(5.dp)
                                 ),
                             contentAlignment = Alignment.Center
                         ) {

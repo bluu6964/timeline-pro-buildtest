@@ -2,6 +2,7 @@ package com.example.ui.components
 
 import com.example.ui.theme.AmCornerCard
 import com.example.ui.theme.AmAccentViolet
+import com.example.ui.theme.AmBaseDeep
 import com.example.ui.theme.AmInk
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -366,7 +367,7 @@ fun ResolutionSheet(
                         Icon(
                             imageVector = Icons.Default.Check,
                             contentDescription = "Selected",
-                            tint = NeonCyan,
+                            tint = com.example.ui.theme.AmAccent, // build 223: unified accent (was NeonCyan)
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -427,7 +428,7 @@ fun ExportModalDialog(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                // Build 214: the warm near-black app background (was pure black).
+                // Build 223: the unified editor background token.
                 .background(com.example.ui.theme.AmBase)
         ) {
             Column(
@@ -463,7 +464,7 @@ fun ExportModalDialog(
                 when {
                     isCompleted -> {
                         Text("Export Complete!", color = TextPrimary, fontSize = 30.sp,
-                            fontWeight = FontWeight.Black, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)
+                            fontWeight = FontWeight.Black)
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(savedToLabel, color = TextSecondary,
                             fontSize = 14.sp, fontWeight = FontWeight.Medium)
@@ -483,25 +484,22 @@ fun ExportModalDialog(
                                     .weight(1f)
                                     .height(48.dp)
                                     .clip(CircleShape)
-                                    .background(AmPillSelected, CircleShape)
+                                    .background(com.example.ui.theme.AmPanelElevated, CircleShape)
                                     .bouncyClickable(pressedScale = 0.94f, onClick = onShare),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(Icons.Default.Share, contentDescription = null,
-                                        tint = AmInk, modifier = Modifier.size(16.dp))
+                                        tint = TextPrimary, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Share", color = AmInk, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                    Text("Share", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                                 }
                             }
                         }
                     }
                     isExporting -> {
-                        // Flat white progress ring (Stage 3, B/W language): a plain white
-                        // arc on a faint white track, the % centred inside — no glow, no
-                        // gradient, no coloured gauge. (The glowing donut-gauge concept
-                        // from the scrapped neon redesign is dead; this is its flat
-                        // monochrome replacement.)
+                        // Build 223: the progress ring in the unified language — a lime
+                        // arc on the elevated-surface track, the % centred inside.
                         Box(
                             modifier = Modifier.size(168.dp).testTag("export_progress_ring"),
                             contentAlignment = Alignment.Center
@@ -511,13 +509,13 @@ fun ExportModalDialog(
                                 val inset = stroke / 2f
                                 val arcSize = Size(size.width - stroke, size.height - stroke)
                                 drawArc(
-                                    color = Color(0xFF18181B).copy(alpha = 0.12f),
+                                    color = com.example.ui.theme.AmPanelElevated,
                                     startAngle = 0f, sweepAngle = 360f, useCenter = false,
                                     topLeft = Offset(inset, inset), size = arcSize,
                                     style = Stroke(width = stroke)
                                 )
                                 drawArc(
-                                    color = Color(0xFF18181B),
+                                    color = com.example.ui.theme.AmAccent,
                                     startAngle = -90f,
                                     sweepAngle = progress.coerceIn(0f, 1f) * 360f,
                                     useCenter = false,
@@ -527,7 +525,7 @@ fun ExportModalDialog(
                             }
                             Text(
                                 "${(progress * 100).toInt()}%", color = TextPrimary, fontSize = 40.sp,
-                                fontWeight = FontWeight.Black, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                                fontWeight = FontWeight.Black
                             )
                         }
                         Spacer(modifier = Modifier.height(10.dp))
@@ -555,7 +553,7 @@ fun ExportModalDialog(
                     .width(96.dp)
                     .height(56.dp)
                     .clip(CircleShape)
-                    .background(AmPanelHigh, CircleShape) // build 216: the close tab on white
+                    .background(com.example.ui.theme.AmPanelElevated, CircleShape) // build 223: unified elevated surface
                     .clickable { if (isExporting) onCancel() else onDismiss() }
                     .testTag("export_close"),
                 contentAlignment = Alignment.Center
@@ -571,7 +569,8 @@ private fun formatRemaining(ms: Long?): String {
     return "%02d:%02d:%02d".format(total / 3600, (total % 3600) / 60, total % 60)
 }
 
-private val ExportAccent = Color(0xFF18181B) // build 216: ink accent on the white export page
+// Build 223: the export page speaks the unified token language — card values,
+// slider and selected chips use AmAccent; unselected chips sit on AmPanelElevated.
 
 /** Settings page: scrolling cards on top, "Export Now" pinned at the bottom (always visible). */
 @Composable
@@ -714,7 +713,7 @@ private fun ColumnScope.ExportSettingsPage(
     }
 
     Spacer(modifier = Modifier.height(12.dp))
-    // The Export action: the brand-red primary pill (build 214; the token's value).
+    // The Export action: the one lime primary pill (DialogPrimaryButton).
     DialogPrimaryButton(
         text = "Export Now",
         onClick = onStartExport,
@@ -742,7 +741,7 @@ private fun ExportCard(title: String, value: String, hint: String, content: @Com
                 Text(title, color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                 Text(hint, color = TextTertiary, fontSize = 11.sp)
             }
-            Text(value, color = ExportAccent, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text(value, color = com.example.ui.theme.AmAccent, fontSize = 18.sp, fontWeight = FontWeight.Bold)
         }
         content()
     }
@@ -755,9 +754,9 @@ private fun ExportSlider(value: Float, range: ClosedFloatingPointRange<Float>, t
         onValueChange = onChange,
         valueRange = range,
         colors = androidx.compose.material3.SliderDefaults.colors(
-            thumbColor = ExportAccent,
-            activeTrackColor = ExportAccent,
-            inactiveTrackColor = Color(0xFF18181B).copy(alpha = 0.12f)
+            thumbColor = com.example.ui.theme.AmAccent,
+            activeTrackColor = com.example.ui.theme.AmAccent,
+            inactiveTrackColor = com.example.ui.theme.AmPanelElevated
         ),
         modifier = Modifier.fillMaxWidth().testTag(tag)
     )
@@ -778,7 +777,7 @@ private fun ExportChip(text: String, selected: Boolean, onClick: () -> Unit) {
         modifier = Modifier
             .heightIn(min = 40.dp)
             .clip(CircleShape)
-            .background(if (selected) ExportAccent else AmPanelHigh, CircleShape)
+            .background(if (selected) com.example.ui.theme.AmAccent else com.example.ui.theme.AmPanelElevated, CircleShape)
             .bouncyClickable(pressedScale = 0.94f) { onClick() }
             .padding(horizontal = 14.dp),
         contentAlignment = Alignment.Center
@@ -787,15 +786,17 @@ private fun ExportChip(text: String, selected: Boolean, onClick: () -> Unit) {
             text = text,
             fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold,
-            color = if (selected) Color.White else TextPrimary // build 216: white on the ink chip, ink on the pill chip
+            color = if (selected) AmInk else TextPrimary // build 223: ink on the lime chip
         )
     }
 }
 
 
 /**
- * Logo badge: white wavy seal with a ring of text and "M" in the middle, plus a big faint
- * ring of text around it. Both rings turn slowly (opposite directions).
+ * Logo badge: a wavy seal in the unified surface colour with a ring of text and "TP"
+ * in the middle, plus a big faint ring of text around it. Both rings turn slowly
+ * (opposite directions). Build 223 restyled it onto the unified tokens and the
+ * current app name (the build-220 rename had missed this Canvas-drawn artwork).
  */
 @Composable
 private fun ExportBadge(modifier: Modifier = Modifier) {
@@ -821,9 +822,9 @@ private fun ExportBadge(modifier: Modifier = Modifier) {
             // Big faint outer ring text
             val outerR = minOf(size.width * 0.46f, size.height * 0.5f)
             drawRingText(
-                text = "MAXCUT • PROFESSIONAL VIDEO EDITOR • ",
+                text = "TIMELINE PRO • PROFESSIONAL VIDEO EDITOR • ",
                 cx = cx, cy = cy, radius = outerR, textSizePx = outerR * 0.26f,
-                color = Color(0xFF18181B).copy(alpha = 0.13f), bold = true, rotationDeg = outerRot
+                color = com.example.ui.theme.AmTextFaint.copy(alpha = 0.55f), bold = true, rotationDeg = outerRot
             )
 
             // Wavy seal
@@ -838,23 +839,23 @@ private fun ExportBadge(modifier: Modifier = Modifier) {
                 if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
             }
             path.close()
-            drawPath(path, color = NeonCyan)
+            drawPath(path, color = com.example.ui.theme.AmPanelElevated)
 
             // Small ring text inside the seal
             drawRingText(
-                text = "PROFESSIONAL VIDEO EDITOR • MAXCUT • ",
+                text = "PROFESSIONAL VIDEO EDITOR • TIMELINE PRO • ",
                 cx = cx, cy = cy, radius = badgeR * 0.80f, textSizePx = badgeR * 0.115f,
-                color = Color.White, bold = true, rotationDeg = innerRot
+                color = com.example.ui.theme.AmTextDim, bold = true, rotationDeg = innerRot
             )
 
-            // Logo blob (white with black outline) — "M" is written on it
+            // Logo blob (the lime disc) — "TP" is written on it
             val blobR = badgeR * 0.40f
-            drawCircle(Color.White, radius = blobR, center = Offset(cx, cy))
-            drawCircle(Color.Black, radius = blobR, center = Offset(cx, cy), style = androidx.compose.ui.graphics.drawscope.Stroke(width = badgeR * 0.03f))
+            drawCircle(com.example.ui.theme.AmAccent, radius = blobR, center = Offset(cx, cy))
+            drawCircle(com.example.ui.theme.AmHairlineStrong, radius = blobR, center = Offset(cx, cy), style = androidx.compose.ui.graphics.drawscope.Stroke(width = badgeR * 0.03f))
         }
         Text(
-            text = "M", color = Color.Black, fontSize = 30.sp,
-            fontWeight = FontWeight.Black, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+            text = "TP", color = AmInk, fontSize = 26.sp,
+            fontWeight = FontWeight.Black
         )
     }
 }
@@ -1248,7 +1249,7 @@ fun FullscreenPlayerModal(
             modifier = Modifier
                 .enterPop()
                 .fillMaxSize()
-                .background(Color.Black),
+                .background(AmBaseDeep),
             contentAlignment = Alignment.Center
         ) {
             // Fullscreen Canvas Area: the SAME project state as the inline canvas (this call used to pass

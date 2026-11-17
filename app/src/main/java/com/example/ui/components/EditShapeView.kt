@@ -78,6 +78,15 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
+import com.example.ui.theme.AmAccent
+import com.example.ui.theme.AmBase
+import com.example.ui.theme.AmCardSurface
+import com.example.ui.theme.AmHairlineStrong
+import com.example.ui.theme.AmInk
+import com.example.ui.theme.AmPanel
+import com.example.ui.theme.AmPanelElevated
+import com.example.ui.theme.AmTextFaint
+import com.example.ui.theme.AmTextPrimary
 import com.example.ui.theme.CanvasBackground
 import com.example.ui.theme.EditorBackground
 import com.example.ui.theme.EditorSurface
@@ -229,7 +238,7 @@ fun EditShapeView(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.White) // build 216: light shape editor
+            .background(AmBase) // build 223 (colour balance): the unified background (was build 216's white)
             .testTag("edit_shape_screen")
     ) {
         // 1. Header: Left close button, Center "Edit shape" title, Right "Add" button
@@ -358,7 +367,7 @@ fun EditShapeView(
                 val baseShapeSize = 135.dp
                 val shapeW = baseShapeSize * (widthPercent / 100f)
                 val shapeH = baseShapeSize * (heightPercent / 100f)
-                val pinkHandleColor = Color(0xFFABE41D)
+                val pinkHandleColor = AmAccent // build 223: the handles carry the one lime accent
 
                 Box(
                     modifier = Modifier
@@ -656,7 +665,7 @@ fun EditShapeView(
                         .fillMaxWidth(progressFraction.coerceIn(0.2f, 1f))
                         .height(28.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(Color(0xFFE8E8EB)) // build 216: raised track
+                        .background(AmPanelElevated) // build 223: raised track
                         .padding(horizontal = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -696,7 +705,7 @@ fun EditShapeView(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(topStart = AmCornerSheet, topEnd = AmCornerSheet))
-                .background(Color.White) // build 216: light bottom panel
+                .background(AmPanel) // build 223 (colour balance): dark panel (was build 216's white)
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
             // Drag handle pill at top
@@ -705,7 +714,7 @@ fun EditShapeView(
                     .align(Alignment.CenterHorizontally)
                     .width(36.dp)
                     .height(4.dp)
-                    .background(Color(0xFF3F3F3F), CircleShape)
+                    .background(AmTextFaint, CircleShape)
             )
 
             Spacer(modifier = Modifier.height(10.dp))
@@ -720,7 +729,7 @@ fun EditShapeView(
                     Box(
                         modifier = Modifier
                             .clip(CircleShape)
-                            .background(if (isSelected) Color(0xFFF3F4F6) else Color(0xFF232323))
+                            .background(if (isSelected) AmAccent else AmPanelElevated)
                             .bouncyClickable(
                                 pressedScale = 0.92f,
                                 onClick = { activeTab = tab }
@@ -730,7 +739,7 @@ fun EditShapeView(
                     ) {
                         Text(
                             text = tab.title,
-                            color = if (isSelected) Color(0xFF111111) else Color(0xFFE5E7EB),
+                            color = if (isSelected) AmInk else AmTextPrimary,
                             fontSize = 13.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                         )
@@ -768,10 +777,10 @@ fun EditShapeView(
                                     modifier = Modifier
                                         .size(38.dp)
                                         .clip(RoundedCornerShape(12.dp))
-                                        .background(if (isSelected) Color(0xFF2C2C2C) else Color(0xFF1D1D1D))
+                                        .background(if (isSelected) AmHairlineStrong else AmCardSurface)
                                         .border(
                                             width = if (isSelected) 2.dp else 1.dp,
-                                            color = if (isSelected) Color.White else Color(0xFF3B3B3B),
+                                            color = if (isSelected) Color.White else AmTextFaint,
                                             shape = RoundedCornerShape(12.dp)
                                         )
                                         .bouncyClickable(onClick = {

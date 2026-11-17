@@ -84,6 +84,7 @@ import com.example.model.at
 import com.example.model.flattenPathSegments
 import com.example.model.pieSegmentsAt
 import com.example.ui.theme.AmDanger
+import com.example.ui.theme.AmBase
 import com.example.ui.theme.AmHairline
 import com.example.ui.theme.AmPanel
 import com.example.ui.theme.AmInk
@@ -1132,7 +1133,7 @@ private fun SocialGrowthPreview(modifier: Modifier = Modifier) {
                     .width(with(density) { (boxPx * pill.shapeScaleX * unit).toDp() })
                     .height(with(density) { (boxPx * pill.shapeScaleY * unit).toDp() })
                     .graphicsLayer { alpha = pill.opacity / 100f }
-                    .background(Color(0xFF15151A), RoundedCornerShape(50))
+                    .background(AmBase, RoundedCornerShape(50))
             )
             Text(
                 text = "UPLOAD",

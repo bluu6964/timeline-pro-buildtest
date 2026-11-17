@@ -65,6 +65,7 @@ import com.example.engine.RotoFrames
 import com.example.model.TimelineClip
 import com.example.model.exportSpeed
 import com.example.ui.theme.AmAccentViolet
+import com.example.ui.theme.AmBaseDeep
 import com.example.ui.theme.AmPillSelected
 import com.example.ui.theme.NeonCyan
 import kotlinx.coroutines.CancellationException
@@ -270,7 +271,7 @@ fun RotoBrushScreen(
         Column(
             Modifier
                 .fillMaxSize()
-                .background(Color(0xFF0B0B0F))
+                .background(AmBaseDeep)
                 .systemBarsPadding()
         ) {
             Row(

@@ -72,6 +72,7 @@ import com.example.model.LayerType
 import com.example.model.TIMELINE_PX_PER_MS
 import com.example.model.TimelineClip
 import com.example.ui.theme.AmHairline
+import com.example.ui.theme.AmTextPrimary
 import com.example.ui.theme.AmMint
 import com.example.ui.theme.AmTextFaint
 import com.example.ui.theme.EditorBackground
@@ -385,14 +386,14 @@ fun TransformLayerStrip(
                 modifier = Modifier
                     .size(22.dp)
                     .graphicsLayer { rotationZ = 45f }
-                    .border(1.5.dp, Color(0xFF18181B), RectangleShape) // build 216: ink on the light strip
+                    .border(1.5.dp, AmTextPrimary, RectangleShape) // build 223: light glyph on the dark strip (build 216's ink was invisible)
                     .bouncyClickable(onClick = {}),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.Add,
                     contentDescription = "Keyframe",
-                    tint = Color(0xFF18181B),
+                    tint = AmTextPrimary,
                     modifier = Modifier.size(14.dp).graphicsLayer { rotationZ = -45f }
                 )
             }

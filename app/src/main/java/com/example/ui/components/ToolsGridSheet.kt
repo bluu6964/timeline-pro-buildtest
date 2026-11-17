@@ -49,6 +49,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.theme.AmCardSurface
+import com.example.ui.theme.AmTextPrimary
 import com.example.ui.theme.AmCornerCard
 import com.example.ui.theme.AmDanger
 import com.example.ui.theme.AmPanelHigh
@@ -57,7 +58,7 @@ import com.example.ui.theme.AmTextDim
 import com.example.ui.theme.IconDisabled
 import com.example.ui.util.bouncyClickable
 
-private val IconWhite = Color(0xFFF2F2F2)
+private val IconWhite = AmTextPrimary // build 223: tokenized (was a near-white literal)
 
 /**
  * Build 206 — the TOOLS GRID: the one menu holding every tool under the
@@ -418,7 +419,7 @@ private fun GridTile(entry: GridEntry, onClick: () -> Unit) {
 private fun GridGlyph() {
     Canvas(Modifier.size(24.dp)) {
         val u = size.width / 24f
-        val c = Color(0xFFF2F2F2)
+        val c = AmTextPrimary
         val w = 20.7f * u - 2.2f * u
         val h = 19f * u - 2.2f * u
         val left = (size.width - 20.7f * u) / 2f + 1.1f * u
@@ -446,7 +447,7 @@ private fun GridGlyph() {
 private fun FrameGlyph(on: Boolean) {
     Canvas(Modifier.size(24.dp)) {
         val u = size.width / 24f
-        val c = if (on) Color(0xFFF2F2F2) else IconDisabled
+        val c = if (on) AmTextPrimary else IconDisabled
         drawRoundRect(c, Offset(5f * u, 5f * u), androidx.compose.ui.geometry.Size(14f * u, 14f * u), androidx.compose.ui.geometry.CornerRadius(1.6f * u), style = Stroke(1.7f * u))
         val sq = 3.4f * u
         for ((hx, hy) in listOf(5f to 5f, 19f to 5f, 5f to 19f, 19f to 19f)) {
@@ -464,7 +465,7 @@ private fun FrameGlyph(on: Boolean) {
 private fun OnionGlyph(on: Boolean) {
     Canvas(Modifier.size(24.dp)) {
         val u = size.width / 24f
-        val c = if (on) Color(0xFFF2F2F2) else IconDisabled
+        val c = if (on) AmTextPrimary else IconDisabled
         drawRoundRect(c, Offset(8.6f * u, 3.4f * u), androidx.compose.ui.geometry.Size(12f * u, 12f * u), androidx.compose.ui.geometry.CornerRadius(2.6f * u), style = Stroke(1.8f * u))
         if (on) drawRoundRect(c, Offset(3.4f * u, 8.6f * u), androidx.compose.ui.geometry.Size(12f * u, 12f * u), androidx.compose.ui.geometry.CornerRadius(2.6f * u))
         else drawRoundRect(c, Offset(3.4f * u, 8.6f * u), androidx.compose.ui.geometry.Size(12f * u, 12f * u), androidx.compose.ui.geometry.CornerRadius(2.6f * u), style = Stroke(1.8f * u))
@@ -479,7 +480,7 @@ private fun OnionGlyph(on: Boolean) {
 private fun ScopesGlyph(on: Boolean) {
     Canvas(Modifier.size(24.dp)) {
         val u = size.width / 24f
-        val c = if (on) Color(0xFFF2F2F2) else IconDisabled
+        val c = if (on) AmTextPrimary else IconDisabled
         val base = 19.4f * u
         drawLine(c, Offset(3.4f * u, base), Offset(20.6f * u, base), 1.8f * u, StrokeCap.Round)
         val bars = listOf(6.5f to 8f, 10.6f to 13.5f, 14.7f to 10.5f, 18.8f to 15.5f)
@@ -494,7 +495,7 @@ private fun ScopesGlyph(on: Boolean) {
 private fun MagnetGlyph(on: Boolean) {
     Canvas(Modifier.size(24.dp)) {
         val u = size.width / 24f
-        val c = if (on) Color(0xFFF2F2F2) else IconDisabled
+        val c = if (on) AmTextPrimary else IconDisabled
         val body = Path().apply {
             moveTo(6.6f * u, 4.5f * u)
             lineTo(6.6f * u, 12.5f * u)
@@ -514,7 +515,7 @@ private fun MagnetGlyph(on: Boolean) {
 private fun BeatMarkGlyph() {
     Canvas(Modifier.size(24.dp)) {
         val u = size.width / 24f
-        val cyan = Color(0xFFF2F2F2) // build 217: light glyph on the dark panel
+        val cyan = AmTextPrimary // build 217: light glyph on the dark panel
         val d = Path().apply {
             moveTo(10f * u, 3.2f * u); lineTo(16.6f * u, 10f * u); lineTo(10f * u, 16.8f * u); lineTo(3.4f * u, 10f * u); close()
         }
@@ -524,7 +525,7 @@ private fun BeatMarkGlyph() {
         val px = 17.4f * u
         val py = 17.4f * u
         val arm = 3.6f * u
-        drawLine(Color(0xFFF2F2F2), Offset(px - arm, py), Offset(px + arm, py), 2.1f * u, StrokeCap.Round)
-        drawLine(Color(0xFFF2F2F2), Offset(px, py - arm), Offset(px, py + arm), 2.1f * u, StrokeCap.Round)
+        drawLine(AmTextPrimary, Offset(px - arm, py), Offset(px + arm, py), 2.1f * u, StrokeCap.Round)
+        drawLine(AmTextPrimary, Offset(px, py - arm), Offset(px, py + arm), 2.1f * u, StrokeCap.Round)
     }
 }
