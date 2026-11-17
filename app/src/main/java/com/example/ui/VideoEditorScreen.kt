@@ -13,6 +13,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
@@ -84,7 +85,39 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.VolumeOff
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.Animation
+import androidx.compose.material.icons.filled.Audiotrack
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.BorderLeft
+import androidx.compose.material.icons.filled.BorderOuter
+import androidx.compose.material.icons.filled.BorderRight
+import androidx.compose.material.icons.filled.Brush
+import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.ClosedCaption
+import androidx.compose.material.icons.filled.ContentCut
+import androidx.compose.material.icons.filled.Crop
+import androidx.compose.material.icons.filled.Face
+import androidx.compose.material.icons.filled.FastRewind
+import androidx.compose.material.icons.filled.FindReplace
+import androidx.compose.material.icons.filled.Flip
+import androidx.compose.material.icons.filled.FormatColorFill
+import androidx.compose.material.icons.filled.GpsFixed
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Opacity
+import androidx.compose.material.icons.filled.OpenWith
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.TextFields
+import androidx.compose.material.icons.filled.Tonality
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.Widgets
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.ui.platform.testTag
@@ -224,6 +257,16 @@ fun VideoEditorScreen(
     var comfortDensity by remember { mutableStateOf(false) }
     LaunchedEffect(selectedClipId) { toolsPanelManual = null }
     val toolsPanelOpen = toolsPanelManual ?: (selectedClipId != null)
+    // Build 219 (Sarowar's HTML reference v4): the SELECTED state's
+    // surfaces — while exactly one layer is selected (not multi-select),
+    // the header is the reference's selected header and the footer is
+    // its 3-page tool pager. [selGridOpen] is that state's all-tools
+    // grid (the header's Layers button): it opens as a lower-zone sheet
+    // above the pager, because the reference's 222 dp pager leaves the
+    // in-flow stage no room at phone height (see the layout math).
+    var selGridOpen by remember { mutableStateOf(false) }
+    LaunchedEffect(selectedClipId) { selGridOpen = false }
+    val sel219 = selectedClipId != null && multiSelectIds.isEmpty()
     // The bridge the footer clip panels publish their tools through
     // (MorePanelState): while the panel is open they publish their FULL
     // tool list and the panel's grid is the one scrolling home for them.
@@ -2689,7 +2732,12 @@ fun VideoEditorScreen(
             // above it is paid for from the layer panel's share, exactly
             // as the grid was (CANVAS LAW). This supersedes build 211's
             // footer-collapses-to-0 rule.
-            val footerH = if (toolbarH >= 88.dp) toolbarH else 88.dp // build 217: the dock's 58 dp tiles + labels + hairline need ~86 dp
+            // Build 219: in the selected state the footer is the
+            // reference's 3-page pager — exactly 222 dp (page 202 + dots
+            // 10 + bottom pad 10); the timeline absorbs the difference
+            // (CANVAS LAW: the canvas is never touched).
+            val footerH = if (sel219) com.example.ui.components.SELECTED_PAGER_HEIGHT_DP.dp
+                else if (toolbarH >= 88.dp) toolbarH else 88.dp // build 217: the dock's 58 dp tiles + labels + hairline need ~86 dp
             // Build 217: the ruler is the reference's 44 dp. The build-216
             // workspace row and contextual bar are GONE (their controls
             // live in the controls bar and the sheets now — Sarowar's
@@ -2715,6 +2763,10 @@ fun VideoEditorScreen(
             val allLanesFit = allLanesH + oneRowGridH <= zonePoolH
             val selIdForRestrict = selectedClipId
             val restrictIds: Set<String>? = when {
+                // Build 219: the selected state's panel is the pager, not
+                // the stage — no lane restriction in that state (the
+                // reference shows the full lane list under its header).
+                sel219 -> null
                 !toolsPanelOpen -> null
                 allLanesFit -> null
                 selIdForRestrict != null -> setOf(selIdForRestrict)
@@ -2735,7 +2787,10 @@ fun VideoEditorScreen(
             }
             var toolsGridH = 0.dp
             var toolsGridRows = 0
-            if (toolsPanelOpen) {
+            // Build 219: in the selected state the in-flow stage stays
+            // closed (the grid is the header-Layers sheet above the
+            // pager instead), so the timeline keeps the whole pool.
+            if (toolsPanelOpen && !sel219) {
                 val layerFloor = restrictedLanesH ?: minLayerZoneH
                 val gridBudgetH = (zonePoolH - layerFloor).coerceAtLeast(0.dp)
                 val rowCap = if (restrictedTracks != null) Int.MAX_VALUE
@@ -2827,6 +2882,68 @@ fun VideoEditorScreen(
                         name = "${multiSelectIds.size} layers",
                         onBack = { viewModel.exitMultiSelect() },
                         onRename = null
+                    )
+                } else if (sel219) {
+                    // Build 219 (Sarowar's HTML reference v4): while ONE
+                    // layer is selected the top bar IS the reference's
+                    // selected header — back (deselect), the layer's real
+                    // name (tap = rename), Layers (the all-tools grid),
+                    // Delete, and More (the layer menu: duplicate,
+                    // parent, lock, visibility, label, copy/paste and
+                    // the panel-header resets live there in this state).
+                    com.example.ui.components.SelectedHeader219(
+                        height = headerH,
+                        layerName = headerClip?.name ?: "",
+                        onBack = { viewModel.selectClip(null) },
+                        onRename = { renameTargetId = selectedClipId },
+                        onLayers = { selGridOpen = !selGridOpen },
+                        onDelete = { viewModel.deleteSelectedClip() },
+                        locked = headerClip?.isLocked ?: false,
+                        hidden = headerClip?.let { !it.isVisible } ?: false,
+                        canParent = headerClip != null && headerClip.type != LayerType.GROUP,
+                        hasClipboard = hasLayerClipboard,
+                        onDuplicate = { viewModel.duplicateSelectedClip() },
+                        onParent = { parentSheetClipId = selectedClipId },
+                        onToggleLock = { selectedClipId?.let { viewModel.toggleClipLocked(it) } },
+                        onToggleVisibility = { selectedClipId?.let { viewModel.toggleClipVisibility(it) } },
+                        onLabel = { labelTargetId = selectedClipId },
+                        onCopyLayer = {
+                            val ok = viewModel.copySelectedLayer()
+                            snackbarHostState.currentSnackbarData?.dismiss()
+                            scope.launch {
+                                snackbarHostState.showSnackbar(
+                                    if (ok) "Layer copied" else "Groups and chains cannot be copied — use Duplicate"
+                                )
+                            }
+                        },
+                        onPasteLayer = if (hasLayerClipboard) ({
+                            if (viewModel.pasteLayer()) {
+                                snackbarHostState.currentSnackbarData?.dismiss()
+                                scope.launch { snackbarHostState.showSnackbar("Layer pasted") }
+                            }
+                        }) else null,
+                        onResetTransform = { transformResetTick++ },
+                        onResetBlend = {
+                            headerClip?.let { c ->
+                                viewModel.updateClip(c.id) {
+                                    it.copy(opacity = 100f, blendMode = com.example.model.BlendModes.NORMAL)
+                                }
+                            }
+                        },
+                        onResetColor = {
+                            headerClip?.let { c ->
+                                val d = com.example.model.TimelineClip(id = "", name = "", type = LayerType.SHAPE, startMs = 0, durationMs = 0, color = 0)
+                                viewModel.updateClipNoKeyframes(c.id) {
+                                    it.copy(
+                                        keyframes = it.keyframes.filterKeys { p -> !p.isColor },
+                                        fillMode = com.example.model.FILL_SOLID, textColor = 0xFFFFFFFF,
+                                        gradType = d.gradType, gradColor1 = d.gradColor1, gradColor2 = d.gradColor2,
+                                        gradX1 = d.gradX1, gradY1 = d.gradY1, gradX2 = d.gradX2, gradY2 = d.gradY2,
+                                        fillImageUri = null, fillImageMode = d.fillImageMode
+                                    )
+                                }
+                            }
+                        }
                     )
                 } else EditorHeader(
                     height = headerH,
@@ -3111,8 +3228,11 @@ fun VideoEditorScreen(
                     // no-selection toolbar's More item, the layer header's
                     // circled menu, auto-show on selection). These params
                     // are kept for caller compatibility only.
-                    toolsGridExpanded = toolsPanelOpen,
-                    onToolsGridExpandedChange = { toolsPanelManual = it },
+                    // Build 219: in the selected state the disc toggles
+                    // that state's grid sheet (selGridOpen) instead of
+                    // the in-flow stage override.
+                    toolsGridExpanded = if (sel219) selGridOpen else toolsPanelOpen,
+                    onToolsGridExpandedChange = { if (sel219) selGridOpen = it else toolsPanelManual = it },
                     toolsGridActive = snapEnabled || onionSkin.enabled || scopesOn ||
                         exportInMs != null || exportOutMs != null ||
                         (moreClipSection?.let { s -> s.tools.any { it.id in s.usedTools } } == true),
@@ -3179,7 +3299,7 @@ fun VideoEditorScreen(
                     // stage in its no-selection form — the universal tools
                     // and the displaced functions live there now).
                     layerCount = shownTracks.sumOf { it.clips.size },
-                    onLayerPillClick = { toolsPanelManual = true },
+                    onLayerPillClick = { if (sel219) selGridOpen = true else toolsPanelManual = true },
                     // The selected layer's keyframes as the reference's
                     // orange diamonds on the ruler.
                     keyframeTimesMs = selectedClipId?.let { sid ->
@@ -3453,7 +3573,10 @@ fun VideoEditorScreen(
                 // it stays rendered while the stage is open (the panels
                 // publish their full list via toolsInGrid AND keep their
                 // primary row as the dock toolbar).
-                if (toolsPanelOpen) {
+                // Build 219: not in the selected state — that state's
+                // grid is the header-Layers sheet above the pager (the
+                // in-flow stage has no room beside the 222 dp pager).
+                if (toolsPanelOpen && !sel219) {
                     // Build 214: the tools panel opens in the PANEL STAGE —
                     // the dock's one panel architecture (header: title +
                     // layer name + close; content: the tools list). ITEM 1:
@@ -3539,10 +3662,17 @@ fun VideoEditorScreen(
                         val targetIsChain = tracks.any { t ->
                             t.clips.any { it.id == targetClipId && it.type == LayerType.CHAIN }
                         }
+                        // Build 219: the selected branch is a column — the
+                        // (0-height) publisher panel, then the pager.
+                        Column(Modifier.fillMaxWidth()) {
                         if (targetIsChain) com.example.ui.components.ChainAddPanel(
                             // A Chain has no picture of its own: only ways to put layers into it (they go inside while it is selected).
                             // Build 214: footerH is the dock height — this panel is the dock's layer toolbar and always renders.
-                            height = footerH,
+                            // Build 219: in the selected state the pager is
+                            // the visible toolbar — this panel stays
+                            // composed at 0 height as the tool publisher
+                            // for the grid sheet and the pager.
+                            height = if (sel219) 0.dp else footerH,
                             onBack = { viewModel.selectClip(null) },
                             onMedia = {
                                 mediaPicker.launch(
@@ -3567,7 +3697,8 @@ fun VideoEditorScreen(
                             toolsInGrid = toolsPanelOpen
                         ) else if (targetIsAudio) AudioClipToolsPanel(
                             // Build 214: footerH is the dock height — this panel is the dock's layer toolbar and always renders.
-                            height = footerH,
+                            // Build 219: 0 height in the selected state (publisher only — see the chain panel).
+                            height = if (sel219) 0.dp else footerH,
                             onDeselect = { viewModel.selectClip(null) },
                             onVolume = {
                                 viewModel.beginAdjust()
@@ -3626,7 +3757,8 @@ fun VideoEditorScreen(
                             toolsInGrid = toolsPanelOpen
                         ) else ClipEditToolsPanel(
                             // Build 214: footerH is the dock height — this panel is the dock's layer toolbar and always renders.
-                            height = footerH,
+                            // Build 219: 0 height in the selected state (publisher only — see the chain panel).
+                            height = if (sel219) 0.dp else footerH,
                             // Null / 3D Camera: no picture, so no Effects / Animations / Color / Crop / Blend; only what moves them.
                             // Controller (build 155 — Sarowar's scope correction): ONLY the five tools whose
                             // edits fan out to the connected layers (Transform, Effects, Blend, Color,
@@ -4036,6 +4168,213 @@ fun VideoEditorScreen(
                             morePanel = morePanelState,
                             toolsInGrid = toolsPanelOpen
                         )
+                        if (sel219) {
+                            // Build 219: the 3-page pager, wired to the
+                            // app's real tools. Panel-type tools dispatch
+                            // through the publisher panel's own tool list
+                            // (the ClipOverflowSection IS the availability
+                            // truth: a tool the panel does not offer this
+                            // layer type is absent there and renders
+                            // DISABLED here, in place, never removed).
+                            // Tapping the open panel's tool again closes
+                            // its panel.
+                            val clip219 = tracks.flatMap { it.clips }.firstOrNull { it.id == targetClipId }
+                            if (clip219 != null) {
+                                val type219 = clip219.type
+                                val section219 = moreClipSection
+                                fun has219(id: String) = section219?.tools?.any { it.id == id } == true
+                                fun icon219(id: String, fallback: androidx.compose.ui.graphics.vector.ImageVector) =
+                                    section219?.tools?.firstOrNull { it.id == id }?.icon ?: fallback
+                                fun fire219(id: String) {
+                                    val s = section219 ?: return
+                                    s.tools.firstOrNull { it.id == id }?.let { s.onTool(it) }
+                                }
+                                val ph219 = playheadState.value
+                                val isVideoMedia219 = type219 == LayerType.VIDEO && !clip219.isImage && clip219.uri != null
+                                fun panel219(
+                                    id: String,
+                                    label: String,
+                                    fallback: androidx.compose.ui.graphics.vector.ImageVector,
+                                    badge: String? = null,
+                                    isOpen: Boolean,
+                                    close: () -> Unit
+                                ) = com.example.ui.components.PagerTool219(
+                                    id = id, label = label, icon = icon219(id, fallback), badge = badge,
+                                    enabled = has219(id), active = isOpen,
+                                    onClick = { if (isOpen) close() else fire219(id) }
+                                )
+                                fun action219(
+                                    id: String,
+                                    label: String,
+                                    icon: androidx.compose.ui.graphics.vector.ImageVector,
+                                    badge: String? = null,
+                                    enabled: Boolean = true,
+                                    active: Boolean = false,
+                                    iconRotate: Float = 0f,
+                                    onClick: () -> Unit = {}
+                                ) = com.example.ui.components.PagerTool219(
+                                    id = id, label = label, icon = icon, badge = badge,
+                                    enabled = enabled, active = active, iconRotate = iconRotate, onClick = onClick
+                                )
+                                val editTarget219 = when {
+                                    type219 == LayerType.TEXT -> Triple("edit_text", "Edit Text", Icons.Default.TextFields)
+                                    type219 == LayerType.SHAPE -> Triple("edit_shape", "Edit Shape", Icons.Default.Category)
+                                    type219 == LayerType.GROUP -> Triple("edit_group", "Edit Group", Icons.Default.Widgets)
+                                    else -> null
+                                }
+                                val page1_219 = listOf(
+                                    com.example.ui.components.PagerRow219(46, true, listOf(
+                                        action219("speed", "Speed", Icons.Default.Speed,
+                                            enabled = type219 == LayerType.AUDIO || isVideoMedia219 || type219 == LayerType.STICKER,
+                                            active = showAudioSpeedSheet || showStickerSpeedSheet,
+                                            onClick = {
+                                                if (showAudioSpeedSheet) showAudioSpeedSheet = false
+                                                else if (showStickerSpeedSheet) showStickerSpeedSheet = false
+                                                else if (type219 == LayerType.STICKER) { viewModel.beginAdjust(); showStickerSpeedSheet = true }
+                                                else { viewModel.beginAdjust(); showAudioSpeedSheet = true }
+                                            }),
+                                        action219("trim_left", "Trim Left", Icons.Default.BorderLeft,
+                                            enabled = type219 != LayerType.CHAIN && ph219 > clip219.startMs,
+                                            onClick = {
+                                                val d = ph219 - clip219.startMs
+                                                if (d > 0) { viewModel.beginAdjust(); viewModel.trimClipEdge(clip219.id, true, d) }
+                                            }),
+                                        action219("split", "Split", Icons.Default.ContentCut,
+                                            enabled = type219 != LayerType.CHAIN,
+                                            onClick = {
+                                                com.example.ui.buddy.BuddyBrain.react(com.example.ui.buddy.BuddyEvent.SPLIT)
+                                                viewModel.splitSelectedClip()
+                                            }),
+                                        action219("trim_right", "Trim Right", Icons.Default.BorderRight,
+                                            enabled = type219 != LayerType.CHAIN && ph219 < clip219.endMs,
+                                            onClick = {
+                                                val d = ph219 - clip219.endMs
+                                                if (d < 0) { viewModel.beginAdjust(); viewModel.trimClipEdge(clip219.id, false, d) }
+                                            }),
+                                        action219("audio_mute", "Audio Mute",
+                                            if (clip219.isMuted) Icons.AutoMirrored.Filled.VolumeOff
+                                            else Icons.AutoMirrored.Filled.VolumeUp,
+                                            enabled = type219 == LayerType.AUDIO || isVideoMedia219,
+                                            active = clip219.isMuted,
+                                            onClick = { viewModel.setClipMuted(clip219.id, !clip219.isMuted) })
+                                    )),
+                                    com.example.ui.components.PagerRow219(62, false, listOf(
+                                        panel219("color", "Color & Fill", Icons.Default.FormatColorFill,
+                                            isOpen = editingColorId != null, close = { editingColorId = null }),
+                                        // Border & Shadow: the text editor's
+                                        // Stroke/Shadow tabs (text) and the
+                                        // shape editor's Stroke/Shadow tabs
+                                        // (shape) ARE the app's border+shadow
+                                        // panels; media has no border/shadow
+                                        // control, so it renders disabled.
+                                        com.example.ui.components.PagerTool219(
+                                            id = "border_shadow", label = "Border & Shadow",
+                                            icon = Icons.Default.BorderOuter,
+                                            enabled = type219 == LayerType.TEXT || type219 == LayerType.SHAPE,
+                                            active = editingTextId != null || editShapeClipId != null,
+                                            onClick = {
+                                                if (editingTextId != null) { eyedropperCallback = null; editingTextId = null }
+                                                else if (editShapeClipId != null) editShapeClipId = null
+                                                else fire219(if (type219 == LayerType.TEXT) "edit_text" else "edit_shape")
+                                            }),
+                                        panel219("blend", "Blending & Opacity", Icons.Default.Opacity,
+                                            isOpen = editingBlendId != null, close = { editingBlendId = null })
+                                    )),
+                                    com.example.ui.components.PagerRow219(62, false, listOf(
+                                        panel219("transform", "Move & Transform", Icons.Default.OpenWith,
+                                            isOpen = showTransformMode, close = { showTransformMode = false }),
+                                        com.example.ui.components.PagerTool219(
+                                            id = "edit_text",
+                                            label = editTarget219?.second ?: "Edit Text",
+                                            icon = editTarget219?.third ?: Icons.Default.TextFields,
+                                            enabled = editTarget219 != null && has219(editTarget219.first),
+                                            active = editingTextId != null || editShapeClipId != null,
+                                            onClick = {
+                                                val t = editTarget219
+                                                if (t != null) {
+                                                    if (editingTextId != null) { eyedropperCallback = null; editingTextId = null }
+                                                    else if (editShapeClipId != null) editShapeClipId = null
+                                                    else fire219(t.first)
+                                                }
+                                            }),
+                                        // Presets = the app's animation
+                                        // presets (AnimPresets live in the
+                                        // Animations sheet).
+                                        panel219("animations", "Presets", Icons.Default.Star,
+                                            badge = "NEW",
+                                            isOpen = showClipAnimationsSheet, close = { showClipAnimationsSheet = false }),
+                                        panel219("effects", "Effects", Icons.Default.AutoAwesome,
+                                            isOpen = showClipEffectsSheet, close = { showClipEffectsSheet = false })
+                                    ))
+                                )
+                                val page2_219 = listOf(
+                                    com.example.ui.components.PagerRow219(46, true, listOf(
+                                        panel219("crop", "Crop", Icons.Default.Crop,
+                                            isOpen = showClipCropSheet, close = { showClipCropSheet = false }),
+                                        action219("flip_v", "Flip V", Icons.Default.Flip,
+                                            enabled = type219 != LayerType.AUDIO && type219 != LayerType.CHAIN,
+                                            iconRotate = 90f,
+                                            onClick = { viewModel.flipVerticalSelectedClip() }),
+                                        action219("flip_h", "Flip H", Icons.Default.Flip,
+                                            enabled = type219 != LayerType.AUDIO && type219 != LayerType.CHAIN,
+                                            onClick = { viewModel.flipHorizontalSelectedClip() }),
+                                        action219("solo", "Solo", Icons.Default.Visibility,
+                                            active = soloClipId == clip219.id,
+                                            onClick = { viewModel.toggleSolo(clip219.id) }),
+                                        action219("lock", "Lock", Icons.Default.Lock,
+                                            active = clip219.isLocked,
+                                            onClick = { viewModel.toggleClipLocked(clip219.id) })
+                                    )),
+                                    com.example.ui.components.PagerRow219(62, false, listOf(
+                                        panel219("cutout", "Cutout", Icons.Default.Person,
+                                            isOpen = clip219.cutoutDir != null, close = { fire219("cutout") }),
+                                        panel219("remove", "Remove Object", Icons.Default.AutoFixHigh,
+                                            isOpen = false, close = {}),
+                                        panel219("face_ai", "Face AI", Icons.Default.Face,
+                                            badge = "AI", isOpen = false, close = {})
+                                    )),
+                                    com.example.ui.components.PagerRow219(62, false, listOf(
+                                        panel219("animations", "Animation", Icons.Default.Animation,
+                                            isOpen = showClipAnimationsSheet, close = { showClipAnimationsSheet = false }),
+                                        panel219("masks", "Mask", Icons.Default.Tonality,
+                                            isOpen = showClipMasksSheet, close = { showClipMasksSheet = false }),
+                                        panel219("roto", "Roto Brush", Icons.Default.Brush,
+                                            isOpen = clip219.cutoutDir != null || rotoClipId == clip219.id, close = { fire219("roto") }),
+                                        panel219("track", "Track", Icons.Default.GpsFixed,
+                                            isOpen = false, close = {})
+                                    ))
+                                )
+                                val page3_219 = listOf(
+                                    panel219("freeze", "Freeze", Icons.Default.Image,
+                                        isOpen = false, close = {}),
+                                    panel219("extract_audio", "Extract Audio", Icons.Default.Audiotrack,
+                                        isOpen = false, close = {}),
+                                    panel219("captions", "Caption", Icons.Default.ClosedCaption,
+                                        isOpen = false, close = {}),
+                                    panel219("face_swap", "Face Swap", Icons.Default.SwapHoriz,
+                                        badge = "AI", isOpen = false, close = {}),
+                                    action219("reverse", "Reverse", Icons.Default.FastRewind,
+                                        enabled = type219 == LayerType.AUDIO || isVideoMedia219,
+                                        onClick = {
+                                            if (type219 == LayerType.AUDIO) fire219("reverse")
+                                            else startVideoReverse(clip219.id)
+                                        }),
+                                    action219("replace", "Replace", Icons.Default.FindReplace,
+                                        enabled = type219 == LayerType.VIDEO,
+                                        onClick = {
+                                            replacePicker.launch(
+                                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
+                                            )
+                                        })
+                                )
+                                com.example.ui.components.SelectedToolsPager219(
+                                    page1 = page1_219,
+                                    page2 = page2_219,
+                                    page3 = page3_219
+                                )
+                            }
+                        }
+                        }
                     } else {
                         BottomToolbar(
                             height = footerH,
@@ -4086,6 +4425,113 @@ fun VideoEditorScreen(
                 }
             }
 
+            // ---- Build 219: the selected state's all-tools grid --------
+            // The header's Layers button opens the SAME ToolsGridSheet
+            // the stage hosts in the other states (the selected layer's
+            // full tool list, bar actions at the head, NO utilities —
+            // ITEM 1), in the PanelStage's card surface WITHOUT its
+            // header (the selected header carries name/delete now),
+            // sitting directly above the pager. It cannot live in the
+            // in-flow stage here: the pager's 222 dp + the fixed canvas
+            // leave the stage ~0 dp at phone height, and a 0-height grid
+            // would break "every item reachable". The canvas is never
+            // touched (CANVAS LAW) — the sheet covers timeline only.
+            if (sel219 && selGridOpen) {
+                BackHandler { selGridOpen = false }
+                val onBeatMarkAction219: () -> Unit = {
+                    val added = viewModel.toggleBeatMark(playheadState.value)
+                    snackbarHostState.currentSnackbarData?.dismiss()
+                    scope.launch { snackbarHostState.showSnackbar(if (added) "Beat mark added" else "Beat mark removed") }
+                }
+                val onMarkerAction219: () -> Unit = {
+                    val near = viewModel.markerNear(playheadState.value)
+                    if (near != null) markerEditTarget = near else showAddMarker = true
+                }
+                val onSnapAction219: () -> Unit = {
+                    val next = !snapEnabled
+                    viewModel.setSnapEnabled(next)
+                    context.getSharedPreferences("editor", android.content.Context.MODE_PRIVATE)
+                        .edit().putBoolean("snap_enabled", next).apply()
+                }
+                val onSaveFrameAction219: () -> Unit = {
+                    nativePreview.captureFrame { bmp ->
+                        if (bmp == null) {
+                            scope.launch { snackbarHostState.showSnackbar("Could not read the frame") }
+                        } else {
+                            scope.launch {
+                                val uri = withContext(Dispatchers.IO) {
+                                    try { com.example.engine.FrameSaver.savePng(context, bmp) } finally { bmp.recycle() }
+                                }
+                                snackbarHostState.currentSnackbarData?.dismiss()
+                                snackbarHostState.showSnackbar(
+                                    if (uri != null) "Frame saved (Pictures/MaxCut)" else "Could not save the frame"
+                                )
+                            }
+                        }
+                    }
+                }
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = footerH)
+                        .fillMaxWidth()
+                        .zIndex(30f)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp)
+                            .background(
+                                com.example.ui.theme.AmCardSurface,
+                                RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+                            )
+                            .border(
+                                1.dp, com.example.ui.theme.RefCardBorder,
+                                RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+                            )
+                            .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
+                            .testTag("selected_tools_grid_219")
+                    ) {
+                        com.example.ui.components.ToolsGridSheet(
+                            exportInSet = exportInMs != null,
+                            exportOutSet = exportOutMs != null,
+                            onExportInClick = { viewModel.toggleExportInAtPlayhead() },
+                            onExportOutClick = { viewModel.toggleExportOutAtPlayhead() },
+                            onBeatMarkClick = onBeatMarkAction219,
+                            onMarkerClick = onMarkerAction219,
+                            onionSkinOn = onionSkin.enabled,
+                            onOnionSkinClick = { viewModel.setOnionSkinEnabled(!onionSkin.enabled) },
+                            scopesOn = scopesOn,
+                            onScopesClick = { viewModel.setScopesOn(!scopesOn) },
+                            snapOn = snapEnabled,
+                            onSnapClick = onSnapAction219,
+                            onCanvasClick = { showAspectRatioSheet = true },
+                            onPrevFrameClick = { viewModel.jumpPrevious() },
+                            onNextFrameClick = { viewModel.jumpNext() },
+                            previewLabel = when (selectedResolution) {
+                                com.example.model.PreviewResolution.FULL -> "Full"
+                                com.example.model.PreviewResolution.HALF -> "1/2"
+                                com.example.model.PreviewResolution.QUARTER -> "1/4"
+                            },
+                            onPreviewClick = { showResolutionSheet = true },
+                            onSaveFrameClick = onSaveFrameAction219,
+                            masterMuted = isMasterMuted,
+                            onMasterAudioClick = { viewModel.toggleMasterAudio() },
+                            densityComfort = comfortDensity,
+                            onDensityClick = { comfortDensity = !comfortDensity },
+                            onTemplatesClick = { showTemplates = true },
+                            onControllerClick = { viewModel.addControllerLayer() },
+                            clipOverflow = morePanelState.clipSection(),
+                            includeUtilities = false,
+                            barActions = barActionsState.section(),
+                            onCloseRequest = { selGridOpen = false },
+                            maxRows = com.example.ui.components.TOOLS_GRID_MAX_ROWS,
+                            modifier = Modifier
+                        )
+                    }
+                }
+            }
+
             // ---- Text edit -------------------------------------------------------------------
             // Same idea as Transform: the real canvas in the middle stays visible (it shows every
             // change live), the header becomes "Text edit" and the lower area becomes the editor.
@@ -4098,7 +4544,10 @@ fun VideoEditorScreen(
                     eyedropperCallback = null
                     editingTextId = null
                 }
-                com.example.ui.components.TransformHeaderBar(
+                // Build 219: in the selected state the selected header
+                // stays the header — the panels' own header bars (and
+                // their resets, now in the header's More menu) yield.
+                if (!sel219) com.example.ui.components.TransformHeaderBar(
                     height = headerH,
                     title = "Text edit",
                     modifier = Modifier
@@ -4162,7 +4611,7 @@ fun VideoEditorScreen(
                     eyedropperCallback = null
                     editingColorId = null
                 }
-                com.example.ui.components.TransformHeaderBar(
+                if (!sel219) com.example.ui.components.TransformHeaderBar(
                     height = headerH,
                     title = "Color",
                     onReset = {
@@ -4240,7 +4689,7 @@ fun VideoEditorScreen(
                 if (editingBlend == null && editingBlendId != null) editingBlendId = null
             }
             if (editingBlend != null) {
-                com.example.ui.components.TransformHeaderBar(
+                if (!sel219) com.example.ui.components.TransformHeaderBar(
                     height = headerH,
                     title = "Blending",
                     onReset = {
@@ -4389,7 +4838,7 @@ fun VideoEditorScreen(
                     ?: tracks.flatMap { it.clips }.firstOrNull()
 
                 // Top bar: replaces the editor header while Transform is open (back chevron + title).
-                com.example.ui.components.TransformHeaderBar(
+                if (!sel219) com.example.ui.components.TransformHeaderBar(
                     height = headerH,
                     onReset = { transformResetTick++ },
                     modifier = Modifier
@@ -4554,7 +5003,7 @@ fun VideoEditorScreen(
             }
             BackHandler(enabled = audioPanelTitle != null) { closeAudioPanel() }
             if (audioClip != null && audioPanelTitle != null) {
-                com.example.ui.components.TransformHeaderBar(
+                if (!sel219) com.example.ui.components.TransformHeaderBar(
                     height = headerH,
                     title = audioPanelTitle,
                     modifier = Modifier
@@ -4670,7 +5119,7 @@ fun VideoEditorScreen(
                 // Canvas size in preview pixels = the unit of the Position values (slides need it).
                 val animCanvasW = if (previewFrameWidthPx > 1f) previewFrameWidthPx else 1000f
                 val animCanvasH = animCanvasW / selectedAspectRatio.ratioFloat.coerceAtLeast(0.1f)
-                com.example.ui.components.TransformHeaderBar(
+                if (!sel219) com.example.ui.components.TransformHeaderBar(
                     height = headerH,
                     title = "Animations",
                     modifier = Modifier
@@ -4760,7 +5209,7 @@ fun VideoEditorScreen(
                 } else closeFxPanel()
             }
             if (showClipEffectsSheet && fxClip != null) {
-                com.example.ui.components.TransformHeaderBar(
+                if (!sel219) com.example.ui.components.TransformHeaderBar(
                     height = headerH,
                     title = fxPanelTitle,
                     modifier = Modifier
@@ -4901,7 +5350,7 @@ fun VideoEditorScreen(
                 }
             }
             if (showClipMasksSheet && maskClip != null) {
-                com.example.ui.components.TransformHeaderBar(
+                if (!sel219) com.example.ui.components.TransformHeaderBar(
                     height = headerH,
                     title = "Masks",
                     modifier = Modifier
