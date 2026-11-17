@@ -640,48 +640,24 @@ fun TimelineLayerPanel(
         // open, the selected-layer bar's actions are published to the
         // tools grid as its HEAD tiles — same order, icons, callbacks
         // and tags as the bar in section 6; Delete keeps its red.
-        PublishBarActions(
-            barActionsPanel,
-            if (showActionBar && toolsPanelOpen) {
-                val selIsAudioPub = tracks.any { t -> t.clips.any { it.id == selectedClipId && it.type == LayerType.AUDIO } }
-                val tiles = buildList {
-                    fun tile(
-                        label: String, tag: String,
-                        icon: androidx.compose.ui.graphics.vector.ImageVector,
-                        destructive: Boolean = false,
-                        onClick: () -> Unit
-                    ) {
-                        add(
-                            BarActionTile(label, tag, destructive = destructive, onClick = onClick) {
-                                Icon(
-                                    icon, contentDescription = null,
-                                    tint = if (destructive) AmDanger else IconActive,
-                                    modifier = Modifier.size(23.dp)
-                                )
-                            }
-                        )
-                    }
-                    tile(
-                        "Master", "bar_master",
-                        if (isMasterMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
-                        onClick = onToggleMasterAudio
-                    )
-                    tile("Split", "bar_split", Icons.Default.ContentCut, onClick = onSplitClip)
-                    tile("Copy", "bar_copy", Icons.Default.ContentCopy, onClick = onDuplicateClip)
-                    onSpeed?.let { tile("Speed", "bar_speed", Icons.Default.Speed, onClick = it) }
-                    onReverse?.let { tile("Reverse", "bar_reverse", Icons.Default.FastRewind, onClick = it) }
-                    if (!selIsAudioPub) {
-                        tile("Flip H", "bar_flip_h", Icons.Default.Flip, onClick = onFlipHorizontal)
-                        tile("Flip V", "bar_flip_v", Icons.Default.FlipCameraAndroid, onClick = onFlipVertical)
-                        onReplace?.let { tile("Replace", "bar_replace", Icons.Default.SwapHoriz, onClick = it) }
-                    }
-                    tile("Delete", "bar_delete", Icons.Default.Delete, destructive = true, onClick = onDeleteClip)
-                }
-                BarActionsSection(
-                    key = "selected:$selectedClipId:$isMasterMuted:$selIsAudioPub:${tiles.size}",
-                    tiles = tiles
-                )
-            } else null
+        // Build 224: the block lives in TimelineBarActionsPublisher so the
+        // native timeline's host can publish the very same tiles.
+        TimelineBarActionsPublisher(
+            barActionsPanel = barActionsPanel,
+            showActionBar = showActionBar,
+            toolsPanelOpen = toolsPanelOpen,
+            tracks = tracks,
+            selectedClipId = selectedClipId,
+            isMasterMuted = isMasterMuted,
+            onToggleMasterAudio = onToggleMasterAudio,
+            onSplitClip = onSplitClip,
+            onDuplicateClip = onDuplicateClip,
+            onSpeed = onSpeed,
+            onReverse = onReverse,
+            onFlipHorizontal = onFlipHorizontal,
+            onFlipVertical = onFlipVertical,
+            onReplace = onReplace,
+            onDeleteClip = onDeleteClip
         )
 
         // 5. Multi-select bar (drawn after the playhead line so the line passes behind it).
@@ -711,47 +687,196 @@ fun TimelineLayerPanel(
         //    open this bar is NOT rendered — its actions are published
         //    to the grid as head tiles (see PublishBarActions below).
         if (showActionBar && !toolsPanelOpen) {
-            val selIsAudio = tracks.any { t -> t.clips.any { it.id == selectedClipId && it.type == LayerType.AUDIO } }
-            Row(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .height(SelectedBarHeight)
-                    .background(EditorBackground)
-                    .padding(horizontal = 8.dp)
-                    .enterPop(fromBottom = true)
-                    .testTag("selected_layer_action_bar"),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                SelectedBarButton(
-                    icon = if (isMasterMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
-                    label = "Master", tint = IconActive, onClick = onToggleMasterAudio,
-                    modifier = Modifier.weight(1f), tag = "bar_master"
-                )
-                SelectedBarButton(Icons.Default.ContentCut, "Split", AmMint, onSplitClip, Modifier.weight(1f), tag = "bar_split")
-                SelectedBarButton(Icons.Default.ContentCopy, "Copy", IconActive, onDuplicateClip, Modifier.weight(1f), tag = "bar_copy")
-                if (onSpeed != null) {
-                    SelectedBarButton(Icons.Default.Speed, "Speed", IconActive, onSpeed, Modifier.weight(1f), tag = "bar_speed")
-                }
-                if (onReverse != null) {
-                    SelectedBarButton(Icons.Default.FastRewind, "Reverse", IconActive, onReverse, Modifier.weight(1f), tag = "bar_reverse")
-                }
-                if (!selIsAudio) {
-                    SelectedBarButton(Icons.Default.Flip, "Flip H", IconActive, onFlipHorizontal, Modifier.weight(1f), tag = "bar_flip_h")
-                    SelectedBarButton(Icons.Default.FlipCameraAndroid, "Flip V", IconActive, onFlipVertical, Modifier.weight(1f), tag = "bar_flip_v")
-                    if (onReplace != null) {
-                        SelectedBarButton(Icons.Default.SwapHoriz, "Replace", IconActive, onReplace, Modifier.weight(1f), tag = "bar_replace")
-                    }
-                }
-                SelectedBarButton(
-                    Icons.Default.Delete, "Delete", IconActive, onDeleteClip, Modifier.weight(1f),
-                    destructive = true, tag = "bar_delete"
-                )
-            }
+            TimelineSelectedBar(
+                tracks = tracks,
+                selectedClipId = selectedClipId,
+                isMasterMuted = isMasterMuted,
+                onToggleMasterAudio = onToggleMasterAudio,
+                onSplitClip = onSplitClip,
+                onDuplicateClip = onDuplicateClip,
+                onSpeed = onSpeed,
+                onReverse = onReverse,
+                onFlipHorizontal = onFlipHorizontal,
+                onFlipVertical = onFlipVertical,
+                onReplace = onReplace,
+                onDeleteClip = onDeleteClip,
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
         }
     }
 }
+
+/**
+ * Build 224: the panel's bar-actions publisher, extracted unchanged so the
+ * native timeline host publishes the identical head tiles while the tools
+ * panel is open (build 211's NO STICKY TOOL LINES law holds in both modes).
+ */
+@Composable
+internal fun TimelineBarActionsPublisher(
+    barActionsPanel: BarActionsState?,
+    showActionBar: Boolean,
+    toolsPanelOpen: Boolean,
+    tracks: List<TimelineTrack>,
+    selectedClipId: String?,
+    isMasterMuted: Boolean,
+    onToggleMasterAudio: () -> Unit,
+    onSplitClip: () -> Unit,
+    onDuplicateClip: () -> Unit,
+    onSpeed: (() -> Unit)?,
+    onReverse: (() -> Unit)?,
+    onFlipHorizontal: () -> Unit,
+    onFlipVertical: () -> Unit,
+    onReplace: (() -> Unit)?,
+    onDeleteClip: () -> Unit
+) {
+    PublishBarActions(
+        barActionsPanel,
+        if (showActionBar && toolsPanelOpen) {
+            val selIsAudioPub = tracks.any { t -> t.clips.any { it.id == selectedClipId && it.type == LayerType.AUDIO } }
+            val tiles = buildList {
+                fun tile(
+                    label: String, tag: String,
+                    icon: androidx.compose.ui.graphics.vector.ImageVector,
+                    destructive: Boolean = false,
+                    onClick: () -> Unit
+                ) {
+                    add(
+                        BarActionTile(label, tag, destructive = destructive, onClick = onClick) {
+                            Icon(
+                                icon, contentDescription = null,
+                                tint = if (destructive) AmDanger else IconActive,
+                                modifier = Modifier.size(23.dp)
+                            )
+                        }
+                    )
+                }
+                tile(
+                    "Master", "bar_master",
+                    if (isMasterMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
+                    onClick = onToggleMasterAudio
+                )
+                tile("Split", "bar_split", Icons.Default.ContentCut, onClick = onSplitClip)
+                tile("Copy", "bar_copy", Icons.Default.ContentCopy, onClick = onDuplicateClip)
+                onSpeed?.let { tile("Speed", "bar_speed", Icons.Default.Speed, onClick = it) }
+                onReverse?.let { tile("Reverse", "bar_reverse", Icons.Default.FastRewind, onClick = it) }
+                if (!selIsAudioPub) {
+                    tile("Flip H", "bar_flip_h", Icons.Default.Flip, onClick = onFlipHorizontal)
+                    tile("Flip V", "bar_flip_v", Icons.Default.FlipCameraAndroid, onClick = onFlipVertical)
+                    onReplace?.let { tile("Replace", "bar_replace", Icons.Default.SwapHoriz, onClick = it) }
+                }
+                tile("Delete", "bar_delete", Icons.Default.Delete, destructive = true, onClick = onDeleteClip)
+            }
+            BarActionsSection(
+                key = "selected:$selectedClipId:$isMasterMuted:$selIsAudioPub:${tiles.size}",
+                tiles = tiles
+            )
+        } else null
+    )
+}
+
+/**
+ * Build 224: the selected-layer action bar (the panel's section 6), extracted
+ * unchanged so the native timeline host renders the identical bar when the
+ * tools panel is manually closed over a selection.
+ */
+@Composable
+internal fun TimelineSelectedBar(
+    tracks: List<TimelineTrack>,
+    selectedClipId: String?,
+    isMasterMuted: Boolean,
+    onToggleMasterAudio: () -> Unit,
+    onSplitClip: () -> Unit,
+    onDuplicateClip: () -> Unit,
+    onSpeed: (() -> Unit)?,
+    onReverse: (() -> Unit)?,
+    onFlipHorizontal: () -> Unit,
+    onFlipVertical: () -> Unit,
+    onReplace: (() -> Unit)?,
+    onDeleteClip: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val selIsAudio = tracks.any { t -> t.clips.any { it.id == selectedClipId && it.type == LayerType.AUDIO } }
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(SelectedBarHeight)
+            .background(EditorBackground)
+            .padding(horizontal = 8.dp)
+            .enterPop(fromBottom = true)
+            .testTag("selected_layer_action_bar"),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        SelectedBarButton(
+            icon = if (isMasterMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
+            label = "Master", tint = IconActive, onClick = onToggleMasterAudio,
+            modifier = Modifier.weight(1f), tag = "bar_master"
+        )
+        SelectedBarButton(Icons.Default.ContentCut, "Split", AmMint, onSplitClip, Modifier.weight(1f), tag = "bar_split")
+        SelectedBarButton(Icons.Default.ContentCopy, "Copy", IconActive, onDuplicateClip, Modifier.weight(1f), tag = "bar_copy")
+        if (onSpeed != null) {
+            SelectedBarButton(Icons.Default.Speed, "Speed", IconActive, onSpeed, Modifier.weight(1f), tag = "bar_speed")
+        }
+        if (onReverse != null) {
+            SelectedBarButton(Icons.Default.FastRewind, "Reverse", IconActive, onReverse, Modifier.weight(1f), tag = "bar_reverse")
+        }
+        if (!selIsAudio) {
+            SelectedBarButton(Icons.Default.Flip, "Flip H", IconActive, onFlipHorizontal, Modifier.weight(1f), tag = "bar_flip_h")
+            SelectedBarButton(Icons.Default.FlipCameraAndroid, "Flip V", IconActive, onFlipVertical, Modifier.weight(1f), tag = "bar_flip_v")
+            if (onReplace != null) {
+                SelectedBarButton(Icons.Default.SwapHoriz, "Replace", IconActive, onReplace, Modifier.weight(1f), tag = "bar_replace")
+            }
+        }
+        SelectedBarButton(
+            Icons.Default.Delete, "Delete", IconActive, onDeleteClip, Modifier.weight(1f),
+            destructive = true, tag = "bar_delete"
+        )
+    }
+}
+
+/**
+ * Build 224: the multi-select bar host, wrapped so the native timeline host
+ * renders/publishes the identical bar (MultiBarHost itself stays private).
+ */
+@Composable
+internal fun TimelineMultiBarOverlay(
+    tracks: List<TimelineTrack>,
+    multiSelectIds: Set<String>,
+    playheadMs: () -> Long,
+    onAction: (MultiAction) -> Unit,
+    onSpatialAction: (com.example.model.SpatialAction) -> Unit,
+    onBooleanAction: (com.example.model.ShapeBooleanOp) -> Unit,
+    onDeleteChecked: () -> Unit,
+    onSelectAll: () -> Unit,
+    toolsPanelOpen: Boolean,
+    barActionsPanel: BarActionsState?,
+    modifier: Modifier = Modifier
+) {
+    MultiBarHost(
+        tracks = tracks,
+        multiSelectIds = multiSelectIds,
+        playheadMs = playheadMs,
+        onAction = onAction,
+        onSpatialAction = onSpatialAction,
+        onBooleanAction = onBooleanAction,
+        onDeleteChecked = onDeleteChecked,
+        onSelectAll = onSelectAll,
+        toolsPanelOpen = toolsPanelOpen,
+        barActionsPanel = barActionsPanel,
+        modifier = modifier
+    )
+}
+
+/**
+ * Build 224: the lanes column's bottom padding, exactly as the Compose
+ * panel computes it (its vertical-scroll content padding) — the native
+ * surface needs the same content height for its scroll range.
+ */
+internal fun timelineBottomPadDp(toolsPanelOpen: Boolean, isMulti: Boolean, showActionBar: Boolean): Float =
+    if (toolsPanelOpen && (isMulti || showActionBar)) 4f
+    else if (isMulti) 68f
+    else if (showActionBar) SelectedBarHeight.value + 4f
+    else 4f
 
 private val SelectedBarHeight = 52.dp
 

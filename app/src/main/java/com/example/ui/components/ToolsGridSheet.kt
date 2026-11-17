@@ -110,7 +110,7 @@ const val TOOLS_GRID_PAD_V_DP = 8
 const val TOOLS_GRID_MAX_ROWS = 4
 
 /** Tiles in the grid's utility section (IN, OUT, beat, onion, scopes, snap, frame, canvas + the displaced chrome). */
-const val TOOLS_GRID_UTILITY_COUNT = 16 // build 217: + Prev frame, Next frame, Preview, Save frame, Master, Density; build 218: + Templates, Controller; build 222: Marker out, Frame in (count unchanged)
+const val TOOLS_GRID_UTILITY_COUNT = 17 // build 217: + Prev frame, Next frame, Preview, Save frame, Master, Density; build 218: + Templates, Controller; build 222: Marker out, Frame in (count unchanged); build 224: + Native timeline
 
 /**
  * The sheet's exact height for [totalTiles] tiles: vertical padding + whole
@@ -180,6 +180,13 @@ fun ToolsGridSheet(
      */
     frameOn: Boolean = true,
     onFrameClick: () -> Unit = {},
+    /**
+     * Native timeline toggle (build 224): the timeline renders on the C++
+     * surface (ON, the default) or with the Compose panel (OFF — Sarowar's
+     * A/B safety switch; it flips live, no editor restart). White = on.
+     */
+    nativeTimelineOn: Boolean = true,
+    onNativeTimelineClick: () -> Unit = {},
     /** Canvas button: the aspect / project format sheet. */
     onCanvasClick: () -> Unit,
     /** The selected clip panel's tools, published via [MorePanelState] (full list while the panel is open, build 210); null = utility section only. */
@@ -237,6 +244,7 @@ fun ToolsGridSheet(
         GridEntry("Scopes", scopesOn, "scopes_button", "Scopes", closeOnTap = false, onClick = onScopesClick) { ScopesGlyph(scopesOn) },
         GridEntry("Snap", snapOn, "snap_button", "Snap", closeOnTap = false, onClick = onSnapClick) { MagnetGlyph(snapOn) },
         GridEntry("Frame", frameOn, "frame_button", "Selection frame", closeOnTap = false, onClick = onFrameClick) { FrameGlyph(frameOn) },
+        GridEntry("Native timeline", nativeTimelineOn, "native_timeline_button", "Native timeline renderer", closeOnTap = false, onClick = onNativeTimelineClick) { NativeTimelineGlyph(nativeTimelineOn) },
         GridEntry("Canvas", false, "grid_button", "Canvas", closeOnTap = true, onClick = onCanvasClick) { GridGlyph() },
         // Build 217: displaced chrome, housed in this sheet — frame
         // stepping (was the transport), the preview-resolution sheet
@@ -453,6 +461,24 @@ private fun FrameGlyph(on: Boolean) {
         for ((hx, hy) in listOf(5f to 5f, 19f to 5f, 5f to 19f, 19f to 19f)) {
             drawRoundRect(c, Offset(hx * u - sq / 2f, hy * u - sq / 2f), androidx.compose.ui.geometry.Size(sq, sq), androidx.compose.ui.geometry.CornerRadius(0.8f * u))
         }
+    }
+}
+
+/**
+ * The native timeline (build 224): a ticked ruler over two lane bars.
+ * White = the C++ surface draws the timeline, grey = the Compose panel does.
+ */
+@Composable
+private fun NativeTimelineGlyph(on: Boolean) {
+    Canvas(Modifier.size(24.dp)) {
+        val u = size.width / 24f
+        val c = if (on) AmTextPrimary else IconDisabled
+        drawLine(c, Offset(3f * u, 6f * u), Offset(21f * u, 6f * u), strokeWidth = 1.6f * u)
+        for (tx in listOf(6f, 12f, 18f)) {
+            drawLine(c, Offset(tx * u, 4f * u), Offset(tx * u, 8f * u), strokeWidth = 1.6f * u)
+        }
+        drawRoundRect(c, Offset(3f * u, 11f * u), androidx.compose.ui.geometry.Size(13f * u, 4.4f * u), androidx.compose.ui.geometry.CornerRadius(2.2f * u))
+        drawRoundRect(c, Offset(8f * u, 17.6f * u), androidx.compose.ui.geometry.Size(13f * u, 4.4f * u), androidx.compose.ui.geometry.CornerRadius(2.2f * u))
     }
 }
 

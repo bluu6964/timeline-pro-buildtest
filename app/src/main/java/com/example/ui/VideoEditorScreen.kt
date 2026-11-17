@@ -166,6 +166,7 @@ import com.example.ui.components.ScopesPanelHeight
 import com.example.ui.components.PlayControlsSection
 import com.example.ui.components.ResolutionSheet
 import com.example.ui.components.TimelineLayerPanel
+import com.example.ui.components.TimelineSlot
 import com.example.ui.components.TimescaleSection
 import com.example.ui.theme.EditorBackground
 import com.example.viewmodel.VideoEditorViewModel
@@ -251,6 +252,12 @@ fun VideoEditorScreen(
     // Build 217: the reference's lane density (32 dp rows; comfort = 44 dp),
     // toggled from the timeline options sheet's Density tile.
     var comfortDensity by remember { mutableStateOf(false) }
+    // Build 224 (GRADUAL NATIVE MIGRATION, step 1): the timeline renders on
+    // the C++ surface when ON (the default); OFF is the Compose panel,
+    // switched live from the options sheet's "Native timeline" tile —
+    // Sarowar's A/B safety switch. Persisted like the snap switch (loaded
+    // by the LaunchedEffect next to the snap load below).
+    var nativeTimeline by remember { mutableStateOf(true) }
     LaunchedEffect(selectedClipId) { toolsPanelManual = null }
     val toolsPanelOpen = toolsPanelManual ?: (selectedClipId != null)
     // Build 219 (Sarowar's HTML reference v4): the SELECTED state's
@@ -401,6 +408,12 @@ fun VideoEditorScreen(
             context.getSharedPreferences("editor", android.content.Context.MODE_PRIVATE)
                 .getBoolean("snap_enabled", true)
         )
+    }
+
+    // Build 224: the native-timeline switch's persisted state (default ON).
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        nativeTimeline = context.getSharedPreferences("editor", android.content.Context.MODE_PRIVATE)
+            .getBoolean("native_timeline", true)
     }
 
     // ---- Face AI (MediaPipe Face Landmarker): blur that follows the face / eyes / nose / lips ----
@@ -3175,6 +3188,13 @@ fun VideoEditorScreen(
                     context.getSharedPreferences("editor", android.content.Context.MODE_PRIVATE)
                         .edit().putBoolean("snap_enabled", next).apply()
                 }
+                // Build 224: the native-timeline A/B switch (options sheet tile).
+                val onNativeTimelineAction: () -> Unit = {
+                    val next = !nativeTimeline
+                    nativeTimeline = next
+                    context.getSharedPreferences("editor", android.content.Context.MODE_PRIVATE)
+                        .edit().putBoolean("native_timeline", next).apply()
+                }
                 // The selected clip panel's published overflow section
                 // (null while nothing is selected or the panel fits whole).
                 val moreClipSection = morePanelState.clipSection()
@@ -3258,278 +3278,205 @@ fun VideoEditorScreen(
                     ScopesPanel(data = scopeData)
                 }
 
-                // 4. Timescale Section (1/30 of screen)
-                TimescaleSection(
-                    height = rulerH, // build 217: the reference's 44 dp ruler
-                    playheadMs = playheadProvider,
-                    totalDurationMs = totalDurationMs,
-                    pxPerMs = timelinePxPerMs,
-                    beatMarksMs = beatMarks,
-                    exportInMs = exportInMs,
-                    exportOutMs = exportOutMs,
-                    // Build 217: the layer-count pill shows the REAL layer
-                    // count; its tap opens the timeline options (the tools
-                    // stage in its no-selection form — the universal tools
-                    // and the displaced functions live there now).
-                    layerCount = shownTracks.sumOf { it.clips.size },
-                    onLayerPillClick = { if (sel219) selGridOpen = true else toolsPanelManual = true },
-                    // The selected layer's keyframes as the reference's
-                    // orange diamonds on the ruler.
-                    keyframeTimesMs = selectedClipId?.let { sid ->
-                        tracks.flatMap { it.clips }.firstOrNull { it.id == sid }?.let { c ->
-                            c.keyframeTimes().map { t -> c.startMs + t }
+                // Build 224: the panel call's larger lambdas, hoisted so the
+                // native-timeline branch passes the SAME operations to its
+                // overlays (publisher / selected bar / multi bar).
+                val onDeleteCheckedLayersAction: () -> Unit = {
+                    val r = viewModel.deleteMultiSelected()
+                    if (r != null) {
+                        val msg = buildString {
+                            append("Deleted ${r.first} layer")
+                            if (r.first != 1) append("s")
+                            if (r.second > 0) append(" · ${r.second} locked skipped")
                         }
-                    } ?: emptyList()
-                )
-
-                // 5. Layer Panel (5/18 of screen). Inside a group (Edit Group) a green bar on top leads back out.
-                Box(Modifier.fillMaxWidth().height(layerPanelH)) {
-                TimelineLayerPanel(
-                    height = layerPanelH,
-                    // Build 210 (TOOLS PANEL LAW part 3): while the tools
-                    // panel is open over a selection, ONLY the selected
-                    // layers' lanes are passed — no other layer row exists
-                    // in the panel; the full list returns with the panel.
-                    tracks = restrictedTracks ?: shownTracks,
-                    playheadMs = playheadProvider,
-                    totalDurationMs = totalDurationMs,
-                    selectedClipId = selectedClipId,
-                    isMasterMuted = isMasterMuted,
-                    onSeekTo = { viewModel.seekTo(it) },
-                    onScrubStart = { viewModel.pause() },
-                    isPlaying = isPlaying,
-                    // While several layers are checked, taps/drags on layer bodies must not
-                    // switch to single selection (that would leave multi-select).
-                    onClipSelect = { id -> if (multiSelectIds.isEmpty()) viewModel.selectClip(id) },
-                    multiSelectIds = multiSelectIds,
-                    onLongPressLane = { id -> viewModel.enterMultiSelect(id) },
-                    onToggleMulti = { id -> viewModel.toggleMultiSelect(id) },
-                    onMultiAction = { viewModel.applyMultiAction(it) },
-                    // Build 199: the multi-select bar's Delete tile (A11 — one undo step,
-                    // locked layers skipped and reported) and All tile (A4), plus the audio
-                    // fade handles' funnel (A9 — the same setClipFades the Fade sheet uses).
-                    onDeleteCheckedLayers = {
-                        val r = viewModel.deleteMultiSelected()
-                        if (r != null) {
-                            val msg = buildString {
-                                append("Deleted ${r.first} layer")
-                                if (r.first != 1) append("s")
-                                if (r.second > 0) append(" · ${r.second} locked skipped")
-                            }
-                            scope.launch {
-                                snackbarHostState.currentSnackbarData?.dismiss()
-                                snackbarHostState.showSnackbar(msg)
-                            }
+                        scope.launch {
+                            snackbarHostState.currentSnackbarData?.dismiss()
+                            snackbarHostState.showSnackbar(msg)
                         }
-                    },
-                    onSelectAllLayers = { viewModel.selectAllLayers() },
-                    onSetClipFades = { id, fi, fo -> viewModel.setClipFades(id, fi, fo) },
-                    // Canvas spatial align / distribute (build 188): the build-176/184
-                    // pattern run from the screen — the checked layers are rendered at the
-                    // playhead and measured through the SAME snapRectOf (cropped bounds
-                    // included since build 182), the pure SpatialAlign rule decides the
-                    // canvas-px deltas, each delta is converted back to stored units by
-                    // the layer's depth factor, and the batch lands through
-                    // viewModel.moveClipsBy as ONE undo step. Audio (no canvas presence)
-                    // and Chain (a container) never take part.
-                    onSpatialAction = { action ->
-                        val t = playheadState.value
-                        val fw = previewFrameWidthPx
-                        if (fw > 1f) {
-                            val fh = fw / selectedAspectRatio.ratioFloat
-                            val rendered = shownTracks.flatMap { it.clips }
-                                .filter {
-                                    it.id in multiSelectIds && it.isVisible && !it.isMask &&
-                                        it.isActiveAt(t) && !it.isBehindCamera &&
-                                        it.type != LayerType.AUDIO && it.type != LayerType.CHAIN
-                                }
-                                .map { com.example.engine.NativeRenderAt.renderAt(it, t, t) }
-                            val rects = rendered.mapNotNull { rc ->
-                                com.example.ui.components.snapRectOf(rc, fw, fh, previewDensity, canvasTextSizes, forDragged = true)
-                                    ?.let { r -> com.example.model.AlignRect(rc.id, r.left, r.top, r.right, r.bottom) }
+                    }
+                }
+                val onSpatialActionVal: (com.example.model.SpatialAction) -> Unit = { action ->
+                    val t = playheadState.value
+                    val fw = previewFrameWidthPx
+                    if (fw > 1f) {
+                        val fh = fw / selectedAspectRatio.ratioFloat
+                        val rendered = shownTracks.flatMap { it.clips }
+                            .filter {
+                                it.id in multiSelectIds && it.isVisible && !it.isMask &&
+                                    it.isActiveAt(t) && !it.isBehindCamera &&
+                                    it.type != LayerType.AUDIO && it.type != LayerType.CHAIN
                             }
-                            // Build 199 (A8): the canvas-centre actions read against the
-                            // FRAME (canvasDeltas); every other action is selection-relative.
-                            val deltasPx = if (action == com.example.model.SpatialAction.CANVAS_CENTER_H ||
-                                action == com.example.model.SpatialAction.CANVAS_CENTER_V
-                            ) {
-                                com.example.model.SpatialAlign.canvasDeltas(rects, fw, fh, action)
+                            .map { com.example.engine.NativeRenderAt.renderAt(it, t, t) }
+                        val rects = rendered.mapNotNull { rc ->
+                            com.example.ui.components.snapRectOf(rc, fw, fh, previewDensity, canvasTextSizes, forDragged = true)
+                                ?.let { r -> com.example.model.AlignRect(rc.id, r.left, r.top, r.right, r.bottom) }
+                        }
+                        // Build 199 (A8): the canvas-centre actions read against the
+                        // FRAME (canvasDeltas); every other action is selection-relative.
+                        val deltasPx = if (action == com.example.model.SpatialAction.CANVAS_CENTER_H ||
+                            action == com.example.model.SpatialAction.CANVAS_CENTER_V
+                        ) {
+                            com.example.model.SpatialAlign.canvasDeltas(rects, fw, fh, action)
+                        } else {
+                            com.example.model.SpatialAlign.deltas(rects, action)
+                        }
+                        if (deltasPx.isNotEmpty()) {
+                            val stored = HashMap<String, Pair<Float, Float>>()
+                            for ((id, d) in deltasPx) {
+                                val rc = rendered.firstOrNull { it.id == id } ?: continue
+                                val df = rc.depthFactor.coerceAtLeast(0.001f)
+                                stored[id] = (d.first / df) to (d.second / df)
+                            }
+                            viewModel.moveClipsBy(stored)
+                        }
+                    }
+                }
+                val onBooleanActionVal: (com.example.model.ShapeBooleanOp) -> Unit = { op ->
+                    val t = playheadState.value
+                    val fw = previewFrameWidthPx
+                    val allClips = tracks.flatMap { it.clips }
+                    val pair = multiSelectIds.mapNotNull { id -> allClips.firstOrNull { it.id == id } }
+                    fun report(msg: String) {
+                        scope.launch {
+                            snackbarHostState.currentSnackbarData?.dismiss()
+                            snackbarHostState.showSnackbar(msg)
+                        }
+                    }
+                    if (fw > 1f && pair.size == 2) {
+                        val fh = fw / selectedAspectRatio.ratioFloat
+                        // Build 198: the frame evaluation and the combine run OFF
+                        // the main thread — the combine is O(E^2) in the outlines'
+                        // edges and a detailed pair froze the editor for seconds —
+                        // and an over-budget pair is refused up front with an
+                        // honest message instead of being computed at all. The
+                        // result layer is added back on the main scope.
+                        scope.launch(Dispatchers.Default) {
+                            val rig = com.example.engine.ParentRig(allClips) { c, tm ->
+                                com.example.engine.NativeRenderAt.renderAt(c, tm)
+                            }
+                            val ra = com.example.engine.ShapeBooleanGeometry.frameRings(
+                                allClips, rig, pair[0], t, fw, fh, 1f, previewDensity
+                            )
+                            val rb = com.example.engine.ShapeBooleanGeometry.frameRings(
+                                allClips, rig, pair[1], t, fw, fh, 1f, previewDensity
+                            )
+                            if (ra == null || rb == null) {
+                                report("These two shapes cannot be combined")
+                            } else if (com.example.model.ShapeBoolean.overBudget(ra, rb)) {
+                                report("These shapes are too detailed to combine")
                             } else {
-                                com.example.model.SpatialAlign.deltas(rects, action)
-                            }
-                            if (deltasPx.isNotEmpty()) {
-                                val stored = HashMap<String, Pair<Float, Float>>()
-                                for ((id, d) in deltasPx) {
-                                    val rc = rendered.firstOrNull { it.id == id } ?: continue
-                                    val df = rc.depthFactor.coerceAtLeast(0.001f)
-                                    stored[id] = (d.first / df) to (d.second / df)
-                                }
-                                viewModel.moveClipsBy(stored)
-                            }
-                        }
-                    },
-                    // Shape booleans (build 192): the checked pair is evaluated AS
-                    // DRAWN at the playhead — each shape's outline goes through the
-                    // preview's own ParentRig into frame space (ShapeBooleanGeometry),
-                    // the pure winding core combines them (model/ShapeBoolean), and
-                    // the result is baked into a fresh PATH layer through the same
-                    // normalisation the Pen tool writes (VectorDraw.normalize), whose
-                    // identity placement draws it exactly where the geometry lies.
-                    // Subtract = FIRST-checked minus second-checked (the checked set
-                    // iterates in check order). The originals stay untouched; an
-                    // empty result (no overlap / fully cut away) only reports.
-                    onBooleanAction = { op ->
-                        val t = playheadState.value
-                        val fw = previewFrameWidthPx
-                        val allClips = tracks.flatMap { it.clips }
-                        val pair = multiSelectIds.mapNotNull { id -> allClips.firstOrNull { it.id == id } }
-                        fun report(msg: String) {
-                            scope.launch {
-                                snackbarHostState.currentSnackbarData?.dismiss()
-                                snackbarHostState.showSnackbar(msg)
-                            }
-                        }
-                        if (fw > 1f && pair.size == 2) {
-                            val fh = fw / selectedAspectRatio.ratioFloat
-                            // Build 198: the frame evaluation and the combine run OFF
-                            // the main thread — the combine is O(E^2) in the outlines'
-                            // edges and a detailed pair froze the editor for seconds —
-                            // and an over-budget pair is refused up front with an
-                            // honest message instead of being computed at all. The
-                            // result layer is added back on the main scope.
-                            scope.launch(Dispatchers.Default) {
-                                val rig = com.example.engine.ParentRig(allClips) { c, tm ->
-                                    com.example.engine.NativeRenderAt.renderAt(c, tm)
-                                }
-                                val ra = com.example.engine.ShapeBooleanGeometry.frameRings(
-                                    allClips, rig, pair[0], t, fw, fh, 1f, previewDensity
-                                )
-                                val rb = com.example.engine.ShapeBooleanGeometry.frameRings(
-                                    allClips, rig, pair[1], t, fw, fh, 1f, previewDensity
-                                )
-                                if (ra == null || rb == null) {
-                                    report("These two shapes cannot be combined")
-                                } else if (com.example.model.ShapeBoolean.overBudget(ra, rb)) {
-                                    report("These shapes are too detailed to combine")
-                                } else {
-                                    val result = com.example.model.ShapeBoolean.combine(ra, rb, op)
-                                    if (result.isEmpty()) {
-                                        report(
-                                            when (op) {
-                                                com.example.model.ShapeBooleanOp.INTERSECT -> "The two shapes do not overlap"
-                                                com.example.model.ShapeBooleanOp.SUBTRACT -> "Nothing is left after the cut"
-                                                com.example.model.ShapeBooleanOp.XOR -> "The two shapes cancel each other out"
-                                                com.example.model.ShapeBooleanOp.UNION -> "Nothing to combine"
-                                            }
-                                        )
-                                    } else {
-                                        val raw = ArrayList<com.example.model.PathSeg>()
-                                        for (ring in result) {
-                                            ring.forEachIndexed { i, p ->
-                                                raw += com.example.model.PathSeg(
-                                                    if (i == 0) com.example.model.PATH_OP_MOVE
-                                                    else com.example.model.PATH_OP_LINE,
-                                                    listOf((p.x / fh).toFloat(), (p.y / fh).toFloat())
-                                                )
-                                            }
-                                            raw += com.example.model.PathSeg(com.example.model.PATH_OP_CLOSE)
+                                val result = com.example.model.ShapeBoolean.combine(ra, rb, op)
+                                if (result.isEmpty()) {
+                                    report(
+                                        when (op) {
+                                            com.example.model.ShapeBooleanOp.INTERSECT -> "The two shapes do not overlap"
+                                            com.example.model.ShapeBooleanOp.SUBTRACT -> "Nothing is left after the cut"
+                                            com.example.model.ShapeBooleanOp.XOR -> "The two shapes cancel each other out"
+                                            com.example.model.ShapeBooleanOp.UNION -> "Nothing to combine"
                                         }
-                                        val built = com.example.model.VectorDraw.normalize(raw, fw, fh, previewDensity)
-                                        if (built == null) {
-                                            report("Nothing to combine")
-                                        } else {
-                                            scope.launch {
-                                                viewModel.addBooleanResultClip(
-                                                    drawn = built,
-                                                    name = op.displayName,
-                                                    fillFrom = pair[0],
-                                                    startMs = pair[0].startMs,
-                                                    durationMs = pair[0].durationMs
-                                                )
-                                            }
+                                    )
+                                } else {
+                                    val raw = ArrayList<com.example.model.PathSeg>()
+                                    for (ring in result) {
+                                        ring.forEachIndexed { i, p ->
+                                            raw += com.example.model.PathSeg(
+                                                if (i == 0) com.example.model.PATH_OP_MOVE
+                                                else com.example.model.PATH_OP_LINE,
+                                                listOf((p.x / fh).toFloat(), (p.y / fh).toFloat())
+                                            )
+                                        }
+                                        raw += com.example.model.PathSeg(com.example.model.PATH_OP_CLOSE)
+                                    }
+                                    val built = com.example.model.VectorDraw.normalize(raw, fw, fh, previewDensity)
+                                    if (built == null) {
+                                        report("Nothing to combine")
+                                    } else {
+                                        scope.launch {
+                                            viewModel.addBooleanResultClip(
+                                                drawn = built,
+                                                name = op.displayName,
+                                                fillFrom = pair[0],
+                                                startMs = pair[0].startMs,
+                                                durationMs = pair[0].durationMs
+                                            )
                                         }
                                     }
                                 }
                             }
                         }
-                    },
-                    onSplitClip = {
-                        viewModel.splitSelectedClip()
-                    },
-                    onDeleteClip = {
-                        viewModel.deleteSelectedClip()
-                    },
-                    // Build 218: the chain section's x buttons delete by id.
-                    onDeleteClipById = { viewModel.deleteClipById(it) },
-                    onDuplicateClip = {
-                        viewModel.duplicateSelectedClip()
-                    },
-                    onToggleMasterAudio = {
-                        viewModel.toggleMasterAudio()
-                    },
-                    onFlipHorizontal = { viewModel.flipHorizontalSelectedClip() },
-                    onFlipVertical = { viewModel.flipVerticalSelectedClip() },
-                    onReplace = {
-                        val target = tracks.flatMap { it.clips }.find { it.id == selectedClipId }
-                        if (target != null && target.type == LayerType.VIDEO) {
-                            replacePicker.launch(
-                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
-                            )
-                        } else {
-                            snackbarHostState.currentSnackbarData?.dismiss()
-                            scope.launch {
-                                snackbarHostState.showSnackbar("Replace works on video and photo layers")
-                            }
+                    }
+                }
+                val onReplaceAction: () -> Unit = {
+                    val target = tracks.flatMap { it.clips }.find { it.id == selectedClipId }
+                    if (target != null && target.type == LayerType.VIDEO) {
+                        replacePicker.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
+                        )
+                    } else {
+                        snackbarHostState.currentSnackbarData?.dismiss()
+                        scope.launch {
+                            snackbarHostState.showSnackbar("Replace works on video and photo layers")
                         }
-                    },
-                    onSpeed = run {
-                        val sel = tracks.flatMap { it.clips }.find { it.id == selectedClipId }
-                        if (sel != null && (sel.type == LayerType.AUDIO ||
-                                (sel.type == LayerType.VIDEO && !sel.isImage && sel.uri != null))
-                        ) {
-                            {
-                                viewModel.beginAdjust()
-                                showAudioSpeedSheet = true
-                            }
-                        } else if (sel != null && sel.type == LayerType.STICKER) {
-                            {
-                                viewModel.beginAdjust()
-                                showStickerSpeedSheet = true
-                            }
-                        } else null
-                    },
-                    onReverse = run {
-                        val sel = tracks.flatMap { it.clips }.find { it.id == selectedClipId }
-                        if (sel != null && sel.type == LayerType.VIDEO && !sel.isImage && sel.uri != null) {
-                            { startVideoReverse(sel.id) }
-                        } else null
-                    },
+                    }
+                }
+                val onSpeedAction: (() -> Unit)? = run {
+                    val sel = tracks.flatMap { it.clips }.find { it.id == selectedClipId }
+                    if (sel != null && (sel.type == LayerType.AUDIO ||
+                            (sel.type == LayerType.VIDEO && !sel.isImage && sel.uri != null))
+                    ) {
+                        {
+                            viewModel.beginAdjust()
+                            showAudioSpeedSheet = true
+                        }
+                    } else if (sel != null && sel.type == LayerType.STICKER) {
+                        {
+                            viewModel.beginAdjust()
+                            showStickerSpeedSheet = true
+                        }
+                    } else null
+                }
+                val onReverseAction: (() -> Unit)? = run {
+                    val sel = tracks.flatMap { it.clips }.find { it.id == selectedClipId }
+                    if (sel != null && sel.type == LayerType.VIDEO && !sel.isImage && sel.uri != null) {
+                        { startVideoReverse(sel.id) }
+                    } else null
+                }
+                // Build 224 fix round: the timeline slot subtree (ruler +
+                // lanes, native + Compose branches) is extracted into
+                // components/TimelineSlot.kt — inlined here it pushed this
+                // composable's lambda over the JVM 64 KB per-method limit.
+                TimelineSlot(
+                    nativeTimeline = nativeTimeline,
+                    rulerH = rulerH,
+                    layerPanelH = layerPanelH,
+                    tracks = tracks,
+                    shownTracks = shownTracks,
+                    restrictedTracks = restrictedTracks,
+                    playheadProvider = playheadProvider,
+                    totalDurationMs = totalDurationMs,
+                    selectedClipId = selectedClipId,
+                    isPlaying = isPlaying,
+                    isMasterMuted = isMasterMuted,
+                    multiSelectIds = multiSelectIds,
                     waveforms = waveforms,
-                    onMoveClipInTime = { id, delta -> viewModel.moveClipInTime(id, delta) },
-                    onBeginClipTimeDrag = { viewModel.beginAdjust() },
-                    onReorderLane = { from, to -> viewModel.reorderShownLane(from, to) },
-                    onTrimClipEdge = { id, left, d -> viewModel.trimClipEdge(id, left, d) },
-                    onToggleClipVisibility = { id -> viewModel.toggleClipVisibility(id) },
-                    pxPerMs = timelinePxPerMs,
-                    onPxPerMsChange = { timelinePxPerMs = it },
-                    // Build 211 (NO STICKY TOOL LINES): while the tools
-                    // panel is open the panel's bars do not render — they
-                    // publish their actions to the grid's head tiles.
+                    beatMarks = beatMarks,
+                    exportInMs = exportInMs,
+                    exportOutMs = exportOutMs,
+                    timelinePxPerMs = timelinePxPerMs,
+                    onTimelinePxPerMsChange = { timelinePxPerMs = it },
                     toolsPanelOpen = toolsPanelOpen,
-                    barActionsPanel = barActionsState,
-                    comfortDensity = comfortDensity
-                    // No onAddClick since build 145: the "+" moved into the bottom toolbar
-                    // (BottomToolbar's Add item opens the same AddLayerSheet).
+                    barActionsState = barActionsState,
+                    comfortDensity = comfortDensity,
+                    onLayerPillClick = { if (sel219) selGridOpen = true else toolsPanelManual = true },
+                    onSpeedAction = onSpeedAction,
+                    onReverseAction = onReverseAction,
+                    onReplaceAction = onReplaceAction,
+                    onSpatialActionVal = onSpatialActionVal,
+                    onBooleanActionVal = onBooleanActionVal,
+                    onDeleteCheckedLayersAction = onDeleteCheckedLayersAction,
+                    editingGroupId = editingGroupId,
+                    viewModel = viewModel
                 )
-                val editingGroup = editingGroupId?.let { gid -> tracks.flatMap { it.clips }.firstOrNull { it.id == gid } }
-                if (editingGroup != null) {
-                    com.example.ui.components.GroupEditBar(
-                        name = editingGroup.name,
-                        onExit = { viewModel.exitGroup() },
-                        modifier = Modifier.align(Alignment.TopEnd)
-                    )
-                }
-                }
 
                 // 5b. Tools grid (build 206) — a sheet in NORMAL LAYOUT FLOW
                 // between the timeline and the footer, never an overlay (the
@@ -3581,6 +3528,9 @@ fun VideoEditorScreen(
                             // bar by the snap toggle — same local state.
                             frameOn = transformBoxOn,
                             onFrameClick = { transformBoxOn = !transformBoxOn },
+                            // Build 224: the native-timeline A/B switch.
+                            nativeTimelineOn = nativeTimeline,
+                            onNativeTimelineClick = onNativeTimelineAction,
                             onCanvasClick = { showAspectRatioSheet = true },
                             // Build 217: the displaced functions, housed
                             // in this sheet (see ToolsGridSheet).
