@@ -12,7 +12,8 @@ add_library(am_engine SHARED
     shape_engine.cpp shape_jni.cpp
     planar_track.cpp planar_jni.cpp
     remove_plate.cpp remove_jni.cpp stabilize_jni.cpp interp_jni.cpp face_swap_jni.cpp
-    timeline_render.cpp timeline_jni.cpp)
+    timeline_render.cpp timeline_jni.cpp
+    crash_handler.cpp)
 target_compile_features(am_engine PRIVATE cxx_std_17)
 target_compile_options(am_engine PRIVATE -O2 -Wall -Wextra)
 # Native text layers (FreeType + HarfBuzz). The sources are downloaded by the GitHub workflow into

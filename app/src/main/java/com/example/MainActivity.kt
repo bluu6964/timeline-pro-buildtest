@@ -16,6 +16,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         CrashReport.install(this)
         val report = CrashReport.pending(this)
+        // Build 228: native crash logger (after pending() so a fresh file is not read as "old").
+        com.example.engine.NativeCrash.installTo(java.io.File(filesDir, CrashReport.NATIVE_FILE).absolutePath)
         if (report != null) showCrashReport(report) else startApp()
     }
 

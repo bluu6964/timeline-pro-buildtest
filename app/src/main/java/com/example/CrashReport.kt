@@ -14,6 +14,7 @@ import java.io.File
  */
 object CrashReport {
     private const val FILE = "last_crash.txt"
+    const val NATIVE_FILE = "native_crash.txt"
     private const val PREFS = "crash_report"
     private const val KEY_SEEN = "exit_seen_ts"
 
@@ -36,12 +37,17 @@ object CrashReport {
         if (f.exists()) {
             runCatching { f.readText().take(8000) }.getOrNull()?.takeIf { it.isNotBlank() }?.let { parts += it }
         }
+        val nf = File(context.filesDir, NATIVE_FILE)
+        if (nf.exists()) {
+            runCatching { nf.readText().take(8000) }.getOrNull()?.takeIf { it.isNotBlank() }?.let { parts += it }
+        }
         nativeExit(context)?.let { parts += it }
         return if (parts.isEmpty()) null else parts.joinToString("\n\n")
     }
 
     fun clear(context: Context) {
         File(context.filesDir, FILE).delete()
+        File(context.filesDir, NATIVE_FILE).delete()
     }
 
     private fun nativeExit(context: Context): String? {
