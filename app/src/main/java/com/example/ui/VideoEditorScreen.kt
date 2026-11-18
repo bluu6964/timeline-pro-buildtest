@@ -257,7 +257,14 @@ fun VideoEditorScreen(
     // switched live from the options sheet's "Native timeline" tile —
     // Sarowar's A/B safety switch. Persisted like the snap switch (loaded
     // by the LaunchedEffect next to the snap load below).
-    var nativeTimeline by remember { mutableStateOf(true) }
+    // Build 228: the crash-loop breaker MUST be consulted for the very first composition.
+    // (Build 227 read it in a LaunchedEffect, i.e. AFTER the first frame: the native surface was
+    // already created -> a crash at surface creation looped forever, and the surface's own arm()
+    // could even be mistaken for "previous session died".)
+    val nativeTimelineCtx = androidx.compose.ui.platform.LocalContext.current
+    var nativeTimeline by remember {
+        mutableStateOf(com.example.engine.NativeTimelineBreaker.initialNativeOn(nativeTimelineCtx))
+    }
     LaunchedEffect(selectedClipId) { toolsPanelManual = null }
     val toolsPanelOpen = toolsPanelManual ?: (selectedClipId != null)
     // Build 219 (Sarowar's HTML reference v4): the SELECTED state's
@@ -415,9 +422,7 @@ fun VideoEditorScreen(
     // previous session died with the native surface up, this session starts
     // with the native timeline OFF (the toggle below shows this same state,
     // so it reflects the effective value; the saved preference is untouched).
-    androidx.compose.runtime.LaunchedEffect(Unit) {
-        nativeTimeline = com.example.engine.NativeTimelineBreaker.initialNativeOn(context)
-    }
+    // (Build 228: the initial value is now read synchronously where the state is declared.)
 
     // ---- Face AI (MediaPipe Face Landmarker): blur that follows the face / eyes / nose / lips ----
     var faceProgress by remember { androidx.compose.runtime.mutableStateOf<Float?>(null) }
