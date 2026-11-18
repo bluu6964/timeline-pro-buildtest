@@ -23,6 +23,7 @@ import com.example.ui.components.barGlyphFor
 import com.example.ui.components.formatClock
 import com.example.ui.components.laneHeightFor
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.locks.ReentrantReadWriteLock
 
 /**
  * Build 224 — GRADUAL NATIVE MIGRATION, STEP 1: THE TIMELINE.
@@ -314,6 +315,17 @@ internal class TlSnapshotInput(
  * its own Choreographer, the NativePreviewEngine pattern) and the atlas.
  * Snapshot updates run on the caller's (main) thread; drawing runs on the
  * render thread at vsync while playing, or on request otherwise.
+ *
+ * Build 227 — lifecycle serialization. Build 224 let release() post the
+ * native destroy to the render thread while the main thread could still be
+ * inside JNI calls with the same handle (snapshot builds, hit tests), and
+ * nativeDestroy freed the handle without its mutex: a use-after-free
+ * (SIGSEGV) on editor teardown. Now EVERY JNI call goes through
+ * [withHandle], which holds the read lock and refuses to run once
+ * [destroyed]; [release] takes the write lock and destroys synchronously,
+ * so destroy can never overlap an in-flight call, and no call can start
+ * after destroy. (The native side additionally takes the handle mutex in
+ * nativeDestroy itself — defence in depth.)
  */
 internal class NativeTimelineEngine(context: Context) {
     private val appContext = context.applicationContext
@@ -327,6 +339,24 @@ internal class NativeTimelineEngine(context: Context) {
     private val atlas = TlLabelAtlas(density, fontScale)
     private var uploadedEntryCount = -1
 
+    private val rwLock = ReentrantReadWriteLock()
+    @Volatile private var destroyed = false
+
+    /**
+     * Runs [block] with the live native handle under the read lock, or
+     * returns null when the engine has been released. All JNI entry points
+     * except destroy go through here.
+     */
+    private fun <T> withHandle(block: (Long) -> T): T? {
+        rwLock.readLock().lock()
+        try {
+            if (destroyed || handle == 0L) return null
+            return block(handle)
+        } finally {
+            rwLock.readLock().unlock()
+        }
+    }
+
     @Volatile var playheadOf: () -> Long = { 0L }
     @Volatile var scrollOf: () -> Float = { 0f }
     @Volatile var dragState: TlDragState = TlDragState()
@@ -336,15 +366,23 @@ internal class NativeTimelineEngine(context: Context) {
         override fun doFrame(frameTimeNanos: Long) {
             framePending.set(false)
             val drag = dragState
-            TimelineNative.nativeDraw(
-                handle, playheadOf(), scrollOf(),
-                drag.track, drag.clip, drag.dx, drag.dy
-            )
+            // Evaluate the per-frame values BEFORE taking the lock:
+            // scrollOf() reaches back into contentHeightPx(), which takes
+            // the lock itself — the two acquisitions must not nest.
+            val ph = playheadOf()
+            val sy = scrollOf()
+            withHandle { h ->
+                TimelineNative.nativeDraw(
+                    h, ph, sy,
+                    drag.track, drag.clip, drag.dx, drag.dy
+                )
+            }
             if (playing) requestFrame()
         }
     }
 
     fun requestFrame() {
+        if (destroyed) return
         if (!framePending.compareAndSet(false, true)) return
         handler.post {
             val ch = choreographer ?: Choreographer.getInstance().also { choreographer = it }
@@ -359,62 +397,69 @@ internal class NativeTimelineEngine(context: Context) {
 
     fun surfaceChanged(surface: Surface) {
         handler.post {
-            TimelineNative.nativeSetWindow(handle, surface)
+            withHandle { h -> TimelineNative.nativeSetWindow(h, surface) }
             requestFrame()
         }
     }
 
     fun surfaceDestroyed() {
-        handler.post { TimelineNative.nativeClearWindow(handle) }
+        handler.post { withHandle { h -> TimelineNative.nativeClearWindow(h) } }
     }
 
-    fun contentHeightPx(): Float = TimelineNative.nativeContentHeight(handle)
+    fun contentHeightPx(): Float =
+        withHandle { h -> TimelineNative.nativeContentHeight(h) } ?: 0f
 
     fun hitTest(x: Float, y: Float, viewW: Int, viewH: Int, playheadMs: Long, scrollYPx: Float): TlHit {
         val out = IntArray(2)
-        val zone = TimelineNative.nativeHitTest(handle, x, y, viewW, viewH, playheadMs, scrollYPx, out)
+        val zone = withHandle { h ->
+            TimelineNative.nativeHitTest(h, x, y, viewW, viewH, playheadMs, scrollYPx, out)
+        } ?: TL_ZONE_NONE
         return TlHit(zone, out[0], out[1])
     }
 
     /** Push a fresh data snapshot (called from the composition on data change). */
     fun update(input: TlSnapshotInput) {
-        if (handle == 0L) return
-        // Two passes at most: if the atlas overflows mid-resolve it is reset
-        // and every label is resolved again against the empty atlas.
-        var pass = 0
-        while (true) {
-            val ok = buildSnapshot(input)
-            if (ok) break
-            if (++pass > 1) break
-            // The old snapshot's indices are invalid against a fresh atlas:
-            // blank the surface snapshot first, then upload and rebuild.
-            TimelineNative.nativeBeginSnapshot(
-                handle, density, input.pxPerMs, 44f * density, 42f * density,
-                4f * density, 4f * density, input.bottomPadPx, input.totalMs,
-                0, -1, 0f, -1, -1, input.comfort, false, false, 0L, 0L
-            )
-            TimelineNative.nativeEndSnapshot(handle)
-            atlas.reset()
-            uploadAtlas()
-        }
+        // The whole build runs under ONE read-lock acquisition (withHandle):
+        // destroy can never free the handle mid-build, and the begin..end
+        // sequence is atomic against every other entry point.
+        withHandle { h ->
+            // Two passes at most: if the atlas overflows mid-resolve it is reset
+            // and every label is resolved again against the empty atlas.
+            var pass = 0
+            while (true) {
+                val ok = buildSnapshot(h, input)
+                if (ok) break
+                if (++pass > 1) break
+                // The old snapshot's indices are invalid against a fresh atlas:
+                // blank the surface snapshot first, then upload and rebuild.
+                TimelineNative.nativeBeginSnapshot(
+                    h, density, input.pxPerMs, 44f * density, 42f * density,
+                    4f * density, 4f * density, input.bottomPadPx, input.totalMs,
+                    0, -1, 0f, -1, -1, input.comfort, false, false, 0L, 0L
+                )
+                TimelineNative.nativeEndSnapshot(h)
+                atlas.reset()
+                uploadAtlas(h)
+            }
+        } ?: return
         requestFrame()
     }
 
-    private fun uploadAtlas() {
+    private fun uploadAtlas(h: Long) {
         TimelineNative.nativeSetAtlas(
-            handle, atlas.bitmap, atlas.rectArray(), atlas.baseArray(),
+            h, atlas.bitmap, atlas.rectArray(), atlas.baseArray(),
             atlas.digitIndices, atlas.digitAdv, atlas.digitBaseY
         )
         uploadedEntryCount = atlas.entryCount
     }
 
     /** The atlas bitmap is 8 MB — upload it only when entries were added or it was reset. */
-    private fun uploadAtlasIfDirty() {
-        if (atlas.entryCount != uploadedEntryCount) uploadAtlas()
+    private fun uploadAtlasIfDirty(h: Long) {
+        if (atlas.entryCount != uploadedEntryCount) uploadAtlas(h)
     }
 
     /** Returns false when the atlas overflowed and the pass must restart. */
-    private fun buildSnapshot(input: TlSnapshotInput): Boolean {
+    private fun buildSnapshot(h: Long, input: TlSnapshotInput): Boolean {
         val dpPx = density
         atlas.ensureDigits(22f * dpPx)
         val layerCount = input.tracks.sumOf { it.clips.size }
@@ -488,22 +533,22 @@ internal class NativeTimelineEngine(context: Context) {
             perTrack.add(list)
         }
         if (failed) return false
-        uploadAtlasIfDirty()
+        uploadAtlasIfDirty(h)
 
         TimelineNative.nativeBeginSnapshot(
-            handle, density, input.pxPerMs, 44f * dpPx, 42f * dpPx,
+            h, density, input.pxPerMs, 44f * dpPx, 42f * dpPx,
             4f * dpPx, 4f * dpPx, input.bottomPadPx, input.totalMs,
             layerCount, pillIdx, pillW, totalIdx, chainIdx,
             input.comfort, input.multiSelectIds.isNotEmpty(),
             hasRange, input.exportInMs ?: 0L, input.exportOutMs ?: 0L
         )
-        TimelineNative.nativeSetBeats(handle, input.beatMs, input.rulerKeysMs)
+        TimelineNative.nativeSetBeats(h, input.beatMs, input.rulerKeysMs)
         input.tracks.forEachIndexed { ti, track ->
             val chainClipIdx = track.clips.indexOfFirst { it.type == LayerType.CHAIN }
             val chainClip = track.clips.getOrNull(chainClipIdx)
             val heightPx = (track.clips.maxOfOrNull { laneHeightFor(it.type, input.comfort) }?.value
                 ?: 24f) * dpPx
-            val nativeTrack = TimelineNative.nativeAddTrack(handle, heightPx, chainClipIdx)
+            val nativeTrack = TimelineNative.nativeAddTrack(h, heightPx, chainClipIdx)
             track.clips.forEachIndexed { ci, clip ->
                 val inChain = chainClip != null && clip.chainId == chainClip.id
                 var flags = 0
@@ -523,7 +568,7 @@ internal class NativeTimelineEngine(context: Context) {
                 if (clip.type == LayerType.AUDIO) flags = flags or TL_FLAG_AUDIO
                 val labels = perTrack[ti][ci]
                 TimelineNative.nativeAddClip(
-                    handle, nativeTrack,
+                    h, nativeTrack,
                     clip.startMs, clip.durationMs,
                     glyphKindOf(clip),
                     (barColorFor(clip).value shr 32).toInt(),
@@ -536,17 +581,32 @@ internal class NativeTimelineEngine(context: Context) {
                 )
             }
         }
-        TimelineNative.nativeEndSnapshot(handle)
+        TimelineNative.nativeEndSnapshot(h)
         return true
     }
 
+    /**
+     * Build 227: destroy SYNCHRONOUSLY under the write lock. Build 224 posted
+     * the destroy to the render thread and quit it, leaving the main thread
+     * free to enter JNI with a handle that was about to be (or had been)
+     * freed. Now: the write lock waits for any in-flight JNI call to finish,
+     * [destroyed] is set first so no new call can start, and only then is the
+     * handle destroyed. Queued render-thread runnables (set/clear window,
+     * frame callbacks) observe [destroyed] through [withHandle] and no-op.
+     */
     fun release() {
-        handler.post {
-            TimelineNative.nativeClearWindow(handle)
+        rwLock.writeLock().lock()
+        try {
+            if (destroyed) return
+            destroyed = true
+            playing = false
             if (handle != 0L) {
+                TimelineNative.nativeClearWindow(handle)
                 TimelineNative.nativeDestroy(handle)
                 handle = 0L
             }
+        } finally {
+            rwLock.writeLock().unlock()
         }
         thread.quitSafely()
     }

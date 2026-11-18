@@ -264,6 +264,55 @@ int main() {
     CHECK(px(363, 50) == 0xFFF4F4F5u, "timecode digit at the ruler centre");
     writeBmp("/tmp/timeline-proof.bmp", img, W, H);
 
+    // ---- Build 227 hardening: hostile snapshots must not crash or read OOB ----
+    {
+        // Zero / NaN zoom: ppmPx falls back instead of dividing by zero.
+        Snapshot sZ = s;
+        sZ.pxPerMs = 0.f;
+        CHECK_F(ppmPx(sZ), 0.045f, "ppmPx falls back when pxPerMs is 0");
+        sZ.pxPerMs = std::nan("");
+        CHECK_F(ppmPx(sZ), 0.045f, "ppmPx falls back when pxPerMs is NaN");
+    }
+    {
+        // chainClip out of range (an index Kotlin never sends, but the
+        // renderer must not dereference it): no section band, no chain zones.
+        Snapshot sC = s;  // scene with the chain selected
+        sC.tracks[3].chainClip = 99;
+        Renderer rC;
+        rC.setAtlas(ta.at);
+        rC.setSnapshot(sC);
+        std::vector<uint8_t> imgC((size_t)W * H * 4, 0);
+        rC.draw(imgC.data(), W, H, W * 4, v);
+        auto pxC = [&](int x, int y) {
+            const uint8_t* p = &imgC[((size_t)y * W + x) * 4];
+            return ((uint32_t)p[3] << 24) | ((uint32_t)p[0] << 16) |
+                   ((uint32_t)p[1] << 8) | p[2];
+        };
+        CHECK(pxC(700, 320) == 0xFF121215u, "out-of-range chainClip draws no section band");
+        CHECK(rC.hitTest(696, 356, v, &tr, &cl) == kZoneBar && cl == 0,
+              "out-of-range chainClip: no chain delete zone (section bg is a plain bar)");
+        CHECK(rC.hitTest(42, 356, v, &tr, &cl) == kZoneEye && cl == 0,
+              "out-of-range chainClip rail falls back to the head clip");
+    }
+    {
+        // A digit entry whose rect extends past the atlas's right edge: the
+        // timecode blit must clamp per pixel (build 224 read unchecked).
+        TestAtlas ta2 = ta;
+        AtlasEntry ov;
+        ov.x = ta2.at.w - 2; ov.y = 64; ov.w = 8; ov.h = 14; ov.base = 14.f;
+        ta2.at.entries.push_back(ov);
+        ta2.at.digit[0] = (int)ta2.at.entries.size() - 1;
+        Renderer rD;
+        rD.setAtlas(ta2.at);
+        rD.setSnapshot(sA);
+        std::vector<uint8_t> imgD((size_t)W * H * 4, 0);
+        rD.draw(imgD.data(), W, H, W * 4, v);  // completion is the assertion
+        const uint8_t* p = &imgD[((size_t)300 * W + 360) * 4];
+        uint32_t phPx = ((uint32_t)p[3] << 24) | ((uint32_t)p[0] << 16) |
+                        ((uint32_t)p[1] << 8) | p[2];
+        CHECK(phPx == 0xFFFFFFFFu, "overflowing digit entry: draw completes, playhead intact");
+    }
+
     std::printf("timeline_selftest: %d passed, %d failed\n", g_pass, g_fail);
     return g_fail == 0 ? 0 : 1;
 }

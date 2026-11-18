@@ -7,6 +7,7 @@
 #include <android/native_window.h>
 #include <android/native_window_jni.h>
 
+#include <algorithm>
 #include <mutex>
 
 #include "timeline_render.h"
@@ -35,7 +36,22 @@ JNIEXPORT jlong JNICALL Java_com_example_engine_TimelineNative_nativeCreate(JNIE
 JNIEXPORT void JNICALL Java_com_example_engine_TimelineNative_nativeDestroy(JNIEnv*, jclass, jlong p) {
     TlHandle* h = of(p);
     if (!h) return;
-    if (h->window) ANativeWindow_release(h->window);
+    // Build 227: take the handle mutex before touching the window. Build 224's
+    // version released the window and freed the handle WITHOUT the lock, while
+    // the main thread could be inside nativeDraw / nativeHitTest /
+    // nativeEndSnapshot holding only that same mutex — a use-after-free
+    // (SIGSEGV) on editor teardown. The Kotlin side now also serializes
+    // destroy against every other entry point (NativeTimelineEngine's
+    // read/write lock), so this lock is the second, native line of defence.
+    // The delete happens after the guard's scope ends (never free an object
+    // while holding its own mutex).
+    {
+        std::lock_guard<std::mutex> lock(h->mu);
+        if (h->window) {
+            ANativeWindow_release(h->window);
+            h->window = nullptr;
+        }
+    }
     delete h;
 }
 
@@ -71,6 +87,8 @@ JNIEXPORT void JNICALL Java_com_example_engine_TimelineNative_nativeSetAtlas(
     AndroidBitmapInfo info;
     if (AndroidBitmap_getInfo(env, bitmap, &info) != ANDROID_BITMAP_RESULT_SUCCESS) return;
     if (info.format != ANDROID_BITMAP_FORMAT_RGBA_8888 || info.width == 0 || info.height == 0) return;
+    // Build 227: refuse absurd bitmap sizes rather than attempting a huge copy.
+    if (info.width > 8192 || info.height > 8192) return;
     void* pixels = nullptr;
     if (AndroidBitmap_lockPixels(env, bitmap, &pixels) != ANDROID_BITMAP_RESULT_SUCCESS || !pixels)
         return;
@@ -85,15 +103,29 @@ JNIEXPORT void JNICALL Java_com_example_engine_TimelineNative_nativeSetAtlas(
 
     const jsize nRect = env->GetArrayLength(rects);
     const jsize n = nRect / 4;
-    at.entries.resize((size_t)n);
+    // Build 227 hardening: cap the entry count (a corrupt count must not turn
+    // into a giant allocation), null-check the array element pointers, clamp
+    // the bases reads to the bases array's OWN length (build 224 indexed it
+    // with the rect count, unchecked), and clamp every entry rect into the
+    // bitmap's bounds so every renderer blit is in-bounds by construction.
+    if (n < 0 || n > (1 << 20)) return;
     jint* r = env->GetIntArrayElements(rects, nullptr);
+    if (!r) return;
     jfloat* b = bases ? env->GetFloatArrayElements(bases, nullptr) : nullptr;
+    if (bases && !b) {
+        env->ReleaseIntArrayElements(rects, r, JNI_ABORT);
+        return;
+    }
+    const jsize nBase = bases ? env->GetArrayLength(bases) : 0;
+    at.entries.resize((size_t)n);
     for (jsize i = 0; i < n; ++i) {
-        at.entries[i].x = r[i * 4];
-        at.entries[i].y = r[i * 4 + 1];
-        at.entries[i].w = r[i * 4 + 2];
-        at.entries[i].h = r[i * 4 + 3];
-        at.entries[i].base = b ? b[i] : 0.f;
+        int32_t ex = std::clamp<int32_t>(r[i * 4], 0, at.w);
+        int32_t ey = std::clamp<int32_t>(r[i * 4 + 1], 0, at.h);
+        at.entries[i].x = ex;
+        at.entries[i].y = ey;
+        at.entries[i].w = std::clamp<int32_t>(r[i * 4 + 2], 0, at.w - ex);
+        at.entries[i].h = std::clamp<int32_t>(r[i * 4 + 3], 0, at.h - ey);
+        at.entries[i].base = (b && i < nBase) ? b[i] : 0.f;
     }
     env->ReleaseIntArrayElements(rects, r, JNI_ABORT);
     if (b) env->ReleaseFloatArrayElements(bases, b, JNI_ABORT);
@@ -119,16 +151,24 @@ JNIEXPORT void JNICALL Java_com_example_engine_TimelineNative_nativeBeginSnapsho
     jboolean multiMode, jboolean hasRange, jlong rangeInMs, jlong rangeOutMs) {
     TlHandle* h = of(p);
     if (!h) return;
+    // Build 227: sanitize the view geometry at the boundary. A zero / negative
+    // / NaN density or pxPerMs would turn the renderer's divisions into
+    // inf/NaN and its float->int casts into UB; negative pads/counts are
+    // meaningless. (Kotlin passes sane values today — this is the choke-point
+    // guarantee, not a behaviour change.) Also take the handle mutex like
+    // every other entry point: build 224 mutated h->building with no lock.
+    auto posOr = [](jfloat v, jfloat fallback) { return (v > 0.f) ? v : fallback; };
+    auto nonNeg = [](jfloat v) { return (v >= 0.f) ? v : 0.f; };
     Snapshot s;
-    s.density = density;
-    s.pxPerMs = pxPerMs;
-    s.rulerHPx = rulerHPx;
-    s.railWPx = railWPx;
-    s.topPadPx = topPadPx;
-    s.gapPx = gapPx;
-    s.bottomPadPx = bottomPadPx;
-    s.totalMs = totalMs;
-    s.layerCount = layerCount;
+    s.density = posOr(density, 1.f);
+    s.pxPerMs = posOr(pxPerMs, 0.045f);
+    s.rulerHPx = nonNeg(rulerHPx);
+    s.railWPx = nonNeg(railWPx);
+    s.topPadPx = nonNeg(topPadPx);
+    s.gapPx = nonNeg(gapPx);
+    s.bottomPadPx = nonNeg(bottomPadPx);
+    s.totalMs = totalMs < 0 ? 0 : totalMs;
+    s.layerCount = layerCount < 0 ? 0 : layerCount;
     s.pillLabel = pillLabel;
     s.pillTextWPx = pillTextWPx;
     s.totalLabel = totalLabel;
@@ -138,6 +178,8 @@ JNIEXPORT void JNICALL Java_com_example_engine_TimelineNative_nativeBeginSnapsho
     s.hasRange = hasRange == JNI_TRUE;
     s.rangeInMs = rangeInMs;
     s.rangeOutMs = rangeOutMs;
+    s.pillTextWPx = nonNeg(s.pillTextWPx);
+    std::lock_guard<std::mutex> lock(h->mu);
     h->building = std::move(s);
 }
 
@@ -145,14 +187,17 @@ JNIEXPORT void JNICALL Java_com_example_engine_TimelineNative_nativeSetBeats(
     JNIEnv* env, jclass, jlong p, jlongArray beatMs, jlongArray rulerKeysMs) {
     TlHandle* h = of(p);
     if (!h) return;
+    std::lock_guard<std::mutex> lock(h->mu);
     if (beatMs) {
         const jsize n = env->GetArrayLength(beatMs);
+        if (n < 0) return;
         h->building.beatMs.resize((size_t)n);
         if (n > 0) env->GetLongArrayRegion(beatMs, 0, n,
                                            reinterpret_cast<jlong*>(h->building.beatMs.data()));
     }
     if (rulerKeysMs) {
         const jsize n = env->GetArrayLength(rulerKeysMs);
+        if (n < 0) return;
         h->building.rulerKeysMs.resize((size_t)n);
         if (n > 0)
             env->GetLongArrayRegion(rulerKeysMs, 0, n,
@@ -164,6 +209,7 @@ JNIEXPORT jint JNICALL Java_com_example_engine_TimelineNative_nativeAddTrack(
     JNIEnv*, jclass, jlong p, jfloat heightPx, jint chainClip) {
     TlHandle* h = of(p);
     if (!h) return -1;
+    std::lock_guard<std::mutex> lock(h->mu);
     Track t;
     t.heightPx = heightPx;
     t.chainClip = chainClip;
@@ -176,7 +222,9 @@ JNIEXPORT void JNICALL Java_com_example_engine_TimelineNative_nativeAddClip(
     jint color, jint flags, jint label, jint chip, jint badge, jlong trimStartMs, jfloat speed,
     jfloat volume, jlong fadeInMs, jlong fadeOutMs, jlongArray keysRelMs, jfloatArray peaks) {
     TlHandle* h = of(p);
-    if (!h || trackIdx < 0 || trackIdx >= (jint)h->building.tracks.size()) return;
+    if (!h) return;
+    std::lock_guard<std::mutex> lock(h->mu);
+    if (trackIdx < 0 || trackIdx >= (jint)h->building.tracks.size()) return;
     Clip c;
     c.startMs = startMs;
     c.durMs = durMs;
@@ -193,14 +241,18 @@ JNIEXPORT void JNICALL Java_com_example_engine_TimelineNative_nativeAddClip(
     c.fadeOutMs = fadeOutMs;
     if (keysRelMs) {
         const jsize n = env->GetArrayLength(keysRelMs);
-        c.keysRelMs.resize((size_t)n);
-        if (n > 0) env->GetLongArrayRegion(keysRelMs, 0, n,
-                                           reinterpret_cast<jlong*>(c.keysRelMs.data()));
+        if (n > 0) {
+            c.keysRelMs.resize((size_t)n);
+            env->GetLongArrayRegion(keysRelMs, 0, n,
+                                    reinterpret_cast<jlong*>(c.keysRelMs.data()));
+        }
     }
     if (peaks) {
         const jsize n = env->GetArrayLength(peaks);
-        c.peaks.resize((size_t)n);
-        if (n > 0) env->GetFloatArrayRegion(peaks, 0, n, c.peaks.data());
+        if (n > 0) {
+            c.peaks.resize((size_t)n);
+            env->GetFloatArrayRegion(peaks, 0, n, c.peaks.data());
+        }
     }
     h->building.tracks[trackIdx].clips.push_back(std::move(c));
 }
@@ -229,6 +281,12 @@ JNIEXPORT jboolean JNICALL Java_com_example_engine_TimelineNative_nativeDraw(
     if (!h->window) return JNI_FALSE;
     ANativeWindow_Buffer buf;
     if (ANativeWindow_lock(h->window, &buf, nullptr) != 0) return JNI_FALSE;
+    if (!buf.bits) {
+        // Lock claimed success without a buffer: release it and skip the frame
+        // rather than handing a null framebuffer to the renderer.
+        ANativeWindow_unlockAndPost(h->window);
+        return JNI_FALSE;
+    }
     View v;
     v.w = buf.width;
     v.h = buf.height;

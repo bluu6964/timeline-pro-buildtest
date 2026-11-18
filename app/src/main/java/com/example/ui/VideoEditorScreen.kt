@@ -411,9 +411,12 @@ fun VideoEditorScreen(
     }
 
     // Build 224: the native-timeline switch's persisted state (default ON).
+    // Build 227: the initial value comes from the crash-loop breaker — if the
+    // previous session died with the native surface up, this session starts
+    // with the native timeline OFF (the toggle below shows this same state,
+    // so it reflects the effective value; the saved preference is untouched).
     androidx.compose.runtime.LaunchedEffect(Unit) {
-        nativeTimeline = context.getSharedPreferences("editor", android.content.Context.MODE_PRIVATE)
-            .getBoolean("native_timeline", true)
+        nativeTimeline = com.example.engine.NativeTimelineBreaker.initialNativeOn(context)
     }
 
     // ---- Face AI (MediaPipe Face Landmarker): blur that follows the face / eyes / nose / lips ----

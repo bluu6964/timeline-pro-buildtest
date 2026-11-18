@@ -285,7 +285,13 @@ std::vector<Pt> cubic(Pt a, Pt c1, Pt c2, Pt b, int steps = 14) {
 }  // namespace
 
 // ---- Layout math ----
-float ppmPx(const Snapshot& s) { return s.pxPerMs * s.density; }
+float ppmPx(const Snapshot& s) {
+    float p = s.pxPerMs * s.density;
+    // Build 227: never let a zero / negative / NaN zoom reach the divisions
+    // below (xForMs, the ruler walk, the waveform loops). The JNI boundary
+    // sanitizes the snapshot too; this is the renderer's own guarantee.
+    return (p > 0.f) ? p : 0.045f;
+}
 
 float xForMs(const Snapshot& s, const View& v, int64_t ms) {
     return v.w / 2.f + (float)(ms - v.playheadMs) * ppmPx(s);
@@ -708,7 +714,10 @@ void drawClip(Fb& fb, const Ctx& c, int32_t ti, int32_t ci, bool asDragged) {
     fb.clipOn = false;
 
     // Drag handle (three white lines) / chain child's delete x.
-    bool sectionSel = tr.chainClip >= 0 && (tr.clips[tr.chainClip].flags & kFlagSelected);
+    // Build 227: chainClip is an index into clips — require it in range, not
+    // merely >= 0, before dereferencing (same guard at every site below).
+    bool sectionSel = tr.chainClip >= 0 && tr.chainClip < (int32_t)tr.clips.size() &&
+                      (tr.clips[tr.chainClip].flags & kFlagSelected);
     if (inChain) {
         if (selected || sectionSel) {
             float boxX = x + w - c.dp(6) - c.dp(32), boxY = y + (h - c.dp(32)) / 2.f;
@@ -821,7 +830,7 @@ void Renderer::draw(uint8_t* dst, int32_t dstW, int32_t dstH, int32_t stride, co
         float top = laneTopPx(s, v, ti);
         if (top > dstH || top + tr.heightPx < R) continue;
         // Chain section band + bridges.
-        if (tr.chainClip >= 0) {
+        if (tr.chainClip >= 0 && tr.chainClip < (int32_t)tr.clips.size()) {
             const Clip& chain = tr.clips[tr.chainClip];
             bool chainSel = (chain.flags & kFlagSelected) != 0;
             float alphaMul = (chain.flags & kFlagHidden) ? 0.35f : 1.f;
@@ -890,11 +899,12 @@ void Renderer::draw(uint8_t* dst, int32_t dstW, int32_t dstH, int32_t stride, co
         if (tr.clips.empty()) continue;
         float top = laneTopPx(s, v, ti);
         if (top > dstH || top + tr.heightPx < R) continue;
-        int32_t headIdx = tr.chainClip >= 0 ? tr.chainClip : 0;
+        bool hasChain = tr.chainClip >= 0 && tr.chainClip < (int32_t)tr.clips.size();
+        int32_t headIdx = hasChain ? tr.chainClip : 0;
         const Clip& head = tr.clips[headIdx];
         bool headHidden = (head.flags & kFlagHidden) != 0;
         float cellCy = top + tr.heightPx / 2.f;
-        if (tr.chainClip >= 0 && !s.multiMode) {
+        if (hasChain && !s.multiMode) {
             bool chainSel = (head.flags & kFlagSelected) != 0;
             uint32_t tint = headHidden ? kEyeHidden : (chainSel ? kWhite : kEyeTint);
             fillRect(fb, 0, top, railW, top + tr.heightPx, kEyeBg);
@@ -945,13 +955,22 @@ void Renderer::draw(uint8_t* dst, int32_t dstW, int32_t dstH, int32_t stride, co
                 const AtlasEntry* e = entry(atlas_, atlas_.digit[di]);
                 if (e) {
                     // Blit with the baseline on digitBaseY: ink top = baseY - entry.base.
+                    // Build 227: per-pixel source bounds checks, mirroring
+                    // blitCentered — build 224 indexed the atlas unchecked
+                    // here, so an entry rect extending past the bitmap would
+                    // read out of bounds.
                     int dx = (int)std::lround(sx + (atlas_.digitAdv[di] - e->w) / 2.f);
                     int dy = (int)std::lround(atlas_.digitBaseY - e->base);
-                    for (int j = 0; j < e->h; ++j)
+                    for (int j = 0; j < e->h; ++j) {
+                        int sy = e->y + j;
+                        if (sy < 0 || sy >= atlas_.h) continue;
                         for (int i = 0; i < e->w; ++i) {
-                            uint8_t cov = atlas_.rgba[((size_t)(e->y + j) * atlas_.w + (e->x + i)) * 4 + 3];
+                            int sxp = e->x + i;
+                            if (sxp < 0 || sxp >= atlas_.w) continue;
+                            uint8_t cov = atlas_.rgba[((size_t)sy * atlas_.w + sxp) * 4 + 3];
                             if (cov) fb.blendPx(dx + i, dy + j, 0xFFF4F4F5u, cov / 255.f);
                         }
+                    }
                 }
                 sx += atlas_.digitAdv[di];
             }
@@ -1033,10 +1052,11 @@ Zone Renderer::hitTest(float x, float y, const View& v, int32_t* track, int32_t*
         if (y < top || y >= top + tr.heightPx) continue;
         *track = ti;
         if (x < s.railWPx) {
-            int32_t headIdx = tr.chainClip >= 0 ? tr.chainClip : (tr.clips.empty() ? -1 : 0);
+            bool hasChain = tr.chainClip >= 0 && tr.chainClip < (int32_t)tr.clips.size();
+            int32_t headIdx = hasChain ? tr.chainClip : (tr.clips.empty() ? -1 : 0);
             if (headIdx < 0) return kZoneEmpty;
             *clip = headIdx;
-            if (tr.chainClip >= 0 && !s.multiMode) {
+            if (hasChain && !s.multiMode) {
                 float colTop = top + (tr.heightPx - dp(31)) / 2.f;
                 if (x >= s.railWPx / 2.f - dp(10) && x <= s.railWPx / 2.f + dp(10) &&
                     y >= colTop && y <= colTop + dp(20))
@@ -1050,7 +1070,8 @@ Zone Renderer::hitTest(float x, float y, const View& v, int32_t* track, int32_t*
             return kZoneRail;
         }
         // The selected chain section's delete x.
-        if (tr.chainClip >= 0 && (tr.clips[tr.chainClip].flags & kFlagSelected)) {
+        if (tr.chainClip >= 0 && tr.chainClip < (int32_t)tr.clips.size() &&
+            (tr.clips[tr.chainClip].flags & kFlagSelected)) {
             float boxCy = top + tr.heightPx / 2.f;
             if (x >= v.w - dp(28) && std::fabs(y - boxCy) <= dp(16)) {
                 *clip = tr.chainClip;
@@ -1077,6 +1098,7 @@ Zone Renderer::hitTest(float x, float y, const View& v, int32_t* track, int32_t*
                 // the section is selected).
                 if (cl.flags & kFlagInChain) {
                     bool sectionSel = tr.chainClip >= 0 &&
+                        tr.chainClip < (int32_t)tr.clips.size() &&
                         (tr.clips[tr.chainClip].flags & kFlagSelected);
                     if ((cl.flags & kFlagSelected) || sectionSel) {
                         float boxX = bx + bw - dp(6) - dp(32);
