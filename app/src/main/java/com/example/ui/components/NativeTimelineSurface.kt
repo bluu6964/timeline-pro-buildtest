@@ -174,6 +174,8 @@ fun NativeTimelineSurface(
     AndroidView(
         factory = { ctx ->
             val view = SurfaceView(ctx)
+            // Build 230: the C++ renderer writes RGBA_8888; never leave the buffer format to the device default.
+            view.holder.setFormat(android.graphics.PixelFormat.RGBA_8888)
             val vc = ViewConfiguration.get(ctx)
             machine.touchSlop = vc.scaledTouchSlop.toFloat()
             machine.longPressTimeout = ViewConfiguration.getLongPressTimeout().toLong()

@@ -64,7 +64,16 @@ JNIEXPORT void JNICALL Java_com_example_engine_TimelineNative_nativeSetWindow(JN
         ANativeWindow_release(h->window);
         h->window = nullptr;
     }
-    if (surface) h->window = ANativeWindow_fromSurface(env, surface);
+    if (surface) {
+        h->window = ANativeWindow_fromSurface(env, surface);
+        // Build 230: the renderer writes 4 bytes per pixel (RGBA_8888). A SurfaceView's buffers
+        // default to a different format on some phones (RGB_565 = 2 bytes per pixel), and then every
+        // frame wrote twice the buffer's size - over the Surface's own memory (the SIGSEGV inside
+        // Surface::unlockAndPost with pixel-coloured pointers, builds 226-229). Ask for RGBA_8888
+        // and (in nativeDraw) refuse to draw into anything else.
+        if (h->window)
+            ANativeWindow_setBuffersGeometry(h->window, 0, 0, WINDOW_FORMAT_RGBA_8888);
+    }
 }
 
 JNIEXPORT void JNICALL Java_com_example_engine_TimelineNative_nativeClearWindow(JNIEnv*, jclass, jlong p) {
@@ -284,6 +293,12 @@ JNIEXPORT jboolean JNICALL Java_com_example_engine_TimelineNative_nativeDraw(
     if (!buf.bits) {
         // Lock claimed success without a buffer: release it and skip the frame
         // rather than handing a null framebuffer to the renderer.
+        ANativeWindow_unlockAndPost(h->window);
+        return JNI_FALSE;
+    }
+    // Build 230: only draw into a 4-bytes-per-pixel buffer whose rows really hold width pixels.
+    if ((buf.format != WINDOW_FORMAT_RGBA_8888 && buf.format != WINDOW_FORMAT_RGBX_8888) ||
+        buf.width <= 0 || buf.height <= 0 || buf.stride < buf.width) {
         ANativeWindow_unlockAndPost(h->window);
         return JNI_FALSE;
     }
