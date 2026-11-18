@@ -12,6 +12,7 @@
 #include <unwind.h>
 #include <stdint.h>
 #include <sys/prctl.h>
+#include <ucontext.h>
 
 namespace {
 
@@ -69,8 +70,43 @@ const char* sigName(int s) {
     }
 }
 
-void handler(int sig, siginfo_t* si, void*) {
+void flush(int fd, Out& o) {
+    if (fd >= 0 && o.n > 0) {
+        ssize_t w = write(fd, o.buf, (size_t)o.n);
+        (void)w;
+    }
+    o.n = 0;
+}
+
+// One frame line: pc, library + offset, exported symbol (dladdr).
+void frameLine(Out& o, int idx, uintptr_t pc, bool isReturnAddr) {
+    o.put("  #");
+    o.dec(idx);
+    o.put(" pc=");
+    o.hex(pc);
+    Dl_info di;
+    if (pc && dladdr((void*)(isReturnAddr ? pc - 1 : pc), &di)) {
+        if (di.dli_fname) {
+            const char* base = di.dli_fname;
+            for (const char* p = base; *p; ++p) if (*p == '/') base = p + 1;
+            o.put(" ");
+            o.put(base);
+            o.put("+");
+            o.hex(pc - (uintptr_t)di.dli_fbase);
+        }
+        if (di.dli_sname) {
+            o.put(" ");
+            o.put(di.dli_sname);
+            o.put("+");
+            o.dec((long)(pc - (uintptr_t)di.dli_saddr));
+        }
+    }
+    o.put("\n");
+}
+
+void handler(int sig, siginfo_t* si, void* uctx) {
     if (__sync_bool_compare_and_swap(&g_busy, 0, 1)) {
+        int fd = open(g_path, O_WRONLY | O_CREAT | O_TRUNC, 0600);
         Out o;
         o.put("Native crash: ");
         o.put(sigName(sig));
@@ -84,39 +120,58 @@ void handler(int sig, siginfo_t* si, void*) {
         char name[32] = {0};
         prctl(PR_GET_NAME, (unsigned long)name, 0, 0, 0);
         o.put(name);
-        o.put("\nBacktrace (offset = pc - library base; use addr2line on the matching .so):\n");
+        o.put("\n");
+        flush(fd, o);  // the header is on disk before anything risky happens
+#if defined(__aarch64__)
+        // The REAL crash site comes from the signal's saved registers (the unwinder started
+        // inside this handler would only show the handler itself).
+        if (uctx) {
+            ucontext_t* uc = (ucontext_t*)uctx;
+            uintptr_t pc = (uintptr_t)uc->uc_mcontext.pc;
+            uintptr_t sp = (uintptr_t)uc->uc_mcontext.sp;
+            uintptr_t fp = (uintptr_t)uc->uc_mcontext.regs[29];
+            uintptr_t lr = (uintptr_t)uc->uc_mcontext.regs[30];
+            o.put("Registers: sp=");
+            o.hex(sp);
+            o.put(" fp=");
+            o.hex(fp);
+            o.put(" lr=");
+            o.hex(lr);
+            o.put("\n");
+            for (int i = 0; i < 31; ++i) {
+                if (i % 4 == 0) o.put(i ? "\n  " : "  ");
+                o.put("x");
+                o.dec(i);
+                o.put("=");
+                o.hex((uintptr_t)uc->uc_mcontext.regs[i]);
+                o.put(" ");
+            }
+            o.put("\nCrash site (frames from the saved registers):\n");
+            frameLine(o, 0, pc, false);   // where it stopped (== fault_addr when it jumped to garbage)
+            frameLine(o, 1, lr, true);    // who called / jumped
+            flush(fd, o);
+            // Frame-pointer walk: fp -> {previous fp, return address}. Bounded and checked.
+            uintptr_t cur = fp;
+            for (int i = 2; i < 24; ++i) {
+                if (cur == 0 || (cur & 15) != 0 || cur < sp || cur - sp > (8u << 20)) break;
+                uintptr_t* rec = (uintptr_t*)cur;
+                uintptr_t next = rec[0], ret = rec[1];
+                if (!ret) break;
+                frameLine(o, i, ret, true);
+                flush(fd, o);
+                if (next <= cur) break;
+                cur = next;
+            }
+        }
+#else
+        (void)uctx;
+#endif
+        o.put("Handler-side backtrace (usually only the handler itself):\n");
         Trace t;
         _Unwind_Backtrace(unwindStep, &t);
-        for (int i = 0; i < t.n; ++i) {
-            o.put("  #");
-            o.dec(i);
-            o.put(" pc=");
-            o.hex(t.pcs[i]);
-            Dl_info di;
-            if (dladdr((void*)(t.pcs[i] - 1), &di)) {
-                if (di.dli_fname) {
-                    const char* base = di.dli_fname;
-                    for (const char* p = base; *p; ++p) if (*p == '/') base = p + 1;
-                    o.put(" ");
-                    o.put(base);
-                    o.put("+");
-                    o.hex(t.pcs[i] - (uintptr_t)di.dli_fbase);
-                }
-                if (di.dli_sname) {
-                    o.put(" ");
-                    o.put(di.dli_sname);
-                    o.put("+");
-                    o.dec((long)(t.pcs[i] - (uintptr_t)di.dli_saddr));
-                }
-            }
-            o.put("\n");
-        }
-        int fd = open(g_path, O_WRONLY | O_CREAT | O_TRUNC, 0600);
-        if (fd >= 0) {
-            ssize_t w = write(fd, o.buf, (size_t)o.n);
-            (void)w;
-            close(fd);
-        }
+        for (int i = 0; i < t.n; ++i) frameLine(o, i, t.pcs[i], true);
+        flush(fd, o);
+        if (fd >= 0) close(fd);
     }
     // Hand over to whoever was installed before (the system default -> tombstone) and, for a
     // signal that is not a re-faulting hardware fault, send it again.
