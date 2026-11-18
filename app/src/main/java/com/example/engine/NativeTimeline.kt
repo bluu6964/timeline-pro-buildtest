@@ -77,10 +77,19 @@ internal object TimelineNative {
     )
     @JvmStatic external fun nativeEndSnapshot(h: Long)
     @JvmStatic external fun nativeContentHeight(h: Long): Float
-    @JvmStatic external fun nativeDraw(
-        h: Long, playheadMs: Long, scrollYPx: Float,
-        dragTrack: Int, dragClip: Int, dragDx: Float, dragDy: Float
-    ): Boolean
+    // Build 233: the lane scroll and the long-press drag offset live in the native gesture machine,
+    // so a frame only needs the playhead.
+    @JvmStatic external fun nativeDraw(h: Long, playheadMs: Long): Boolean
+
+    // Build 233: touch input. Each call returns the number of events written to [out]
+    // (stride 3 doubles: type, a, b; see TL_EV_* below / timeline_gesture.h).
+    @JvmStatic external fun nativeGestureConfig(h: Long, touchSlopPx: Float, longPressMs: Long)
+    @JvmStatic external fun nativeTouch(
+        h: Long, action: Int, x: Float, y: Float, pointerCount: Int, x1: Float, y1: Float,
+        timeMs: Long, playheadMs: Long, viewW: Int, viewH: Int, out: DoubleArray
+    ): Int
+    @JvmStatic external fun nativeLongPress(h: Long, out: DoubleArray): Int
+    @JvmStatic external fun nativeTick(h: Long, nowNanos: Long, out: DoubleArray): Int
     @JvmStatic external fun nativeHitTest(
         h: Long, x: Float, y: Float, viewW: Int, viewH: Int,
         playheadMs: Long, scrollYPx: Float, out: IntArray
@@ -101,6 +110,29 @@ internal const val TL_ZONE_FADE_R = 9
 internal const val TL_ZONE_PILL = 10
 internal const val TL_ZONE_CHAIN_X = 11
 internal const val TL_ZONE_CHILD_X = 12
+
+// Gesture events (mirror am::timeline::EventType in timeline_gesture.h).
+internal const val TL_EV_REDRAW = 0
+internal const val TL_EV_BEGIN = 1
+internal const val TL_EV_SCRUB_START = 2
+internal const val TL_EV_SEEK = 3
+internal const val TL_EV_SELECT = 4
+internal const val TL_EV_BEGIN_ADJUST = 5
+internal const val TL_EV_MOVE_TIME = 6
+internal const val TL_EV_REORDER = 7
+internal const val TL_EV_TRIM = 8
+internal const val TL_EV_FADE = 9
+internal const val TL_EV_ZOOM = 10
+internal const val TL_EV_PILL = 11
+internal const val TL_EV_TOGGLE_VISIBILITY = 12
+internal const val TL_EV_TOGGLE_MULTI = 13
+internal const val TL_EV_ENTER_MULTI = 14
+internal const val TL_EV_DELETE = 15
+internal const val TL_EV_ARM_LONG_PRESS = 16
+internal const val TL_EV_CANCEL_LONG_PRESS = 17
+internal const val TL_EV_ANIMATE = 18
+/** Events one JNI touch call can return (the buffer holds 3 doubles per event). */
+internal const val TL_EV_CAPACITY = 16
 
 // Clip flags (mirror am::timeline::ClipFlag).
 private const val TL_FLAG_SELECTED = 1 shl 0
@@ -283,14 +315,6 @@ internal class TlLabelAtlas(
     }
 }
 
-/** The drag state the render loop reads each frame (written by the gesture machine). */
-internal data class TlDragState(
-    val track: Int = -1,
-    val clip: Int = -1,
-    val dx: Float = 0f,
-    val dy: Float = 0f
-)
-
 /** One hit-test answer: a TL_ZONE_* plus the (track, clip) it belongs to. */
 internal data class TlHit(val zone: Int, val track: Int, val clip: Int)
 
@@ -358,25 +382,15 @@ internal class NativeTimelineEngine(context: Context) {
     }
 
     @Volatile var playheadOf: () -> Long = { 0L }
-    @Volatile var scrollOf: () -> Float = { 0f }
-    @Volatile var dragState: TlDragState = TlDragState()
     @Volatile private var playing = false
 
     private val frameCallback = object : Choreographer.FrameCallback {
         override fun doFrame(frameTimeNanos: Long) {
             framePending.set(false)
-            val drag = dragState
-            // Evaluate the per-frame values BEFORE taking the lock:
-            // scrollOf() reaches back into contentHeightPx(), which takes
-            // the lock itself — the two acquisitions must not nest.
+            // Build 233: the lane scroll and the drag offset are native state now (the gesture
+            // machine owns them), so the frame needs only the playhead.
             val ph = playheadOf()
-            val sy = scrollOf()
-            withHandle { h ->
-                TimelineNative.nativeDraw(
-                    h, ph, sy,
-                    drag.track, drag.clip, drag.dx, drag.dy
-                )
-            }
+            withHandle { h -> TimelineNative.nativeDraw(h, ph) }
             if (playing) requestFrame()
         }
     }
@@ -405,6 +419,26 @@ internal class NativeTimelineEngine(context: Context) {
     fun surfaceDestroyed() {
         handler.post { withHandle { h -> TimelineNative.nativeClearWindow(h) } }
     }
+
+    // ---- Build 233: touch input (the gesture machine is native; see timeline_gesture.h) ----
+
+    fun configureGestures(touchSlopPx: Float, longPressMs: Long) {
+        withHandle { h -> TimelineNative.nativeGestureConfig(h, touchSlopPx, longPressMs) }
+    }
+
+    /** One MotionEvent. Returns the number of events written to [out] (3 doubles each). */
+    fun touch(
+        action: Int, x: Float, y: Float, pointerCount: Int, x1: Float, y1: Float,
+        timeMs: Long, playheadMs: Long, viewW: Int, viewH: Int, out: DoubleArray
+    ): Int = withHandle { h ->
+        TimelineNative.nativeTouch(h, action, x, y, pointerCount, x1, y1, timeMs, playheadMs, viewW, viewH, out)
+    } ?: 0
+
+    fun longPress(out: DoubleArray): Int =
+        withHandle { h -> TimelineNative.nativeLongPress(h, out) } ?: 0
+
+    fun tick(frameTimeNanos: Long, out: DoubleArray): Int =
+        withHandle { h -> TimelineNative.nativeTick(h, frameTimeNanos, out) } ?: 0
 
     fun contentHeightPx(): Float =
         withHandle { h -> TimelineNative.nativeContentHeight(h) } ?: 0f

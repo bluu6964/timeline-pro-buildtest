@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <mutex>
 
+#include "timeline_gesture.h"
 #include "timeline_render.h"
 
 namespace {
@@ -20,6 +21,7 @@ struct TlHandle {
     std::mutex mu;
     Renderer renderer;
     Snapshot building;  // under construction between nativeBeginSnapshot / nativeEndSnapshot
+    Gesture gesture;    // build 233: the touch state machine (owns the lane scroll + the drag offset)
     ANativeWindow* window = nullptr;
 };
 
@@ -281,9 +283,10 @@ JNIEXPORT jfloat JNICALL Java_com_example_engine_TimelineNative_nativeContentHei
     return contentHeightPx(h->renderer.snapshot());
 }
 
+// Build 233: the lane scroll and the long-press drag offset are owned by the native gesture
+// machine now, so a frame only needs the playhead.
 JNIEXPORT jboolean JNICALL Java_com_example_engine_TimelineNative_nativeDraw(
-    JNIEnv*, jclass, jlong p, jlong playheadMs, jfloat scrollYPx, jint dragTrack, jint dragClip,
-    jfloat dragDx, jfloat dragDy) {
+    JNIEnv*, jclass, jlong p, jlong playheadMs) {
     TlHandle* h = of(p);
     if (!h) return JNI_FALSE;
     std::lock_guard<std::mutex> lock(h->mu);
@@ -306,11 +309,9 @@ JNIEXPORT jboolean JNICALL Java_com_example_engine_TimelineNative_nativeDraw(
     v.w = buf.width;
     v.h = buf.height;
     v.playheadMs = playheadMs;
-    v.scrollYPx = scrollYPx;
-    v.dragTrack = dragTrack;
-    v.dragClip = dragClip;
-    v.dragDx = dragDx;
-    v.dragDy = dragDy;
+    h->gesture.setViewSize(buf.width, buf.height);
+    v.scrollYPx = h->gesture.scrollY(h->renderer);
+    h->gesture.dragView(&v.dragTrack, &v.dragClip, &v.dragDx, &v.dragDy);
     h->renderer.draw((uint8_t*)buf.bits, buf.width, buf.height, buf.stride * 4, v);
     ANativeWindow_unlockAndPost(h->window);
     return JNI_TRUE;
@@ -335,6 +336,76 @@ JNIEXPORT jint JNICALL Java_com_example_engine_TimelineNative_nativeHitTest(
         env->SetIntArrayRegion(out, 0, 2, res);
     }
     return (jint)z;
+}
+
+// ---- Build 233: touch input -------------------------------------------------------------------
+// Events come back as stride-3 doubles: [type, a, b] (timeline_gesture.h EventType). Returns the
+// number of events written (at most the array's capacity / 3).
+static jint writeEvents(JNIEnv* env, jdoubleArray out, const std::vector<Event>& ev) {
+    if (!out) return 0;
+    const jsize cap = env->GetArrayLength(out) / 3;
+    const jsize n = std::min<jsize>((jsize)ev.size(), cap);
+    if (n <= 0) return 0;
+    std::vector<jdouble> buf((size_t)n * 3);
+    for (jsize i = 0; i < n; ++i) {
+        buf[(size_t)i * 3 + 0] = (jdouble)ev[(size_t)i].type;
+        buf[(size_t)i * 3 + 1] = ev[(size_t)i].a;
+        buf[(size_t)i * 3 + 2] = ev[(size_t)i].b;
+    }
+    env->SetDoubleArrayRegion(out, 0, n * 3, buf.data());
+    return n;
+}
+
+JNIEXPORT void JNICALL Java_com_example_engine_TimelineNative_nativeGestureConfig(
+    JNIEnv*, jclass, jlong p, jfloat touchSlopPx, jlong longPressMs) {
+    TlHandle* h = of(p);
+    if (!h) return;
+    std::lock_guard<std::mutex> lock(h->mu);
+    h->gesture.setConfig(touchSlopPx, (int64_t)longPressMs);
+}
+
+JNIEXPORT jint JNICALL Java_com_example_engine_TimelineNative_nativeTouch(
+    JNIEnv* env, jclass, jlong p, jint action, jfloat x, jfloat y, jint pointerCount, jfloat x1,
+    jfloat y1, jlong timeMs, jlong playheadMs, jint viewW, jint viewH, jdoubleArray out) {
+    TlHandle* h = of(p);
+    if (!h) return 0;
+    std::vector<Event> ev;
+    {
+        std::lock_guard<std::mutex> lock(h->mu);
+        TouchInput in;
+        in.action = action;
+        in.x = x; in.y = y; in.x1 = x1; in.y1 = y1;
+        in.pointerCount = pointerCount;
+        in.timeMs = (int64_t)timeMs;
+        in.playheadMs = (int64_t)playheadMs;
+        in.viewW = viewW; in.viewH = viewH;
+        h->gesture.touch(h->renderer, in, &ev);
+    }
+    return writeEvents(env, out, ev);
+}
+
+JNIEXPORT jint JNICALL Java_com_example_engine_TimelineNative_nativeLongPress(
+    JNIEnv* env, jclass, jlong p, jdoubleArray out) {
+    TlHandle* h = of(p);
+    if (!h) return 0;
+    std::vector<Event> ev;
+    {
+        std::lock_guard<std::mutex> lock(h->mu);
+        h->gesture.longPressFired(h->renderer, &ev);
+    }
+    return writeEvents(env, out, ev);
+}
+
+JNIEXPORT jint JNICALL Java_com_example_engine_TimelineNative_nativeTick(
+    JNIEnv* env, jclass, jlong p, jlong nowNanos, jdoubleArray out) {
+    TlHandle* h = of(p);
+    if (!h) return 0;
+    std::vector<Event> ev;
+    {
+        std::lock_guard<std::mutex> lock(h->mu);
+        h->gesture.tick(h->renderer, (int64_t)nowNanos, &ev);
+    }
+    return writeEvents(env, out, ev);
 }
 
 }  // extern "C"
