@@ -125,6 +125,16 @@ fun NativeTimelineSurface(
         }
     }
 
+    // Build 232: redraw whenever the playhead moves. The timeline used to redraw only when the
+    // composition re-ran (SideEffect below calls engine.update -> requestFrame). With a layer
+    // selected something recomposes while scrubbing, so it looked fine; with NO layer selected
+    // nothing recomposes, the canvas followed the seek but the timeline stayed still.
+    // The playhead provider reads a Compose State, so snapshotFlow sees every change.
+    androidx.compose.runtime.LaunchedEffect(engine) {
+        androidx.compose.runtime.snapshotFlow { latestPlayhead.value() }
+            .collect { engine.requestFrame() }
+    }
+
     SideEffect {
         machine.engine = engine
         machine.scope = scope
