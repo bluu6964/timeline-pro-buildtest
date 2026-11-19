@@ -26,6 +26,14 @@ add_library(am_engine SHARED
     crash_handler.cpp)
 target_compile_features(am_engine PRIVATE cxx_std_17)
 target_compile_options(am_engine PRIVATE -O2 -Wall -Wextra)
+# Build 234 fix: shape_boolean.cpp is a port of strict-IEEE Kotlin double math.
+# With FP contraction (FMA) enabled — the compiler default, and arm64/x86_64
+# both have FMA — its exact-zero test at a tangent vertex flips sign and the
+# union of two tangent discs comes back empty (reproduced on the CI host
+# build; the Kotlin original is immune because JVM FP is strict). Compile
+# this one TU without contraction so the port keeps the original's numerics
+# on every target.
+set_source_files_properties(shape_boolean.cpp PROPERTIES COMPILE_OPTIONS -ffp-contract=off)
 # Native text layers (FreeType + HarfBuzz). The sources are downloaded by the GitHub workflow into
 # cpp/freetype and cpp/harfbuzz (like whisper.cpp). Without them text_engine.cpp compiles to a stub,
 # available() is false and the exporter keeps drawing text with the Android Canvas.

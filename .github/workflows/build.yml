@@ -95,6 +95,12 @@ jobs:
           EOF
           E=app/src/main/cpp/engine
           cp $E/audio_analysis_jni.cpp /tmp/hostlib/shim/
+          # shape_boolean.cpp is compiled without FP contraction, exactly as
+          # the app's CMakeLists does (FMA contraction flips its tangent-
+          # vertex sign test and tangent-disc unions come back empty).
+          g++ -std=c++17 -O2 -fPIC -ffp-contract=off \
+            -I"$JAVA_HOME/include" -I"$JAVA_HOME/include/linux" -I$E \
+            -c $E/shape_boolean.cpp -o /tmp/hostlib/shape_boolean.o
           g++ -std=c++17 -O2 -fPIC -shared -Wall -Wextra \
             -I"$JAVA_HOME/include" -I"$JAVA_HOME/include/linux" -I$E \
             -o /tmp/hostlib/libam_engine.so \
@@ -104,13 +110,23 @@ jobs:
             $E/project_doc.cpp $E/project_doc_jni.cpp \
             $E/scene_math.cpp $E/scene_math_jni.cpp \
             $E/scope_stats.cpp $E/scope_stats_jni.cpp \
-            $E/shape_boolean.cpp $E/shape_boolean_jni.cpp \
+            /tmp/hostlib/shape_boolean.o $E/shape_boolean_jni.cpp \
             $E/canvas_gesture.cpp $E/canvas_gesture_jni.cpp \
             $E/lk_tracker.cpp $E/lk_tracker_jni.cpp \
             -lm
 
       - name: Unit tests
-        run: LD_LIBRARY_PATH=/tmp/hostlib gradle testDebugUnitTest --no-daemon
+        run: |
+          # UiGlVectorCmdTest's premise is a JVM with NO native library (it
+          # asserts UiGlRuntime reports unsupported there, and the runtime's
+          # failure path logs via android.util.Log, unmocked in unit tests).
+          # Exclude it from the with-library run and run it separately in
+          # exactly its intended environment.
+          cat > /tmp/exclude-uigl.gradle <<'EOF'
+          gradle.allprojects { tasks.withType(Test).configureEach { exclude 'com/example/UiGlVectorCmdTest.class' } }
+          EOF
+          LD_LIBRARY_PATH=/tmp/hostlib gradle testDebugUnitTest --no-daemon -I /tmp/exclude-uigl.gradle
+          gradle testDebugUnitTest --no-daemon --tests "com.example.UiGlVectorCmdTest"
 
       - uses: actions/upload-artifact@v4
         if: failure()
