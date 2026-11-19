@@ -1,5 +1,6 @@
 package com.example.model
 
+import com.example.engine.AudioAnalysisNative
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
@@ -51,70 +52,11 @@ object BeatDetect {
      */
     fun detect(samples: FloatArray, sampleRate: Int): Result {
         if (sampleRate <= 0 || samples.size < MIN_FRAME_SAMPLES) return Result(emptyList(), null)
-        val frameSize = frameSizeFor(sampleRate)
-        if (samples.size < frameSize) return Result(emptyList(), null)
-        val hop = frameSize / 4
-        val frameCount = (samples.size - frameSize) / hop + 1
-
-        // ---- Spectral flux novelty -------------------------------------
-        val flux = FloatArray(frameCount)
-        val re = FloatArray(frameSize)
-        val im = FloatArray(frameSize)
-        val mag = FloatArray(frameSize / 2 + 1)
-        val prev = FloatArray(frameSize / 2 + 1)
-        val window = FloatArray(frameSize) { i ->
-            (0.5 - 0.5 * cos(2.0 * PI * i / (frameSize - 1))).toFloat()
-        }
-        var maxFlux = 0f
-        for (k in 0 until frameCount) {
-            val start = k * hop
-            for (i in 0 until frameSize) {
-                re[i] = samples[start + i] * window[i]
-                im[i] = 0f
-            }
-            fft(re, im)
-            var f = 0f
-            for (b in 0..frameSize / 2) {
-                val m = sqrt(re[b] * re[b] + im[b] * im[b])
-                mag[b] = m
-                val growth = m - prev[b]
-                if (growth > 0f) f += growth
-                prev[b] = m
-            }
-            flux[k] = f
-            if (f > maxFlux) maxFlux = f
-        }
-        if (maxFlux <= 0f) return Result(emptyList(), null)
-        for (k in flux.indices) flux[k] /= maxFlux
-
-        // ---- Adaptive threshold + peak picking -------------------------
-        // Local median over +/-0.5 s of novelty: robust because most frames
-        // in any second are NOT onsets, whatever the section's loudness.
-        val halfWin = ((sampleRate / 2) / hop).coerceAtLeast(1)
-        val spacingFrames =
-            ((MIN_BEAT_SPACING_MS * sampleRate) / (1000L * hop)).toInt().coerceAtLeast(1)
-        val candidates = ArrayList<Int>()
-        val slice = FloatArray(2 * halfWin + 1)
-        for (k in flux.indices) {
-            val v = flux[k]
-            if (v <= ABSOLUTE_FLOOR) continue
-            if (k > 0 && v < flux[k - 1]) continue
-            if (k < flux.size - 1 && v < flux[k + 1]) continue
-            var n = 0
-            for (j in maxOf(0, k - halfWin)..minOf(flux.size - 1, k + halfWin)) slice[n++] = flux[j]
-            val med = median(slice, n)
-            if (v > med * MEDIAN_FACTOR + ABSOLUTE_FLOOR) candidates.add(k)
-        }
-        // Strongest first; a weaker peak inside the spacing of an accepted
-        // stronger one is the same hit's shoulder and drops out.
-        candidates.sortByDescending { flux[it] }
-        val accepted = ArrayList<Int>()
-        for (k in candidates) {
-            if (accepted.all { kotlin.math.abs(it - k) >= spacingFrames }) accepted.add(k)
-        }
-        accepted.sort()
-        val beats = accepted.map { k -> frameTimeMs(k, hop, frameSize, sampleRate) }
-        return Result(beats, estimateBpm(beats))
+        val bpmOut = DoubleArray(1)
+        val nativeBeats = AudioAnalysisNative.nativeDetectBeats(samples, sampleRate, bpmOut)
+            ?: return Result(emptyList(), null)
+        val bpm = if (bpmOut[0] > 0.0) bpmOut[0] else null
+        return Result(nativeBeats.toList(), bpm)
     }
 
     /**

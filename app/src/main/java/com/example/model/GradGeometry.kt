@@ -1,5 +1,6 @@
 package com.example.model
 
+import com.example.engine.FrameEvalNative
 import kotlin.math.atan2
 import kotlin.math.hypot
 
@@ -30,20 +31,9 @@ object GradGeometry {
      * and [scale]. Unknown types fall back to linear, like the importer.
      */
     fun endpoints(gradType: Int, cx: Float, cy: Float, angleDeg: Float, scale: Float): FloatArray {
-        val rad = Math.toRadians(angleDeg.toDouble())
-        val half = 0.5f * scale
-        return when (gradType) {
-            GRAD_RADIAL -> floatArrayOf(cx, cy, cx + half, cy)
-            GRAD_SWEEP -> floatArrayOf(
-                cx, cy,
-                cx - Math.cos(rad).toFloat() * half, cy - Math.sin(rad).toFloat() * half
-            )
-            else -> {
-                val dx = Math.sin(rad).toFloat()
-                val dy = -Math.cos(rad).toFloat()
-                floatArrayOf(cx - dx * half, cy - dy * half, cx + dx * half, cy + dy * half)
-            }
-        }
+        val out = FloatArray(4)
+        FrameEvalNative.nativeGradEndpoints(gradType, cx, cy, angleDeg, scale, out)
+        return out
     }
 
     /** The centre of a stored gradient, recovered from its end points. */
@@ -57,26 +47,8 @@ object GradGeometry {
      * gradient reads as angle 0, scale 0.
      */
     fun angleScale(gradType: Int, x1: Float, y1: Float, x2: Float, y2: Float): Pair<Float, Float> {
-        val dx = x2 - x1
-        val dy = y2 - y1
-        return when (gradType) {
-            GRAD_RADIAL -> 0f to 2f * dx
-            GRAD_SWEEP -> {
-                val half = hypot(dx, dy)
-                if (half < 1e-6f) 0f to 0f
-                else {
-                    val a = Math.toDegrees(atan2(-dy.toDouble(), -dx.toDouble())).toFloat()
-                    (if (a < 0f) a + 360f else a) to 2f * half
-                }
-            }
-            else -> {
-                val len = hypot(dx, dy)
-                if (len < 1e-6f) 0f to 0f
-                else {
-                    val a = Math.toDegrees(atan2(dx.toDouble(), -dy.toDouble())).toFloat()
-                    (if (a < 0f) a + 360f else a) to len
-                }
-            }
-        }
+        val out = FloatArray(2)
+        FrameEvalNative.nativeGradAngleScale(gradType, x1, y1, x2, y2, out)
+        return out[0] to out[1]
     }
 }

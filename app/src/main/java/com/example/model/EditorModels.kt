@@ -1,5 +1,7 @@
 package com.example.model
 
+import com.example.engine.SceneMathNative
+import com.example.engine.ShapeBooleanNative
 import kotlinx.serialization.Serializable
 
 const val TIMELINE_PX_PER_MS = 0.045f
@@ -45,46 +47,15 @@ data class PathSeg(
  * a close segment repeats its sub-path's first point. Used by the importer's bounds and by tests.
  */
 fun flattenPathSegments(segments: List<PathSeg>, stepsPerCurve: Int = 24): List<Pair<Float, Float>> {
-    val out = ArrayList<Pair<Float, Float>>()
-    var cur = 0f to 0f
-    var start = cur
-    fun quad(p0: Pair<Float, Float>, p1: Pair<Float, Float>, p2: Pair<Float, Float>, t: Float): Pair<Float, Float> {
-        val u = 1f - t
-        return (u * u * p0.first + 2f * u * t * p1.first + t * t * p2.first) to
-            (u * u * p0.second + 2f * u * t * p1.second + t * t * p2.second)
-    }
-    fun cubic(p0: Pair<Float, Float>, p1: Pair<Float, Float>, p2: Pair<Float, Float>, p3: Pair<Float, Float>, t: Float): Pair<Float, Float> {
-        val u = 1f - t
-        return (u * u * u * p0.first + 3f * u * u * t * p1.first + 3f * u * t * t * p2.first + t * t * t * p3.first) to
-            (u * u * u * p0.second + 3f * u * u * t * p1.second + 3f * u * t * t * p2.second + t * t * t * p3.second)
-    }
-    for (seg in segments) {
-        val q = seg.pts
-        when (seg.op) {
-            PATH_OP_MOVE -> if (q.size >= 2) {
-                cur = q[0] to q[1]; start = cur; out += cur
-            }
-            PATH_OP_LINE -> if (q.size >= 2) {
-                cur = q[0] to q[1]; out += cur
-            }
-            PATH_OP_QUAD -> if (q.size >= 4) {
-                val c = q[0] to q[1]
-                val e = q[2] to q[3]
-                for (i in 1..stepsPerCurve) out += quad(cur, c, e, i.toFloat() / stepsPerCurve)
-                cur = e
-            }
-            PATH_OP_CUBIC -> if (q.size >= 6) {
-                val c1 = q[0] to q[1]
-                val c2 = q[2] to q[3]
-                val e = q[4] to q[5]
-                for (i in 1..stepsPerCurve) out += cubic(cur, c1, c2, e, i.toFloat() / stepsPerCurve)
-                cur = e
-            }
-            PATH_OP_CLOSE -> {
-                out += start
-                cur = start
-            }
-        }
+    if (segments.isEmpty()) return emptyList()
+    val packed = ShapeBooleanNative.packSegments(segments)
+    val xy = SceneMathNative.nativeFlattenPathSegments(
+        packed.ops, packed.offsets, packed.counts, packed.pts, stepsPerCurve
+    )
+    val count = xy.size / 2
+    val out = ArrayList<Pair<Float, Float>>(count)
+    for (i in 0 until count) {
+        out += xy[i * 2] to xy[i * 2 + 1]
     }
     return out
 }

@@ -1,5 +1,6 @@
 package com.example.model
 
+import com.example.engine.FrameEvalNative
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -62,93 +63,11 @@ object CalloutOutline {
     fun segments(
         width: Double, height: Double, tailX: Double, tailY: Double,
         cornerRadius: Double, tailWidth: Double
-    ): List<PathSeg> {
-        val w = width
-        val h = height
-        val r = min(max(0.0, cornerRadius), min(w, h))
-        val pointOffs = r * (1.0 - 0.552228474)
-        val nodes = ArrayList<Node>()
-        // TOP SIDE
-        nodes += anchor(-w + r, -h, (-w + pointOffs) to -h, null)
-        // <-- Position for TOP tail (index 1)
-        nodes += anchor(w - r, -h, null, (w - pointOffs) to -h)
-        // RIGHT SIDE
-        nodes += anchor(w, -h + r, w to (-h + pointOffs), null)
-        // <-- Position for RIGHT tail (index 3)
-        nodes += anchor(w, h - r, null, w to (h - pointOffs))
-        // BOTTOM SIDE
-        nodes += anchor(w - r, h, (w - pointOffs) to h, null)
-        // <-- Position for BOTTOM tail (index 5)
-        nodes += anchor(-w + r, h, null, (-w + pointOffs) to h)
-        // LEFT SIDE
-        nodes += anchor(-w, h - r, -w to (h - pointOffs), null)
-        // <-- Position for LEFT tail (index 7)
-        nodes += anchor(-w, -h + r, null, -w to (-h + pointOffs))
-
-        val handleAttraction = 3.5
-        if (abs(tailY) <= abs(tailX)) {
-            val minPos = -h + r
-            val maxPos = h - r
-            val tailHalfWidth = min(tailWidth, maxPos - minPos) / 2.0
-            var tailPos = tailY * handleAttraction
-            tailPos = max(tailPos, minPos + tailHalfWidth)
-            tailPos = min(tailPos, maxPos - tailHalfWidth)
-            if (tailX < 0.0) {  // LEFT
-                nodes.addAll(
-                    7, listOf(
-                        plain(-w, tailPos + tailHalfWidth),
-                        plain(tailX, tailY),
-                        plain(-w, tailPos - tailHalfWidth)
-                    )
-                )
-            } else {            // RIGHT
-                nodes.addAll(
-                    3, listOf(
-                        plain(w, tailPos - tailHalfWidth),
-                        plain(tailX, tailY),
-                        plain(w, tailPos + tailHalfWidth)
-                    )
-                )
-            }
-        } else {
-            val minPos = -w + r
-            val maxPos = w - r
-            val tailHalfWidth = min(tailWidth, maxPos - minPos) / 2.0
-            var tailPos = tailX * handleAttraction
-            tailPos = max(tailPos, minPos + tailHalfWidth)
-            tailPos = min(tailPos, maxPos - tailHalfWidth)
-            if (tailY < 0.0) {  // TOP
-                nodes.addAll(
-                    1, listOf(
-                        plain(tailPos - tailHalfWidth, -h),
-                        plain(tailX, tailY),
-                        plain(tailPos + tailHalfWidth, -h)
-                    )
-                )
-            } else {            // BOTTOM
-                nodes.addAll(
-                    5, listOf(
-                        plain(tailPos + tailHalfWidth, h),
-                        plain(tailX, tailY),
-                        plain(tailPos - tailHalfWidth, h)
-                    )
-                )
-            }
-        }
-
-        val segs = ArrayList<PathSeg>(nodes.size + 2)
-        val first = nodes[0]
-        segs += PathSeg(PATH_OP_MOVE, listOf(first.x.toFloat(), first.y.toFloat()))
-        for (i in 1 until nodes.size) {
-            val prev = nodes[i - 1]
-            val cur = nodes[i]
-            segs += step(prev, cur)
-        }
-        // The closing corner: the last anchor back to the first, handles as written.
-        segs += step(nodes[nodes.size - 1], first)
-        segs += PathSeg(PATH_OP_CLOSE)
-        return segs
-    }
+    ): List<PathSeg> =
+        FrameEvalNative.unpackSegments(
+            FrameEvalNative.nativeCalloutSegments(width, height, tailX, tailY, cornerRadius, tailWidth)
+                ?: FloatArray(0)
+        )
 
     /** One step of the walk: a LINE when either end is a plain tail point, else a CUBIC with the def's handles (a missing handle is its own anchor). */
     private fun step(prev: Node, cur: Node): PathSeg =

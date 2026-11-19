@@ -195,6 +195,12 @@ object AudioReverse {
         val frameBytes = info.channels * 2
         val dataBytes = info.frames * frameBytes
         if (dataBytes > 0xFFFFFFFFL - 44L) throw IOException("The sound is too long to reverse.")
+        if (shouldStop()) throw Stopped()
+        if (AudioAnalysisNative.nativeReversePcm16ToWav(
+                pcm.absolutePath, out.absolutePath, info.channels, info.rate, info.frames
+            )
+        ) return
+        throw IOException("native PCM reverse failed")
         BufferedOutputStream(FileOutputStream(out), 1 shl 16).use { sink ->
             val h = ByteBuffer.allocate(44).order(ByteOrder.LITTLE_ENDIAN)
             h.put("RIFF".toByteArray(Charsets.US_ASCII))

@@ -1,5 +1,6 @@
 package com.example.model
 
+import com.example.engine.SceneMathNative
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.atan2
@@ -269,37 +270,28 @@ object MaskLimits {
 fun flattenControlPoints(c: List<MaskPoint>, smooth: Boolean): List<Pt> {
     val n = min(c.size, ClipMaskLibrary.MAX_POINTS)
     if (n < 3) return emptyList()
-    if (!smooth) return (0 until n).map { Pt(c[it].x, c[it].y) }
-    val spp = max(1, min(8, 96 / n))
-    val out = ArrayList<Pt>()
+    val ctrlXy = FloatArray(n * 2)
     for (i in 0 until n) {
-        val p0 = c[(i + n - 1) % n]
-        val p1 = c[i]
-        val p2 = c[(i + 1) % n]
-        val p3 = c[(i + 2) % n]
-        for (s in 0 until spp) {
-            val t = s.toFloat() / spp
-            val t2 = t * t
-            val t3 = t2 * t
-            fun f(a: Float, b: Float, cc: Float, d: Float): Float =
-                0.5f * ((2f * b) + (-a + cc) * t + (2f * a - 5f * b + 4f * cc - d) * t2 + (-a + 3f * b - 3f * cc + d) * t3)
-            out.add(Pt(f(p0.x, p1.x, p2.x, p3.x), f(p0.y, p1.y, p2.y, p3.y)))
-        }
+        ctrlXy[i * 2] = c[i].x
+        ctrlXy[i * 2 + 1] = c[i].y
+    }
+    val flat = SceneMathNative.nativeFlattenMaskControlPoints(ctrlXy, smooth, ClipMaskLibrary.MAX_POINTS)
+    val count = flat.size / 2
+    val out = ArrayList<Pt>(count)
+    for (i in 0 until count) {
+        out += Pt(flat[i * 2], flat[i * 2 + 1])
     }
     return out
 }
 
 fun pointInPolygon(p: Pt, poly: List<Pt>): Boolean {
     if (poly.size < 3) return false
-    var inside = false
-    var j = poly.size - 1
+    val polyXy = FloatArray(poly.size * 2)
     for (i in poly.indices) {
-        val a = poly[i]
-        val b = poly[j]
-        if ((a.y > p.y) != (b.y > p.y) && p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x) inside = !inside
-        j = i
+        polyXy[i * 2] = poly[i].x
+        polyXy[i * 2 + 1] = poly[i].y
     }
-    return inside
+    return SceneMathNative.nativePointInPolygon(p.x, p.y, polyXy)
 }
 
 fun distToSegment(p: Pt, a: Pt, b: Pt): Float {

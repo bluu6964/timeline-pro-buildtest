@@ -1,5 +1,6 @@
 package com.example.model
 
+import com.example.engine.SceneMathNative
 import kotlin.math.atan2
 import kotlin.math.hypot
 
@@ -53,7 +54,8 @@ object TextOnPath {
      */
     class ArcTable(points: List<Pair<Float, Float>>) {
         val points: List<Pair<Float, Float>>
-        private val cum: FloatArray // cum[i] = arc length at points[i]; cum[0] = 0
+        internal val cum: FloatArray // cum[i] = arc length at points[i]; cum[0] = 0
+        internal val xy: FloatArray
         val total: Float
 
         init {
@@ -64,10 +66,15 @@ object TextOnPath {
             }
             this.points = kept
             cum = FloatArray(kept.size)
+            xy = FloatArray(kept.size * 2)
             var acc = 0f
-            for (i in 1 until kept.size) {
-                acc += hypot(kept[i].first - kept[i - 1].first, kept[i].second - kept[i - 1].second)
-                cum[i] = acc
+            for (i in kept.indices) {
+                xy[i * 2] = kept[i].first
+                xy[i * 2 + 1] = kept[i].second
+                if (i > 0) {
+                    acc += hypot(kept[i].first - kept[i - 1].first, kept[i].second - kept[i - 1].second)
+                    cum[i] = acc
+                }
             }
             total = acc
         }
@@ -108,15 +115,22 @@ object TextOnPath {
      * inside the path (the engine refines this to glyph origins — same rule, finer grain).
      */
     fun layout(advances: List<Float>, startFrac: Float, table: ArcTable): List<Placement> {
-        val out = ArrayList<Placement>(advances.size)
-        var pen = startFrac.coerceIn(0f, 1f) * table.total
-        // A NaN start fraction survives coerceIn (build 198): read it as 0 (the
-        // path's start) instead of a NaN pen that swallows every glyph.
-        if (pen.isNaN()) pen = 0f
-        for (adv in advances) {
-            val p = table.pointAt(pen)
-            out += Placement(pen, p.x, p.y, p.angleDeg, table.total > 0f && pen < table.total)
-            pen += adv
+        if (advances.isEmpty()) return emptyList()
+        val advArr = FloatArray(advances.size) { advances[it] }
+        val packed = SceneMathNative.nativeLayoutTextOnPath(
+            table.xy, table.cum, table.total, advArr, startFrac
+        )
+        val count = packed.size / 5
+        val out = ArrayList<Placement>(count)
+        for (i in 0 until count) {
+            val b = i * 5
+            out += Placement(
+                startDist = packed[b],
+                x = packed[b + 1],
+                y = packed[b + 2],
+                angleDeg = packed[b + 3],
+                drawn = packed[b + 4] != 0f
+            )
         }
         return out
     }

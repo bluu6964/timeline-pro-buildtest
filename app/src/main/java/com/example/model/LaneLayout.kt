@@ -1,5 +1,6 @@
 package com.example.model
 
+import com.example.engine.ProjectDocNative
 import java.util.UUID
 
 /**
@@ -139,18 +140,13 @@ object LaneLayout {
         val li = tracks.indexOfFirst { lane -> lane.clips.any { it.id == chainId && it.type == LayerType.CHAIN } }
         if (li < 0) return place(tracks, clip.copy(chainId = null))
         val lane = tracks[li]
-        val siblings = lane.clips.filter { it.chainId == chainId }.sortedBy { it.startMs }
-        var start = clip.startMs.coerceAtLeast(0L)
-        var moved = true
-        var guard = 0
-        while (moved && guard++ < 500) {
-            moved = false
-            for (s in siblings) {
-                if (start < s.endMs && s.startMs < start + clip.durationMs) {
-                    start = s.endMs
-                    moved = true
-                }
-            }
+        val siblings = lane.clips.filter { it.chainId == chainId }
+        val start = if (siblings.isEmpty()) {
+            clip.startMs.coerceAtLeast(0L)
+        } else {
+            val starts = LongArray(siblings.size) { siblings[it].startMs }
+            val ends = LongArray(siblings.size) { siblings[it].endMs }
+            ProjectDocNative.nativeSolveChainStart(starts, ends, clip.startMs, clip.durationMs)
         }
         val placed = clip.copy(startMs = start, chainId = chainId)
         val out = tracks.toMutableList()

@@ -1,6 +1,5 @@
 package com.example.ui.components
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,16 +13,16 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import com.example.engine.UiGlRuntime
+import com.example.engine.VectorCmdBuilder
+import com.example.engine.VectorCmdSnapshot
 import com.example.model.TimelineClip
 import com.example.model.effectiveScalePercent
 import com.example.model.depthX
@@ -171,75 +170,13 @@ fun SelectionFrameOverlay(
                 frameH = it.height.toFloat()
             }
     ) {
-        Canvas(Modifier.fillMaxSize()) {
-            // Build 217 (Sarowar's HTML reference): the transform box is
-            // a 1.5 dp DASHED BLUE (#3EB1F7) border with 8 dp WHITE
-            // square handles (1.5 dp #1689F5 border, r2), and the lime
-            // ROTATION handle 22 dp above the top edge — drawing only;
-            // the scale gestures below are untouched, and the rotation
-            // handle gets its own new touch target.
-            val frameBlue = com.example.ui.theme.RefFrameBlue
-            val p = Path().apply {
-                val c0 = geo.corner(0)
-                moveTo(c0.x, c0.y)
-                for (i in 1..3) geo.corner(i).let { lineTo(it.x, it.y) }
-                close()
-            }
-            drawPath(
-                p,
-                frameBlue,
-                style = Stroke(
-                    1.5f * density,
-                    join = StrokeJoin.Round,
-                    pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(
-                        floatArrayOf(6f * density, 4f * density), 0f
-                    )
-                )
-            )
-
-            // 8 handles: white squares, 8 dp, radius 2 dp, blue border
-            val hs = 8f * density
-            for (i in 0..7) {
-                val hp = handlePos(i, geo)
-                drawRoundRect(
-                    Color.White,
-                    topLeft = Offset(hp.x - hs / 2f, hp.y - hs / 2f),
-                    size = androidx.compose.ui.geometry.Size(hs, hs),
-                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(2f * density)
-                )
-                drawRoundRect(
-                    com.example.ui.theme.RefHandleBlue,
-                    topLeft = Offset(hp.x - hs / 2f, hp.y - hs / 2f),
-                    size = androidx.compose.ui.geometry.Size(hs, hs),
-                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(2f * density),
-                    style = Stroke(1.5f * density)
-                )
-            }
-
-            // The rotation handle: an 8 dp lime circle with a dark
-            // border, centred 22 dp above the top edge (along the
-            // frame's up direction, so it follows the layer's rotation).
-            val topMid = geo.edge(0)
-            val cen = geo.center
-            val nx = topMid.x - cen.x
-            val ny = topMid.y - cen.y
-            val nl = hypot(nx, ny).coerceAtLeast(0.001f)
-            val rotPos = Offset(
-                topMid.x + nx / nl * 22f * density,
-                topMid.y + ny / nl * 22f * density
-            )
-            drawCircle(
-                com.example.ui.theme.RefLime,
-                radius = 4f * density,
-                center = rotPos
-            )
-            drawCircle(
-                Color(0xFF111114),
-                radius = 4f * density,
-                center = rotPos,
-                style = Stroke(1.5f * density)
-            )
-        }
+        val snap = buildSelectionFrameCmds(geo, density)
+        NativeGlTextureHost(
+            isOpaque = false,
+            drawOnGl = { sid -> UiGlRuntime.drawVectorCommandsOnGl(sid, 0, snap) },
+            modifier = Modifier.fillMaxSize()
+        )
+        
 
         // Touch targets for all 8 handles (uniform scale from center)
         for (kind in 0..7) {
@@ -341,4 +278,40 @@ fun SelectionFrameOverlay(
                 }
         )
     }
+}
+
+private fun buildSelectionFrameCmds(geo: FrameGeo, density: Float): VectorCmdSnapshot {
+    val b = VectorCmdBuilder(initialFloats = 128, initialColors = 24)
+    val xs = FloatArray(4)
+    val ys = FloatArray(4)
+    for (i in 0..3) {
+        val c = geo.corner(i)
+        xs[i] = c.x
+        ys[i] = c.y
+    }
+    b.addPolyline(
+        xs, ys, 4,
+        closed = true,
+        width = 1.5f * density,
+        argb = com.example.ui.theme.RefFrameBlue.toArgb(),
+        dashOn = 6f * density,
+        dashOff = 4f * density,
+        capRound = false
+    )
+    val hs = 8f * density
+    val cr = 2f * density
+    val handleBlue = com.example.ui.theme.RefHandleBlue.toArgb()
+    for (i in 0..7) {
+        val hp = if (i < 4) geo.corner(i) else geo.edge(i - 4)
+        b.addRoundRect(hp.x, hp.y, hs, hs, cr, 0xFFFFFFFF.toInt(), 1.5f * density, handleBlue)
+    }
+    val topMid = geo.edge(0)
+    val cen = geo.center
+    val nx = topMid.x - cen.x
+    val ny = topMid.y - cen.y
+    val nl = hypot(nx, ny).coerceAtLeast(0.001f)
+    val rotX = topMid.x + nx / nl * 22f * density
+    val rotY = topMid.y + ny / nl * 22f * density
+    b.addCircle(rotX, rotY, 4f * density, com.example.ui.theme.RefLime.toArgb(), 1.5f * density, 0xFF111114.toInt())
+    return b.build()
 }

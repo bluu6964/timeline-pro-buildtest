@@ -1,5 +1,6 @@
 package com.example.model
 
+import com.example.engine.SceneMathNative
 import kotlin.math.abs
 
 /**
@@ -40,45 +41,28 @@ object CanvasSnap {
         others: List<SnapRect>,
         thresholdPx: Float
     ): SnapResult {
-        val xCandidates = ArrayList<Float>(3 + others.size * 3)
-        xCandidates += canvasW / 2f
-        xCandidates += 0f
-        xCandidates += canvasW
-        for (o in others) {
-            xCandidates += o.cx
-            xCandidates += o.left
-            xCandidates += o.right
+        val othersFlat = FloatArray(others.size * 6)
+        for (i in others.indices) {
+            val o = others[i]
+            val b = i * 6
+            othersFlat[b] = o.cx
+            othersFlat[b + 1] = o.cy
+            othersFlat[b + 2] = o.left
+            othersFlat[b + 3] = o.top
+            othersFlat[b + 4] = o.right
+            othersFlat[b + 5] = o.bottom
         }
-        val yCandidates = ArrayList<Float>(3 + others.size * 3)
-        yCandidates += canvasH / 2f
-        yCandidates += 0f
-        yCandidates += canvasH
-        for (o in others) {
-            yCandidates += o.cy
-            yCandidates += o.top
-            yCandidates += o.bottom
-        }
-        val (dx, guideX) = bestAxis(listOf(rect.cx, rect.left, rect.right), xCandidates, thresholdPx)
-        val (dy, guideY) = bestAxis(listOf(rect.cy, rect.top, rect.bottom), yCandidates, thresholdPx)
-        return SnapResult(dx, dy, guideX, guideY)
+        val out = FloatArray(6)
+        SceneMathNative.nativeCanvasSnap(
+            rect.cx, rect.cy, rect.left, rect.top, rect.right, rect.bottom,
+            canvasW, canvasH, othersFlat, thresholdPx, out
+        )
+        return SnapResult(
+            dx = out[0],
+            dy = out[1],
+            guideX = if (out[2] != 0f) out[3] else null,
+            guideY = if (out[4] != 0f) out[5] else null
+        )
     }
 
-    /** The smallest in-threshold correction over every feature x candidate pair, and the winning candidate (the guide line). */
-    private fun bestAxis(features: List<Float>, candidates: List<Float>, thresholdPx: Float): Pair<Float, Float?> {
-        var bestDelta = 0f
-        var bestGuide: Float? = null
-        var bestAbs = Float.MAX_VALUE
-        for (f in features) {
-            for (c in candidates) {
-                val d = c - f
-                val a = abs(d)
-                if (a <= thresholdPx && a < bestAbs) {
-                    bestAbs = a
-                    bestDelta = d
-                    bestGuide = c
-                }
-            }
-        }
-        return bestDelta to bestGuide
-    }
 }

@@ -1,9 +1,15 @@
 package com.example.engine
 
 import android.content.Context
+import android.net.Uri
 import com.example.model.NoiseReduction
 import com.example.model.TimelineClip
 import com.example.model.sourceOffsetMs
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withContext
+import kotlin.coroutines.coroutineContext
 
 /**
  * Audio noise reduction (build 195): turns a layer's noise-reduction settings
@@ -17,11 +23,11 @@ import com.example.model.sourceOffsetMs
  * the layer's own time law). It is estimated from a streaming decode at the
  * mixer's 48 kHz ([NoiseProfileDecode]) framed exactly as the gate frames
  * its stream (first frame at window sample 0, [NoiseReduction.HOP] grid,
- * zero-padded tail), accumulated by [NoiseReduction.ProfileAccumulator] —
- * the pure law's streaming percentile. Volume, fades and strength do NOT
- * feed the profile: the gate sits inside the source chain, ahead of the
- * mixer's gain stage, and sees the same raw decoded level the profile was
- * estimated from.
+ * zero-padded tail), accumulated in C++ (build 234: the STFT + log-histogram
+ * percentile live in AudioAnalysisNative; there is no Kotlin accumulator
+ * path anymore). Volume, fades and strength do NOT feed the profile: the
+ * gate sits inside the source chain, ahead of the mixer's gain stage, and
+ * sees the same raw decoded level the profile was estimated from.
  *
  * Any failure along the way (no file, no sound, an over-long span, a decode
  * error) yields null = no processing, never a broken mix. A played span
@@ -62,64 +68,45 @@ internal object NoiseProfile {
     suspend fun compute(context: Context, clip: TimelineClip): FloatArray? {
         val key = keyFor(clip) ?: return null
         if (key.spanMs > AudioBeatDecode.MAX_SPAN_MS) return null
-        val accumulator = NoiseReduction.ProfileAccumulator()
-        val framer = Framer(accumulator)
+
+        // Primary path: decode + STFT + log-histogram percentile entirely in C++
+        // via NDK AudioFileSource.
+        val nativeFd = withContext(Dispatchers.Default) {
+            coroutineContext.ensureActive()
+            try {
+                context.contentResolver.openFileDescriptor(Uri.parse(key.uri), "r")?.use { pfd ->
+                    AudioAnalysisNative.nativeComputeNoiseProfileFd(
+                        pfd.fd, pfd.statSize, key.trimStartMs, key.spanMs
+                    )
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                null
+            }
+        }
+        coroutineContext.ensureActive()
+        if (nativeFd != null && nativeFd.size == NoiseReduction.BINS) return nativeFd
+
+        // Secondary path when ContentResolver cannot expose a seekable fd:
+        // decode with MediaCodec and run STFT + histogram accumulation in C++.
+        val accHandle = AudioAnalysisNative.nativeNoiseAccCreate()
+        if (accHandle == 0L) return null
         try {
             NoiseProfileDecode.decodeWindow(context, key.uri, key.trimStartMs, key.spanMs) { chunk ->
-                framer.push(chunk)
+                AudioAnalysisNative.nativeNoiseAccPushMono(accHandle, chunk)
             }
-        } catch (e: NoiseProfileDecode.Stopped) {
+            val out = FloatArray(NoiseReduction.BINS)
+            val frames = AudioAnalysisNative.nativeNoiseAccFinish(accHandle, out)
+            return if (frames > 0) out else null
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: NoiseProfileDecode.Stopped) {
             return null
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             return null
-        }
-        framer.finish()
-        if (accumulator.frameCount == 0) return null
-        return accumulator.profile()
-    }
-
-    /**
-     * Cuts the decoded mono stream into STFT frames on the gate's own grid
-     * (first frame at stream sample 0, one per [NoiseReduction.HOP], the
-     * tail frame zero-padded) and feeds their magnitudes to the profile
-     * accumulator. Samples are consumed as they arrive; only the not-yet-
-     * framed tail (under two frames) is ever held.
-     */
-    private class Framer(private val accumulator: NoiseReduction.ProfileAccumulator) {
-        private var buf = FloatArray(0)   // samples [base, base + buf.size)
-        private var base = 0L
-        private var total = 0L
-        private var nextFrame = 0L
-
-        fun push(chunk: FloatArray) {
-            if (chunk.isEmpty()) return
-            val merged = FloatArray(buf.size + chunk.size)
-            System.arraycopy(buf, 0, merged, 0, buf.size)
-            System.arraycopy(chunk, 0, merged, buf.size, chunk.size)
-            buf = merged
-            total += chunk.size
-            emit(final = false)
-        }
-
-        fun finish() = emit(final = true)
-
-        private fun emit(final: Boolean) {
-            val frame = FloatArray(NoiseReduction.FFT_SIZE)
-            while (nextFrame < total) {
-                if (!final && nextFrame + NoiseReduction.FFT_SIZE > total) break
-                val from = (nextFrame - base).toInt()
-                val avail = minOf(NoiseReduction.FFT_SIZE, buf.size - from)
-                java.util.Arrays.fill(frame, 0f)
-                if (avail > 0) System.arraycopy(buf, from, frame, 0, avail)
-                accumulator.add(NoiseReduction.frameMagnitudes(frame))
-                nextFrame += NoiseReduction.HOP
-            }
-            // Drop the samples no future frame can touch (frames start at nextFrame).
-            val keepFrom = (nextFrame - base).toInt()
-            if (keepFrom > 65536) {
-                buf = buf.copyOfRange(keepFrom, buf.size)
-                base = nextFrame
-            }
+        } finally {
+            AudioAnalysisNative.nativeNoiseAccDestroy(accHandle)
         }
     }
 }

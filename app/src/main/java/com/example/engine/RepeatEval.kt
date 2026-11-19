@@ -170,24 +170,39 @@ internal object RepeatEval {
         outerScale: Float = 1f, outerRotDeg: Float = 0f
     ): List<TimelineClip> {
         val fx = anyRepeatOf(clip) ?: return listOf(clip)
-        val copies = when (fx.type) {
-            ClipFxLibrary.REPEAT_RADIAL -> radialCopiesOf(clip, fx, undoRotationDeg)
-            ClipFxLibrary.REPEAT_SCATTER -> scatterCopiesOf(clip, fx, undoRotationDeg, timeMs)
-            ClipFxLibrary.REPEAT_LINE -> lineCopiesOf(clip, fx, undoRotationDeg)
-            else -> plainCopiesOf(clip, fx, undoRotationDeg)
+        val mode = when (fx.type) {
+            ClipFxLibrary.REPEAT_RADIAL -> FrameEvalNative.REPEAT_MODE_RADIAL
+            ClipFxLibrary.REPEAT_SCATTER -> FrameEvalNative.REPEAT_MODE_SCATTER
+            ClipFxLibrary.REPEAT_LINE -> FrameEvalNative.REPEAT_MODE_LINE
+            else -> FrameEvalNative.REPEAT_MODE_PLAIN
         }
-        if ((outerScale == 1f && outerRotDeg == 0f) || copies.size <= 1) return copies
-        val rad = outerRotDeg * PI.toFloat() / 180f
-        val c = cos(rad)
-        val s = sin(rad)
-        return copies.map { cp ->
-            val dx = cp.transformX - clip.transformX
-            val dy = cp.transformY - clip.transformY
-            if (dx == 0f && dy == 0f) cp
-            else cp.copy(
-                transformX = clip.transformX + (dx * c - dy * s) * outerScale,
-                transformY = clip.transformY + (dx * s + dy * c) * outerScale
-            )
+        val fxArr = FloatArray(fx.values.size) { fx.values[it] }
+        val altOut = LongArray(2)
+        val flat = FrameEvalNative.nativeRepeatEval(
+            mode, fxArr,
+            clip.transformX, clip.transformY, clip.rotationDeg, clip.scalePercent, clip.opacity,
+            undoRotationDeg, outerScale, outerRotDeg,
+            clip.startMs, clip.endMs, timeMs, altOut
+        )
+        if (flat == null || flat.size < 5) return listOf(clip)
+        val count = flat.size / 5
+        val hasAlt = altOut[0] != 0L
+        val altColor = altOut[1]
+        return List(count) { i ->
+            if (mode == FrameEvalNative.REPEAT_MODE_PLAIN && i == 0) {
+                clip
+            } else {
+                val b = i * 5
+                var c = clip.copy(
+                    transformX = flat[b],
+                    transformY = flat[b + 1],
+                    rotationDeg = flat[b + 2],
+                    scalePercent = flat[b + 3],
+                    opacity = flat[b + 4]
+                )
+                if (hasAlt && i % 2 == 1) c = c.copy(textColor = altColor)
+                c
+            }
         }
     }
 
@@ -234,197 +249,9 @@ internal object RepeatEval {
      * anim uses for a layer's pivot). [k] = canvas px per preview px.
      */
     fun groupCopyOffset(anchorX: Float, anchorY: Float, d: CopyDelta, k: Float): Pair<Float, Float> {
-        val rad = d.rotDeg * PI.toFloat() / 180f
-        val cosr = cos(rad)
-        val sinr = sin(rad)
-        val rx = d.scaleMul * (cosr * anchorX - sinr * anchorY)
-        val ry = d.scaleMul * (sinr * anchorX + cosr * anchorY)
-        return Pair(anchorX + d.dx * k - rx, anchorY + d.dy * k - ry)
-    }
-
-    /** Plain `repeat`: a row of copies, each shifted / turned / scaled / faded one more step. */
-    private fun plainCopiesOf(clip: TimelineClip, fx: ClipFx, undoRotationDeg: Float): List<TimelineClip> {
-        val n = countOf(fx)
-        if (n <= 1) return listOf(clip)
-        val ox = fx.values.getOrNull(1) ?: 0f
-        val oy = fx.values.getOrNull(2) ?: 0f
-        val angle = fx.values.getOrNull(3) ?: 0f
-        val scale = (fx.values.getOrNull(4) ?: 100f) / 100f
-        val alpha = (fx.values.getOrNull(5) ?: 100f) / 100f
-        // Undo the upright picture's own turn (identity unless the caller passes one): the picture
-        // is turned clockwise by undoRotationDeg on screen, so a copy that must land i * offset away
-        // from the layer is placed i * R(-undoRotationDeg) * offset inside the picture. Screen y is
-        // down, so the clockwise turn is (x, y) -> (x cos - y sin, x sin + y cos).
-        val rad = undoRotationDeg * PI.toFloat() / 180f
-        val cosR = cos(rad)
-        val sinR = sin(rad)
-        val ux = ox * cosR + oy * sinR
-        val uy = -ox * sinR + oy * cosR
-        return List(n) { i ->
-            if (i == 0) clip
-            else clip.copy(
-                transformX = clip.transformX + i * ux,
-                transformY = clip.transformY + i * uy,
-                rotationDeg = clip.rotationDeg + i * angle,
-                scalePercent = (clip.scalePercent * scale.pow(i)).coerceAtLeast(0.01f),
-                opacity = (clip.opacity * alpha.pow(i)).coerceIn(0f, 100f)
-            )
-        }
-    }
-
-    /**
-     * `repeat.radial`: [count] copies on a ring around the layer (see the class doc for the two
-     * frame-measured readings: clockwise-from-up angles, twice the stored radius).
-     */
-    private fun radialCopiesOf(clip: TimelineClip, fx: ClipFx, undoRotationDeg: Float): List<TimelineClip> {
-        val n = countOf(fx)
-        val radius = (fx.values.getOrNull(1) ?: 0f) * 2f
-        val startAngle = fx.values.getOrNull(2) ?: 0f
-        val sweep = fx.values.getOrNull(3) ?: 360f
-        val orientation = fx.values.getOrNull(4) ?: 0f
-        val baseScale = (fx.values.getOrNull(5) ?: 100f) / 100f
-        val alpha = (fx.values.getOrNull(6) ?: 100f) / 100f
-        val angle = fx.values.getOrNull(7) ?: 0f
-        val scaleStep = (fx.values.getOrNull(8) ?: 100f) / 100f
-        val alt = altColorOf(fx, 9)
-        val rad = undoRotationDeg * PI.toFloat() / 180f
-        val cosU = cos(rad)
-        val sinU = sin(rad)
-        return List(n) { i ->
-            val aDeg = startAngle + i * (sweep / n)
-            val a = aDeg * PI.toFloat() / 180f
-            // Clockwise from straight up: 0 deg points up, 90 deg points right (screen y is down).
-            val ax = radius * sin(a)
-            val ay = -radius * cos(a)
-            val ux = ax * cosU + ay * sinU
-            val uy = -ax * sinU + ay * cosU
-            var c = clip.copy(
-                transformX = clip.transformX + ux,
-                transformY = clip.transformY + uy,
-                rotationDeg = clip.rotationDeg + aDeg + orientation + i * angle,
-                scalePercent = (clip.scalePercent * baseScale * scaleStep.pow(i)).coerceAtLeast(0.01f),
-                opacity = (clip.opacity * alpha).coerceIn(0f, 100f)
-            )
-            if (alt != null && i % 2 == 1) c = c.copy(textColor = alt)
-            c
-        }
-    }
-
-    /**
-     * `repeat.scatter`: [count] copies over a disc around the layer (see the class doc: a hash
-     * field of the same shape as Alight's, drifting with the stored evolution track).
-     */
-    private fun scatterCopiesOf(clip: TimelineClip, fx: ClipFx, undoRotationDeg: Float, timeMs: Long): List<TimelineClip> {
-        val n = countOf(fx)
-        val radius = fx.values.getOrNull(1) ?: 0f
-        val ox = fx.values.getOrNull(2) ?: 0f
-        val oy = fx.values.getOrNull(3) ?: 0f
-        val seed = fx.values.getOrNull(4) ?: 0f
-        val scaleFloor = ((fx.values.getOrNull(5) ?: 0f) / 100f).coerceIn(0f, 1f)
-        val alpha = (fx.values.getOrNull(6) ?: 100f) / 100f
-        val fieldAngle = (fx.values.getOrNull(7) ?: 0f) * PI.toFloat() / 180f
-        val e = evolutionAt(fx, clip, timeMs)
-        val alt = altColorOf(fx, 12)
-        // Alight's `offset` translates its field rather than moving the field's centre (see the
-        // class doc), so here it shifts the hash seed: a different offset, a different pattern.
-        val seedBits = (seed * 1000f).roundToInt() + (ox * 131f + oy * 57f).roundToInt()
-        val rad = undoRotationDeg * PI.toFloat() / 180f
-        val cosU = cos(rad)
-        val sinU = sin(rad)
-        val twoPi = 2f * PI.toFloat()
-        return List(n) { i ->
-            val u1 = hash01(seedBits, i, 1)
-            val u2 = hash01(seedBits, i, 2)
-            val u3 = hash01(seedBits, i, 3)
-            val u4 = hash01(seedBits, i, 4)
-            val u5 = hash01(seedBits, i, 5)
-            // Each copy keeps its hashed place in the disc but wanders with the evolution: its angle
-            // turns ONE way at its own hashed rate (up to 0.375 of a turn per evolution unit — the
-            // tracked copies in Alight's export all turn the same way, 0.2 .. 0.4) and its radius
-            // breathes between 0.1 and 1.0 of its hashed radius (radii there grow x3 and shrink
-            // x0.25 over 1.5 s), so a copy never leaves the disc. At evolution 0 the copies sit
-            // near their hashed places.
-            val theta = twoPi * u1 + fieldAngle - twoPi * u4 * 0.375f * e
-            val rho = radius * sqrt(u2) * (0.55f + 0.45f * sin(twoPi * (0.8f * e + u5)))
-            val ax = rho * cos(theta)
-            val ay = rho * sin(theta)
-            val ux = ax * cosU + ay * sinU
-            val uy = -ax * sinU + ay * cosU
-            var c = clip.copy(
-                transformX = clip.transformX + ux,
-                transformY = clip.transformY + uy,
-                scalePercent = (clip.scalePercent * (scaleFloor + (1f - scaleFloor) * u3)).coerceAtLeast(0.01f),
-                opacity = (clip.opacity * alpha).coerceIn(0f, 100f)
-            )
-            if (alt != null && i % 2 == 1) c = c.copy(textColor = alt)
-            c
-        }
-    }
-
-    /**
-     * `repeat.line`: [count] copies along a line through the layer's position (see the class
-     * doc for the law: copy i at layerPos + R(angle) * (position + i * offset), scaled by
-     * scale^i and faded by alpha^i, no per-copy rotation). Unlike the plain repeat there is no
-     * count-1 shortcut: copy 0 is the layer itself only when `position` is (0, 0), so the law
-     * runs for every copy including the first. The angle turns the whole line (the clockwise
-     * matrix, the radial copies' convention: positive angle turns clockwise on screen), and
-     * the undo rotation folds the line back into the upright picture exactly like the plain
-     * repeat's offset undo.
-     */
-    private fun lineCopiesOf(clip: TimelineClip, fx: ClipFx, undoRotationDeg: Float): List<TimelineClip> {
-        val n = countOf(fx)
-        val px = fx.values.getOrNull(1) ?: 0f
-        val py = fx.values.getOrNull(2) ?: 0f
-        val ox = fx.values.getOrNull(3) ?: 0f
-        val oy = fx.values.getOrNull(4) ?: 0f
-        val angle = fx.values.getOrNull(5) ?: 0f
-        val scale = (fx.values.getOrNull(6) ?: 100f) / 100f
-        val alpha = (fx.values.getOrNull(7) ?: 100f) / 100f
-        val alt = altColorOf(fx, 9)
-        val a = angle * PI.toFloat() / 180f
-        val ca = cos(a)
-        val sa = sin(a)
-        val rad = undoRotationDeg * PI.toFloat() / 180f
-        val cosU = cos(rad)
-        val sinU = sin(rad)
-        return List(n) { i ->
-            val lx = px + i * ox
-            val ly = py + i * oy
-            val rx = lx * ca - ly * sa
-            val ry = lx * sa + ly * ca
-            val ux = rx * cosU + ry * sinU
-            val uy = -rx * sinU + ry * cosU
-            var c = clip.copy(
-                transformX = clip.transformX + ux,
-                transformY = clip.transformY + uy,
-                scalePercent = (clip.scalePercent * scale.pow(i)).coerceAtLeast(0.01f),
-                opacity = (clip.opacity * alpha.pow(i)).coerceIn(0f, 100f)
-            )
-            if (alt != null && i % 2 == 1) c = c.copy(textColor = alt)
-            c
-        }
-    }
-
-    /** The scatter `evolution` at the frame time, from the two-key track stored in values [8..11]. */
-    private fun evolutionAt(fx: ClipFx, clip: TimelineClip, timeMs: Long): Float {
-        val v0 = fx.values.getOrNull(9) ?: 0f
-        if (timeMs == Long.MIN_VALUE || clip.endMs <= clip.startMs) return v0
-        val t0 = fx.values.getOrNull(8) ?: 0f
-        val t1 = fx.values.getOrNull(10) ?: 1f
-        val v1 = fx.values.getOrNull(11) ?: v0
-        val u = ((timeMs - clip.startMs).toFloat() / (clip.endMs - clip.startMs)).coerceIn(0f, 1f)
-        val span = t1 - t0
-        val f = if (span > 0.0001f) ((u - t0) / span).coerceIn(0f, 1f) else if (u < t0) 0f else 1f
-        return v0 + (v1 - v0) * f
-    }
-
-    /**
-     * The alternating copies' fill colour the importer stored at values [at] (a [packColor] pair
-     * plus a flag at [at] + 2), or null when copies keep the layer's own colour.
-     */
-    private fun altColorOf(fx: ClipFx, at: Int): Long? {
-        if ((fx.values.getOrNull(at + 2) ?: 0f) == 0f) return null
-        return unpackColor(fx.values.getOrNull(at) ?: 0f, fx.values.getOrNull(at + 1) ?: 0f)
+        val out = FloatArray(2)
+        FrameEvalNative.nativeGroupCopyOffset(anchorX, anchorY, d.dx, d.dy, d.rotDeg, d.scaleMul, k, out)
+        return Pair(out[0], out[1])
     }
 
     /** A SplitMix-style integer hash to a uniform float in [0, 1): stable across runs and platforms. */

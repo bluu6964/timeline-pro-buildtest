@@ -1,8 +1,8 @@
 package com.example.ui.components
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -13,14 +13,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import com.example.engine.UiGlRuntime
+import com.example.engine.VectorCmdBuilder
+import com.example.engine.VectorCmdSnapshot
 import com.example.model.ClipMask
 import com.example.model.MaskFrame
 import com.example.model.MaskHandle
@@ -105,160 +105,173 @@ fun MaskEditOverlay(
     val penNow by rememberUpdatedState(onPenAdd)
     val pointNow by rememberUpdatedState(onSelectPoint)
 
-    Canvas(
+    Box(
         modifier = modifier
             .fillMaxSize()
             .onSizeChanged {
                 frameW = it.width.toFloat()
                 frameH = it.height.toFloat()
             }
-            .testTag("mask_edit_overlay")
-            .pointerInput(Unit) {
-                awaitEachGesture {
-                    val down = awaitFirstDown(requireUnconsumed = false)
-                    val c = ctxNow
-                    val slop = viewConfiguration.touchSlop
-                    val p0 = c.toPicture(down.position)
+    ) {
+        val snap = buildMaskCmds(ctx, selectedPoint, density, penPoints)
+        NativeGlTextureHost(
+            isOpaque = false,
+            drawOnGl = { sid -> UiGlRuntime.drawVectorCommandsOnGl(sid, 0, snap) },
+            modifier = Modifier.fillMaxSize()
+        )
+        
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .testTag("mask_edit_overlay")
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        val c = ctxNow
+                        val slop = viewConfiguration.touchSlop
+                        val p0 = c.toPicture(down.position)
 
-                    if (c.pen) {
-                        // a tap places a point
+                        if (c.pen) {
+                            // a tap places a point
+                            var moved = false
+                            down.consume()
+                            while (true) {
+                                val ev = awaitPointerEvent()
+                                val ch = ev.changes.first()
+                                ch.consume()
+                                if (hypot(ch.position.x - down.position.x, ch.position.y - down.position.y) > slop * 2f) moved = true
+                                if (!ch.pressed) break
+                            }
+                            if (!moved) penNow(p0.x / c.aspect, p0.y)
+                            return@awaitEachGesture
+                        }
+
+                        val m = c.mask ?: return@awaitEachGesture
+                        val state0 = m.shownStateAt(c.rel, c.srcMs)
+                        val frame = MaskFrame(m, state0, c.aspect)
+                        val radius = c.hitPx * c.unitsPerPx
+                        var kind = frame.hitHandle(p0, radius)
+                        if (kind == MaskHandle.NONE && frame.containsPoint(p0, radius * 0.6f)) kind = MaskHandle.BODY
+                        if (kind >= MaskHandle.POINT) pointNow(kind - MaskHandle.POINT)
+
                         var moved = false
-                        down.consume()
+                        if (kind != MaskHandle.NONE) down.consume()
                         while (true) {
                             val ev = awaitPointerEvent()
                             val ch = ev.changes.first()
-                            ch.consume()
-                            if (hypot(ch.position.x - down.position.x, ch.position.y - down.position.y) > slop * 2f) moved = true
+                            if (kind != MaskHandle.NONE) ch.consume()
+                            val d = hypot(ch.position.x - down.position.x, ch.position.y - down.position.y)
+                            if (d > slop) moved = true
+                            if (moved && kind != MaskHandle.NONE && ch.pressed) {
+                                val p = c.toPicture(ch.position)
+                                when {
+                                    kind == MaskHandle.BODY ->
+                                        changeNow(m.withShownStateAt(c.rel, c.srcMs, frame.movedBy(state0, p0, p)))
+                                    kind == MaskHandle.ROTATE ->
+                                        changeNow(m.withShownStateAt(c.rel, c.srcMs, frame.rotateTo(p)))
+                                    kind >= MaskHandle.POINT ->
+                                        changeNow(frame.dragPoint(kind - MaskHandle.POINT, p))
+                                    kind >= MaskHandle.ROTATE -> {}
+                                    kind >= MaskHandle.EDGE ->
+                                        changeNow(m.withShownStateAt(c.rel, c.srcMs, frame.dragEdge(kind - MaskHandle.EDGE, p)))
+                                    kind >= MaskHandle.CORNER ->
+                                        changeNow(m.withShownStateAt(c.rel, c.srcMs, frame.dragCorner(kind - MaskHandle.CORNER, p)))
+                                }
+                            }
                             if (!ch.pressed) break
                         }
-                        if (!moved) penNow(p0.x / c.aspect, p0.y)
-                        return@awaitEachGesture
-                    }
-
-                    val m = c.mask ?: return@awaitEachGesture
-                    val state0 = m.shownStateAt(c.rel, c.srcMs)
-                    val frame = MaskFrame(m, state0, c.aspect)
-                    val radius = c.hitPx * c.unitsPerPx
-                    var kind = frame.hitHandle(p0, radius)
-                    if (kind == MaskHandle.NONE && frame.containsPoint(p0, radius * 0.6f)) kind = MaskHandle.BODY
-                    if (kind >= MaskHandle.POINT) pointNow(kind - MaskHandle.POINT)
-
-                    var moved = false
-                    if (kind != MaskHandle.NONE) down.consume()
-                    while (true) {
-                        val ev = awaitPointerEvent()
-                        val ch = ev.changes.first()
-                        if (kind != MaskHandle.NONE) ch.consume()
-                        val d = hypot(ch.position.x - down.position.x, ch.position.y - down.position.y)
-                        if (d > slop) moved = true
-                        if (moved && kind != MaskHandle.NONE && ch.pressed) {
-                            val p = c.toPicture(ch.position)
-                            when {
-                                kind == MaskHandle.BODY ->
-                                    changeNow(m.withShownStateAt(c.rel, c.srcMs, frame.movedBy(state0, p0, p)))
-                                kind == MaskHandle.ROTATE ->
-                                    changeNow(m.withShownStateAt(c.rel, c.srcMs, frame.rotateTo(p)))
-                                kind >= MaskHandle.POINT ->
-                                    changeNow(frame.dragPoint(kind - MaskHandle.POINT, p))
-                                kind >= MaskHandle.ROTATE -> {}
-                                kind >= MaskHandle.EDGE ->
-                                    changeNow(m.withShownStateAt(c.rel, c.srcMs, frame.dragEdge(kind - MaskHandle.EDGE, p)))
-                                kind >= MaskHandle.CORNER ->
-                                    changeNow(m.withShownStateAt(c.rel, c.srcMs, frame.dragCorner(kind - MaskHandle.CORNER, p)))
+                        // a tap on an edge of a pen path adds a point there
+                        if (!moved && kind == MaskHandle.NONE && m.shape == MaskShape.PATH) {
+                            val ins = frame.insertPointNear(p0, radius)
+                            if (ins != null) {
+                                down.consume()
+                                changeNow(ins.first)
+                                pointNow(ins.second)
                             }
-                        }
-                        if (!ch.pressed) break
-                    }
-                    // a tap on an edge of a pen path adds a point there
-                    if (!moved && kind == MaskHandle.NONE && m.shape == MaskShape.PATH) {
-                        val ins = frame.insertPointNear(p0, radius)
-                        if (ins != null) {
-                            down.consume()
-                            changeNow(ins.first)
-                            pointNow(ins.second)
                         }
                     }
                 }
-            }
-    ) {
-        drawMasks(ctx, selectedPoint, density, penPoints)
+        )
     }
 }
 
-private fun DrawScope.outlinePath(ctx: MaskCtx, f: MaskFrame): Path {
-    val pts = f.outline()
-    val path = Path()
-    if (pts.isEmpty()) return path
-    val first = ctx.toScreen(pts[0])
-    path.moveTo(first.x, first.y)
-    if (f.mask.shape == MaskShape.MIRROR) {
-        // two separate lines
-        val a = ctx.toScreen(pts[1])
-        path.lineTo(a.x, a.y)
-        val b = ctx.toScreen(pts[2])
-        path.moveTo(b.x, b.y)
-        val c = ctx.toScreen(pts[3])
-        path.lineTo(c.x, c.y)
-        return path
-    }
-    for (i in 1 until pts.size) {
-        val o = ctx.toScreen(pts[i])
-        path.lineTo(o.x, o.y)
-    }
-    if (f.isOutlineClosed) path.close()
-    return path
-}
+private fun buildMaskCmds(
+    ctx: MaskCtx,
+    selectedPoint: Int,
+    density: Float,
+    penPoints: List<Pair<Float, Float>>?
+): VectorCmdSnapshot {
+    val b = VectorCmdBuilder(initialFloats = 512, initialColors = 64)
+    val darkArgb = 0x73000000
+    val whiteArgb = 0xFFFFFFFF.toInt()
+    val whiteDimArgb = 0x8CFFFFFF.toInt()
+    val strokeDarkArgb = 0xBF000000.toInt()
+    val cyanArgb = NeonCyan.toArgb()
 
-private fun DrawScope.drawMasks(ctx: MaskCtx, selectedPoint: Int, density: Float, penPoints: List<Pair<Float, Float>>?) {
-    val dark = Color.Black.copy(alpha = 0.45f)
-    // every mask: thin outline; the selected one stronger, with handles
     for (m in ctx.clip.masks) {
         if (!m.enabled) continue
         val f = MaskFrame(m, m.shownStateAt(ctx.rel, ctx.srcMs), ctx.aspect)
         val sel = m.id == ctx.mask?.id
-        val path = outlinePath(ctx, f)
-        drawPath(path, dark, style = Stroke((if (sel) 3.4f else 2.4f) * density, join = StrokeJoin.Round))
-        drawPath(
-            path, if (sel) Color.White else Color.White.copy(alpha = 0.55f),
-            style = Stroke((if (sel) 1.5f else 1.0f) * density, join = StrokeJoin.Round)
-        )
+        val pts = f.outline()
+        if (pts.size < 2) continue
+        val outerW = (if (sel) 3.4f else 2.4f) * density
+        val innerW = (if (sel) 1.5f else 1.0f) * density
+        val innerCol = if (sel) whiteArgb else whiteDimArgb
+        if (m.shape == MaskShape.MIRROR && pts.size >= 4) {
+            val p0 = ctx.toScreen(pts[0])
+            val p1 = ctx.toScreen(pts[1])
+            val p2 = ctx.toScreen(pts[2])
+            val p3 = ctx.toScreen(pts[3])
+            b.addLine(p0.x, p0.y, p1.x, p1.y, outerW, darkArgb)
+            b.addLine(p2.x, p2.y, p3.x, p3.y, outerW, darkArgb)
+            b.addLine(p0.x, p0.y, p1.x, p1.y, innerW, innerCol)
+            b.addLine(p2.x, p2.y, p3.x, p3.y, innerW, innerCol)
+        } else {
+            val xs = FloatArray(pts.size)
+            val ys = FloatArray(pts.size)
+            for (i in pts.indices) {
+                val o = ctx.toScreen(pts[i])
+                xs[i] = o.x
+                ys[i] = o.y
+            }
+            b.addPolyline(xs, ys, pts.size, f.isOutlineClosed, outerW, darkArgb)
+            b.addPolyline(xs, ys, pts.size, f.isOutlineClosed, innerW, innerCol)
+        }
     }
+
     val m = ctx.mask
     if (m != null && m.enabled && !ctx.pen) {
         val f = MaskFrame(m, m.shownStateAt(ctx.rel, ctx.srcMs), ctx.aspect)
-        // a short stem from the top edge to the round turn handle
         if (m.shape != MaskShape.LINE) {
             val a = ctx.toScreen(f.edge(0))
-            val b = ctx.toScreen(f.rotateHandle())
-            drawLine(Color.White, a, b, 1.2f * density)
+            val rPos = ctx.toScreen(f.rotateHandle())
+            b.addLine(a.x, a.y, rPos.x, rPos.y, 1.2f * density, whiteArgb)
         }
-        // centre mark
         val cs = ctx.toScreen(Pt(f.cx, f.cy))
-        drawCircle(dark, 3.2f * density, cs)
-        drawCircle(Color.White, 2.0f * density, cs)
+        b.addCircle(cs.x, cs.y, 3.2f * density, darkArgb)
+        b.addCircle(cs.x, cs.y, 2.0f * density, whiteArgb)
         for ((kind, pos) in f.handles()) {
             val o = ctx.toScreen(pos)
             val isPoint = kind >= MaskHandle.POINT
             val isSelPoint = isPoint && kind - MaskHandle.POINT == selectedPoint
-            val r = (if (kind == MaskHandle.ROTATE) 7f else if (isPoint) 5.5f else 5.5f) * density
-            drawCircle(if (isSelPoint) NeonCyan else if (kind == MaskHandle.ROTATE) NeonCyan else Color.White, r, o)
-            drawCircle(Color.Black.copy(alpha = 0.75f), r, o, style = Stroke(1.4f * density))
+            val r = (if (kind == MaskHandle.ROTATE) 7f else 5.5f) * density
+            val fill = if (isSelPoint || kind == MaskHandle.ROTATE) cyanArgb else whiteArgb
+            b.addCircle(o.x, o.y, r, fill, 1.4f * density, strokeDarkArgb)
         }
     }
-    // pen drawing in progress
+
     if (penPoints != null) {
         val pts = penPoints.map { ctx.toScreen(Pt(it.first * ctx.aspect, it.second)) }
         if (pts.size >= 2) {
-            val path = Path().apply {
-                moveTo(pts[0].x, pts[0].y)
-                for (i in 1 until pts.size) lineTo(pts[i].x, pts[i].y)
-            }
-            drawPath(path, dark, style = Stroke(3.4f * density, join = StrokeJoin.Round))
-            drawPath(path, NeonCyan, style = Stroke(1.5f * density, join = StrokeJoin.Round))
+            val xs = FloatArray(pts.size) { pts[it].x }
+            val ys = FloatArray(pts.size) { pts[it].y }
+            b.addPolyline(xs, ys, pts.size, false, 3.4f * density, darkArgb)
+            b.addPolyline(xs, ys, pts.size, false, 1.5f * density, cyanArgb)
         }
         for ((i, o) in pts.withIndex()) {
-            drawCircle(if (i == 0) NeonCyan else Color.White, 5.5f * density, o)
-            drawCircle(Color.Black.copy(alpha = 0.75f), 5.5f * density, o, style = Stroke(1.4f * density))
+            val fill = if (i == 0) cyanArgb else whiteArgb
+            b.addCircle(o.x, o.y, 5.5f * density, fill, 1.4f * density, strokeDarkArgb)
         }
     }
+    return b.build()
 }

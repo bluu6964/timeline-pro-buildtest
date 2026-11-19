@@ -3,7 +3,6 @@ package com.example.ui.components
 import android.graphics.Bitmap
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -62,6 +61,8 @@ import com.example.engine.EdgeSamEngine
 import com.example.engine.MaskCleanup
 import com.example.engine.RotoBrushVideo
 import com.example.engine.RotoFrames
+import com.example.engine.UiGlRuntime
+import com.example.engine.VectorCmdBuilder
 import com.example.model.TimelineClip
 import com.example.model.exportSpeed
 import com.example.ui.theme.AmAccentViolet
@@ -307,7 +308,32 @@ fun RotoBrushScreen(
                         )
                     }
                 }
-                Canvas(
+                val f = fit()
+                val curStrokes = strokes[curMs].orEmpty()
+                val liveCopy = live.toList()
+                val dotCount = curStrokes.sumOf { it.size } + liveCopy.size
+                val b = VectorCmdBuilder(
+                    initialFloats = dotCount * 5 + 16,
+                    initialColors = dotCount * 2 + 8
+                )
+                for (stroke in curStrokes) {
+                    for (p in stroke) {
+                        val col = if (p.positive) 0xFF39E26B.toInt() else 0xFFFF4D4D.toInt()
+                        b.addCircle(f[0] + p.x * f[2], f[1] + p.y * f[3], 7f, col)
+                    }
+                }
+                val liveCol = if (foreground) 0x8C39E26B.toInt() else 0x8CFF4D4D.toInt()
+                for (o in liveCopy) {
+                    b.addCircle(o.x, o.y, 14f, liveCol)
+                }
+                val snap = b.build()
+                NativeGlTextureHost(
+                    isOpaque = false,
+                    drawOnGl = { sid -> UiGlRuntime.drawVectorCommandsOnGl(sid, 0, snap) },
+                    modifier = Modifier.fillMaxSize()
+                )
+                
+                Box(
                     Modifier
                         .fillMaxSize()
                         .pointerInput(modelsOk) {
@@ -331,22 +357,7 @@ fun RotoBrushScreen(
                                 onDragCancel = { live.clear() }
                             )
                         }
-                ) {
-                    val f = fit()
-                    for (stroke in strokes[curMs].orEmpty()) for (p in stroke) {
-                        drawCircle(
-                            color = if (p.positive) Color(0xFF39E26B) else Color(0xFFFF4D4D),
-                            radius = 7f,
-                            center = Offset(f[0] + p.x * f[2], f[1] + p.y * f[3])
-                        )
-                    }
-                    for (o in live) drawCircle(
-                        color = if (foreground) Color(0xFF39E26B) else Color(0xFFFF4D4D),
-                        radius = 14f,
-                        center = o,
-                        alpha = 0.55f
-                    )
-                }
+                )
                 busy?.let {
                     Text(
                         it, color = Color.White, fontSize = 13.sp,

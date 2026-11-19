@@ -123,17 +123,22 @@ object MotionTrack {
         }
 
         try {
-            decodeFast(context, clip, fps, startSrcMs, endSrc) { ms, img, asp -> onFrame(ms, img, asp) }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: NoTexture) {
-            throw e
-        } catch (e: Exception) {
-            if (samples.isNotEmpty()) throw e
-            // This phone's decoder gives no readable frames: slower, safe way (seek per frame).
-            tracker = CircleTracker()
-            first = true
-            decodeSlow(context, clip, fps, startSrcMs, endSrc) { ms, img, asp -> onFrame(ms, img, asp) }
+            try {
+                decodeFast(context, clip, fps, startSrcMs, endSrc) { ms, img, asp -> onFrame(ms, img, asp) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: NoTexture) {
+                throw e
+            } catch (e: Exception) {
+                if (samples.isNotEmpty()) throw e
+                // This phone's decoder gives no readable frames: slower, safe way (seek per frame).
+                tracker.close()
+                tracker = CircleTracker()
+                first = true
+                decodeSlow(context, clip, fps, startSrcMs, endSrc) { ms, img, asp -> onFrame(ms, img, asp) }
+            }
+        } finally {
+            tracker.close()
         }
         if (samples.isEmpty()) throw IllegalStateException("No frames could be read")
         onProgress(1f)

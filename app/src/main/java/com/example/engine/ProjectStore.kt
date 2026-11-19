@@ -42,7 +42,7 @@ class ProjectStore(private val root: File) {
 
     /** Id of the project that was open when the app was closed, or null. */
     var lastId: String?
-        get() = runCatching { File(root, LAST_FILE).readText().trim() }.getOrNull()
+        get() = runCatching { readTextFast(File(root, LAST_FILE)).trim() }.getOrNull()
             ?.takeIf { it.isNotEmpty() && File(dir(it), PROJECT_FILE).exists() }
         set(value) {
             runCatching {
@@ -87,8 +87,8 @@ class ProjectStore(private val root: File) {
     /** The saved project, or null when it is missing or both the file and its backup are unreadable. */
     fun load(id: String): ProjectSnapshot? {
         val f = File(dir(id), PROJECT_FILE)
-        return runCatching { decode(f.readText()) }.getOrNull()
-            ?: runCatching { decode(File(dir(id), "$PROJECT_FILE.bak").readText()) }.getOrNull()
+        return runCatching { decode(readTextFast(f)) }.getOrNull()
+            ?: runCatching { decode(readTextFast(File(dir(id), "$PROJECT_FILE.bak"))) }.getOrNull()
     }
 
     fun rename(id: String, name: String) {
@@ -128,24 +128,23 @@ class ProjectStore(private val root: File) {
     )
 
     private fun readMeta(id: String): ProjectMeta? =
-        runCatching { json.decodeFromString(ProjectMeta.serializer(), File(dir(id), META_FILE).readText()) }.getOrNull()
+        runCatching { json.decodeFromString(ProjectMeta.serializer(), readTextFast(File(dir(id), META_FILE))) }.getOrNull()
 
     private fun writeMeta(m: ProjectMeta) {
         dir(m.id).mkdirs()
         writeAtomic(File(dir(m.id), META_FILE), json.encodeToString(ProjectMeta.serializer(), m))
     }
 
+    private fun readTextFast(file: File): String {
+        val bytes = ProjectDocNative.nativeReadFile(file.absolutePath)
+            ?: throw java.io.IOException("native read failed: ${file.path}")
+        return bytes.toString(Charsets.UTF_8)
+    }
+
     private fun writeAtomic(target: File, text: String) {
-        val tmp = File(target.parentFile, target.name + ".tmp")
-        tmp.writeText(text)
-        if (target.exists()) {
-            val bak = File(target.parentFile, target.name + ".bak")
-            bak.delete()
-            target.renameTo(bak)
-        }
-        if (!tmp.renameTo(target)) {
-            tmp.copyTo(target, overwrite = true)
-            tmp.delete()
+        val bytes = text.toByteArray(Charsets.UTF_8)
+        if (!ProjectDocNative.nativeWriteAtomic(target.absolutePath, bytes)) {
+            throw java.io.IOException("native atomic write failed: ${target.path}")
         }
     }
 }

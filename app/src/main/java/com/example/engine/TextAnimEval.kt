@@ -73,17 +73,28 @@ internal object TextAnimEval {
         if (ks.isEmpty()) return v.value
         if (p <= ks.first().t) return ks.first().v
         if (p >= ks.last().t) return ks.last().v
-        val i = ks.indexOfLast { it.t <= p }
-        val k0 = ks[i]
-        val k1 = ks[i + 1]
-        if (v.type == "color" || v.type == "bool" || v.type == "int") return k0.v
-        val span = (k1.t - k0.t).coerceAtLeast(1e-6f)
-        val raw = ((p - k0.t) / span).coerceIn(0f, 1f)
-        // The segment's easing sits on the keyframe it ENDS at (Alight's `e` attribute), the same
-        // convention the fx tails (AmFxEval) and the layer tracks use. Before the Graph round-6
-        // link AnimKey stored no easing and this ran linear — the Graph counter's fast-start
-        // cubicBezier count (11 of 12 at 1.0 s in Alight) came out a steady 6 here.
-        val f = k1.easing?.apply(raw) ?: raw
-        return List(minOf(k0.v.size, k1.v.size)) { j -> k0.v[j] + (k1.v[j] - k0.v[j]) * f }
+        val stepOnly = v.type == "color" || v.type == "bool" || v.type == "int"
+        val dims = ks.minOf { it.v.size }
+        if (dims <= 0) return emptyList()
+        val n = ks.size
+        val times = FloatArray(n) { ks[it].t }
+        val vals = FloatArray(n * dims)
+        val hasEz = ByteArray(n)
+        val ez = FloatArray(n * 4)
+        for (i in 0 until n) {
+            val k = ks[i]
+            for (j in 0 until dims) vals[i * dims + j] = k.v[j]
+            val e = k.easing
+            if (e != null) {
+                hasEz[i] = 1
+                ez[i * 4] = e.x1
+                ez[i * 4 + 1] = e.y1
+                ez[i * 4 + 2] = e.x2
+                ez[i * 4 + 3] = e.y2
+            }
+        }
+        val out = FloatArray(dims)
+        FrameEvalNative.nativeTextAnimValueAt(times, vals, dims, hasEz, ez, stepOnly, p, out)
+        return out.toList()
     }
 }

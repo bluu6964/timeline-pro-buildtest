@@ -4,6 +4,7 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
@@ -11,19 +12,21 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.dp
+import com.example.engine.CanvasGestureNative
 import com.example.model.CropVisibleBox
-import com.example.model.DragMath
 import com.example.model.LayerType
 import com.example.model.TimelineClip
 import com.example.model.cropVisibleBox
 import com.example.model.depthFactor
+import com.example.model.depthX
+import com.example.model.depthY
+import com.example.model.effectiveScalePercent
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -39,8 +42,9 @@ import kotlinx.coroutines.launch
  * shapes now measure the same way.
  *
  * Everything is measured here, in canvas pixels, accumulated from the drag-start
- * position (model/DragMath — the stored position the old local-space conversion
- * also produced; DragMathTest pins the equivalence). During the drag, [onMove]
+ * position by the C++ gesture machine (cpp/engine/canvas_gesture.cpp — build 234
+ * removed the Kotlin gesture path; the machine reproduces the stored position
+ * the old local-space conversion produced). During the drag, [onMove]
  * reports the proposed stored position and returns the position actually applied
  * (CanvasArea snaps it and feeds the drag preview — no keyframe commit and no
  * Controller fan-out per event). At drag end, [onCommit] performs the ONE real
@@ -89,7 +93,10 @@ internal fun CanvasDragLayer(
     val moveNow by rememberUpdatedState(onMove)
     val commitNow by rememberUpdatedState(onCommit)
     val scope = rememberCoroutineScope()
-    val pending = remember { PendingTapHolder() }
+    val nativeHolder = remember { NativeCanvasGestureHolder() }
+    DisposableEffect(nativeHolder) {
+        onDispose { nativeHolder.dispose() }
+    }
 
     Box(
         modifier = modifier
@@ -99,117 +106,147 @@ internal fun CanvasDragLayer(
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = true)
 
-                    // A pending single tap (see below) is armed as a possible double
-                    // tap when this press lands inside the tapped layer's touch box,
-                    // in time and near the first press — the old per-layer tap
-                    // detector only ever saw presses on its own box, so a press
-                    // elsewhere never disturbs it. The pending tap is NOT cancelled
-                    // yet: what this press turns into decides (see the branches).
-                    var armedClipId: String? = null
-                    val pt = pending.tap
-                    if (pt != null) {
-                        val ptClip = clipsNow.firstOrNull { it.id == pt.clipId }
-                        val ptGeo = ptClip?.let { dragGeoFor(it, fw, fh, density, sizesNow) }
-                        if (ptGeo != null && ptGeo.contains(down.position) &&
-                            down.uptimeMillis - pt.upTimeMs <= viewConfiguration.doubleTapTimeoutMillis &&
-                            (down.position - pt.downPosition).getDistance() <= doubleTapSlopPx
-                        ) {
-                            armedClipId = pt.clipId
-                        }
-                    }
-                    val armed = armedClipId
+                    val nativeHandle = nativeHolder.handle
+                    if (nativeHandle != 0L) {
+                        CanvasGestureNative.nativeSetConfig(
+                            nativeHandle,
+                            viewConfiguration.touchSlop,
+                            doubleTapSlopPx,
+                            viewConfiguration.doubleTapTimeoutMillis,
+                            viewConfiguration.longPressTimeoutMillis
+                        )
+                        val snapshot = clipsNow
+                        val sizesSnap = sizesNow
+                        val count = snapshot.size
+                        if (count == 0) return@awaitEachGesture
+                        val kinds = IntArray(count)
+                        val geom = FloatArray(count * CanvasGestureNative.ITEM_FLOAT_STRIDE)
+                        packCanvasItems(snapshot, density, sizesSnap, kinds, geom)
 
-                    // Hit test, topmost first. A sticker on top blocks the gesture
-                    // (its own handlers, lower in the tree, take it from here).
-                    var hit: TimelineClip? = null
-                    var hitIsText = false
-                    var blocked = false
-                    for (clip in clipsNow.asReversed()) {
-                        val geo = dragGeoFor(clip, fw, fh, density, sizesNow) ?: continue
-                        if (!geo.contains(down.position)) continue
-                        when (dragKindOf(clip)) {
-                            DragKind.BLOCKER -> blocked = true
-                            DragKind.TEXT -> { hit = clip; hitIsText = true }
-                            DragKind.SHAPE_FAMILY -> { hit = clip; hitIsText = false }
-                        }
-                        break
-                    }
-                    if (blocked || hit == null) return@awaitEachGesture
-                    val target = hit
-
-                    var total = Offset.Zero
-                    var dragging = false
-                    var lastApplied: Pair<Float, Float>? = null
-                    var released = false
-                    var releaseTimeMs = 0L
-                    val startX = target.transformX
-                    val startY = target.transformY
-                    val df = target.depthFactor
-                    val slop = viewConfiguration.touchSlop
-                    while (true) {
-                        val event = awaitPointerEvent()
-                        val c = event.changes.firstOrNull { it.id == down.id } ?: break
-                        // A handler above (selection frame / gradient handles) took
-                        // this gesture: stop, like the old handlers did. A drag in
-                        // flight still commits below — the old handlers' writes up
-                        // to this point stood, and the commit is that same write.
-                        if (c.isConsumed) break
-                        if (!c.pressed) {
-                            released = event.type == PointerEventType.Release
-                            releaseTimeMs = c.uptimeMillis
-                            break
-                        }
-                        total += c.positionChange()
-                        if (!dragging) {
-                            if (total.getDistance() > slop) {
-                                dragging = true
-                                // A second press that drags kills the pending tap
-                                // (the old detector saw the press on its box and
-                                // never fired the tap once it turned into a drag).
-                                if (armed != null && pending.tap?.clipId == armed) {
-                                    pending.tap?.job?.cancel()
-                                    pending.tap = null
-                                }
-                                if (hitIsText) selectNow(target.id)
-                                val pos = DragMath.draggedPosition(startX, startY, total.x, total.y, df)
-                                lastApplied = moveNow(target.id, pos.first, pos.second)
-                                c.consume()
-                            }
+                        val pId = nativeHolder.pendingClipId
+                        val pendingIdx = if (pId != null && nativeHolder.pendingToken != 0L) {
+                            snapshot.indexOfFirst { it.id == pId }
                         } else {
-                            val pos = DragMath.draggedPosition(startX, startY, total.x, total.y, df)
-                            lastApplied = moveNow(target.id, pos.first, pos.second)
-                            c.consume()
+                            -1
                         }
+                        val captured = CanvasGestureNative.nativeOnDown(
+                            nativeHandle,
+                            down.position.x,
+                            down.position.y,
+                            down.uptimeMillis,
+                            fw,
+                            fh,
+                            pendingIdx,
+                            kinds,
+                            geom
+                        )
+                        if (!captured) return@awaitEachGesture
+
+                        var lastApplied: Pair<Float, Float>? = null
+                        var released = false
+                        var releaseTimeMs = 0L
+                        var cancelled = false
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val c = event.changes.firstOrNull { it.id == down.id }
+                            if (c == null || c.isConsumed) {
+                                cancelled = true
+                                break
+                            }
+                            if (!c.pressed) {
+                                released = event.type == PointerEventType.Release
+                                releaseTimeMs = c.uptimeMillis
+                                break
+                            }
+                            val hMove = nativeHolder.handle
+                            if (hMove == 0L) break
+                            val delta = c.positionChange()
+                            val evs = CanvasGestureNative.nativeOnMove(hMove, delta.x, delta.y)
+                            var consume = false
+                            var ei = 0
+                            while (ei + 4 < evs.size) {
+                                val type = evs[ei].toInt()
+                                val idx = evs[ei + 1].toInt()
+                                val x = evs[ei + 2].toFloat()
+                                val y = evs[ei + 3].toFloat()
+                                val tok = evs[ei + 4].toLong()
+                                when (type) {
+                                    CanvasGestureNative.EV_CANCEL_SINGLE_TAP -> {
+                                        if (nativeHolder.pendingToken == tok) {
+                                            nativeHolder.clearPending()
+                                        }
+                                    }
+                                    CanvasGestureNative.EV_SELECT -> {
+                                        if (idx in snapshot.indices) selectNow(snapshot[idx].id)
+                                    }
+                                    CanvasGestureNative.EV_MOVE -> {
+                                        if (idx in snapshot.indices) {
+                                            lastApplied = moveNow(snapshot[idx].id, x, y)
+                                        }
+                                    }
+                                    CanvasGestureNative.EV_CONSUME -> consume = true
+                                }
+                                ei += CanvasGestureNative.EVENT_STRIDE
+                            }
+                            if (consume) c.consume()
+                        }
+
+                        val hEnd = nativeHolder.handle
+                        if (hEnd != 0L) {
+                            val endEvs = if (cancelled) {
+                                CanvasGestureNative.nativeOnCancel(hEnd)
+                            } else {
+                                CanvasGestureNative.nativeOnUp(hEnd, releaseTimeMs, released)
+                            }
+                            var ei = 0
+                            while (ei + 4 < endEvs.size) {
+                                val type = endEvs[ei].toInt()
+                                val idx = endEvs[ei + 1].toInt()
+                                val tok = endEvs[ei + 4].toLong()
+                                when (type) {
+                                    CanvasGestureNative.EV_COMMIT -> {
+                                        if (idx in snapshot.indices) {
+                                            lastApplied?.let { commitNow(snapshot[idx].id, it.first, it.second) }
+                                        }
+                                    }
+                                    CanvasGestureNative.EV_CANCEL_SINGLE_TAP -> {
+                                        if (nativeHolder.pendingToken == tok) {
+                                            nativeHolder.clearPending()
+                                        }
+                                    }
+                                    CanvasGestureNative.EV_DOUBLE_TAP -> {
+                                        if (idx in snapshot.indices) doubleTapNow(snapshot[idx].id)
+                                    }
+                                    CanvasGestureNative.EV_ARM_SINGLE_TAP -> {
+                                        if (idx in snapshot.indices) {
+                                            val clipId = snapshot[idx].id
+                                            nativeHolder.pendingJob?.cancel()
+                                            nativeHolder.pendingToken = tok
+                                            nativeHolder.pendingClipId = clipId
+                                            nativeHolder.pendingJob = scope.launch {
+                                                delay(viewConfiguration.doubleTapTimeoutMillis)
+                                                val hTimeout = nativeHolder.handle
+                                                if (hTimeout != 0L && nativeHolder.pendingToken == tok) {
+                                                    val tEvs = CanvasGestureNative.nativeOnSingleTapTimeout(hTimeout, tok)
+                                                    if (tEvs.size >= CanvasGestureNative.EVENT_STRIDE &&
+                                                        tEvs[0].toInt() == CanvasGestureNative.EV_SELECT
+                                                    ) {
+                                                        nativeHolder.pendingJob = null
+                                                        nativeHolder.pendingToken = 0L
+                                                        nativeHolder.pendingClipId = null
+                                                        selectNow(clipId)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                ei += CanvasGestureNative.EVENT_STRIDE
+                            }
+                        }
+                        return@awaitEachGesture
                     }
 
-                    if (dragging) {
-                        // The one real commit of the whole drag (also on cancel:
-                        // the old handlers' per-event writes stood at cancel too).
-                        lastApplied?.let { commitNow(target.id, it.first, it.second) }
-                    } else if (released) {
-                        val quickTap = releaseTimeMs - down.uptimeMillis <= viewConfiguration.longPressTimeoutMillis
-                        if (quickTap && armed != null && pending.tap?.clipId == armed) {
-                            // This press landed inside the pending layer's touch box
-                            // and tapped: that layer's old tap detector saw the same
-                            // press on its own box and called it a double tap —
-                            // whichever layer sits on top of the spot.
-                            pending.tap?.job?.cancel()
-                            pending.tap = null
-                            doubleTapNow(armed)
-                            if (hitIsText && target.id != armed) {
-                                // The layer actually on top registered its own
-                                // first tap too (its detector saw the press as well).
-                                schedulePendingTap(pending, scope, target.id, down.position, releaseTimeMs, viewConfiguration.doubleTapTimeoutMillis, selectNow)
-                            }
-                        } else if (quickTap && hitIsText) {
-                            schedulePendingTap(pending, scope, target.id, down.position, releaseTimeMs, viewConfiguration.doubleTapTimeoutMillis, selectNow)
-                        } else if (!quickTap && armed != null && pending.tap?.clipId == armed) {
-                            // A second press on the pending layer's box, held too
-                            // long to be a tap: the pending tap dies with it.
-                            pending.tap?.job?.cancel()
-                            pending.tap = null
-                        }
-                    }
                 }
             }
     )
@@ -225,76 +262,91 @@ private fun dragKindOf(clip: TimelineClip): DragKind = when {
     else -> DragKind.TEXT
 }
 
-/**
- * The clip's touch box in canvas space — the same FrameGeo the selection frame
- * hugs: the 130 dp box for the shape family and stickers, the measured box for
- * text, each clipped to its crop-visible part where Crop clips the box in place
- * (shape / text; stickers are drawn uncropped, Null / Group / Controller have no
- * cropped picture). Null when the box cannot be known yet (an unmeasured text
- * layer — the old code had no touch box before the first measure either).
- */
-private fun dragGeoFor(
-    clip: TimelineClip,
-    fw: Float,
-    fh: Float,
+
+
+private class NativeCanvasGestureHolder {
+    var handle: Long = CanvasGestureNative.nativeCreate().also {
+        check(it != 0L) { "native canvas gesture machine could not be created" }
+    }
+    var pendingToken: Long = 0L
+    var pendingClipId: String? = null
+    var pendingJob: Job? = null
+
+    fun clearPending() {
+        pendingJob?.cancel()
+        pendingJob = null
+        pendingToken = 0L
+        pendingClipId = null
+    }
+
+    fun dispose() {
+        clearPending()
+        val h = handle
+        if (h != 0L) {
+            handle = 0L
+            CanvasGestureNative.nativeDestroy(h)
+        }
+    }
+}
+
+private fun packCanvasItems(
+    clips: List<TimelineClip>,
     density: Float,
-    textSizes: Map<String, Size>
-): FrameGeo? {
-    val box = 130f * density
-    return when (dragKindOf(clip)) {
-        DragKind.BLOCKER -> FrameGeo(clip, box, box, fw, fh, 0.01f)
-        DragKind.SHAPE_FAMILY -> {
-            // cropVisibleBox is null only for a degenerate box; the fallback is
-            // the whole box, the old touch box's own fallback.
-            val vis = if (clip.type == LayerType.SHAPE) {
-                clip.cropVisibleBox(box, box) ?: CropVisibleBox(box, box, 0f, 0f)
-            } else {
-                CropVisibleBox(box, box, 0f, 0f)
-            }
-            FrameGeo(clip, box, box, fw, fh, 0.01f, 0f, 0f, vis.width, vis.height, vis.offX, vis.offY)
-        }
-        DragKind.TEXT -> {
-            val size = textSizes[clip.id] ?: return null
-            if (size.width <= 0f || size.height <= 0f) return null
-            val vis = clip.cropVisibleBox(size.width, size.height)
-                ?: CropVisibleBox(size.width, size.height, 0f, 0f)
-            FrameGeo(clip, size.width, size.height, fw, fh, 0.01f, 0f, 0f, vis.width, vis.height, vis.offX, vis.offY)
-        }
-    }
-}
-
-/**
- * Registers a text tap as pending: it selects its layer only once the double-tap
- * window has passed with no second press on the layer (the old detectTapGestures
- * pair held its tap back the same way).
- */
-private fun schedulePendingTap(
-    pending: PendingTapHolder,
-    scope: kotlinx.coroutines.CoroutineScope,
-    clipId: String,
-    downPosition: Offset,
-    upTimeMs: Long,
-    timeoutMs: Long,
-    onSelect: (String) -> Unit
+    textSizes: Map<String, Size>,
+    kindsOut: IntArray,
+    geomOut: FloatArray
 ) {
-    val job = scope.launch {
-        delay(timeoutMs)
-        if (pending.tap?.clipId == clipId && pending.tap?.upTimeMs == upTimeMs) {
-            pending.tap = null
-            onSelect(clipId)
+    val box = 130f * density
+    for (i in clips.indices) {
+        val clip = clips[i]
+        val b = i * CanvasGestureNative.ITEM_FLOAT_STRIDE
+        var boxW = box
+        var boxH = box
+        val vis: CropVisibleBox
+        val kind: Int
+        when (dragKindOf(clip)) {
+            DragKind.BLOCKER -> {
+                kind = CanvasGestureNative.KIND_BLOCKER
+                vis = CropVisibleBox(box, box, 0f, 0f)
+            }
+            DragKind.SHAPE_FAMILY -> {
+                kind = CanvasGestureNative.KIND_SHAPE_FAMILY
+                vis = if (clip.type == LayerType.SHAPE) {
+                    clip.cropVisibleBox(box, box) ?: CropVisibleBox(box, box, 0f, 0f)
+                } else {
+                    CropVisibleBox(box, box, 0f, 0f)
+                }
+            }
+            DragKind.TEXT -> {
+                val size = textSizes[clip.id]
+                if (size == null || size.width <= 0f || size.height <= 0f) {
+                    kindsOut[i] = CanvasGestureNative.KIND_INVALID
+                    continue
+                }
+                kind = CanvasGestureNative.KIND_TEXT
+                boxW = size.width
+                boxH = size.height
+                vis = clip.cropVisibleBox(size.width, size.height)
+                    ?: CropVisibleBox(size.width, size.height, 0f, 0f)
+            }
         }
+        kindsOut[i] = kind
+        geomOut[b + 0] = boxW
+        geomOut[b + 1] = boxH
+        geomOut[b + 2] = vis.width
+        geomOut[b + 3] = vis.height
+        geomOut[b + 4] = vis.offX
+        geomOut[b + 5] = vis.offY
+        geomOut[b + 6] = (clip.effectiveScalePercent / 100f).coerceAtLeast(0.01f)
+        geomOut[b + 7] = clip.rotationDeg
+        geomOut[b + 8] = clip.pivotX
+        geomOut[b + 9] = clip.pivotY
+        geomOut[b + 10] = if (clip.isFlippedH) 1f else 0f
+        geomOut[b + 11] = if (clip.isFlippedV) 1f else 0f
+        geomOut[b + 12] = clip.depthX
+        geomOut[b + 13] = clip.depthY
+        geomOut[b + 14] = clip.transformX
+        geomOut[b + 15] = clip.transformY
+        geomOut[b + 16] = clip.depthFactor
     }
-    pending.tap = PendingTap(clipId, downPosition, upTimeMs, job)
-}
-
-/** A text tap waiting out its double-tap window before it may select its layer. */
-private class PendingTap(
-    val clipId: String,
-    val downPosition: Offset,
-    val upTimeMs: Long,
-    val job: Job
-)
-
-private class PendingTapHolder {
-    var tap: PendingTap? = null
 }

@@ -84,15 +84,9 @@ internal object TextProgressEval {
     /** The visible cluster indices as one range (the window is an interval, so the shown set is contiguous). */
     fun visibleRange(count: Int, start: Float, end: Float): IntRange {
         if (count <= 0) return IntRange.EMPTY
-        var first = -1
-        var last = -1
-        for (i in 0 until count) {
-            if (isVisible(i, count, start, end)) {
-                if (first < 0) first = i
-                last = i
-            }
-        }
-        return if (first < 0) IntRange.EMPTY else first..last
+        val out = IntArray(2)
+        FrameEvalNative.nativeTextProgressVisibleRange(count, start, end, out)
+        return if (out[0] < 0) IntRange.EMPTY else out[0]..out[1]
     }
 
     /** Indic viramas / linkers (GB9c): a consonant after one of these belongs to the same cluster. */

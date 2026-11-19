@@ -11,8 +11,18 @@ add_library(am_engine SHARED
     text_blit.cpp text_layout.cpp text_engine.cpp text_jni.cpp
     shape_engine.cpp shape_jni.cpp
     planar_track.cpp planar_jni.cpp
+    lk_tracker.cpp lk_tracker_jni.cpp
+    audio_analysis.cpp audio_analysis_jni.cpp
+    gif_engine.cpp gif_jni.cpp
+    scope_stats.cpp scope_stats_jni.cpp
+    scene_math.cpp scene_math_jni.cpp
+    shape_boolean.cpp shape_boolean_jni.cpp
+    canvas_gesture.cpp canvas_gesture_jni.cpp
+    frame_eval.cpp frame_eval_jni.cpp
+    project_doc.cpp project_doc_jni.cpp
     remove_plate.cpp remove_jni.cpp stabilize_jni.cpp interp_jni.cpp face_swap_jni.cpp
     timeline_render.cpp timeline_gesture.cpp timeline_jni.cpp
+    ui_gl_renderer.cpp ui_gl_jni.cpp
     crash_handler.cpp)
 target_compile_features(am_engine PRIVATE cxx_std_17)
 target_compile_options(am_engine PRIVATE -O2 -Wall -Wextra)

@@ -1,5 +1,6 @@
 package com.example.model
 
+import com.example.engine.FrameEvalNative
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
@@ -49,38 +50,18 @@ object ArcOutline {
     }
 
     /** The arc's sweep in degrees for the authored angles — 0 when the wrap rule closes it. */
-    fun sweepDegrees(startDeg: Double, endDeg: Double): Double {
-        val (low, high) = preparedAngles(startDeg, endDeg)
-        val twoPI = 2.0 * PI
-        val angleDiff = (high - low) % twoPI
-        val startN = if (abs(low) > twoPI) low % twoPI else low
-        val endN = startN + angleDiff
-        return Math.toDegrees(min(twoPI, abs(endN - startN)))
-    }
+    fun sweepDegrees(startDeg: Double, endDeg: Double): Double =
+        FrameEvalNative.nativePieArcSweepDegrees(startDeg, endDeg)
 
     /**
      * The arc outline for the authored angles at [radius], as [PathSeg]s in AM units (arc start
      * first, then one cubic per arc segment, and a close only when [closed]). Empty when the
      * wrap rule closes the arc at these angles — the layer draws nothing then, as in Alight.
      */
-    fun segments(startDeg: Double, endDeg: Double, radius: Double, closed: Boolean): List<PathSeg> {
-        val (low, high) = preparedAngles(startDeg, endDeg)
-        val curves = createArc(radius, low, high)
-        if (curves.isEmpty()) return emptyList()
-        val segs = ArrayList<PathSeg>(curves.size + 2)
-        segs += PathSeg(PATH_OP_MOVE, listOf(curves[0][0].toFloat(), curves[0][1].toFloat()))
-        for (c in curves) {
-            segs += PathSeg(
-                PATH_OP_CUBIC,
-                listOf(
-                    c[2].toFloat(), c[3].toFloat(), c[4].toFloat(),
-                    c[5].toFloat(), c[6].toFloat(), c[7].toFloat()
-                )
-            )
-        }
-        if (closed) segs += PathSeg(PATH_OP_CLOSE)
-        return segs
-    }
+    fun segments(startDeg: Double, endDeg: Double, radius: Double, closed: Boolean): List<PathSeg> =
+        FrameEvalNative.unpackSegments(
+            FrameEvalNative.nativeArcSegments(startDeg, endDeg, radius, closed) ?: FloatArray(0)
+        )
 
     /** The arc outline normalised to radius 1 — the basis an arc clip's stored segments use. */
     fun normalisedSegments(startDeg: Double, endDeg: Double, closed: Boolean): List<PathSeg> =

@@ -1,5 +1,6 @@
 package com.example.model
 
+import com.example.engine.AudioAnalysisNative
 import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.math.ln
@@ -101,20 +102,7 @@ object Ducking {
      */
     fun peakEnvelope(samples: FloatArray, sampleRate: Int, stepMs: Long = STEP_MS): FloatArray {
         if (samples.isEmpty() || sampleRate <= 0) return FloatArray(0)
-        val stepSamples = maxOf(1, (sampleRate.toLong() * stepMs / 1000L).toInt())
-        val steps = (samples.size + stepSamples - 1) / stepSamples
-        val out = FloatArray(steps)
-        for (k in 0 until steps) {
-            val from = k * stepSamples
-            val to = minOf(samples.size, from + stepSamples)
-            var peak = 0f
-            for (i in from until to) {
-                val a = abs(samples[i])
-                if (a > peak) peak = a
-            }
-            out[k] = peak
-        }
-        return out
+        return AudioAnalysisNative.nativeDuckPeakEnvelope(samples, sampleRate, stepMs)
     }
 
     /**
@@ -140,23 +128,8 @@ object Ducking {
         smoothness: Float,
         stepMs: Long = STEP_MS
     ): FloatArray {
-        val floor = floorGain(amountDb)
-        val out = FloatArray(levels.size)
-        if (levels.isEmpty()) return out
-        val aAttack = 1.0 - exp(-stepMs.toDouble() / attackMs(smoothness))
-        val aRelease = 1.0 - exp(-stepMs.toDouble() / releaseMs(smoothness))
-        var g = 1.0
-        for (k in levels.indices) {
-            val raw = targetGain(levels[k], floor).toDouble()
-            // A non-finite target (a NaN level out of a corrupt decode, say) means
-            // "no information": hold the gain at 1 rather than letting one NaN step
-            // poison the follower — and with it every later gain (build 198).
-            val t = if (raw.isNaN()) 1.0 else raw
-            val a = if (t < g) aAttack else aRelease
-            g += (t - g) * a
-            out[k] = g.toFloat()
-        }
-        return out
+        if (levels.isEmpty()) return FloatArray(0)
+        return AudioAnalysisNative.nativeDuckGainsForLevels(levels, amountDb, smoothness, stepMs)
     }
 
     /**
@@ -205,43 +178,17 @@ object Ducking {
         amountDb: Float,
         smoothness: Float
     ): List<Point>? {
-        if (amountDb <= 0f || ducked.durationMs <= 0L) return null
+        if (!(amountDb > 0f) || ducked.durationMs <= 0L) return null
         val steps = ((ducked.durationMs + STEP_MS - 1L) / STEP_MS).toInt().coerceAtLeast(1)
-        // The trigger level heard inside each of the ducked layer's steps is
-        // the loudest trigger step overlapping it (levels live on the same
-        // global 10 ms grid offset by the layers' starts).
-        val spanLevels = FloatArray(steps)
-        for (k in 0 until steps) {
-            val winStart = ducked.startMs + k * STEP_MS
-            val winEnd = winStart + STEP_MS
-            val first = Math.floorDiv(winStart - triggerStartMs, STEP_MS)
-            val last = Math.floorDiv(winEnd - 1L - triggerStartMs, STEP_MS)
-            var peak = 0f
-            var idx = first
-            while (idx <= last) {
-                if (idx >= 0L && idx < levels.size) {
-                    val v = levels[idx.toInt()]
-                    if (v > peak) peak = v
-                }
-                idx++
-            }
-            spanLevels[k] = peak
-        }
-        val gains = gainsForLevels(spanLevels, amountDb, smoothness)
-        if (gains.all { it >= 1f - GAIN_EPS }) return null
-        // Compress: the span's start, every step whose gain moved by more
-        // than GAIN_EPS since the last kept point, and the span's end.
-        val out = ArrayList<Point>()
-        out.add(Point(0L, gains[0]))
-        var lastGain = gains[0]
-        for (k in 1 until steps) {
-            if (abs(gains[k] - lastGain) > GAIN_EPS) {
-                out.add(Point(k * STEP_MS, gains[k]))
-                lastGain = gains[k]
-            }
-        }
-        if (out.last().relMs < ducked.durationMs) out.add(Point(ducked.durationMs, gains[steps - 1]))
-        return out
+        val cap = steps + 2
+        val times = LongArray(cap)
+        val gains = FloatArray(cap)
+        val count = AudioAnalysisNative.nativeDuckBuildCurve(
+            triggerStartMs, levels, ducked.startMs, ducked.durationMs,
+            amountDb, smoothness, times, gains
+        )
+        if (count <= 0) return null
+        return List(count) { i -> Point(times[i], gains[i]) }
     }
 
     /**

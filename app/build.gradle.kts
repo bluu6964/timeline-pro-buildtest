@@ -13,7 +13,7 @@ android {
     minSdk = 30
     targetSdk = 36
     versionCode = 1
-    versionName = "0.1.194"
+    versionName = "0.1.195"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -21,7 +21,7 @@ android {
     // Auto Captions just says it is not available there (see engine/WhisperEngine.kt).
     externalNativeBuild {
       cmake {
-        abiFilters("arm64-v8a")
+        abiFilters("arm64-v8a", "x86_64")
       }
     }
   }
@@ -40,6 +40,12 @@ android {
   // is simply unsigned instead of failing. Debug builds use the standard Android debug key.
   val releaseStorePassword: String? = System.getenv("STORE_PASSWORD")
   signingConfigs {
+    create("debugConfig") {
+      storeFile = file("${rootDir}/debug.keystore")
+      storePassword = "android"
+      keyAlias = "androiddebugkey"
+      keyPassword = "android"
+    }
     if (releaseStorePassword != null) {
       create("release") {
         storeFile = file(System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks")
@@ -51,6 +57,9 @@ android {
   }
 
   buildTypes {
+    debug {
+      signingConfig = signingConfigs.getByName("debugConfig")
+    }
     release {
       // Lossless PNG recompression (the AGP default) — shrinks res/ a little, no visual change.
       isCrunchPngs = true
@@ -61,7 +70,7 @@ android {
       signingConfig = if (releaseStorePassword != null) {
         signingConfigs.getByName("release")
       } else {
-        signingConfigs.getByName("debug")
+        signingConfigs.getByName("debugConfig")
       }
     }
   }
@@ -73,7 +82,7 @@ android {
   // stays a single universal file for ARM phones (arm64-v8a + armeabi-v7a, unchanged).
   packaging {
     jniLibs {
-      excludes += listOf("lib/x86/**", "lib/x86_64/**")
+      excludes += listOf("lib/x86/**")
     }
   }
   compileOptions {

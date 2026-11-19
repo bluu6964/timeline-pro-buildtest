@@ -1,5 +1,6 @@
 package com.example.model
 
+import com.example.engine.ScopeStatsNative
 import kotlin.math.roundToInt
 
 /**
@@ -123,37 +124,10 @@ object ScopeStats {
         if (width <= 0 || height <= 0 || argb.size.toLong() < width.toLong() * height.toLong()) return null
         val longest = maxOf(width, height)
         if (longest <= MAX_SIDE) return Downscaled(argb, width, height)
-        val scale = MAX_SIDE.toFloat() / longest
-        val tw = (width * scale).roundToInt().coerceAtLeast(1)
-        val th = (height * scale).roundToInt().coerceAtLeast(1)
-        val out = IntArray(tw * th)
-        for (ty in 0 until th) {
-            val y0 = ty * height / th
-            val y1 = maxOf(y0 + 1, (ty + 1) * height / th)
-            for (tx in 0 until tw) {
-                val x0 = tx * width / tw
-                val x1 = maxOf(x0 + 1, (tx + 1) * width / tw)
-                var sr = 0L
-                var sg = 0L
-                var sb = 0L
-                var n = 0L
-                for (y in y0 until y1) {
-                    var i = y * width + x0
-                    for (x in x0 until x1) {
-                        val p = argb[i++]
-                        sr += (p shr 16) and 0xFF
-                        sg += (p shr 8) and 0xFF
-                        sb += p and 0xFF
-                        n++
-                    }
-                }
-                val r = ((sr + n / 2) / n).toInt()
-                val g = ((sg + n / 2) / n).toInt()
-                val b = ((sb + n / 2) / n).toInt()
-                out[ty * tw + tx] = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
-            }
-        }
-        return Downscaled(out, tw, th)
+        val sizeOut = IntArray(2)
+        val px = ScopeStatsNative.nativeDownscale(argb, width, height, sizeOut) ?: return null
+        if (sizeOut[0] <= 0 || sizeOut[1] <= 0) return null
+        return Downscaled(px, sizeOut[0], sizeOut[1])
     }
 
     /**
@@ -163,32 +137,19 @@ object ScopeStats {
      * Null when the input is degenerate (see [downscale]).
      */
     fun analyze(argb: IntArray, width: Int, height: Int): ScopeData? {
-        val d = downscale(argb, width, height) ?: return null
-        val w = d.width
-        val h = d.height
-        val px = d.pixels
+        if (width <= 0 || height <= 0 || argb.size.toLong() < width.toLong() * height.toLong()) return null
+        val meta = IntArray(2)
         val histR = IntArray(BINS)
         val histG = IntArray(BINS)
         val histB = IntArray(BINS)
         val histY = IntArray(BINS)
-        val wave = IntArray(w * BINS)
         val vec = IntArray(VEC_GRID * VEC_GRID)
-        for (y in 0 until h) {
-            var i = y * w
-            for (x in 0 until w) {
-                val p = px[i++]
-                val r = (p shr 16) and 0xFF
-                val g = (p shr 8) and 0xFF
-                val b = p and 0xFF
-                histR[r]++
-                histG[g]++
-                histB[b]++
-                val level = luma(r, g, b).roundToInt().coerceIn(0, BINS - 1)
-                histY[level]++
-                wave[x * BINS + level]++
-                vec[vecBinY(cr(r, g, b)) * VEC_GRID + vecBinX(cb(r, g, b))]++
-            }
-        }
+        val wave = ScopeStatsNative.nativeAnalyze(
+            argb, width, height, meta, histR, histG, histB, histY, vec
+        ) ?: return null
+        if (meta[0] <= 0 || meta[1] <= 0) return null
+        val w = meta[0]
+        val h = meta[1]
         return ScopeData(w, h, w * h, histR, histG, histB, histY, wave, vec)
     }
 }

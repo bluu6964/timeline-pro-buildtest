@@ -106,15 +106,10 @@ internal object MotionBlurEval {
         val h = frameMs / 2
         val p0 = poseAt(timeMs - h) ?: return null
         val p1 = poseAt(timeMs + h) ?: return null
-        val vx = p1.x - p0.x
-        val vy = p1.y - p0.y
-        val speedPx = hypot(vx, vy)
-        if (speedPx < 0.5f) return null   // still (or sub-pixel): nothing to smear
-        val length = lengthFor(speedPx / canvasHeightPx, tune)
-        if (length < 0.5f) return null
-        // Shader angle is counter-clockwise on screen; the picture is turned clockwise by rotationDeg.
-        val angle = ((Math.toDegrees(atan2(-vy.toDouble(), vx.toDouble())).toFloat() + p1.rotationDeg) % 360f + 360f) % 360f
-        return angle to length
+        val out = FloatArray(2)
+        return if (FrameEvalNative.nativeMotionBlurPos(p0.x, p0.y, p1.x, p1.y, p1.rotationDeg, canvasHeightPx, tune, out)) {
+            out[0] to out[1]
+        } else null
     }
 
     /**
@@ -136,18 +131,10 @@ internal object MotionBlurEval {
         val h = frameMs / 2
         val p0 = poseAt(timeMs - h) ?: return null
         val p1 = poseAt(timeMs + h) ?: return null
-        // Shortest signed rotation change this frame, in radians (179 -> -179 is +2 degrees, not -358).
-        val dDeg = ((p1.rotationDeg - p0.rotationDeg) % 360f + 540f) % 360f - 180f
-        val spinPart = if (useAngle) 2f * kotlin.math.abs(Math.toRadians(dDeg.toDouble()).toFloat()) else 0f
-        // Relative scale change this frame, against the mid-frame scale (symmetric in / out).
-        val sMid = (p0.scalePercent + p1.scalePercent) / 2f
-        if (sMid <= 0f) return null
-        val zoomPart = if (useScale) 2f * kotlin.math.abs((p1.scalePercent - p0.scalePercent) / sMid) / 0.6f else 0f
-        val amt = spinPart + zoomPart
-        if (amt < 0.005f) return null   // still (or sub-degree / sub-percent): nothing to smear
-        val amount = (amt * tune.coerceIn(0f, 1f) * 100f).coerceIn(0f, 100f)
-        if (amount < 0.5f) return null
-        return amount to (if (amt > 0f) zoomPart / amt * 100f else 0f)
+        val out = FloatArray(2)
+        return if (FrameEvalNative.nativeMotionBlurRadial(p0.rotationDeg, p0.scalePercent, p1.rotationDeg, p1.scalePercent, tune, useScale, useAngle, out)) {
+            out[0] to out[1]
+        } else null
     }
 
     /**
@@ -223,39 +210,22 @@ internal object MotionBlurEval {
         val h = frameMs / 2
         val p0 = poseAt(timeMs - h) ?: return emptyList()
         val p1 = poseAt(timeMs + h) ?: return emptyList()
+        val outVals = FloatArray(4)
+        val mask = FrameEvalNative.nativeMotionBlur4(
+            p0.x, p0.y, p0.rotationDeg, p0.scalePercent,
+            p1.x, p1.y, p1.rotationDeg, p1.scalePercent,
+            canvasHeightPx, usePos, useScale, useAngle, outVals
+        )
+        if (mask == 0) return emptyList()
         val out = ArrayList<ClipFx>(3)
-        if (usePos) {
-            val vx = p1.x - p0.x
-            val vy = p1.y - p0.y
-            if (kotlin.math.abs(vx) > 0.0001f || kotlin.math.abs(vy) > 0.0001f) {
-                // Picture space: the screen displacement undone by the frame-end draw
-                // rotation and the mid-frame scale, as a fraction of the canvas height.
-                val sMid = (p0.scalePercent + p1.scalePercent) / 2f / 100f
-                if (sMid > 0.001f && canvasHeightPx > 0f) {
-                    val th = Math.toRadians(p1.rotationDeg.toDouble())
-                    val c = kotlin.math.cos(th).toFloat()
-                    val s = kotlin.math.sin(th).toFloat()
-                    val px = (vx * c + vy * s) / sMid / canvasHeightPx
-                    val py = (-vx * s + vy * c) / sMid / canvasHeightPx
-                    out += fx.copy(type = ClipFxLibrary.MB4_POS, values = listOf(px, py, tune, sMin, sMax))
-                }
-            }
+        if ((mask and 1) != 0) {
+            out += fx.copy(type = ClipFxLibrary.MB4_POS, values = listOf(outVals[0], outVals[1], tune, sMin, sMax))
         }
-        if (useScale) {
-            val sMid = (p0.scalePercent + p1.scalePercent) / 2f
-            if (sMid > 0f) {
-                val svel = (p1.scalePercent - p0.scalePercent) / sMid
-                if (kotlin.math.abs(svel) > 0.0001f) {
-                    out += fx.copy(type = ClipFxLibrary.MB4_SCALE, values = listOf(svel, tune, pivotXPct, pivotYPct, sMin, sMax))
-                }
-            }
+        if ((mask and 2) != 0) {
+            out += fx.copy(type = ClipFxLibrary.MB4_SCALE, values = listOf(outVals[2], tune, pivotXPct, pivotYPct, sMin, sMax))
         }
-        if (useAngle) {
-            // Shortest signed rotation change this frame (179 -> -179 is +2 degrees).
-            val dDeg = ((p1.rotationDeg - p0.rotationDeg) % 360f + 540f) % 360f - 180f
-            if (kotlin.math.abs(dDeg) > 0.0001f) {
-                out += fx.copy(type = ClipFxLibrary.MB4_ANGLE, values = listOf(dDeg, tune, pivotXPct, pivotYPct, sMin, sMax))
-            }
+        if ((mask and 4) != 0) {
+            out += fx.copy(type = ClipFxLibrary.MB4_ANGLE, values = listOf(outVals[3], tune, pivotXPct, pivotYPct, sMin, sMax))
         }
         return out
     }

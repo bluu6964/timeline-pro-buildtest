@@ -101,9 +101,8 @@ object AlightXmlExporter {
     /** The corpus float form: six decimals, trailing zeros trimmed ("540", "0.169692"). */
     internal fun fmt(v: Float): String {
         if (v.isNaN() || v.isInfinite()) return "0"
-        var s = String.format(Locale.US, "%.6f", v)
-        if (s.contains('.')) s = s.trimEnd('0').trimEnd('.')
-        return if (s == "-0" || s.isEmpty()) "0" else s
+        return ProjectDocNative.nativeFormatCorpusFloat(v)
+            ?: throw IllegalStateException("nativeFormatCorpusFloat returned null")
     }
 
     /**
@@ -115,29 +114,22 @@ object AlightXmlExporter {
      * before escaping; everything else passes through byte-identical.
      */
     internal fun xmlChars(s: String): String {
-        var dirty = false
-        for (c in s) {
-            if ((c.code < 0x20 && c != '\t' && c != '\n' && c != '\r') ||
-                c.code == 0xFFFE || c.code == 0xFFFF
-            ) { dirty = true; break }
-        }
-        if (!dirty) return s
-        val sb = StringBuilder(s.length)
-        for (c in s) {
-            sb.append(
-                if ((c.code < 0x20 && c != '\t' && c != '\n' && c != '\r') ||
-                    c.code == 0xFFFE || c.code == 0xFFFF
-                ) ' ' else c
-            )
-        }
-        return sb.toString()
+        if (s.isEmpty()) return s
+        return ProjectDocNative.nativeXmlSanitize(s)
+            ?: throw IllegalStateException("nativeXmlSanitize returned null")
     }
 
-    internal fun escAttr(s: String): String = xmlChars(s).replace("&", "&amp;").replace("<", "&lt;")
-        .replace(">", "&gt;").replace("\"", "&quot;")
+    internal fun escAttr(s: String): String {
+        if (s.isEmpty()) return s
+        return ProjectDocNative.nativeXmlEscAttr(s)
+            ?: throw IllegalStateException("nativeXmlEscAttr returned null")
+    }
 
-    internal fun escText(s: String): String =
-        xmlChars(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    internal fun escText(s: String): String {
+        if (s.isEmpty()) return s
+        return ProjectDocNative.nativeXmlEscText(s)
+            ?: throw IllegalStateException("nativeXmlEscText returned null")
+    }
 
     internal fun colorHex(argb: Long): String =
         "#" + (argb and 0xFFFFFFFFL).toString(16).padStart(8, '0')

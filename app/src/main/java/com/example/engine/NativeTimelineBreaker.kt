@@ -41,7 +41,7 @@ internal object NativeTimelineBreaker {
         val prefOn = prefs.getBoolean(KEY_PREF, true)
         val diedArmed = prefs.getBoolean(KEY_ARMED, false)
         if (diedArmed) prefs.edit().remove(KEY_ARMED).apply()
-        return prefOn && !diedArmed
+        return DecoderPool.isAvailable && prefOn && !diedArmed
     }
 
     /** Mark "the native timeline surface is up" — synchronously durable. */

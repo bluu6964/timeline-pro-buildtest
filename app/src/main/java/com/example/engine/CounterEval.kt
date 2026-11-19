@@ -86,6 +86,12 @@ internal object CounterEval {
     /** Every number in [text] replaced by number × [scale] + [offset]; everything else kept as is. */
     fun substitute(text: String, offset: Double, scale: Double): String {
         if (text.none { it.isDigit() }) return text
+        // Build 234 exception: the C++ port scans ASCII digits only, so a text whose
+        // numbers use non-ASCII digits (e.g. Bengali ০-৯) keeps the Kotlin path below —
+        // the native module does not cover that input domain.
+        if (text.none { it.code > 127 && it.isDigit() }) {
+            return FrameEvalNative.nativeCounterSubstitute(text, offset, scale) ?: text
+        }
         val sb = StringBuilder(text.length + 8)
         var i = 0
         while (i < text.length) {

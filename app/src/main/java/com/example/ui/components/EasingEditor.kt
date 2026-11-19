@@ -32,9 +32,11 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.engine.UiGlRuntime
 import com.example.model.Easing
 import com.example.ui.util.bouncyClickable
 import kotlin.math.hypot
@@ -88,112 +90,79 @@ fun EasingEditor(
                 .weight(1f)
                 .fillMaxHeight()
         ) {
-        Canvas(
+        val density = LocalDensity.current.density
+        val padL = 26f * density
+        val padB = 22f * density
+        val padT = 4f * density
+        val padR = 8f * density
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(vertical = 4.dp)
-                .pointerInput(Unit) {
-                    val padL = 26.dp.toPx()
-                    val padB = 22.dp.toPx()
-                    val padT = 4.dp.toPx()
-                    val padR = 8.dp.toPx()
-                    fun plot() = androidx.compose.ui.geometry.Rect(
-                        padL, padT, size.width - padR, size.height - padB
-                    )
-                    fun toX(px: Float): Float {
-                        val r = plot()
-                        return ((px - r.left) / r.width).coerceIn(0f, 1f)
-                    }
-                    fun toY(py: Float): Float {
-                        val r = plot()
-                        val v = Y_MIN + (r.bottom - py) / r.height * (Y_MAX - Y_MIN)
-                        return v.coerceIn(Y_MIN, Y_MAX)
-                    }
-                    var active = 0 // 1 = first handle, 2 = second handle
-                    detectDragGestures(
-                        onDragStart = { pos ->
-                            val r = plot()
-                            val e = curEasing
-                            fun sx(x: Float) = r.left + x * r.width
-                            fun sy(y: Float) = r.bottom - (y - Y_MIN) / (Y_MAX - Y_MIN) * r.height
-                            val d1 = hypot(pos.x - sx(e.x1), pos.y - sy(e.y1))
-                            val d2 = hypot(pos.x - sx(e.x2), pos.y - sy(e.y2))
-                            val reach = 44.dp.toPx()
-                            active = when {
-                                d1 > reach && d2 > reach -> 0
-                                d1 <= d2 -> 1
-                                else -> 2
-                            }
-                            if (active != 0) begin()
-                        },
-                        onDrag = { change0, _ ->
-                            if (active == 0) return@detectDragGestures
-                            change0.consume()
-                            val e = curEasing
-                            val nx = toX(change0.position.x)
-                            val ny = toY(change0.position.y)
-                            change(if (active == 1) e.copy(x1 = nx, y1 = ny) else e.copy(x2 = nx, y2 = ny))
-                        },
-                        onDragEnd = { active = 0 },
-                        onDragCancel = { active = 0 }
-                    )
-                }
         ) {
-            val padL = 26.dp.toPx()
-            val padB = 22.dp.toPx()
-            val padT = 4.dp.toPx()
-            val padR = 8.dp.toPx()
-            val left = padL
-            val top = padT
-            val w = size.width - padL - padR
-            val h = size.height - padT - padB
-            val bottom = top + h
-            fun sx(x: Float) = left + x * w
-            fun sy(y: Float) = bottom - (y - Y_MIN) / (Y_MAX - Y_MIN) * h
-
-            // Dashed 4 x 4 grid of the 0..1 box
-            val dash = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 5.dp.toPx()))
-            for (i in 0..4) {
-                val f = i / 4f
-                drawLine(GridColor, Offset(sx(f), sy(0f)), Offset(sx(f), sy(1f)), 2.dp.toPx(), pathEffect = dash)
-                drawLine(GridColor, Offset(sx(0f), sy(f)), Offset(sx(1f), sy(f)), 2.dp.toPx(), pathEffect = dash)
-            }
-
-            // Where the playhead is inside this segment
-            val px = sx(progress.coerceIn(0f, 1f))
-            drawLine(Color(0xFFC9CBCF), Offset(px, top), Offset(px, bottom), 2.dp.toPx())
-
-            // Faint lines from the end points to the control points
             val e = easing
-            drawLine(Color(0xFF6B6E73), Offset(sx(0f), sy(0f)), Offset(sx(e.x1), sy(e.y1)), 1.5.dp.toPx())
-            drawLine(Color(0xFF6B6E73), Offset(sx(1f), sy(1f)), Offset(sx(e.x2), sy(e.y2)), 1.5.dp.toPx())
-
-            // The curve
-            drawPath(curvePath(e, 64) { x, y -> Offset(sx(x), sy(y)) }, Color.White,
-                style = Stroke(3.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
-
-            // Control points
-            for ((cx, cy) in listOf(e.x1 to e.y1, e.x2 to e.y2)) {
-                val c = Offset(sx(cx), sy(cy))
-                drawCircle(Color.White, 13.dp.toPx(), c)
-                drawCircle(HandleColor, 10.dp.toPx(), c)
-            }
-
-            // Axis names
-            drawIntoCanvas { cv ->
-                val paint = android.graphics.Paint().apply {
-                    isAntiAlias = true
-                    color = 0xFF5B5E63.toInt()
-                    textSize = 15.dp.toPx()
-                    isFakeBoldText = true
-                    textAlign = android.graphics.Paint.Align.CENTER
-                }
-                cv.nativeCanvas.drawText("Time", left + w / 2f, size.height - 3.dp.toPx(), paint)
-                cv.nativeCanvas.save()
-                cv.nativeCanvas.rotate(-90f, 12.dp.toPx(), top + h / 2f)
-                cv.nativeCanvas.drawText(valueLabel, 12.dp.toPx(), top + h / 2f + 5.dp.toPx(), paint)
-                cv.nativeCanvas.restore()
-            }
+            val p = progress
+            NativeGlTextureHost(
+                isOpaque = false,
+                drawOnGl = { sid ->
+                    UiGlRuntime.drawEasingGraphOnGl(
+                        sid, e.x1, e.y1, e.x2, e.y2, p, density, padL, padT, padR, padB
+                    )
+                },
+                modifier = Modifier.fillMaxSize()
+            )
+            EasingAxisLabels(valueLabel = valueLabel, modifier = Modifier.fillMaxSize())
+            
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(Unit) {
+                        val pL = 26.dp.toPx()
+                        val pB = 22.dp.toPx()
+                        val pT = 4.dp.toPx()
+                        val pR = 8.dp.toPx()
+                        fun plot() = androidx.compose.ui.geometry.Rect(
+                            pL, pT, size.width - pR, size.height - pB
+                        )
+                        fun toX(px: Float): Float {
+                            val r = plot()
+                            return ((px - r.left) / r.width).coerceIn(0f, 1f)
+                        }
+                        fun toY(py: Float): Float {
+                            val r = plot()
+                            val v = Y_MIN + (r.bottom - py) / r.height * (Y_MAX - Y_MIN)
+                            return v.coerceIn(Y_MIN, Y_MAX)
+                        }
+                        var active = 0 // 1 = first handle, 2 = second handle
+                        detectDragGestures(
+                            onDragStart = { pos ->
+                                val r = plot()
+                                val e = curEasing
+                                fun sx(x: Float) = r.left + x * r.width
+                                fun sy(y: Float) = r.bottom - (y - Y_MIN) / (Y_MAX - Y_MIN) * r.height
+                                val d1 = hypot(pos.x - sx(e.x1), pos.y - sy(e.y1))
+                                val d2 = hypot(pos.x - sx(e.x2), pos.y - sy(e.y2))
+                                val reach = 44.dp.toPx()
+                                active = when {
+                                    d1 > reach && d2 > reach -> 0
+                                    d1 <= d2 -> 1
+                                    else -> 2
+                                }
+                                if (active != 0) begin()
+                            },
+                            onDrag = { change0, _ ->
+                                if (active == 0) return@detectDragGestures
+                                change0.consume()
+                                val e = curEasing
+                                val nx = toX(change0.position.x)
+                                val ny = toY(change0.position.y)
+                                change(if (active == 1) e.copy(x1 = nx, y1 = ny) else e.copy(x2 = nx, y2 = ny))
+                            },
+                            onDragEnd = { active = 0 },
+                            onDragCancel = { active = 0 }
+                        )
+                    }
+            )
         }
         if (onDeleteKeyframe != null) {
             androidx.compose.material3.Text(
@@ -234,6 +203,35 @@ fun EasingEditor(
                     EasingTileCanvas(preset, Modifier.size(42.dp))
                 }
             }
+        }
+    }
+}
+
+/** Static axis titles ("Time" & rotated [valueLabel]) over the GLES3 curve host; skips recomposition during drags. */
+@Composable
+private fun EasingAxisLabels(valueLabel: String, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val padL = 26.dp.toPx()
+        val padB = 22.dp.toPx()
+        val padT = 4.dp.toPx()
+        val padR = 8.dp.toPx()
+        val left = padL
+        val top = padT
+        val w = size.width - padL - padR
+        val h = size.height - padT - padB
+        drawIntoCanvas { cv ->
+            val paint = android.graphics.Paint().apply {
+                isAntiAlias = true
+                color = 0xFF5B5E63.toInt()
+                textSize = 15.dp.toPx()
+                isFakeBoldText = true
+                textAlign = android.graphics.Paint.Align.CENTER
+            }
+            cv.nativeCanvas.drawText("Time", left + w / 2f, size.height - 3.dp.toPx(), paint)
+            cv.nativeCanvas.save()
+            cv.nativeCanvas.rotate(-90f, 12.dp.toPx(), top + h / 2f)
+            cv.nativeCanvas.drawText(valueLabel, 12.dp.toPx(), top + h / 2f + 5.dp.toPx(), paint)
+            cv.nativeCanvas.restore()
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.example.model
 
+import com.example.engine.FrameEvalNative
 import kotlinx.serialization.Serializable
 import kotlin.math.abs
 
@@ -106,25 +107,7 @@ data class Easing(val x1: Float, val y1: Float, val x2: Float, val y2: Float) {
     fun apply(t: Float): Float {
         if (t <= 0f) return 0f
         if (t >= 1f) return 1f
-        // Solve bx(s) = t: a few Newton steps, then bisection as the safe fallback.
-        var s = t
-        for (i in 0 until 6) {
-            val err = bx(s) - t
-            if (abs(err) < 1e-5f) return by(s)
-            val d = dbx(s)
-            if (abs(d) < 1e-6f) break
-            s = (s - err / d).coerceIn(0f, 1f)
-        }
-        var lo = 0f
-        var hi = 1f
-        s = t
-        for (i in 0 until 24) {
-            val x = bx(s)
-            if (abs(x - t) < 1e-5f) break
-            if (x < t) lo = s else hi = s
-            s = (lo + hi) / 2f
-        }
-        return by(s)
+        return FrameEvalNative.nativeEasingApply(x1, y1, x2, y2, t)
     }
 
     fun sameAs(o: Easing, eps: Float = 0.01f): Boolean =
@@ -180,14 +163,10 @@ fun List<Keyframe>.valueAt(relMs: Long): Pair<Float, Float> {
     if (relMs <= first.timeMs) return first.a to first.b
     val last = last()
     if (relMs >= last.timeMs) return last.a to last.b
-    var i = 0
-    while (i < size - 1 && this[i + 1].timeMs <= relMs) i++
-    val k0 = this[i]
-    val k1 = this[i + 1]
-    val span = (k1.timeMs - k0.timeMs).coerceAtLeast(1L)
-    val t = (relMs - k0.timeMs).toFloat() / span
-    val e = if (k0.easing.isLinear) t else k0.easing.apply(t)
-    return (k0.a + (k1.a - k0.a) * e) to (k0.b + (k1.b - k0.b) * e)
+    val (times, vals) = FrameEvalNative.packKeyframes(this)
+    val out = FloatArray(2)
+    FrameEvalNative.nativeKeyframeValueAt(times, vals, relMs, false, out)
+    return out[0] to out[1]
 }
 
 /**
@@ -225,21 +204,10 @@ fun List<Keyframe>.colorValueAt(relMs: Long): Pair<Float, Float> {
     if (relMs <= first.timeMs) return first.a to first.b
     val last = last()
     if (relMs >= last.timeMs) return last.a to last.b
-    var i = 0
-    while (i < size - 1 && this[i + 1].timeMs <= relMs) i++
-    val k0 = this[i]
-    val k1 = this[i + 1]
-    val span = (k1.timeMs - k0.timeMs).coerceAtLeast(1L)
-    val t = (relMs - k0.timeMs).toFloat() / span
-    val e = if (k0.easing.isLinear) t else k0.easing.apply(t)
-    val c0 = unpackColor(k0.a, k0.b)
-    val c1 = unpackColor(k1.a, k1.b)
-    fun ch(shift: Int): Long {
-        val v0 = ((c0 shr shift) and 0xFF).toFloat()
-        val v1 = ((c1 shr shift) and 0xFF).toFloat()
-        return (v0 + (v1 - v0) * e).toInt().coerceIn(0, 255).toLong()
-    }
-    return packColor((ch(24) shl 24) or (ch(16) shl 16) or (ch(8) shl 8) or ch(0))
+    val (times, vals) = FrameEvalNative.packKeyframes(this)
+    val out = FloatArray(2)
+    FrameEvalNative.nativeKeyframeValueAt(times, vals, relMs, true, out)
+    return out[0] to out[1]
 }
 
 fun TimelineClip.propValues(p: AnimProp): Pair<Float, Float> = when (p) {
@@ -436,15 +404,8 @@ fun TimelineClip.sourceOffsetMs(relMs: Long): Long {
     if (relMs <= 0L) return 0L
     val list = keyframes[AnimProp.SPEED].orEmpty()
     if (list.isEmpty()) return (relMs * speed).toLong()
-    val step = 20L
-    var acc = 0.0
-    var t = 0L
-    while (t < relMs) {
-        val dt = minOf(step, relMs - t)
-        acc += list.valueAt(t + dt / 2).first.toDouble() * dt
-        t += dt
-    }
-    return acc.toLong()
+    val (times, vals) = FrameEvalNative.packKeyframes(list)
+    return FrameEvalNative.nativeSpeedSourceOffsetMs(times, vals, relMs)
 }
 
 /**

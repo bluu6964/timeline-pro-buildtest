@@ -70,8 +70,44 @@ jobs:
           gh release list --limit 100 --json tagName --jq '.[5:][].tagName' \
             | xargs -r -n1 gh release delete --cleanup-tag --yes || true
 
+      # Build 234: the pure-compute engine modules are native-only (their Kotlin
+      # fallbacks were removed), so the JVM unit tests need a desktop build of
+      # libam_engine.so on the library path — the same C++ sources the NDK build
+      # compiles. audio_decoder.h is stubbed: the NDK decoder cannot exist on a
+      # desktop JVM, so the two fd-based entry points return null there (the
+      # unit tests never call them).
+      - name: Build host JNI library for unit tests
+        run: |
+          set -e
+          mkdir -p /tmp/hostlib/shim
+          cat > /tmp/hostlib/shim/audio_decoder.h <<'EOF'
+          #pragma once
+          #include <cstddef>
+          #include <cstdint>
+          #include <memory>
+          namespace am {
+          class AudioFileSource {
+           public:
+            static std::unique_ptr<AudioFileSource> open(int, int64_t) { return nullptr; }
+          };
+          }  // namespace am
+          EOF
+          E=app/src/main/cpp/engine
+          cp $E/audio_analysis_jni.cpp /tmp/hostlib/shim/
+          g++ -std=c++17 -O2 -fPIC -shared -Wall -Wextra \
+            -I"$JAVA_HOME/include" -I"$JAVA_HOME/include/linux" -I$E \
+            -o /tmp/hostlib/libam_engine.so \
+            $E/audio_analysis.cpp /tmp/hostlib/shim/audio_analysis_jni.cpp \
+            $E/frame_eval.cpp $E/frame_eval_jni.cpp \
+            $E/gif_engine.cpp $E/gif_engine_jni.cpp \
+            $E/project_doc.cpp $E/project_doc_jni.cpp \
+            $E/scene_math.cpp $E/scene_math_jni.cpp \
+            $E/scope_stats.cpp $E/scope_stats_jni.cpp \
+            $E/shape_boolean.cpp $E/shape_boolean_jni.cpp \
+            -lm
+
       - name: Unit tests
-        run: gradle testDebugUnitTest --no-daemon
+        run: LD_LIBRARY_PATH=/tmp/hostlib gradle testDebugUnitTest --no-daemon
 
       - uses: actions/upload-artifact@v4
         if: failure()

@@ -1,5 +1,6 @@
 package com.example.model
 
+import com.example.engine.FrameEvalNative
 import kotlin.math.ceil
 
 /**
@@ -43,13 +44,9 @@ object SpeedRamp {
     fun tableFor(clip: TimelineClip): FloatArray? {
         val keys = clip.keyframes[AnimProp.SPEED]
         if (keys.isNullOrEmpty()) return null
-        val blocks = maxOf(1, ceil(clip.durationMs / BLOCK_MS).toInt())
-        val out = FloatArray(blocks)
-        for (i in 0 until blocks) {
-            val midMs = ((i + 0.5) * BLOCK_MS).toLong()
-            out[i] = keys.valueAt(midMs).first.coerceIn(MIN_SPEED, MAX_SPEED)
-        }
-        return out
+        val (times, vals) = FrameEvalNative.packKeyframes(keys)
+        return FrameEvalNative.nativeSpeedRampTable(times, vals, clip.durationMs)
+            ?: throw IllegalStateException("nativeSpeedRampTable returned null for a keyed clip")
     }
 
     /** Source milliseconds the table spends over the layer's whole duration (the discrete integral). */

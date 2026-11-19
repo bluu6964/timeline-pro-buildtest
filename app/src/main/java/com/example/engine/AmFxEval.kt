@@ -233,19 +233,9 @@ internal object AmFxEval {
      */
     fun trackValueAt(values: List<Float>, rel: Float, start: Int): Float? {
         if (values.size <= start) return null
-        val n = values[start].toInt()
-        if (n < 2 || values.size < start + 1 + n * KEY_STRIDE) return null
-        fun t(i: Int) = values[start + 1 + i * KEY_STRIDE]
-        fun v(i: Int) = values[start + 1 + i * KEY_STRIDE + 1]
-        if (rel <= t(0)) return v(0)
-        if (rel >= t(n - 1)) return v(n - 1)
-        var i = 0
-        while (i < n - 2 && t(i + 1) <= rel) i++
-        val span = (t(i + 1) - t(i)).coerceAtLeast(1e-6f)
-        val f = ((rel - t(i)) / span).coerceIn(0f, 1f)
-        val b = start + 1 + (i + 1) * KEY_STRIDE
-        val eased = Easing(values[b + 2], values[b + 3], values[b + 4], values[b + 5]).apply(f)
-        return v(i) + (v(i + 1) - v(i)) * eased
+        val arr = FloatArray(values.size) { values[it] }
+        val out = FloatArray(1)
+        return if (FrameEvalNative.nativeAmFxTrackValueAt(arr, rel, start, out)) out[0] else null
     }
 
     /** [trackValueAt] at the plain tail start (the Mirror / Glow Scan layout). */

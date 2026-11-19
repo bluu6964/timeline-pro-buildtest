@@ -47,24 +47,12 @@ internal class ParentRig(clips: List<TimelineClip>, private val render: (Timelin
     fun applyToFp(c: TimelineClip, t: Long, fp: FloatArray, k: Float) {
         val n = nullOf(c, t, 0) ?: return
         val link = c.parent ?: return
-        val ds = scaleRatio(link.refScale, n.scalePercent)
-        val dr = n.rotationDeg - link.refRot
-        // Parent Helper locks: the position follows in full (the layer stays attached
-        // to the parent), only the layer's OWN scale / rotation stop inheriting.
-        val dsOwn = if (link.lockScale) 1f else ds
-        val drOwn = if (link.lockRotate) 0f else dr
-        val (x, y) = move(fp[0], fp[1], link.refX * k, link.refY * k, n.transformX * k, n.transformY * k, ds, dr)
-        fp[0] = x
-        fp[1] = y
-        // Layers turned in 3D are placed by their base (the centre without the pivot compensation): it moves the same way.
-        val (bx, by) = move(fp[14], fp[15], link.refX * k, link.refY * k, n.transformX * k, n.transformY * k, ds, dr)
-        fp[14] = bx
-        fp[15] = by
-        fp[2] *= dsOwn
-        fp[3] *= dsOwn
-        fp[4] += drOwn
-        // Group: its eye reaches the layers inside (its opacity does not: the group is drawn as one picture).
-        if (hiddenByGroup(c)) fp[5] = 0f
+        require(fp.size >= 16) { "applyToFp needs the full 16-slot pose array" }
+        SceneMathNative.nativeApplyParentToFp(
+            fp, link.refX, link.refY, link.refScale, link.refRot,
+            n.transformX, n.transformY, n.scalePercent, n.rotationDeg, k,
+            link.lockScale, link.lockRotate, hiddenByGroup(c)
+        )
     }
 
     /** The pose (position / scale / rotation, with its own parents) a link to [nullId] would save at [t]. */

@@ -1,5 +1,6 @@
 package com.example.model
 
+import com.example.engine.AudioAnalysisNative
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.exp
@@ -238,12 +239,8 @@ object NoiseReduction {
      */
     fun frameMagnitudes(frame: FloatArray): FloatArray {
         require(frame.size == FFT_SIZE) { "a frame has $FFT_SIZE samples" }
-        val re = FloatArray(FFT_SIZE)
-        val im = FloatArray(FFT_SIZE)
-        for (i in 0 until FFT_SIZE) re[i] = frame[i] * window[i]
-        fft(re, im)
         val out = FloatArray(BINS)
-        for (k in 0 until BINS) out[k] = sqrt(re[k] * re[k] + im[k] * im[k])
+        AudioAnalysisNative.nativeNoiseFrameMagnitudes(frame, out)
         return out
     }
 
@@ -256,55 +253,10 @@ object NoiseReduction {
      * (passthrough).
      */
     class Processor(private val profile: FloatArray, private val strength: Float) {
-        private val gains = FloatArray(BINS) { 1f }
-        private var started = false
-
         fun process(input: FloatArray): FloatArray {
             if (input.isEmpty()) return FloatArray(0)
             if (!(strength > 0f) || profile.size != BINS) return input.copyOf()   // NaN strength = passthrough (build 198)
-            val acc = FloatArray(input.size + FFT_SIZE)
-            val norm = FloatArray(input.size + FFT_SIZE)
-            val re = FloatArray(FFT_SIZE)
-            val im = FloatArray(FFT_SIZE)
-            var start = 0
-            while (start < input.size) {
-                for (i in 0 until FFT_SIZE) {
-                    val s = if (start + i < input.size) input[start + i] else 0f
-                    re[i] = s * window[i]
-                    im[i] = 0f
-                }
-                fft(re, im)
-                val raw = FloatArray(BINS)
-                for (k in 0 until BINS) {
-                    val mag = sqrt(re[k] * re[k] + im[k] * im[k])
-                    raw[k] = rawGain(mag, profile[k], strength)
-                }
-                val sm = smoothAcrossFrequency(raw)
-                if (!started) {
-                    sm.copyInto(gains)
-                    started = true
-                } else {
-                    for (k in 0 until BINS) {
-                        val a = if (sm[k] < gains[k]) attackCoef else releaseCoef
-                        gains[k] = (gains[k] + (sm[k] - gains[k]) * a).toFloat()
-                    }
-                }
-                for (k in 0 until FFT_SIZE) {
-                    val g = gains[minOf(k, FFT_SIZE - k)]
-                    re[k] *= g
-                    im[k] *= g
-                }
-                ifft(re, im)
-                for (i in 0 until FFT_SIZE) {
-                    val w = window[i]
-                    acc[start + i] += re[i] * w
-                    norm[start + i] += w * w
-                }
-                start += HOP
-            }
-            val out = FloatArray(input.size)
-            for (i in input.indices) out[i] = if (norm[i] > 1e-6f) acc[i] / norm[i] else 0f
-            return out
+            return AudioAnalysisNative.nativeNoiseProcessMono(input, profile, strength)
         }
     }
 

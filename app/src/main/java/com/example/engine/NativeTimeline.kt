@@ -355,7 +355,9 @@ internal class NativeTimelineEngine(context: Context) {
     private val appContext = context.applicationContext
     private val density: Float = appContext.resources.displayMetrics.density
     private val fontScale: Float = appContext.resources.configuration.fontScale
-    private var handle: Long = TimelineNative.nativeCreate()
+    private var handle: Long = if (DecoderPool.isAvailable) {
+        try { TimelineNative.nativeCreate() } catch (_: Throwable) { 0L }
+    } else 0L
     private val thread = HandlerThread("am-timeline").apply { start() }
     private val handler = Handler(thread.looper)
     private var choreographer: Choreographer? = null
