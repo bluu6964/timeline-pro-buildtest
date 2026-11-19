@@ -99,8 +99,6 @@ fun ProjectsDialog(
     onDelete: (String) -> Unit,
     /** Save the project as a portable .ampro file (media included). */
     onExport: (ProjectMeta) -> Unit,
-    /** Save the project as an Alight Motion XML file (build 197; media referenced, not included). */
-    onExportAlightXml: (ProjectMeta) -> Unit = {},
     /** Pick a .ampro file and add it as a new project. */
     onImport: () -> Unit,
     /** Files of the OPEN project that only the exporting phone had (build 111); 0 hides the button. */
@@ -358,11 +356,6 @@ fun ProjectsDialog(
                                             text = { Text("Share project file", color = TextPrimary) },
                                             leadingIcon = { Icon(Icons.Filled.Share, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(18.dp)) },
                                             onClick = { menuFor = null; onExport(p) }
-                                        )
-                                        DropdownMenuItem(
-                                            text = { Text("Export Alight XML", color = TextPrimary) },
-                                            leadingIcon = { Icon(Icons.Filled.Code, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(18.dp)) },
-                                            onClick = { menuFor = null; onExportAlightXml(p) }
                                         )
                                         DropdownMenuItem(
                                             text = { Text("Delete", color = AmDanger) },

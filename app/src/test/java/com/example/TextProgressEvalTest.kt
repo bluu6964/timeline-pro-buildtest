@@ -1,6 +1,6 @@
 package com.example
 
-import com.example.engine.AlightXmlImporter
+import com.example.engine.TextEffectIds
 import com.example.engine.TextProgressEval
 import com.example.model.AnimKey
 import com.example.model.AnimValue
@@ -17,7 +17,7 @@ class TextProgressEvalTest {
 
     // The effect of the ST Intro template (1c30cfdb…xml, text "Channel Name"), as the importer stores it.
     private val introReveal = TextAnimator(
-        AlightXmlImporter.TEXTPROGRESS,
+        TextEffectIds.TEXTPROGRESS,
         mapOf(
             "start" to AnimValue("float", value = listOf(0f)),
             "end" to AnimValue("float", keys = listOf(AnimKey(0.007613f, listOf(0f)), AnimKey(0.619794f, listOf(1f)))),
@@ -41,7 +41,7 @@ class TextProgressEvalTest {
 
     @Test
     fun defaultsWhenAPropertyIsMissing() {
-        val r = TextProgressEval.evaluate(TextAnimator(AlightXmlImporter.TEXTPROGRESS), 0.5f)
+        val r = TextProgressEval.evaluate(TextAnimator(TextEffectIds.TEXTPROGRESS), 0.5f)
         assertEquals(0f, r.start, 0f)
         assertEquals(1f, r.end, 0f)
         assertEquals(0, r.cursor)
@@ -51,7 +51,7 @@ class TextProgressEvalTest {
     @Test
     fun cursorAndBlinkAreRead() {
         val a = TextAnimator(
-            AlightXmlImporter.TEXTPROGRESS,
+            TextEffectIds.TEXTPROGRESS,
             mapOf(
                 "cursor" to AnimValue("int", value = listOf(2f)),
                 "blink" to AnimValue("bool", value = listOf(1f))
@@ -73,7 +73,7 @@ class TextProgressEvalTest {
         assertNull(TextProgressEval.evaluate(clip.copy(textAnimators = emptyList()), 1000L))
         assertNull(
             TextProgressEval.evaluate(
-                clip.copy(textAnimators = listOf(TextAnimator(AlightXmlImporter.TEXTTRANSFORM))), 1000L
+                clip.copy(textAnimators = listOf(TextAnimator(TextEffectIds.TEXTTRANSFORM))), 1000L
             )
         )
     }

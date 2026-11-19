@@ -115,9 +115,10 @@ object MediaImporter {
 
     /**
      * Copies ONE content:// file into the same app storage [read] uses (`filesDir/imports`) and returns
-     * the stable FileProvider uri of the copy, or null when the file cannot be read. Used by the Alight
-     * XML import ([AlightMediaLocalizer]): those projects link media on the exporting phone, and without
-     * a local copy the layers render empty / silent. Blocking IO — call off the main thread.
+     * the stable FileProvider uri of the copy, or null when the file cannot be read. Used by the
+     * missing-media substitution flow ([MissingMedia]): a replacement the user picks for a file only
+     * the exporting phone had is copied in, so the layer renders instead of staying empty / silent.
+     * Blocking IO — call off the main thread.
      */
     fun copyToImports(context: Context, uri: Uri): String? = runCatching {
         val mediaDir = File(context.filesDir, "imports").apply { mkdirs() }

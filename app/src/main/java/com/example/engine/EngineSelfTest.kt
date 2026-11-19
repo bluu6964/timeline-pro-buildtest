@@ -515,7 +515,7 @@ object EngineSelfTest {
             check("ParametricOutlinesAndGrad", false, "${e::class.java.simpleName}: ${e.message}")
         }
 
-        // 13. Step 2A: ProjectDocNative (Chain Layout, Bounded History Ring, XML Sanitize/Esc/Float)
+        // 13. Step 2A: ProjectDocNative (Chain Layout, Bounded History Ring)
         try {
             val chainStart = ProjectDocNative.nativeSolveChainStart(
                 longArrayOf(0L, 1000L),
@@ -539,17 +539,10 @@ object EngineSelfTest {
                 ProjectDocNative.nativeHistoryDestroy(hh)
             }
 
-            val esc = ProjectDocNative.nativeXmlEscAttr("A\u0001<B>&\"C\"\uFFFF")
-            val fmt0 = ProjectDocNative.nativeFormatCorpusFloat(-0.0000001f)
-            val fmt1 = ProjectDocNative.nativeFormatCorpusFloat(540.0f)
-            val fmt2 = ProjectDocNative.nativeFormatCorpusFloat(0.169692f)
-            val xmlOk = esc == "A &lt;B&gt;&amp;&quot;C&quot; " &&
-                fmt0 == "0" && fmt1 == "540" && fmt2 == "0.169692"
-
             check(
                 "ProjectDocEngine",
-                chainOk && histOk && xmlOk,
-                "chainStart=$chainStart hist=$histOk xml=$xmlOk"
+                chainOk && histOk,
+                "chainStart=$chainStart hist=$histOk"
             )
         } catch (e: Throwable) {
             check("ProjectDocEngine", false, "${e::class.java.simpleName}: ${e.message}")

@@ -1,7 +1,5 @@
 package com.example
 
-import com.example.engine.AlightMediaLocalizer
-import com.example.engine.AlightXmlImporter
 import com.example.engine.MissingMedia
 import com.example.model.LayerType
 import com.example.model.ProjectSnapshot
@@ -13,36 +11,51 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Media substitution (build 111, [MissingMedia]): the pure collection / re-pointing half, exercised
- * on a trimmed but verbatim excerpt of the real "ST Intro Template 1" export — the two media shapes
- * whose pictures lived on the exporting phone (`send-message.png` .../53288 in the pill,
- * `images.png` .../1000033464 in the "Logo Here" group) and the audio layer (.../53292). In the
- * harness no content:// file can be read, so the import-time copy fails for all three, exactly as
- * on Sarowar's phone for a collected preset.
+ * Media substitution (build 111, [MissingMedia]): the pure collection / re-pointing half.
+ *
+ * The fixture is a snapshot built directly in the project model, carrying the same three
+ * foreign references as the real "ST Intro Template 1" case the feature was made for: two
+ * media shapes whose pictures lived on the exporting phone (`send-message.png` .../53288 in
+ * the pill, `images.png` .../1000033464 in the "Logo Here" group) and the audio layer
+ * (.../53292). Until build 236 the fixture was produced by parsing that project's Alight
+ * Motion XML; the XML importer is gone, and [MissingMedia] only ever reads the snapshot,
+ * so the snapshot is authored natively now — the references, names and slots are unchanged.
  */
 class MissingMediaTest {
-
-    private val stIntro = """<?xml version='1.0' encoding='UTF-8' ?>
-<scene title="ST Intro Template 1 (13 July) " width="1920" height="1080" bgcolor="#ffd8d8d8" totalTime="8032" fps="30"><shape id="633219" label="send-message.png" startTime="0" endTime="2899" fillType="media" fillImage="content://media/external/images/media/53288" mediaFillMode="stretch" s=".rect"><transform><location value="967.187012,534.500000,0.000000" /></transform><effect id="com.alightcreative.solidcolor" locallyApplied="true"><property name="color" type="color" value="#ffb891ff" /><property name="alpha" type="float" value="1.000000" /><property name="blendMode" type="int" value="0" /></effect><property name="size" type="vec2" value="540.000000,540.000000" /></shape><embedScene id="633205" label="Logo Here" startTime="4133" endTime="8032" fillType="intrinsic" outTime="-2147482782" mediaFillMode="stretch"><transform><location value="960.000000,540.000000,0.000000" /></transform><fillColor value="#ff000000" /><scene title="" width="1920" height="1080" exportWidth="1920" exportHeight="1080" precompose="dynamicResolution" bgcolor="#00000000" totalTime="3032" fps="30" modifiedTime="0" amver="1002592" ffver="106" am="com.alightcreative.motion/5.0.271.1002592" amplatform="android" retime="off" retimeAdaptFPS="false"><shape id="633203" label="images.png" startTime="0" endTime="3032" fillType="media" fillImage="content://media/external/images/media/1000033464" mediaFillMode="stretch" s=".rect"><transform><location value="960.000000,540.000000,0.000000" /></transform><property name="size" type="vec2" value="960.000000,503.500000" /></shape><shape id="633204" label="Mask" startTime="0" endTime="3032" fillType="color" blending="mask" mediaFillMode="stretch" s=".circle"><transform><location value="960.000000,540.000000,0.000000" /></transform><fillColor value="#ffd1c251" /><property name="size" type="vec2" value="100.000000,100.000000" /></shape></scene></embedScene><audio id="633212" label="Minimal Intro SOUND.mp3" startTime="0" endTime="599" src="content://media/external/audio/media/53292" inTime="3500" outTime="4067" mediaFillMode="stretch" /></scene>"""
 
     private val ownAuthority = "com.example.app.fileprovider"
     private val imgPill = "content://media/external/images/media/53288"
     private val imgLogo = "content://media/external/images/media/1000033464"
     private val audioSrc = "content://media/external/audio/media/53292"
 
+    /** The ST Intro references as a native snapshot: two picture fills + one audio layer file. */
+    private fun stIntroSnapshot(): ProjectSnapshot {
+        fun clip(id: String, name: String, type: LayerType, uri: String? = null, fillI: String? = null) =
+            TimelineClip(
+                id = id, name = name, type = type, startMs = 0, durationMs = 1000, color = 0,
+                uri = uri, fillImageUri = fillI
+            )
+        return ProjectSnapshot(
+            tracks = listOf(
+                TimelineTrack(
+                    id = "t", name = "T",
+                    clips = listOf(
+                        clip("pill", "send-message.png", LayerType.SHAPE, fillI = imgPill),
+                        clip("logo", "images.png", LayerType.SHAPE, fillI = imgLogo),
+                        clip("sound", "Minimal Intro SOUND.mp3", LayerType.AUDIO, uri = audioSrc)
+                    )
+                )
+            )
+        )
+    }
+
     private fun clips(s: ProjectSnapshot) = s.tracks.flatMap { it.clips }
 
     @Test
-    fun stIntroRefsThatFailToCopyAreCollectedForSubstitution() {
-        val parsed = AlightXmlImporter.parse(stIntro, 1920f)
-        // The harness cannot read any content:// file: every copy fails, links stay foreign.
-        val loc = AlightMediaLocalizer.localize(parsed.snapshot, parsed.warnings, ownAuthority) { null }
-        assertEquals(0, loc.copiedFiles)
-
-        val items = MissingMedia.collect(loc.snapshot, ownAuthority)
+    fun foreignRefsAreCollectedForSubstitution() {
+        val items = MissingMedia.collect(stIntroSnapshot(), ownAuthority)
         assertEquals(3, items.size)
         // One entry per file, labelled by the layer (AM names media layers after their file).
-        // (Order follows the snapshot's track layout, not the XML document order.)
         val bySource = items.associateBy { it.sourceUri }
         assertEquals("send-message.png", bySource[imgPill]?.label)
         assertEquals("images.png", bySource[imgLogo]?.label)
@@ -57,23 +70,35 @@ class MissingMediaTest {
     }
 
     @Test
-    fun nothingIsMissingAfterASuccessfulCopy() {
-        val parsed = AlightXmlImporter.parse(stIntro, 1920f)
-        var n = 0
-        val loc = AlightMediaLocalizer.localize(parsed.snapshot, parsed.warnings, ownAuthority) {
-            "content://$ownAuthority/imports/copy_${++n}.bin"
-        }
-        assertEquals(3, loc.copiedFiles)
-        assertTrue(MissingMedia.collect(loc.snapshot, ownAuthority).isEmpty())
+    fun nothingIsMissingWhenRefsAreOwnedCopies() {
+        // The same three slots, but every reference is one of the app's own copied files:
+        // nothing is unresolvable, so nothing is offered for substitution.
+        fun clip(id: String, type: LayerType, uri: String? = null, fillI: String? = null) =
+            TimelineClip(
+                id = id, name = id, type = type, startMs = 0, durationMs = 1000, color = 0,
+                uri = uri, fillImageUri = fillI
+            )
+        val snap = ProjectSnapshot(
+            tracks = listOf(
+                TimelineTrack(
+                    id = "t", name = "T",
+                    clips = listOf(
+                        clip("pill", LayerType.SHAPE, fillI = "content://$ownAuthority/imports/copy_1.bin"),
+                        clip("logo", LayerType.SHAPE, fillI = "content://$ownAuthority/imports/copy_2.bin"),
+                        clip("sound", LayerType.AUDIO, uri = "content://$ownAuthority/imports/copy_3.bin")
+                    )
+                )
+            )
+        )
+        assertTrue(MissingMedia.collect(snap, ownAuthority).isEmpty())
     }
 
     @Test
     fun substitutingTheLogoRepointsItsLayerAndClearsTheItem() {
-        val parsed = AlightXmlImporter.parse(stIntro, 1920f)
-        val loc = AlightMediaLocalizer.localize(parsed.snapshot, parsed.warnings, ownAuthority) { null }
+        val snap = stIntroSnapshot()
         val mine = "content://$ownAuthority/imports/my-logo.png"
 
-        val after = MissingMedia.substitute(loc.snapshot, imgLogo, mine)
+        val after = MissingMedia.substitute(snap, imgLogo, mine)
         val logo = clips(after).single { it.fillImageUri == mine }
         assertEquals("images.png", logo.name)
         // The other two missing files are untouched, and only they remain on the list.
@@ -139,9 +164,9 @@ class MissingMediaTest {
 
     @Test
     fun substituteOfAnUnknownSourceChangesNothing() {
-        val parsed = AlightXmlImporter.parse(stIntro, 1920f)
-        val after = MissingMedia.substitute(parsed.snapshot, "content://media/external/images/media/999", "content://x/y.png")
-        assertSame(parsed.snapshot, after)
-        assertSame(parsed.snapshot, MissingMedia.substitute(parsed.snapshot, imgPill, imgPill))
+        val snap = stIntroSnapshot()
+        val after = MissingMedia.substitute(snap, "content://media/external/images/media/999", "content://x/y.png")
+        assertSame(snap, after)
+        assertSame(snap, MissingMedia.substitute(snap, imgPill, imgPill))
     }
 }

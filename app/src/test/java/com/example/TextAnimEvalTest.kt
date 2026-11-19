@@ -1,6 +1,6 @@
 package com.example
 
-import com.example.engine.AlightXmlImporter
+import com.example.engine.TextEffectIds
 import com.example.engine.TextAnimEval
 import com.example.model.AnimKey
 import com.example.model.AnimValue
@@ -16,7 +16,7 @@ import org.junit.Test
 class TextAnimEvalTest {
 
     private val riseUp = TextAnimator(
-        AlightXmlImporter.TEXTTRANSFORM,
+        TextEffectIds.TEXTTRANSFORM,
         mapOf(
             "end" to AnimValue("float", keys = listOf(AnimKey(0f, listOf(0f)), AnimKey(0.45f, listOf(1f)), AnimKey(1f, listOf(1f)))),
             "offset" to AnimValue("vec2", value = listOf(0f, 70f)),
@@ -46,7 +46,7 @@ class TextAnimEvalTest {
 
     @Test
     fun defaultsWhenAPropertyIsMissing() {
-        val r = TextAnimEval.evaluate(TextAnimator(AlightXmlImporter.TEXTTRANSFORM), 0.5f, 100f)
+        val r = TextAnimEval.evaluate(TextAnimator(TextEffectIds.TEXTTRANSFORM), 0.5f, 100f)
         assertEquals(0f, r.start, 0f)
         assertEquals(1f, r.end, 0f)
         assertEquals(0, r.component)
@@ -75,7 +75,7 @@ class TextAnimEvalTest {
     fun clipWithoutTextTransformGivesNothing() {
         val clip = com.example.model.TimelineClip(
             id = "a", name = "a", type = com.example.model.LayerType.TEXT, startMs = 0L, durationMs = 1000L, color = 0L,
-            textAnimators = listOf(TextAnimator(AlightXmlImporter.RANDOMDISPLACE))
+            textAnimators = listOf(TextAnimator(TextEffectIds.RANDOMDISPLACE))
         )
         assertNull(TextAnimEval.evaluate(clip, 500L, 100f))
         val withTt = clip.copy(textAnimators = listOf(riseUp))

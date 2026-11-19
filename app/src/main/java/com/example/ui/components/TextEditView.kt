@@ -69,7 +69,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.engine.AlightXmlImporter
+import com.example.engine.TextEffectIds
 import com.example.engine.TextRevealValues
 import com.example.model.LayerType
 import com.example.model.TimelineClip
@@ -571,7 +571,7 @@ private fun RevealBlock(
     clip: TimelineClip,
     onUpdate: ((TimelineClip) -> TimelineClip) -> Unit
 ) {
-    val reveal = clip.textAnimators.firstOrNull { it.effectId == AlightXmlImporter.TEXTPROGRESS }
+    val reveal = clip.textAnimators.firstOrNull { it.effectId == TextEffectIds.TEXTPROGRESS }
     if (TextRevealValues.isKeyframed(reveal)) {
         Text(
             "Animated reveal — the window is keyframed in Alight Motion, so it changes over time.",

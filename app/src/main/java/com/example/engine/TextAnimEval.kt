@@ -40,7 +40,7 @@ internal object TextAnimEval {
 
     /** [fontPx]: font height in export pixels at scale 1 (the unit of the offset). Null = nothing to animate. */
     fun evaluate(clip: TimelineClip, timeMs: Long, fontPx: Float): Result? {
-        val a = clip.textAnimators.firstOrNull { it.effectId == com.example.engine.AlightXmlImporter.TEXTTRANSFORM } ?: return null
+        val a = clip.textAnimators.firstOrNull { it.effectId == TextEffectIds.TEXTTRANSFORM } ?: return null
         val dur = clip.durationMs.coerceAtLeast(1L)
         val p = ((timeMs - clip.startMs).toFloat() / dur).coerceIn(0f, 1f)
         return evaluate(a, p, fontPx)

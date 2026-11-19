@@ -2071,53 +2071,6 @@ fun VideoEditorScreen(
         }
     }
 
-    // Alight Motion XML export (build 197): the same project, written as an .xml scene the
-    // importer (or Alight Motion itself) can open. Media is referenced by uri, never embedded;
-    // the exporter anchors positions at this screen's preview width, like the importer.
-    var pendingXmlExportId by remember { mutableStateOf<String?>(null) }
-
-    val exportAlightXmlLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.CreateDocument("text/xml")
-    ) { target: android.net.Uri? ->
-        val id = pendingXmlExportId
-        pendingXmlExportId = null
-        if (target != null && id != null) {
-            scope.launch {
-                projectBusy = "Exporting Alight XML..."
-                projectBusyProgress = -1f
-                val result = withContext(Dispatchers.IO) {
-                    runCatching {
-                        if (id == viewModel.projectId.value) projectStore.save(id, viewModel.snapshot())
-                        val snap = projectStore.load(id) ?: error("The project cannot be read")
-                        val name = projectStore.list().firstOrNull { it.id == id }?.name ?: "Project"
-                        val exported = com.example.engine.AlightXmlExporter.export(
-                            name, snap, previewFrameWidthPx
-                        ) ?: error("The project is empty")
-                        val out = context.contentResolver.openOutputStream(target)
-                            ?: error("Cannot write there")
-                        out.use { o -> o.write(exported.xml.toByteArray(Charsets.UTF_8)) }
-                        exported.report
-                    }
-                }
-                projectBusy = null
-                val report = result.getOrNull()
-                val msg = if (report != null) {
-                    var m = "Saved as Alight XML"
-                    if (report.omittedEffectCount > 0) {
-                        m += " (" + report.omittedEffectCount + " effects could not be written)"
-                    }
-                    if (report.omittedLayers.isNotEmpty()) {
-                        m += " (" + report.omittedLayers.size + " layers could not be written)"
-                    }
-                    m
-                } else {
-                    "Export failed: " + (result.exceptionOrNull()?.message ?: "unknown error")
-                }
-                android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
-            }
-        }
-    }
-
     val importProjectLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
     ) { source: android.net.Uri? ->
@@ -2128,53 +2081,17 @@ fun VideoEditorScreen(
                 val result = withContext(Dispatchers.IO) {
                     runCatching {
                         val input = context.contentResolver.openInputStream(source) ?: error("Cannot read that file")
-                        val buffered = java.io.BufferedInputStream(input)
-                        // One Import button for both: an Alight Motion XML scene, or an .ampro project file.
-                        buffered.use { b ->
-                            b.mark(4096)
-                            val head = ByteArray(4096)
-                            val n = b.read(head).coerceAtLeast(0)
-                            b.reset()
-                            if (com.example.engine.AlightXmlImporter.looksLikeAlightXml(head.copyOf(n))) {
-                                // Positions are stored in preview pixels: the importer must get the SAME
-                                // preview width the export will use (this screen's state), not the engine's
-                                // frame ref — that ref is still 0 on a fresh import, which made the importer
-                                // fall back to scene pixels and shifted every off-centre layer at export.
-                                val x = com.example.engine.AlightXmlImporter.parse(
-                                    b, previewFrameWidthPx
-                                )
-                                if (previewFrameWidthPx > 1f) {
-                                    com.example.engine.PreviewFrameRef.widthPx = previewFrameWidthPx
-                                }
-                                // Media layers link files on the phone that exported the XML: copy
-                                // them into the project's own storage and point the layers at the
-                                // copies, so pictures show and the audio plays (a file that cannot
-                                // be copied keeps its link and is named in the notes).
-                                val loc = com.example.engine.AlightMediaLocalizer.localize(
-                                    x.snapshot, x.warnings,
-                                    context.packageName + ".fileprovider"
-                                ) { src ->
-                                    com.example.engine.MediaImporter.copyToImports(
-                                        context, android.net.Uri.parse(src)
-                                    )
-                                }
-                                val meta = projectStore.create(x.name, loc.snapshot)
-                                Triple(
-                                    meta, loc.snapshot,
-                                    if (loc.warnings.isNotEmpty()) ". Notes: " + loc.warnings.take(3).joinToString("; ") else ""
-                                )
-                            } else {
-                                val r = com.example.engine.ProjectArchive.import(b, context.filesDir) { f ->
-                                    androidx.core.content.FileProvider.getUriForFile(
-                                        context, context.packageName + ".fileprovider", f
-                                    ).toString()
-                                }
-                                val meta = projectStore.create(r.name, r.snapshot)
-                                Triple(
-                                    meta, r.snapshot,
-                                    if (r.missing.isNotEmpty()) ". Media missing: " + r.missing.take(3).joinToString() else ""
-                                )
+                        input.use { b ->
+                            val r = com.example.engine.ProjectArchive.import(b, context.filesDir) { f ->
+                                androidx.core.content.FileProvider.getUriForFile(
+                                    context, context.packageName + ".fileprovider", f
+                                ).toString()
                             }
+                            val meta = projectStore.create(r.name, r.snapshot)
+                            Triple(
+                                meta, r.snapshot,
+                                if (r.missing.isNotEmpty()) ". Media missing: " + r.missing.take(3).joinToString() else ""
+                            )
                         }
                     }
                 }
@@ -5737,15 +5654,6 @@ fun VideoEditorScreen(
                 pendingExportId = p.id
                 val safe = p.name.replace(Regex("[^\\p{L}\\p{N} _.-]"), "_").trim().ifEmpty { "Project" }
                 exportProjectLauncher.launch(safe + "." + com.example.engine.ProjectArchive.EXTENSION)
-            },
-            onExportAlightXml = { p ->
-                if (p.layerCount == 0) {
-                    android.widget.Toast.makeText(context, "That project is empty", android.widget.Toast.LENGTH_LONG).show()
-                } else {
-                    pendingXmlExportId = p.id
-                    val safe = p.name.replace(Regex("[^\\p{L}\\p{N} _.-]"), "_").trim().ifEmpty { "Project" }
-                    exportAlightXmlLauncher.launch(safe + ".xml")
-                }
             },
             onImport = { importProjectLauncher.launch(arrayOf("*/*")) },
             // Build 199 (audit #2 item O2): the missing-media scan used to run inline

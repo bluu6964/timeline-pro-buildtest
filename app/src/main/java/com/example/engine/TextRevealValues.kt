@@ -57,10 +57,10 @@ object TextRevealValues {
      */
     fun withStaticWindow(animators: List<TextAnimator>, start: Float, end: Float): List<TextAnimator> {
         val (s, e) = coerceWindow(start, end)
-        val idx = animators.indexOfFirst { it.effectId == AlightXmlImporter.TEXTPROGRESS }
+        val idx = animators.indexOfFirst { it.effectId == TextEffectIds.TEXTPROGRESS }
         if (idx < 0) {
             return animators + TextAnimator(
-                effectId = AlightXmlImporter.TEXTPROGRESS,
+                effectId = TextEffectIds.TEXTPROGRESS,
                 props = mapOf(
                     "start" to AnimValue(type = "float", value = listOf(s)),
                     "end" to AnimValue(type = "float", value = listOf(e))

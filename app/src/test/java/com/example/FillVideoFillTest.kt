@@ -1,10 +1,7 @@
 package com.example
 
-import com.example.engine.AlightMediaLocalizer
-import com.example.engine.AlightXmlImporter
 import com.example.engine.fillSourceMs
 import com.example.engine.fillVideoPose
-import com.example.engine.isVideoFilledShape
 import com.example.engine.mediaFillClipOf
 import com.example.engine.silhouetteCopy
 import com.example.engine.strokeOnlyCopy
@@ -22,156 +19,21 @@ import com.example.model.depthY
 import com.example.model.shapeDrawScaleX
 import com.example.model.shapeDrawScaleY
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import kotlin.math.abs
 import kotlin.math.min
 
 /**
- * Video fills inside shapes (build 104): an Alight shape filled with a playing video
- * (`fillType="media"` + `fillVideo`) used to import as an IMAGE fill with no picture — the fill
- * rendered empty everywhere. These tests pin, on verbatim excerpts of the real corpus files:
- * the importer's fill kind + media ref + the fill's own inTime/outTime window, the localizer's
- * copy of the fill file, the routing decision the render engines make (live composite vs poster
- * raster), the silhouette / outline split, the fill's source-time mapping, and the geometry that
- * maps the video frame into the shape's box (cover / fit / stretch, flips, rotation, offset).
+ * Video fills inside shapes (build 104): a shape filled with a playing video. These tests pin
+ * the native half of the feature: the routing decision the render engines make (live composite
+ * vs poster raster), the silhouette / outline split, the fill's source-time mapping, and the
+ * geometry that maps the video frame into the shape's box (cover / fit / stretch, flips,
+ * rotation, offset). Until build 236 this file also pinned the Alight XML importer's fill
+ * mapping and the import-time media copy on verbatim corpus excerpts; the importer is gone,
+ * and with it those tests — the fill model they produced is authored natively here.
  */
 class FillVideoFillTest {
-
-    private fun scene(layers: String, w: Int = 1080, h: Int = 1920, total: Long = 2000) =
-        """<?xml version='1.0' encoding='UTF-8' ?>
-<scene title="T" width="$w" height="$h" bgcolor="#ff102030" totalTime="$total" fps="30">
-$layers
-</scene>"""
-
-    // Verbatim from collected/edit-freefire-mental.xml: a full-frame freehand quad filled with a
-    // video (no mediaFillMode, AM's sentinel outTime), carrying a hidden effect plus visible
-    // exposure / tile effects.
-    private val freefireQuad = """<shape id="291413" label="Kasih Nama Woi 2_720p.mp4" startTime="0" endTime="6499" fillType="media" fillVideo="content://media/external/video/media/813" outTime="2147476647">
-    <transform>
-      <location value="540.000000,960.000000" />
-    </transform>
-    <effect id="com.alightcreative.spotcolor2" hidden="true">
-      <property name="choke" type="float" value="2.220000" />
-      <property name="color" type="color" value="#ffff4444" />
-      <property name="feather" type="float" value="0.000000" />
-      <property name="threshold" type="float" value="2.000000" />
-      <property name="saturation" type="float" value="0.000000" />
-    </effect>
-    <effect id="com.alightcreative.effects.exposure">
-      <property name="exposure" type="float" value="0.800000" />
-      <property name="gamma" type="float" value="0.620000" />
-      <property name="offset" type="float" value="0.000000" />
-    </effect>
-    <effect id="com.alightcreative.effects.tile">
-      <property name="scale" type="float" value="1.000000" />
-      <property name="phase" type="float" value="0.000000" />
-      <property name="mirror" type="bool" value="true" />
-      <property name="vertoffs" type="bool" value="false" />
-      <property name="angle" type="float" value="0.000000" />
-    </effect>
-    <gain value="0.000000" />
-    <path d="M -540.0 -960.0L 540.0 -960.0L 540.0 960.0L -540.0 960.0L -540.0 -960.0Z" />
-  </shape>"""
-
-    // Verbatim from collected/zooms-toji-pack.xml: a built-in .rect filled with a video,
-    // mediaFillMode="fill", turned 90 degrees.
-    private val zoomsRect = """<shape id="10232853" label="New Project 41 [AAB82B6].mp4" startTime="0" endTime="1049" fillType="media" fillVideo="content://media/external/video/media/20504" outTime="1049" mediaFillMode="fill" s=".rect">
-            <transform>
-              <location value="967.296875,770.786133,0.000000" />
-              <rotation value="90.000000" />
-            </transform>
-            <property name="size" type="vec2" value="540.000000,432.000000" />
-          </shape>"""
-
-    // Verbatim from collected/edit-winkoko-preset.xml: a built-in .rect filled with a video,
-    // blended "screen", with the fill's own window inTime=1768 .. outTime=2634 (exactly the
-    // layer's 866 ms length).
-    private val winkokoRect = """<shape id="2999474083" label="ri.films.mp4" startTime="11933" endTime="12799" fillType="media" blending="screen" fillVideo="content://media/external/video/media/94859" inTime="1768" outTime="2634" mediaFillMode="fill" s=".rect">
-    <transform>
-      <location value="540.000000,540.000000,0.000000" />
-    </transform>
-    <gain value="0.000000" />
-    <property name="size" type="vec2" value="540.000000,960.000000" />
-  </shape>"""
-
-    // Verbatim from the ST Intro template: a still picture fill (must stay FILL_IMAGE).
-    private val stIntroImage = """<shape id="633203" label="images.png" startTime="0" endTime="3032" fillType="media" fillImage="content://media/external/images/media/1000033464" mediaFillMode="stretch" s=".rect"><transform><location value="960.000000,540.000000,0.000000" /></transform><property name="size" type="vec2" value="960.000000,503.500000" /></shape>"""
-
-    private fun onlyClip(xml: String, w: Int = 1080, h: Int = 1920, total: Long = 2000): TimelineClip {
-        val r = AlightXmlImporter.parse(scene(xml, w, h, total), 1080f)
-        return r.snapshot.tracks.flatMap { it.clips }.single { it.type == LayerType.SHAPE }
-    }
-
-    @Test
-    fun freefirePathQuadImportsAsVideoFill() {
-        val r = AlightXmlImporter.parse(scene(freefireQuad, total = 6500), 1080f)
-        val c = r.snapshot.tracks.flatMap { it.clips }.single { it.type == LayerType.SHAPE }
-        assertEquals("PATH", c.shapePattern)
-        assertEquals(FILL_VIDEO, c.fillMode)
-        assertEquals("content://media/external/video/media/813", c.fillVideoUri)
-        assertNull(c.fillImageUri)
-        // No mediaFillMode on the element: the fill is the default cover mode.
-        assertEquals(IMG_FILL, c.fillImageMode)
-        // The video IS in the XML now: the old "its picture is not in the XML" warning is gone.
-        assertFalse(r.warnings.any { it.contains("its picture is not in the XML") })
-        assertTrue(c.isVideoFilledShape())
-    }
-
-    @Test
-    fun zoomsRectImportsAsVideoFill() {
-        val c = onlyClip(zoomsRect, w = 1920, h = 1080)
-        assertEquals(FILL_VIDEO, c.fillMode)
-        assertEquals("content://media/external/video/media/20504", c.fillVideoUri)
-        assertEquals(IMG_FILL, c.fillImageMode)   // mediaFillMode="fill"
-        assertEquals(90f, c.rotationDeg, 0.001f)
-        assertTrue(c.isVideoFilledShape())
-    }
-
-    @Test
-    fun winkokoRectKeepsItsFillWindow() {
-        val c = onlyClip(winkokoRect, w = 1080, h = 1080, total = 12800)
-        assertEquals(FILL_VIDEO, c.fillMode)
-        assertEquals("content://media/external/video/media/94859", c.fillVideoUri)
-        // The fill's own window in its file rides on the clip's media trim fields.
-        assertEquals(1768L, c.trimStartMs)
-        assertEquals(2634L, c.sourceDurationMs)
-        assertEquals(1f, c.speed, 0.0001f)
-    }
-
-    @Test
-    fun stillPictureFillStaysAnImageFill() {
-        val c = onlyClip(stIntroImage, w = 1920, h = 1080, total = 3032)
-        assertEquals(FILL_IMAGE, c.fillMode)
-        assertEquals("content://media/external/images/media/1000033464", c.fillImageUri)
-        assertEquals(IMG_STRETCH, c.fillImageMode)
-        assertNull(c.fillVideoUri)
-        assertFalse(c.isVideoFilledShape())
-    }
-
-    @Test
-    fun localizerCopiesTheFillVideo() {
-        val parsed = AlightXmlImporter.parse(scene(winkokoRect, w = 1080, h = 1080, total = 12800), 1080f)
-        val own = "com.example.app.fileprovider"
-        val r = AlightMediaLocalizer.localize(parsed.snapshot, parsed.warnings, own) { src ->
-            if (src == "content://media/external/video/media/94859") "content://$own/imports/fill.mp4" else null
-        }
-        val c = r.snapshot.tracks.flatMap { it.clips }.single { it.type == LayerType.SHAPE }
-        assertEquals("content://$own/imports/fill.mp4", c.fillVideoUri)
-        assertEquals(1, r.copiedFiles)
-        assertTrue(r.failedNames.isEmpty())
-    }
-
-    @Test
-    fun localizerFailureKeepsTheFillUriAndNamesTheLayer() {
-        val parsed = AlightXmlImporter.parse(scene(winkokoRect, w = 1080, h = 1080, total = 12800), 1080f)
-        val r = AlightMediaLocalizer.localize(parsed.snapshot, parsed.warnings, "com.example.app.fileprovider") { null }
-        val c = r.snapshot.tracks.flatMap { it.clips }.single { it.type == LayerType.SHAPE }
-        assertEquals("content://media/external/video/media/94859", c.fillVideoUri)
-        assertEquals(listOf("ri.films.mp4"), r.failedNames)
-    }
 
     // ---- routing + the silhouette / outline split ------------------------------------------------
 

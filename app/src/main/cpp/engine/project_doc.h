@@ -9,7 +9,7 @@
 
 namespace am {
 
-// Step 2A: Native Document, Bounded History Buffer, Atomic Storage & XML Core Helpers.
+// Step 2A: Native Document, Bounded History Buffer & Atomic Storage.
 
 /**
  * Atomic crash-safe file writer using POSIX open/write/fsync/rename:
@@ -53,17 +53,5 @@ int64_t solveChainPlacement(
     int count,
     int64_t desiredStartMs,
     int64_t durationMs);
-
-/** AlightXmlExporter.xmlChars over UTF-16 code units. */
-std::u16string xmlSanitizeUtf16(const uint16_t* chars, int length);
-
-/** AlightXmlExporter.escAttr over UTF-16 code units. */
-std::u16string xmlEscapeAttrUtf16(const uint16_t* chars, int length);
-
-/** AlightXmlExporter.escText over UTF-16 code units. */
-std::u16string xmlEscapeTextUtf16(const uint16_t* chars, int length);
-
-/** AlightXmlExporter.fmt: 6 decimals, trailing zeros/dot stripped, "-0" -> "0". */
-std::string formatCorpusFloat(float v);
 
 } // namespace am

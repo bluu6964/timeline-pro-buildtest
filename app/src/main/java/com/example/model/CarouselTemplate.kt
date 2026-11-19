@@ -24,10 +24,9 @@ import kotlin.math.sin
  * Build 143 (Sarowar's correction of the build-142 model): a template is NOT a separate
  * project. It lives inside the project like any layer — inserting it drops ONE Group layer
  * into the current timeline (see [buildGroup]) holding the whole composition as ordinary
- * children, authored in the template's own units exactly the way
- * [com.example.engine.AlightXmlImporter] authors an imported 720x450 Alight scene
- * (positions (px - centre) x previewW/720, shape box 260 scene px, scalePercent =
- * shapeScale x 100, corner = 65 x radius/half-extent). The children link to the group with
+ * children, authored in the template's own units in the scene-authoring convention the
+ * project model uses (positions (px - centre) x previewW/720, shape box 260 scene px,
+ * scalePercent = shapeScale x 100, corner = 65 x radius/half-extent). The children link to the group with
  * the REST reference pose, so the group's own transform IS the fit: [carouselFit] centres
  * the ring on the project canvas and scales it to fit, and ParentRig composes that onto
  * every child — the measured law runs in template units whatever the canvas, and moving /

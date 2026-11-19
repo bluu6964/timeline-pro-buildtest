@@ -84,11 +84,10 @@ import kotlin.math.sqrt
  * Values: [count, positionX, positionY, offsetX, offsetY, angle, scale %, alpha %, phase,
  * altColour...] (see [ClipFxLibrary]). The family caveat applies in full: the window /
  * ordering props (start / end / phase / easeIn / easeOut / overlap / shape / invert /
- * randomOrder / seed / blend) have no counterpart in the copy expansion — the importer warns
- * ([AlightXmlImporter.warnRepeatExtras]) — and the stored `phase` is never read here, because
- * the window it belongs to is not reproduced. Keyframed angle / scale / phase take their first
- * value at import (the pass-2 rule): the draw loops run this object on the STORED effect, never
- * through AmFxEval, so no tail can carry the sweep — see the importer's note. With
+ * randomOrder / seed / blend) have no counterpart in the copy expansion, and the stored
+ * `phase` is never read here, because the window it belongs to is not reproduced. Keyframed
+ * angle / scale / phase take their first value (the pass-2 rule): the draw loops run this
+ * object on the STORED effect, never through AmFxEval, so no tail can carry the sweep. With
  * `colorAltCopies` the odd copies take the effect's fill colour, the radial / scatter rule.
  *
  * [undoRotationDeg] is for a layer drawn into its own upright picture (a pose / camera layer): the

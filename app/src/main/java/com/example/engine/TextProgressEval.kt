@@ -50,7 +50,7 @@ internal object TextProgressEval {
 
     /** Null = the clip has no textprogress animator. */
     fun evaluate(clip: TimelineClip, timeMs: Long): Result? {
-        val a = clip.textAnimators.firstOrNull { it.effectId == AlightXmlImporter.TEXTPROGRESS } ?: return null
+        val a = clip.textAnimators.firstOrNull { it.effectId == TextEffectIds.TEXTPROGRESS } ?: return null
         val dur = clip.durationMs.coerceAtLeast(1L)
         val p = ((timeMs - clip.startMs).toFloat() / dur).coerceIn(0f, 1f)
         return evaluate(a, p)

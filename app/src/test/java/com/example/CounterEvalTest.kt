@@ -1,6 +1,6 @@
 package com.example
 
-import com.example.engine.AlightXmlImporter
+import com.example.engine.TextEffectIds
 import com.example.engine.CounterEval
 import com.example.model.AnimKey
 import com.example.model.AnimValue
@@ -19,7 +19,7 @@ class CounterEvalTest {
     // 0 -> 12 run; the file's own keys carry a cubicBezier easing, which AnimKey keeps since the
     // Graph round-6 link — the eased pacing is pinned in GraphParityTest.)
     private val graphCounter = TextAnimator(
-        AlightXmlImporter.COUNTER,
+        TextEffectIds.COUNTER,
         mapOf(
             "offset" to AnimValue(
                 "float",
@@ -46,7 +46,7 @@ class CounterEvalTest {
 
     @Test
     fun defaultsWhenAPropertyIsMissing() {
-        val r = CounterEval.evaluate(TextAnimator(AlightXmlImporter.COUNTER), 0.5f)
+        val r = CounterEval.evaluate(TextAnimator(TextEffectIds.COUNTER), 0.5f)
         assertEquals(0f, r.offset, 0f)   // Alight "Add" default
         assertEquals(1f, r.scale, 0f)    // Alight "Multiply" default
     }
@@ -69,7 +69,7 @@ class CounterEvalTest {
         assertNull(CounterEval.evaluate(graphClip.copy(textAnimators = emptyList()), 1000L))
         assertNull(
             CounterEval.evaluate(
-                graphClip.copy(textAnimators = listOf(TextAnimator(AlightXmlImporter.TEXTPROGRESS))), 1000L
+                graphClip.copy(textAnimators = listOf(TextAnimator(TextEffectIds.TEXTPROGRESS))), 1000L
             )
         )
         assertNull(CounterEval.displayText("0", graphClip.copy(textAnimators = emptyList()), 1000L))

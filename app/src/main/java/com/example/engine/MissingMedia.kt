@@ -7,12 +7,13 @@ import com.example.model.TimelineClip
 /**
  * Media substitution for imported projects (build 111).
  *
- * Alight Motion presets are traded as XML files, and their media references point at the ORIGINAL
+ * Projects collected from other phones (shared .ampro files, and projects imported from Alight
+ * Motion XML back when that importer existed) carry media references that point at the ORIGINAL
  * author's phone: `content://media/external/...` uris of that device's media store, or `am:<hash>`
- * names of files embedded in the author's Alight library. Neither exists on this phone, so
- * [AlightMediaLocalizer] leaves those layers pointing at files that will never load — they render
- * empty (transparent since build 110) and stay useless. Alight itself expects the user to drop their
- * own picture into a "Logo Here" placeholder; this object is the pure half of the same offer here:
+ * names of files embedded in the author's Alight library. Neither exists on this phone, so those
+ * layers keep pointing at files that will never load — they render empty (transparent since
+ * build 110) and stay useless. Alight itself expects the user to drop their own picture into a
+ * "Logo Here" placeholder; this object is the pure half of the same offer here:
  *
  *  - [collect] lists every still-unresolvable media reference of a project, one entry per distinct
  *    file, labelled by the first layer that uses it, with the kind of file the picker must offer.
@@ -22,9 +23,8 @@ import com.example.model.TimelineClip
  *    [ProjectArchive] exactly like any localised media).
  *
  * A reference counts as unresolvable when it is an `am:` embedded name, an `am-asset:` token whose
- * file was not inside a project file ([ProjectArchive.TOKEN]), or a foreign `content://` uri — after
- * the import-time copy those are precisely the references that failed to localise. A reference that
- * was never attempted (an owned copy, a plain file path) is not listed.
+ * file was not inside a project file ([ProjectArchive.TOKEN]), or a foreign `content://` uri.
+ * A reference that names a file this phone has (an owned copy, a plain file path) is not listed.
  */
 object MissingMedia {
 
@@ -52,7 +52,14 @@ object MissingMedia {
     fun isUnresolvable(ref: String?, ownAuthority: String): Boolean {
         if (ref == null) return false
         if (ref.startsWith("am:") || ref.startsWith("am-asset:")) return true
-        return AlightMediaLocalizer.needsCopy(ref, ownAuthority)
+        return isForeignContentUri(ref, ownAuthority)
+    }
+
+    /** A content:// uri that is not one of the app's own files (its authority differs from ours). */
+    private fun isForeignContentUri(uri: String, ownAuthority: String): Boolean {
+        if (!uri.startsWith("content://")) return false
+        val authority = uri.removePrefix("content://").substringBefore('/')
+        return authority.isNotEmpty() && authority != ownAuthority
     }
 
     /** Every missing file of [snapshot], in first-use order, one entry per distinct file. */

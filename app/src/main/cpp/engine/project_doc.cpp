@@ -36,18 +36,6 @@ void fsyncParentDir(const std::string& targetPath) {
     }
 }
 
-inline bool isIllegalXmlChar(uint16_t c) {
-    return (c < 0x0020u && c != static_cast<uint16_t>('\t') &&
-            c != static_cast<uint16_t>('\n') && c != static_cast<uint16_t>('\r')) ||
-           c == 0xFFFEu || c == 0xFFFFu;
-}
-
-inline void appendAscii(std::u16string& out, const char* lit) {
-    while (*lit) {
-        out.push_back(static_cast<char16_t>(static_cast<unsigned char>(*lit++)));
-    }
-}
-
 } // namespace
 
 bool atomicWriteFile(const std::string& targetPath, const uint8_t* data, size_t size) {
@@ -192,68 +180,6 @@ int64_t solveChainPlacement(
         }
     }
     return start;
-}
-
-std::u16string xmlSanitizeUtf16(const uint16_t* chars, int length) {
-    if (chars == nullptr || length <= 0) return {};
-    std::u16string out;
-    out.resize(static_cast<size_t>(length));
-    for (int i = 0; i < length; ++i) {
-        uint16_t c = chars[i];
-        out[static_cast<size_t>(i)] = isIllegalXmlChar(c)
-            ? static_cast<char16_t>(' ')
-            : static_cast<char16_t>(c);
-    }
-    return out;
-}
-
-std::u16string xmlEscapeAttrUtf16(const uint16_t* chars, int length) {
-    if (chars == nullptr || length <= 0) return {};
-    std::u16string out;
-    out.reserve(static_cast<size_t>(length) + 16);
-    for (int i = 0; i < length; ++i) {
-        uint16_t c = isIllegalXmlChar(chars[i]) ? static_cast<uint16_t>(' ') : chars[i];
-        switch (c) {
-            case '&': appendAscii(out, "&amp;"); break;
-            case '<': appendAscii(out, "&lt;"); break;
-            case '>': appendAscii(out, "&gt;"); break;
-            case '"': appendAscii(out, "&quot;"); break;
-            default: out.push_back(static_cast<char16_t>(c)); break;
-        }
-    }
-    return out;
-}
-
-std::u16string xmlEscapeTextUtf16(const uint16_t* chars, int length) {
-    if (chars == nullptr || length <= 0) return {};
-    std::u16string out;
-    out.reserve(static_cast<size_t>(length) + 16);
-    for (int i = 0; i < length; ++i) {
-        uint16_t c = isIllegalXmlChar(chars[i]) ? static_cast<uint16_t>(' ') : chars[i];
-        switch (c) {
-            case '&': appendAscii(out, "&amp;"); break;
-            case '<': appendAscii(out, "&lt;"); break;
-            case '>': appendAscii(out, "&gt;"); break;
-            default: out.push_back(static_cast<char16_t>(c)); break;
-        }
-    }
-    return out;
-}
-
-std::string formatCorpusFloat(float v) {
-    if (!std::isfinite(v)) return "0";
-    char buf[64];
-    std::snprintf(buf, sizeof(buf), "%.6f", static_cast<double>(v));
-    std::string s(buf);
-    for (char& ch : s) {
-        if (ch == ',') ch = '.';
-    }
-    if (s.find('.') != std::string::npos) {
-        while (!s.empty() && s.back() == '0') s.pop_back();
-        if (!s.empty() && s.back() == '.') s.pop_back();
-    }
-    if (s == "-0" || s.empty()) return "0";
-    return s;
 }
 
 } // namespace am

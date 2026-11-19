@@ -2,7 +2,7 @@ package com.example.engine
 
 /**
  * JNI bridge for Step 2A native C++17 project document, atomic file storage,
- * off-heap bounded history ring buffer, lane chain solver, and XML helpers
+ * off-heap bounded history ring buffer, and lane chain solver
  * (cpp/engine/project_doc.{h,cpp}, project_doc_jni.cpp).
  */
 object ProjectDocNative {
@@ -56,16 +56,4 @@ object ProjectDocNative {
         desiredStartMs: Long,
         durationMs: Long
     ): Long
-
-    @JvmStatic
-    external fun nativeXmlSanitize(s: String): String?
-
-    @JvmStatic
-    external fun nativeXmlEscAttr(s: String): String?
-
-    @JvmStatic
-    external fun nativeXmlEscText(s: String): String?
-
-    @JvmStatic
-    external fun nativeFormatCorpusFloat(v: Float): String?
 }
