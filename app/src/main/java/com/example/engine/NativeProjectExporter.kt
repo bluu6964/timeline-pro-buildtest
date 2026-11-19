@@ -1342,7 +1342,7 @@ class NativeProjectExporter(private val context: Context) {
                 if (encoder.addAudioClip(it.fd, it.statSize, c.startMs, c.durationMs, c.trimStartMs,
                         c.exportSpeed, a.volume, a.fadeInMs, a.fadeOutMs, duck?.relUs, duck?.gains,
                         profile, if (profile != null) c.nrStrength else 0f,
-                        com.example.model.SpeedRamp.tableFor(c))) added = true
+                        null)) added = true // build 237: constant speed only (ramps removed)
             }
         }
         return added

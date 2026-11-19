@@ -9,8 +9,8 @@ package com.example.model
  * drops ONE Group layer into the current timeline at the playhead (see [buildGroup]) and
  * the user customises it in place with the ordinary tools. Unlike the Carousel there is no
  * fixed internal scene and no rig: the title is authored directly against the live preview
- * size, the way [com.example.viewmodel.VideoEditorViewModel.addCaptionLayers] authors
- * captions — every size is a fraction of the preview width (the text engine's font is
+ * size, the way the editor authors caption-style text layers — every size is a
+ * fraction of the preview width (the text engine's font is
  * 11% of the frame width, so width is the unit that keeps the design proportional on any
  * canvas), the text sits on the canvas centre, and the group itself stays at the REST
  * pose: moving / scaling / rotating the one group layer moves the whole title.

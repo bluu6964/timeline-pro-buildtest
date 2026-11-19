@@ -44,10 +44,9 @@ internal object AudioPreviewNative {
  *    decoders take a few hundred ms to open; the engine drops the part that is already late, so it lines up).
  *  - paused / scrubbing: silent (like the Media3 preview was).
  *
- * Speed keyframes (build 201, audit S-1): a layer with a speed ramp hands the
- * mixer a per-block table ([com.example.model.SpeedRamp.tableFor]) and the
- * sound follows the ramp block by block, exactly like the export; the table's
- * hash is part of the sound signature, so editing a ramp restarts the sound.
+ * Speed (build 201, audit S-1; simplified in build 237): the mixer still accepts a
+ * per-block speed table, but since the ramp removal every clip passes null — the
+ * sound follows the layer's one constant speed, exactly like the export.
  *
  * Ducking (build 194): a ducked layer's gain curve is decoded from its trigger off the sync
  * path and cached by the exact fields it depends on ([DuckCurve.Key]); until the curve lands
@@ -176,7 +175,7 @@ internal class NativeAudioPreview(context: Context) {
             val c = it.clip
             listOf(c.id, c.uri, c.startMs, c.durationMs, c.trimStartMs, c.exportSpeed, it.volume, it.fadeInMs, it.fadeOutMs,
                 duckCurves[index]?.version, nrProfiles[index]?.contentHashCode(), if (nrProfiles[index] != null) c.nrStrength else 0f,
-                com.example.model.SpeedRamp.tableFor(c)?.contentHashCode())
+                null) // build 237: constant speed only (ramps removed)
         }
         if (picks.isEmpty()) {
             if (running) stop()
@@ -231,7 +230,7 @@ internal class NativeAudioPreview(context: Context) {
                                     c.exportSpeed.toDouble(), a.volume, a.fadeInMs * 1000L, a.fadeOutMs * 1000L,
                                     duck?.relUs, duck?.gains,
                                     profile, if (profile != null) c.nrStrength else 0f,
-                                    com.example.model.SpeedRamp.tableFor(c)
+                                    null // build 237: constant speed only (ramps removed)
                                 )) added++
                         }
                     }

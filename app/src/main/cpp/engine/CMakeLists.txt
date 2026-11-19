@@ -20,7 +20,7 @@ add_library(am_engine SHARED
     canvas_gesture.cpp canvas_gesture_jni.cpp
     frame_eval.cpp frame_eval_jni.cpp
     project_doc.cpp project_doc_jni.cpp
-    remove_plate.cpp remove_jni.cpp stabilize_jni.cpp interp_jni.cpp face_swap_jni.cpp
+    remove_plate.cpp remove_jni.cpp stabilize_jni.cpp face_swap_jni.cpp
     timeline_render.cpp timeline_gesture.cpp timeline_jni.cpp
     ui_gl_renderer.cpp ui_gl_jni.cpp
     crash_handler.cpp)
@@ -35,7 +35,7 @@ target_compile_options(am_engine PRIVATE -O2 -Wall -Wextra)
 # on every target.
 set_source_files_properties(shape_boolean.cpp PROPERTIES COMPILE_OPTIONS -ffp-contract=off)
 # Native text layers (FreeType + HarfBuzz). The sources are downloaded by the GitHub workflow into
-# cpp/freetype and cpp/harfbuzz (like whisper.cpp). Without them text_engine.cpp compiles to a stub,
+# cpp/freetype and cpp/harfbuzz. Without them text_engine.cpp compiles to a stub,
 # available() is false and the exporter keeps drawing text with the Android Canvas.
 set(AM_FT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../freetype)
 set(AM_HB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../harfbuzz)

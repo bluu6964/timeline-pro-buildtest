@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
-import androidx.compose.material.icons.filled.ClosedCaption
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FastRewind
@@ -53,8 +52,6 @@ fun AudioClipToolsPanel(
     onSpeed: () -> Unit,
     onReverse: () -> Unit,
     modifier: Modifier = Modifier,
-    /** Auto Captions: speech of this audio layer to text layers (whisper.cpp). */
-    onCaptions: (() -> Unit)? = null,
     /** Detect beats: scans this layer's sound and drops beat marks on the ruler (build 193). */
     onDetectBeats: (() -> Unit)? = null,
     /** Ducking: this layer's volume lowers itself under another layer's loudness (build 194). */
@@ -99,7 +96,6 @@ fun AudioClipToolsPanel(
     ) + (if (onDetectBeats != null) listOf(ClipToolItem("beats", "Beats", Icons.Default.MusicNote))
     else emptyList()) + (if (onDucking != null) listOf(ClipToolItem("ducking", "Ducking", Icons.Default.TrendingDown))
     else emptyList()) + (if (onNoiseReduction != null) listOf(ClipToolItem("noise", "Noise", Icons.Default.GraphicEq))
-    else emptyList()) + (if (onCaptions != null) listOf(ClipToolItem("captions", "Captions", Icons.Default.ClosedCaption))
     else emptyList()) + (if (onRename != null) listOf(ClipToolItem("rename", "Rename", Icons.Default.Edit))
     else emptyList()) + (if (onLockLayer != null) listOf(ClipToolItem("lock", "Lock", Icons.Default.Lock))
     else emptyList()) + (if (onSoloLayer != null) listOf(ClipToolItem("solo", "Solo", Icons.Default.Visibility))
@@ -125,7 +121,6 @@ fun AudioClipToolsPanel(
             "beats" -> onDetectBeats?.invoke()
             "ducking" -> onDucking?.invoke()
             "noise" -> onNoiseReduction?.invoke()
-            "captions" -> onCaptions?.invoke()
             "rename" -> onRename?.invoke()
             "lock" -> onLockLayer?.invoke()
             "solo" -> onSoloLayer?.invoke()

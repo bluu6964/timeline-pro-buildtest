@@ -172,17 +172,12 @@ private fun StickerTile(item: StickerLibrary.Item, onClick: () -> Unit) {
     }
 }
 
-/** Speed (and its keyframes) of a sticker: how fast its animation plays. */
+/** Speed of a sticker: how fast its animation plays (one constant speed, build 237). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StickerSpeedSheet(
     clip: com.example.model.TimelineClip,
-    playheadMs: Long,
     onSpeedChange: (Float) -> Unit,
-    onLiveSpeed: (Float) -> Unit,
-    onToggleKeyframes: (List<com.example.model.AnimProp>) -> Unit,
-    onEasingBegin: () -> Unit,
-    onEasingChange: (com.example.model.AnimProp, Long, com.example.model.Easing) -> Unit,
     onDismiss: () -> Unit
 ) {
     AppBottomSheet(
@@ -192,15 +187,9 @@ fun StickerSpeedSheet(
         dragHandle = { SheetDragHandle() }
     ) {
         AudioSpeedSheet(
-            speed = clip.at(playheadMs).speed,
+            speed = clip.speed,
             onSpeedChange = onSpeedChange,
-            onDismiss = onDismiss,
-            rawClip = clip,
-            playheadMs = playheadMs,
-            onLiveSpeed = onLiveSpeed,
-            onToggleKeyframes = onToggleKeyframes,
-            onEasingBegin = onEasingBegin,
-            onEasingChange = onEasingChange
+            onDismiss = onDismiss
         )
     }
 }

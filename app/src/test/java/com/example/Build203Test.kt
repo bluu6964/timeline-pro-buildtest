@@ -7,7 +7,6 @@ import com.example.model.Keyframe
 import com.example.model.LaneLayout
 import com.example.model.LayerType
 import com.example.model.ProjectSnapshot
-import com.example.model.SpeedRamp
 import com.example.model.TimelineClip
 import com.example.model.TimelineTrack
 import com.example.model.defaultClipColor
@@ -83,15 +82,12 @@ class Build203Test {
         val out = ExtractAudio.detachedLayer(src, "aud")
         assertEquals(setOf(AnimProp.SPEED), out.keyframes.keys)
         assertEquals(src.keyframes[AnimProp.SPEED], out.keyframes[AnimProp.SPEED])
-        // The mixer's ramp table (build 201) is therefore identical for the
-        // detached layer and its source: the ramp survives the detach.
-        val a = SpeedRamp.tableFor(src)
-        val b = SpeedRamp.tableFor(out)
-        assertTrue(a != null && b != null && a.contentEquals(b))
-        // No ramp on the source -> no ramp (and no keyframes) on the layer.
+        // The stored SPEED keys ride along (inert since build 237 removed ramps:
+        // both layers play at their constant base speed, so the detach still
+        // cannot change what the project sounds like).
+        // No speed keys on the source -> no keyframes at all on the layer.
         val plain = ExtractAudio.detachedLayer(src.copy(keyframes = emptyMap()), "aud3")
         assertTrue(plain.keyframes.isEmpty())
-        assertNull(SpeedRamp.tableFor(plain))
     }
 
     @Test

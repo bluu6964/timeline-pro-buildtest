@@ -7,7 +7,7 @@
 namespace am {
 
 // Step 2A: Native Frame Evaluation & Parametric Geometry Suite.
-// Pure C++17 implementations matching Keyframes.kt, SpeedRamp.kt, AmFxEval.kt,
+// Pure C++17 implementations matching Keyframes.kt, AmFxEval.kt,
 // MotionBlurEval.kt, RepeatEval.kt, TextAnimEval.kt, TextProgressEval.kt,
 // CounterEval.kt, PieOutline.kt, ArcOutline.kt, CalloutOutline.kt, GradGeometry.kt.
 

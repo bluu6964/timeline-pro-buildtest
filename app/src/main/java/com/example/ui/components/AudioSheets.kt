@@ -2,13 +2,8 @@ package com.example.ui.components
 
 import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.LaunchedEffect
-import com.example.model.segmentIndexAt
-import com.example.model.indexOnTime
 import com.example.model.TimelineClip
-import com.example.model.Easing
-import com.example.model.AnimProp
 import com.example.model.MIN_SPEED
 import com.example.model.MAX_SPEED
 import androidx.compose.foundation.background
@@ -169,60 +164,37 @@ fun AudioFadeSheet(
 }
 
 /**
- * Speed of one layer (0.1x..4x, pitch stays the same). Without speed keyframes a change sets the
- * base speed (the layer gets shorter / longer on the timeline). With speed keyframes a change is
- * stored as a keyframe at the playhead, and the diamond / easing work like the other panels.
+ * Speed of one layer (0.1x..4x, pitch stays the same). One constant speed per layer:
+ * a change sets the base speed (the layer gets shorter / longer on the timeline).
+ * (Speed keyframes / ramps and smooth slow-mo were removed in build 237.)
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AudioSpeedSheet(
     speed: Float,
     onSpeedChange: (Float) -> Unit,
-    onDismiss: () -> Unit,
-    rawClip: TimelineClip? = null,
-    playheadMs: Long = 0L,
-    onLiveSpeed: ((Float) -> Unit)? = null,
-    onToggleKeyframes: (List<AnimProp>) -> Unit = {},
-    onEasingBegin: () -> Unit = {},
-    onEasingChange: (AnimProp, Long, Easing) -> Unit = { _, _, _ -> },
-    /** Video layers: pre-render the slow part with new frames made between the real ones (smooth slow-mo). */
-    onSmooth: (() -> Unit)? = null
+    onDismiss: () -> Unit
 ) {
-    val props = remember { listOf(AnimProp.SPEED) }
-    val relMs = if (rawClip != null) playheadMs - rawClip.startMs else 0L
-    val keys = rawClip?.keyframes?.get(AnimProp.SPEED).orEmpty()
-    val keyed = keys.isNotEmpty()
-    val insideClip = rawClip != null && playheadMs >= rawClip.startMs && playheadMs <= rawClip.endMs
-    val onKeyframeNow = keys.indexOnTime(relMs) >= 0
-    val segIdx = keys.segmentIndexAt(relMs)
-    val easingEnabled = segIdx >= 0
-    val segStart = if (segIdx >= 0) keys[segIdx] else null
-    val segEnd = if (segIdx >= 0) keys[segIdx + 1] else null
-    var showEasing by remember { mutableStateOf(false) }
-    LaunchedEffect(easingEnabled) { if (!easingEnabled) showEasing = false }
-
     var shown by remember { mutableFloatStateOf(speed) }
     LaunchedEffect(speed) { shown = speed }
 
-    // With keyframes every change is written at the playhead right away; without them the base
-    // speed changes (on finger lift for the slider, at once for the presets).
     fun applySpeed(v: Float) {
         shown = v
-        if (keyed && onLiveSpeed != null) onLiveSpeed(v) else onSpeedChange(v)
+        onSpeedChange(v)
     }
 
     Column(modifier = Modifier.fillMaxWidth()) {
         TransformValueHeader(
             valueText = String.format(Locale.US, "%.2fx", shown),
             onBack = null,
-            keyframeEnabled = insideClip,
-            hasKeyframes = keyed,
-            onKeyframeNow = onKeyframeNow,
-            onKeyframe = { onToggleKeyframes(props) },
-            easingEnabled = easingEnabled,
-            easingOpen = showEasing && easingEnabled,
-            easing = segStart?.easing,
-            onEasing = { if (easingEnabled) showEasing = !showEasing }
+            keyframeEnabled = false,
+            hasKeyframes = false,
+            onKeyframeNow = false,
+            onKeyframe = {},
+            easingEnabled = false,
+            easingOpen = false,
+            easing = null,
+            onEasing = {}
         )
         Column(
             modifier = Modifier
@@ -231,25 +203,13 @@ fun AudioSpeedSheet(
                 .padding(bottom = 28.dp)
         ) {
             Spacer(modifier = Modifier.height(4.dp))
-            if (showEasing && segStart != null && segEnd != null) {
-                Box(modifier = Modifier.fillMaxWidth().height(180.dp)) {
-                    EasingEditor(
-                        easing = segStart.easing,
-                        progress = ((relMs - segStart.timeMs).toFloat() /
-                            (segEnd.timeMs - segStart.timeMs).coerceAtLeast(1L)).coerceIn(0f, 1f),
-                        onBegin = onEasingBegin,
-                        onChange = { e -> onEasingChange(AnimProp.SPEED, segStart.timeMs, e) }
-                    )
-                }
-            } else {
-                Slider(
-                    value = shown,
-                    onValueChange = { v -> if (keyed) applySpeed(v) else shown = v },
-                    onValueChangeFinished = { if (!keyed) onSpeedChange(shown) },
-                    valueRange = MIN_SPEED..MAX_SPEED,
-                    colors = sliderColors()
-                )
-            }
+            Slider(
+                value = shown,
+                onValueChange = { v -> shown = v },
+                onValueChangeFinished = { onSpeedChange(shown) },
+                valueRange = MIN_SPEED..MAX_SPEED,
+                colors = sliderColors()
+            )
             Spacer(modifier = Modifier.height(8.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -268,28 +228,10 @@ fun AudioSpeedSheet(
                     )
                 }
             }
-            if (onSmooth != null) {
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = "Smooth slow-mo (make new frames)",
-                    color = TextPrimary,
-                    fontSize = 13.sp,
-                    modifier = Modifier
-                        .clip(CircleShape)
-                        .background(AmPanelHigh)
-                        .bouncyClickable { onSmooth() }
-                        .padding(horizontal = 14.dp, vertical = 10.dp)
-                )
-                Text(
-                    text = "Slow the layer first (below 1x). The slow part is re-made as a new video; sound is not kept.",
-                    color = TextPrimary.copy(alpha = 0.6f),
-                    fontSize = 11.sp,
-                    modifier = Modifier.padding(top = 6.dp)
-                )
-            }
         }
     }
 }
+
 
 /**
  * Ducking of one audio layer (build 194): while the chosen trigger layer is loud, this

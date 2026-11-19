@@ -14,14 +14,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Auto Captions: the speech engine (whisper.cpp) is downloaded here instead of being kept in the
-      # repository. Gradle builds it only when this folder exists (app/build.gradle.kts).
-      - name: Get whisper.cpp source
-        run: |
-          git clone --depth 1 --branch v1.7.6 https://github.com/ggml-org/whisper.cpp app/src/main/cpp/whisper.cpp \
-            || git clone --depth 1 https://github.com/ggml-org/whisper.cpp app/src/main/cpp/whisper.cpp
-          rm -rf app/src/main/cpp/whisper.cpp/.git
-
       # Native text layers: FreeType (glyph drawing) + HarfBuzz (shaping, Bengali conjuncts) are downloaded the
       # same way. If a download fails the app still builds; text is then drawn with the Android Canvas.
       - name: Get FreeType and HarfBuzz source

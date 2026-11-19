@@ -307,6 +307,10 @@ fun TimelineClip.at(timeMs: Long): TimelineClip {
     var c = this
     for ((p, list) in keyframes) {
         if (list.isEmpty()) continue
+        // Build 237: speed ramps are gone. Stored SPEED keyframes stay in the project file
+        // (old projects still load untouched) but are never evaluated — a clip always
+        // plays at its constant base speed.
+        if (p == AnimProp.SPEED) continue
         val (a, b) = if (p.isColor) list.colorValueAt(rel) else list.valueAt(rel)
         c = c.withProp(p, a, b)
     }
@@ -390,36 +394,19 @@ fun TimelineClip.keyframeTimes(): List<Long> =
 const val MIN_SPEED = 0.1f
 const val MAX_SPEED = 4f
 
-/** Speed at [relMs] (ms from the layer's start): the speed keyframes if any, else the base speed. */
-fun TimelineClip.speedAt(relMs: Long): Float {
-    val list = keyframes[AnimProp.SPEED].orEmpty()
-    return if (list.isEmpty()) speed else list.valueAt(relMs).first
-}
-
 /**
- * How far into the source the layer has played after [relMs] of its own time: the integral of the
- * speed curve (midpoint rule, 20 ms steps). Without speed keyframes this is simply relMs * speed.
+ * How far into the source the layer has played after [relMs] of its own time: the clip plays
+ * at ONE constant [TimelineClip.speed], so this is a plain multiplication. (Speed ramps were
+ * removed in build 237: SPEED keyframes stored in older projects are ignored, so a ramped
+ * clip now plays at its base speed.)
  */
-fun TimelineClip.sourceOffsetMs(relMs: Long): Long {
-    if (relMs <= 0L) return 0L
-    val list = keyframes[AnimProp.SPEED].orEmpty()
-    if (list.isEmpty()) return (relMs * speed).toLong()
-    val (times, vals) = FrameEvalNative.packKeyframes(list)
-    return FrameEvalNative.nativeSpeedSourceOffsetMs(times, vals, relMs)
-}
+fun TimelineClip.sourceOffsetMs(relMs: Long): Long = (relMs * speed).toLong()
 
 /**
- * Constant speed of a layer. Without speed keyframes it is [TimelineClip.speed].
- * With keyframes this is the AVERAGE speed over the layer — since build 201
- * (audit S-1) it is only the mixer's fallback beside the per-block table
- * ([SpeedRamp.tableFor]) the sound actually follows; before 201 the sound
- * played at this average while the picture followed the ramp, and the two
- * drifted apart mid-layer.
+ * The speed the exporter resamples the audio by, so a sped-up / slowed-down layer's sound
+ * follows its picture. One constant speed per clip since build 237 (speed ramps removed),
+ * so this is simply the clip's base speed; the name stays for the audio path's call sites.
  */
 val TimelineClip.exportSpeed: Float
-    get() {
-        if (keyframes[AnimProp.SPEED].orEmpty().isEmpty()) return speed
-        val span = sourceOffsetMs(durationMs)
-        return (span.toFloat() / durationMs.coerceAtLeast(1L)).coerceIn(MIN_SPEED, MAX_SPEED)
-    }
+    get() = speed
 

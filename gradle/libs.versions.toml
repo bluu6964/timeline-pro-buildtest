@@ -46,7 +46,6 @@ googleid = "1.1.1"
 [libraries]
 mediapipe-tasks-vision = { group = "com.google.mediapipe", name = "tasks-vision", version = "0.10.21" }
 onnxruntime-android = { group = "com.microsoft.onnxruntime", name = "onnxruntime-android", version = "1.18.0" }
-mlkit-segmentation-selfie = { group = "com.google.mlkit", name = "segmentation-selfie", version = "16.0.0-beta6" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }

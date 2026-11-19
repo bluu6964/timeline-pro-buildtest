@@ -38,7 +38,7 @@ internal object FaceSwapNative {
 /**
  * Face swap (light version, no neural network): the face of a photo is bent onto the face in the video along the 468-point
  * MediaPipe face mesh, matched to the video's colour and light and blended with a soft edge. The layer is pre-rendered into a
- * new video file (like [SlowMoBuilder]); the new file carries an "AI-edited" marker box and has no sound.
+ * new video file; the new file carries an "AI-edited" marker box and has no sound.
  *
  * Only for faces of people who agreed (the screen asks for it before starting). One face is followed: the biggest one in the
  * first frame, then the one nearest to where it was.

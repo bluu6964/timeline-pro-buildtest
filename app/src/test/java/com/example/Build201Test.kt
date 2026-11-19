@@ -3,26 +3,21 @@ package com.example
 import com.example.model.AnimProp
 import com.example.model.Keyframe
 import com.example.model.LayerType
-import com.example.model.MAX_SPEED
-import com.example.model.MIN_SPEED
 import com.example.model.ProjectSnapshot
 import com.example.model.SoloLaw
 import com.example.model.SoloState
-import com.example.model.SpeedRamp
 import com.example.model.TimelineClip
 import com.example.model.TimelineTrack
-import com.example.model.sourceOffsetMs
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import kotlin.math.abs
 
 /**
- * Build 201 — the audit fix build. The pure pieces pinned here: the speed-ramp
- * table (S-1, [SpeedRamp] — the C++ half is pinned by audio_selftest's ramp
- * section) and the solo session laws (S-5, [SoloLaw] + the snapshot field).
+ * Build 201 — the audit fix build. The pure piece pinned here: the solo session
+ * laws (S-5, [SoloLaw] + the snapshot field). (The S-1 speed-ramp table tests
+ * were removed with the ramp itself in build 237.)
  * The layout items (B-1 play-controls rebuild, B-5 multi-select regroup,
  * B-3/B-8 touch targets) are Compose geometry — proven by the build's 360 dp
  * budget table + proof renders, not by this suite.
@@ -44,65 +39,6 @@ class Build201Test {
     private var laneSeq = 0
     private fun lane(vararg clips: TimelineClip) =
         TimelineTrack(id = "lane-${laneSeq++}", name = "L", clips = clips.toList())
-
-    // ---------- S-1: SpeedRamp.tableFor ----------
-
-    @Test
-    fun speedRamp_noSpeedKeys_returnsNull() {
-        assertNull(SpeedRamp.tableFor(clip("a")))
-        val other = clip("b").copy(keyframes = mapOf(AnimProp.OPACITY to listOf(Keyframe(0, 1f))))
-        assertNull(SpeedRamp.tableFor(other))
-    }
-
-    @Test
-    fun speedRamp_blockCount_coversTheWholeDuration() {
-        val keys = listOf(Keyframe(0, 1.5f), Keyframe(6000, 1.5f))
-        // 6000 ms / 10.6667 ms per block = 562.5 -> 563 entries (the native
-        // side holds the last entry past the end, so coverage must round UP).
-        assertEquals(563, SpeedRamp.tableFor(clip("a", 6000, keys))!!.size)
-        assertEquals(94, SpeedRamp.tableFor(clip("a", 1000, keys))!!.size)
-        assertEquals(1, SpeedRamp.tableFor(clip("a", 0, keys))!!.size)
-    }
-
-    @Test
-    fun speedRamp_constantKeys_allEntriesEqual() {
-        val keys = listOf(Keyframe(0, 1.5f), Keyframe(6000, 1.5f))
-        val t = SpeedRamp.tableFor(clip("a", 6000, keys))!!
-        assertTrue(t.all { it == 1.5f })
-    }
-
-    @Test
-    fun speedRamp_singleKey_isConstant() {
-        val t = SpeedRamp.tableFor(clip("a", 3000, listOf(Keyframe(2000, 0.75f))))!!
-        assertTrue(t.all { it == 0.75f })
-    }
-
-    @Test
-    fun speedRamp_linearRamp_midpointsAndIntegralMatchSourceOffset() {
-        val c = clip("a", 6000, listOf(Keyframe(0, 0.5f), Keyframe(6000, 2.0f)))
-        val t = SpeedRamp.tableFor(c)!!
-        assertTrue(
-            "entries must not decrease on a rising ramp",
-            (0 until t.size - 1).all { t[it + 1] >= t[it] }
-        )
-        // First entry = the ramp at block 0's midpoint (5.33 ms in).
-        assertEquals(0.5f + 1.5f * (5.3333f / 6000f), t[0], 0.01f)
-        // The discrete integral tracks the analytic one (sourceOffsetMs) — the
-        // native stretcher spends exactly this sum, so this is the "the sound
-        // ends when the picture ends" law. Slack covers the final overshoot
-        // block (the table rounds the duration UP to whole blocks).
-        val spent = SpeedRamp.sourceMs(t)
-        val exact = c.sourceOffsetMs(c.durationMs)
-        assertTrue("spent $spent vs exact $exact", abs(spent - exact) <= 25.0)
-    }
-
-    @Test
-    fun speedRamp_clampsToTheNativeRange() {
-        val hot = SpeedRamp.tableFor(clip("a", 1000, listOf(Keyframe(0, 10f))))!!
-        assertTrue(hot.all { it == MAX_SPEED })
-        val slow = SpeedRamp.tableFor(clip("a", 1000, listOf(Keyframe(0, 0.01f))))!!
-        assertTrue(slow.all { it == MIN_SPEED })
-    }
 
     // ---------- S-5: SoloLaw + the snapshot field ----------
 

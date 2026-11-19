@@ -98,7 +98,7 @@ internal object NativeRenderAt {
                 cropWidthPercent = v[5], cropHeightPercent = v[6],
                 cropHorizontalPercent = v[7], cropVerticalPercent = v[8],
                 opacity = v[9],
-                speed = if (kf[AnimProp.SPEED].isNullOrEmpty()) c.speed else v[10],
+                speed = c.speed, // build 237: ramps removed — the evaluated speed is always the base speed
                 rotation3dX = v[11], rotation3dY = v[12],
                 textColor = col(AnimProp.FILL_COLOR, 13, c.textColor),
                 gradColor1 = col(AnimProp.GRAD_COLOR_1, 15, c.gradColor1),

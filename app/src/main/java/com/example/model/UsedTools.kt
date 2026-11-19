@@ -21,7 +21,7 @@ package com.example.model
  *  - "volume":     a volume other than 100 %, or the layer is muted.
  *  - "cutout":     a finished cutout is stored on the layer (cutoutDir set).
  *  - "parent":     the layer has a parent link.
- * Every other tool (roto, track, remove, stabilize, captions, face tools, freeze,
+ * Every other tool (track, remove, stabilize, face tools, freeze,
  * rename, edit, group tools ...) is an action without a readable stored state on the
  * clip, so it never reports used. Pure and unit tested (UsedToolsTest).
  */

@@ -1489,44 +1489,6 @@ class VideoEditorViewModel : ViewModel() {
     }
 
     /**
-     * Adds one text layer per caption (Auto Captions), all in ONE undo step and ONE update of the
-     * timeline. [parentStartMs] is the timeline start of the layer the captions were made from; each
-     * caption's times are relative to it. [offsetYPx] moves the captions down from the centre of the
-     * canvas (the lower third looks right). Every layer gets its own lane (one layer per line, like
-     * every other layer); the first caption is the top lane. Returns how many were added.
-     */
-    fun addCaptionLayers(
-        parentStartMs: Long,
-        captions: List<com.example.engine.CaptionBuilder.Caption>,
-        offsetYPx: Float
-    ): Int {
-        if (captions.isEmpty()) return 0
-        pushHistory()
-        val clips = captions.map { c ->
-            TimelineClip(
-                id = UUID.randomUUID().toString(),
-                name = "Caption",
-                type = LayerType.TEXT,
-                startMs = (parentStartMs + c.relStartMs).coerceAtLeast(0L),
-                durationMs = (c.relEndMs - c.relStartMs).coerceAtLeast(250L),
-                color = 0xFF3992CE,
-                text = c.text,
-                textColor = 0xFFFFFFFF,
-                fontWeight = 700,
-                textStrokeThickness = 14f,
-                textStrokeColor = 0xFF000000,
-                scalePercent = 70f,
-                transformY = offsetYPx
-            )
-        }
-        _editingGroupId.value = null  // captions go to the top level: leave the group so they can be seen
-        _tracks.value = LaneLayout.placeAll(_tracks.value, clips)
-        setSelected(null)
-        recomputeTotal()
-        return clips.size
-    }
-
-    /**
      * Templates (build 143; rig builds 144 + 146): inserts the Carousel template into the
      * CURRENT project as ONE Group layer at the playhead — the whole composition (the
      * "Carousel Null" rig layer carrying the motion, the "Carousel Controller" edit handle,

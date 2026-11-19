@@ -95,69 +95,30 @@ object BeatDetect {
     }
 
     /**
-     * The inverse of the model's time law: for each source offset (ms into
-     * the clip's source, counted from the clip's trim start — exactly what
-     * [sourceOffsetMs] returns for a layer-relative time), the layer-relative
+     * The inverse of [TimelineClip.sourceOffsetMs]: given a source offset (ms into the media,
+     * what [sourceOffsetMs] returns for a layer-relative time), the layer-relative
      * timeline time (ms from the clip's start) at which the layer plays it.
      * Detected beats come out of the file in source time; this is what lands
-     * them on the ruler at the moments the user actually hears them, under a
-     * constant speed AND under a speed ramp (the ramp is integrated once,
-     * with [sourceOffsetMs]'s own 20 ms midpoint rule, and inverted by
-     * marching it — never approximated with the average speed). Offsets
-     * outside the played span clamp to the clip's ends.
+     * them on the ruler at the moments the user actually hears them. A clip plays
+     * at one constant speed (speed ramps were removed in build 237), so the inverse
+     * is a plain division. Offsets outside the played span clamp to the clip's ends.
      */
     fun timelineMsForSourceOffsets(clip: TimelineClip, sourceOffsetsMs: List<Long>): List<Long> {
         if (sourceOffsetsMs.isEmpty()) return emptyList()
         val keys = sourceOffsetsMs.mapIndexed { index, off -> index to off }.sortedBy { it.second }
         val out = LongArray(sourceOffsetsMs.size)
         val span = clip.sourceOffsetMs(clip.durationMs)
-        val speedKeys = clip.keyframes[AnimProp.SPEED].orEmpty()
-        if (speedKeys.isEmpty()) {
-            val speed = clip.speed.toDouble().coerceAtLeast(0.01)
-            for ((index, off) in keys) {
-                out[index] = when {
-                    off <= 0L -> 0L
-                    off >= span -> clip.durationMs
-                    else -> (off / speed).toLong().coerceIn(0L, clip.durationMs)
-                }
-            }
-            return out.toList()
-        }
-        // Speed ramp: walk the same midpoint integral sourceOffsetMs walks,
-        // once, answering every offset on the way (offsets are sorted).
-        val step = 20L
-        var t = 0L
-        var acc = 0.0
-        var next = 0
-        while (next < keys.size) {
-            val target = keys[next].second
-            when {
-                target <= 0L -> {
-                    out[keys[next].first] = 0L
-                    next++
-                }
-                target >= span -> {
-                    out[keys[next].first] = clip.durationMs
-                    next++
-                }
-                acc >= target -> {
-                    out[keys[next].first] = t
-                    next++
-                }
-                else -> {
-                    val dt = minOf(step, clip.durationMs - t)
-                    if (dt <= 0L) {
-                        out[keys[next].first] = clip.durationMs
-                        next++
-                    } else {
-                        acc += speedKeys.valueAt(t + dt / 2).first.toDouble() * dt
-                        t += dt
-                    }
-                }
+        val speed = clip.speed.toDouble().coerceAtLeast(0.01)
+        for ((index, off) in keys) {
+            out[index] = when {
+                off <= 0L -> 0L
+                off >= span -> clip.durationMs
+                else -> (off / speed).toLong().coerceIn(0L, clip.durationMs)
             }
         }
         return out.toList()
     }
+
 
     /** One offset through [timelineMsForSourceOffsets] (tests / one-off callers). */
     fun timelineMsForSourceOffset(clip: TimelineClip, sourceOffsetMs: Long): Long =

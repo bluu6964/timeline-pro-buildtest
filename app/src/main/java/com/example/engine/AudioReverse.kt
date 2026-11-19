@@ -23,13 +23,10 @@ import java.nio.ByteOrder
 /**
  * Audio Reverse: the part of the source that the layer plays is decoded, turned around (last sample first) and saved as a
  * new WAV file. The layer then plays that file from its start, so preview and export need nothing new.
- * The speed stays as it is (a constant speed is kept; a speed ramp is not supported here).
+ * The layer's constant speed stays as it is.
  */
 object AudioReverse {
     class Result(val file: File, val durationMs: Long)
-
-    /** True when the layer has a speed ramp (keyframes on speed): reversing it is not supported. */
-    fun hasSpeedRamp(clip: TimelineClip): Boolean = !clip.keyframes[AnimProp.SPEED].isNullOrEmpty()
 
     suspend fun render(
         context: Context,

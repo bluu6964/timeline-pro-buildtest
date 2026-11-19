@@ -188,7 +188,7 @@ class VectorCmdBuilder(initialFloats: Int = 256, initialColors: Int = 64) {
 
 /**
  * Shared single-context GLES3 runtime backing all Step 3 hotspot UI TextureView surfaces.
- * Uses ONE [GlThread] + ONE EGLContext across Scopes, Easing, Mask overlay, Selection frame, and Roto brush,
+ * Uses ONE [GlThread] + ONE EGLContext across Scopes, Easing, Mask overlay and Selection frame,
  * keeping GPU memory minimal and avoiding EGL context churn. Falls back cleanly to Compose Canvas when
  * native GLES3 is unavailable (e.g. JVM unit tests or unsupported GPUs).
  */

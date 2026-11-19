@@ -16,8 +16,9 @@ constexpr int kAudioRate = 48000;
 
 // Build 201 (audit S-1): one speed-table entry covers this many OUTPUT frames
 // of a TimeStretcher — it is exactly the stretcher's hop, so entry i drives
-// produce() call i. The Kotlin side (model/SpeedRamp) samples a layer's SPEED
-// keyframes once per block; preview and export share this table.
+// produce() call i. (Build 237 removed speed ramps: callers now always pass an
+// empty table and every clip plays at its constant speed; the table path stays
+// in the mixer for compatibility.)
 constexpr int kSpeedBlockFrames = 512;
 
 // Source frames a clip consumes over `relFrames` of its own output when its
@@ -64,8 +65,7 @@ public:
         tail_.assign((size_t)kHop * 2, 0.f);
     }
 
-    // Build 201 (audit S-1): per-block speed table — model/SpeedRamp's sampling
-    // of the layer's SPEED keyframes, one entry per produce() (kHop ==
+    // Build 201 (audit S-1): per-block speed table — one entry per produce() (kHop ==
     // kSpeedBlockFrames output frames). Entry i sets the source advance out of
     // block i; past the table's end the last entry holds (the keyframe
     // evaluator's own law). Empty = the constant speed_ path, unchanged.

@@ -23,7 +23,6 @@ import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Brush
 import androidx.compose.material.icons.filled.CenterFocusStrong
 import androidx.compose.material.icons.filled.ClearAll
-import androidx.compose.material.icons.filled.ClosedCaption
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.CopyAll
@@ -81,18 +80,14 @@ fun ClipEditToolsPanel(
     modifier: Modifier = Modifier,
     /** Video layers with sound: volume (0-200 %) and mute of this layer. */
     onVolume: (() -> Unit)? = null,
-    /** Cutout test (ML Kit): keeps the person, removes the background. */
+    /** Cutout (RVM): keeps the person, removes the background. */
     onCutout: (() -> Unit)? = null,
-    /** Roto Brush (video layers only): brush an object, EdgeSAM follows it through the clip (After Effects style). */
-    onRoto: (() -> Unit)? = null,
     /** Motion tracking (video layers only): follow an object with a circle. */
     onTrack: (() -> Unit)? = null,
     /** Remove (video layers only): covers a flaw on a flat surface with a clean patch (planar track, Mocha-style). */
     onRemove: (() -> Unit)? = null,
     /** Stabilize (video layers only): holds a flat surface still (planar track, Mocha-style). */
     onStabilize: (() -> Unit)? = null,
-    /** Auto Captions (video layers): speech to text layers (whisper.cpp). */
-    onCaptions: (() -> Unit)? = null,
     /** Face AI (video layers): face tracking tools, first one = blur on face / eyes / nose / lips. */
     onFaceAi: (() -> Unit)? = null,
     onFaceSwap: (() -> Unit)? = null,
@@ -186,11 +181,9 @@ fun ClipEditToolsPanel(
     else emptyList()) + (if (onVolume != null) listOf(ClipToolItem("volume", "Volume", Icons.AutoMirrored.Filled.VolumeUp))
     else emptyList()) + (if (onMasks != null) listOf(ClipToolItem("masks", "Masks", Icons.Default.Tonality))
     else emptyList()) + (if (onCutout != null) listOf(ClipToolItem("cutout", "Cutout", Icons.Default.Person))
-    else emptyList()) + (if (onRoto != null) listOf(ClipToolItem("roto", "Roto", Icons.Default.Brush))
     else emptyList()) + (if (onTrack != null) listOf(ClipToolItem("track", "Track", Icons.Default.GpsFixed))
     else emptyList()) + (if (onRemove != null) listOf(ClipToolItem("remove", "Remove", Icons.Default.AutoFixHigh))
     else emptyList()) + (if (onStabilize != null) listOf(ClipToolItem("stabilize", "Stabilize", Icons.Default.CenterFocusStrong))
-    else emptyList()) + (if (onCaptions != null) listOf(ClipToolItem("captions", "Captions", Icons.Default.ClosedCaption))
     else emptyList()) + (if (onFaceAi != null) listOf(ClipToolItem("face_ai", "Face AI", Icons.Default.Face))
     else emptyList()) + (if (onFaceSwap != null) listOf(ClipToolItem("face_swap", "Face swap", Icons.Default.SwapHoriz))
     else emptyList()) + (if (onParent != null) listOf(ClipToolItem("parent", "Parent", Icons.Default.AccountTree))
@@ -236,11 +229,9 @@ fun ClipEditToolsPanel(
             "copy_effects" -> onCopyEffects?.invoke()
             "paste_effects" -> onPasteEffects?.invoke()
             "cutout" -> onCutout?.invoke()
-            "roto" -> onRoto?.invoke()
             "track" -> onTrack?.invoke()
             "remove" -> onRemove?.invoke()
             "stabilize" -> onStabilize?.invoke()
-            "captions" -> onCaptions?.invoke()
             "face_ai" -> onFaceAi?.invoke()
             "face_swap" -> onFaceSwap?.invoke()
             "volume" -> onVolume?.invoke()

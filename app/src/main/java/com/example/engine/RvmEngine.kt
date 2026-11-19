@@ -5,7 +5,14 @@ import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.media.ExifInterface
+import android.net.Uri
 import android.util.Log
+import androidx.core.net.toUri
+import java.io.File
+import java.io.FileOutputStream
 import java.nio.FloatBuffer
 
 /**
@@ -287,5 +294,45 @@ object RvmEngine {
         val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         bmp.setPixels(out, 0, w, 0, 0, w, h)
         return bmp
+    }
+
+    /**
+     * Loads a photo upright (EXIF rotation applied) and capped at [maxDim] px on the long side.
+     * Moved here from the old CutoutEngine when the ML Kit fallback was removed (build 237):
+     * the photo cutout flow and the freeze-frame flow share these helpers with the RVM path.
+     */
+    fun loadPhoto(context: Context, uri: Uri, maxDim: Int = 1600): Bitmap? {
+        val raw = context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) } ?: return null
+        val exif = try {
+            context.contentResolver.openInputStream(uri)?.use { ExifInterface(it) }
+        } catch (e: Exception) { null }
+        val rot = when (exif?.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)) {
+            ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+            ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+            ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+            else -> 0f
+        }
+        var bmp = raw
+        if (rot != 0f) {
+            val m = Matrix(); m.postRotate(rot)
+            bmp = Bitmap.createBitmap(raw, 0, 0, raw.width, raw.height, m, true)
+            if (bmp !== raw) raw.recycle()
+        }
+        val big = maxOf(bmp.width, bmp.height)
+        if (big > maxDim) {
+            val s = maxDim.toFloat() / big
+            val scaled = Bitmap.createScaledBitmap(bmp, (bmp.width * s).toInt().coerceAtLeast(1), (bmp.height * s).toInt().coerceAtLeast(1), true)
+            if (scaled !== bmp) bmp.recycle()
+            bmp = scaled
+        }
+        return bmp
+    }
+
+    /** Saves [bmp] as a PNG (keeps transparency) and returns its uri string. */
+    fun savePng(context: Context, bmp: Bitmap): String {
+        val dir = File(context.filesDir, "cutouts").apply { mkdirs() }
+        val file = File(dir, "cutout_${java.util.UUID.randomUUID()}.png")
+        FileOutputStream(file).use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        return file.toUri().toString()
     }
 }

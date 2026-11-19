@@ -40,8 +40,8 @@ object ExtractAudio {
     /**
      * The detached audio layer for the video layer [source]: same file, same
      * timeline window (start, duration, source trim), same sound state. Only
-     * the SPEED keyframes ride along — they ARE the layer's speed law (the
-     * mixer's ramp table is sampled from them, see [SpeedRamp]); every other
+     * the SPEED keyframes ride along in storage (inert since build 237 removed
+     * ramps — the layer plays at its constant base speed); every other
      * keyframed property is picture-shaped and meaningless on a sound layer.
      */
     fun detachedLayer(source: TimelineClip, newId: String): TimelineClip = TimelineClip(

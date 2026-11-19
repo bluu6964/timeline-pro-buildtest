@@ -60,7 +60,7 @@ class NativeExportEncoder private constructor(private var session: Long) : Close
      * [noiseProfile] / [nrStrength] (build 195): the clip's per-bin noise profile
      * (com.example.model.NoiseReduction.BINS magnitudes) + gate strength; null / 0 = ungated.
      * [speedTable] (build 201, S-1): the clip's per-block SPEED-keyframe table
-     * (com.example.model.SpeedRamp); null = constant [speed].
+     * null = constant [speed] (the only case since build 237 removed ramps).
      */
     fun addAudioClip(
         fd: Int, length: Long, startMs: Long, durationMs: Long, trimStartMs: Long,

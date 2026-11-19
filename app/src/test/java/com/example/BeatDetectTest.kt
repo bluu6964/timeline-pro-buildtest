@@ -199,26 +199,17 @@ class BeatDetectTest {
     }
 
     @Test
-    fun inversionUnderASpeedRampMatchesTheModelLaw() {
+    fun inversionIgnoresStoredSpeedKeyframes_constantLaw() {
+        // Stored SPEED keyframes from an old (ramped) project are inert since
+        // build 237: the inversion follows the constant base speed (1x here),
+        // so source offsets map back 1:1 and the span is the plain duration.
         val clip = audioClip(
             keys = listOf(Keyframe(0L, 1f), Keyframe(8000L, 3f))
         )
-        // Reference: binary search over the model's own sourceOffsetMs.
-        fun bruteForce(target: Long): Long {
-            var lo = 0L
-            var hi = clip.durationMs
-            while (lo < hi) {
-                val mid = (lo + hi) / 2
-                if (clip.sourceOffsetMs(mid) < target) lo = mid + 1 else hi = mid
-            }
-            return lo
-        }
         val span = clip.sourceOffsetMs(clip.durationMs)
-        assertTrue("ramp span $span", span > 8000L)
-        for (target in listOf(1L, 1000L, 4000L, 8000L, 12000L, span - 1)) {
-            val got = BeatDetect.timelineMsForSourceOffset(clip, target)
-            val want = bruteForce(target)
-            assertTrue("offset $target: got $got, model law says $want", abs(got - want) <= 25L)
+        assertEquals(8000L, span)
+        for (target in listOf(1L, 1000L, 4000L, 7999L)) {
+            assertEquals(target, BeatDetect.timelineMsForSourceOffset(clip, target))
         }
         assertEquals(0L, BeatDetect.timelineMsForSourceOffset(clip, 0L))
         assertEquals(clip.durationMs, BeatDetect.timelineMsForSourceOffset(clip, span))

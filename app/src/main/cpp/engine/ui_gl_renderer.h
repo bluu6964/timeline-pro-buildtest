@@ -22,7 +22,7 @@ enum UiVectorCmd : int32_t {
 };
 
 // Shared single-context OpenGL ES 3 renderer for high-FPS 2D vector / plot UI surfaces
-// (ScopesPanel, EasingEditor, MaskEditOverlay, SelectionFrameOverlay, RotoBrushScreen).
+// (ScopesPanel, EasingEditor, MaskEditOverlay, SelectionFrameOverlay).
 // Must be created, invoked, and destroyed on ONE dedicated GL thread (UiGlRuntime's GlThread).
 class UiGlRenderer {
 public:

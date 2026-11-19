@@ -14,7 +14,7 @@ import kotlin.math.roundToInt
 
 /**
  * Video Reverse: the layer (speed included) is pre-rendered backwards into a new video file that then plays at speed 1
- * (same idea as [SlowMoBuilder]; the result has no sound). Runs on the dedicated GL thread like the native exporter:
+ * (the result has no sound). Runs on the dedicated GL thread like the native exporter:
  * decoder -> GL -> encoder.
  */
 object VideoReverse {

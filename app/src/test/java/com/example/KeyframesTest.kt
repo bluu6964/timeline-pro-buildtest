@@ -183,18 +183,19 @@ class KeyframesTest {
     }
 
     @Test
-    fun speed_sourceOffsetFollowsCurve() {
+    fun speed_sourceOffsetIsConstantSpeed_evenWithStoredSpeedKeyframes() {
         // no keyframes: plain product
         val plain = clip().copy(speed = 2f)
         assertEquals(1000L, plain.sourceOffsetMs(500))
-        // speed keyframes 1x at 0 -> 3x at 1000, then held at 3x (layer is 4000 ms long)
+        // Stored SPEED keyframes (an old project with a speed ramp) are ignored
+        // since build 237 removed ramps: the clip plays at its base speed (1x)
+        // everywhere, and the evaluated clip carries the base speed too.
         val c = clip()
             .withKeyframe(AnimProp.SPEED, 0, 1f, 0f)
             .withKeyframe(AnimProp.SPEED, 1000, 3f, 0f)
-        // integral 0..500 of (1 + 0.002 t) = 750 ms; 0..1000 = 2000 ms
-        assertTrue(kotlin.math.abs(c.sourceOffsetMs(500) - 750L) <= 15L)
-        assertTrue(kotlin.math.abs(c.sourceOffsetMs(1000) - 2000L) <= 15L)
-        // whole layer: (2000 + 3 * 3000) / 4000 = 2.75x average
-        assertEquals(2.75f, c.exportSpeed, 0.02f)
+        assertEquals(500L, c.sourceOffsetMs(500))
+        assertEquals(1000L, c.sourceOffsetMs(1000))
+        assertEquals(1f, c.exportSpeed, 0f)
+        assertEquals(1f, c.at(1500).speed, 0f)
     }
 }

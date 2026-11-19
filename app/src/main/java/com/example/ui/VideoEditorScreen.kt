@@ -98,7 +98,6 @@ import androidx.compose.material.icons.filled.BorderOuter
 import androidx.compose.material.icons.filled.BorderRight
 import androidx.compose.material.icons.filled.Brush
 import androidx.compose.material.icons.filled.Category
-import androidx.compose.material.icons.filled.ClosedCaption
 import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.Crop
 import androidx.compose.material.icons.filled.Face
@@ -180,7 +179,6 @@ import com.example.ui.components.TrackTarget
 import kotlinx.coroutines.launch
 import com.example.model.sourceOffsetMs
 import com.example.model.ImportedMedia
-import com.example.engine.CutoutEngine
 import androidx.core.net.toUri
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
@@ -312,8 +310,6 @@ fun VideoEditorScreen(
     var cutoutProgress by remember { androidx.compose.runtime.mutableStateOf<Float?>(null) }
     var cutoutJob by remember { androidx.compose.runtime.mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var cutoutLabel by remember { androidx.compose.runtime.mutableStateOf("Cutting out the person…") }
-    // Roto Brush (EdgeSAM): the video layer being brushed, null = closed.
-    var rotoClipId by remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
     // Video layer waiting for the user to agree to download the cutout model.
     var askModelDownload by remember { androidx.compose.runtime.mutableStateOf<com.example.model.TimelineClip?>(null) }
 
@@ -353,28 +349,46 @@ fun VideoEditorScreen(
             }
         }
     }
-    // Roto Brush (EdgeSAM): brush an object, it is followed through the whole clip and becomes the layer's cutout.
-    rotoClipId?.let { rid ->
-        val rc = tracks.flatMap { it.clips }.find { it.id == rid }
-        if (rc == null) {
-            rotoClipId = null
+    // Runs the photo cutout (RVM only since build 237 — the ML Kit selfie fallback is gone);
+    // downloads the model first when it is not on the phone yet.
+    val runPhotoCutout: (com.example.model.TimelineClip, Boolean) -> Unit = { target, needDownload ->
+        val srcUri = target.uri
+        if (srcUri == null) {
+            scope.launch { snackbarHostState.showSnackbar("Cutout failed: no image") }
         } else {
-            com.example.ui.components.RotoBrushScreen(
-                clip = rc,
-                startSrcMs = rc.trimStartMs + rc.sourceOffsetMs((playheadState.value - rc.startMs).coerceAtLeast(0L)),
-                onClose = { rotoClipId = null },
-                onApply = { r ->
-                    viewModel.beginAdjust()
-                    viewModel.updateClip(rid) {
-                        it.copy(
-                            cutoutDir = r.dir, cutoutFps = r.fps,
-                            cutoutStartMs = r.startMs, cutoutFrames = r.frames
-                        )
+            cutoutProgress = 0f
+            cutoutLabel = if (needDownload) "Downloading cutout model…" else "Cutting out the person…"
+            cutoutJob = scope.launch {
+                try {
+                    if (needDownload) {
+                        withContext(Dispatchers.IO) {
+                            com.example.engine.ModelDownloader.download(context) { p -> cutoutProgress = p }
+                        }
+                        cutoutLabel = "Cutting out the person…"
+                        cutoutProgress = 0f
                     }
-                    rotoClipId = null
-                    scope.launch { snackbarHostState.showSnackbar("Roto done" + (if (r.summary.isNotEmpty()) " · " + r.summary else "")) }
+                    val r = withContext(Dispatchers.Default) {
+                        val src = com.example.engine.RvmEngine.loadPhoto(context, srcUri.toUri())
+                            ?: error("Could not read the photo")
+                        val out = com.example.engine.RvmEngine.matte(context, src)
+                        Triple(com.example.engine.RvmEngine.savePng(context, out), out.width, out.height)
+                    }
+                    viewModel.beginAdjust()
+                    viewModel.updateClip(target.id) {
+                        it.copy(uri = r.first, mimeType = "image/png", name = target.name + " cutout", sourceAspect = r.second.toFloat() / r.third.toFloat())
+                    }
+                    cutoutProgress = null
+                    snackbarHostState.showSnackbar("Cutout done")
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Throwable) {
+                    cutoutProgress = null
+                    snackbarHostState.showSnackbar("Cutout failed: " + (e.message ?: e.javaClass.simpleName))
+                } finally {
+                    cutoutProgress = null
+                    cutoutJob = null
                 }
-            )
+            }
         }
     }
     askModelDownload?.let { pending ->
@@ -387,7 +401,7 @@ fun VideoEditorScreen(
             confirmButton = {
                 com.example.ui.components.DialogPrimaryButton(text = "Download", onClick = {
                     askModelDownload = null
-                    runVideoCutout(pending, true)
+                    if (pending.isImage) runPhotoCutout(pending, true) else runVideoCutout(pending, true)
                 })
             },
             dismissButton = {
@@ -408,7 +422,7 @@ fun VideoEditorScreen(
     var transformSnapGuideY by remember { mutableStateOf<Float?>(null) }
 
     // Build 199 (A3): the snap switch is persisted in the editor preferences (the app's
-    // SharedPreferences mechanism, like face_ai / captions above); load it once into the
+    // SharedPreferences mechanism, like face_ai above); load it once into the
     // view-model, whose StateFlow the canvas + transform pad consult.
     androidx.compose.runtime.LaunchedEffect(Unit) {
         viewModel.setSnapEnabled(
@@ -577,163 +591,6 @@ fun VideoEditorScreen(
                     }
                     com.example.ui.components.DialogSecondaryButton(text = "Cancel", onClick = { askFaceAi = null })
                 }
-            }
-        )
-    }
-
-    // ---- Auto Captions: speech -> text layers (whisper.cpp, model "small" q5_1, downloaded on first use) ----
-    // ONE state for the bar (label + %), so a label never shows next to the % of another stage. null = not running.
-    var captionStatus by remember { mutableStateOf<com.example.engine.AutoCaptions.Status?>(null) }
-    var captionJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
-    // Layer waiting for the user to pick the language (and agree to the model download).
-    var askCaptions by remember { mutableStateOf<com.example.model.TimelineClip?>(null) }
-    var captionLang by remember {
-        mutableStateOf(
-            context.getSharedPreferences("captions", android.content.Context.MODE_PRIVATE)
-                .getString("lang", "auto") ?: "auto"
-        )
-    }
-    // Maximum characters per caption (Short / Normal / Long in the dialog), remembered.
-    var captionMaxChars by remember {
-        mutableStateOf(
-            context.getSharedPreferences("captions", android.content.Context.MODE_PRIVATE)
-                .getInt("maxChars", com.example.engine.AutoCaptions.MAX_CHARS)
-        )
-    }
-
-    // Tool "Captions" on a video / audio layer: checks the phone, then asks language + download.
-    val requestCaptions: (String?) -> Unit = req@{ id ->
-        val clip = tracks.flatMap { it.clips }.find { it.id == id } ?: return@req
-        snackbarHostState.currentSnackbarData?.dismiss()
-        val unsupported = com.example.engine.WhisperEngine.unsupportedReason()
-        if (!com.example.engine.AutoCaptions.canCaption(clip)) {
-            scope.launch { snackbarHostState.showSnackbar("Captions work on video and audio layers") }
-        } else if (unsupported != null) {
-            scope.launch { snackbarHostState.showSnackbar(unsupported) }
-        } else if (captionStatus != null) {
-            scope.launch { snackbarHostState.showSnackbar("Captions are already being made") }
-        } else {
-            askCaptions = clip
-        }
-    }
-
-    // Downloads the speech model when it is missing, then makes the captions and adds them as text layers.
-    // Every step has its own label and its own 0..100 % (the download is separate from the captions).
-    val runCaptions: (com.example.model.TimelineClip, String, Int) -> Unit = { target, lang, maxChars ->
-        context.getSharedPreferences("captions", android.content.Context.MODE_PRIVATE)
-            .edit().putString("lang", lang).putInt("maxChars", maxChars).apply()
-        captionStatus = com.example.engine.AutoCaptions.Status("Starting", 0f)
-        captionJob = scope.launch {
-            try {
-                if (!com.example.engine.WhisperModelDownloader.isDownloaded(context)) {
-                    captionStatus = com.example.engine.AutoCaptions.Status("Downloading speech model", 0f)
-                    var mb = ""
-                    withContext(Dispatchers.IO) {
-                        com.example.engine.WhisperModelDownloader.download(
-                            context,
-                            onBytes = { done, total ->
-                                mb = " (" + done / 1_000_000L + " / " + total / 1_000_000L + " MB)"
-                            }
-                        ) { p ->
-                            captionStatus = com.example.engine.AutoCaptions.Status("Downloading speech model$mb", p)
-                        }
-                    }
-                }
-                val made = withContext(Dispatchers.Default) {
-                    com.example.engine.AutoCaptions.generate(
-                        context, target, lang, maxChars,
-                        onStatus = { captionStatus = it }
-                    )
-                }
-                // the layer may have been moved while the captions were made: use where it is now
-                val parentStart = tracks.flatMap { it.clips }.find { it.id == target.id }?.startMs ?: target.startMs
-                val fw = previewFrameWidthPx
-                val fh = if (fw > 0f) fw / selectedAspectRatio.ratioFloat else 0f
-                // Show the last stage before the (short) adding step, and let one frame draw it.
-                captionStatus = com.example.engine.AutoCaptions.Status(
-                    "Adding " + made.size + " captions to the timeline",
-                    com.example.engine.CaptionProgress.Stage.PLACE.from
-                )
-                androidx.compose.runtime.withFrameNanos { }
-                val added = viewModel.addCaptionLayers(parentStart, made, fh * 0.30f)
-                captionStatus = null
-                snackbarHostState.showSnackbar(if (added > 0) "$added captions added" else "No speech found")
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                captionStatus = null
-                scope.launch { snackbarHostState.showSnackbar("Captions cancelled") }
-                throw e
-            } catch (e: Throwable) {
-                captionStatus = null
-                snackbarHostState.showSnackbar("Captions failed: " + (e.message ?: e.javaClass.simpleName))
-            } finally {
-                captionStatus = null
-                captionJob = null
-            }
-        }
-    }
-    askCaptions?.let { pending ->
-        val modelReady = com.example.engine.WhisperModelDownloader.isDownloaded(context)
-        com.example.ui.components.AppAlertDialog(
-            onDismissRequest = { askCaptions = null },
-            containerColor = AmPanel,
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(AmCornerCard),
-            title = { Text("Auto Captions") },
-            text = {
-                Column(Modifier.verticalScroll(rememberScrollState())) {
-                    Text(
-                        if (modelReady) "The speech of this layer becomes text layers on the timeline. Works offline."
-                        else "Captions need a one-time download of the speech model (" +
-                            com.example.engine.WhisperModelDownloader.APPROX_SIZE_TEXT +
-                            "). Wi-Fi is recommended. It is kept on your phone and works offline after that.",
-                        fontSize = 13.sp
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    Text("Language of the speech", fontSize = 12.sp, color = Color(0xFFA6A6A6))
-                    com.example.engine.AutoCaptions.LANGUAGES.forEach { (code, name) ->
-                        androidx.compose.foundation.layout.Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .clickable { captionLang = code }
-                                .padding(vertical = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            androidx.compose.material3.RadioButton(
-                                selected = captionLang == code,
-                                onClick = { captionLang = code }
-                            )
-                            Text(name, fontSize = 14.sp)
-                        }
-                    }
-                    Spacer(Modifier.height(10.dp))
-                    Text("Length of one caption", fontSize = 12.sp, color = Color(0xFFA6A6A6))
-                    com.example.engine.AutoCaptions.LENGTHS.forEach { (name, chars) ->
-                        androidx.compose.foundation.layout.Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .clickable { captionMaxChars = chars }
-                                .padding(vertical = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            androidx.compose.material3.RadioButton(
-                                selected = captionMaxChars == chars,
-                                onClick = { captionMaxChars = chars }
-                            )
-                            Text(name, fontSize = 14.sp)
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                com.example.ui.components.DialogPrimaryButton(
-                    text = if (modelReady) "Start" else "Download & start",
-                    onClick = {
-                        askCaptions = null
-                        runCaptions(pending, captionLang, captionMaxChars)
-                    }
-                )
-            },
-            dismissButton = {
-                com.example.ui.components.DialogSecondaryButton(text = "Not now", onClick = { askCaptions = null })
             }
         )
     }
@@ -1421,50 +1278,7 @@ fun VideoEditorScreen(
         runStabilize(video, com.example.engine.StabilizeBuilder.FULL_FRAME_QUAD, stabilizeStrength, video.startMs)
     }
 
-    /** Smooth slow-mo: pre-renders the slowed layer with new frames between the real ones, then swaps the layer to the new file. */
-    val startSmoothSlowMo: (String) -> Unit = startSm@{ clipId ->
-        val video = tracks.flatMap { it.clips }.find { it.id == clipId } ?: return@startSm
-        if (video.type != LayerType.VIDEO || video.isImage || video.uri == null) return@startSm
-        if (trackRunning) return@startSm
-        if (!com.example.engine.SlowMoBuilder.hasSlowPart(video)) {
-            scope.launch { snackbarHostState.showSnackbar("Slow the layer down first (speed below 1x)") }
-            return@startSm
-        }
-        if (!com.example.engine.DecoderPool.isAvailable) {
-            scope.launch { snackbarHostState.showSnackbar("The native engine is not available on this phone") }
-            return@startSm
-        }
-        viewModel.pause()
-        viewModel.beginAdjust()
-        trackStop.set(false)
-        trackProgress = 0f
-        trackRunning = true
-        removeLabel = "Making smooth slow-mo…"
-        trackJob = scope.launch {
-            try {
-                val res = com.example.engine.SlowMoBuilder.render(
-                    context, video,
-                    onProgress = { trackProgress = it },
-                    shouldStop = { trackStop.get() }
-                )
-                viewModel.applyBakedSlowMo(video.id, android.net.Uri.fromFile(res.file).toString(), res.durationMs)
-                snackbarHostState.showSnackbar("Done. Smooth slow-mo made (${res.frames} frames).")
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: com.example.engine.SlowMoBuilder.Stopped) {
-                snackbarHostState.showSnackbar("Stopped")
-            } catch (e: Throwable) {
-                snackbarHostState.showSnackbar("Smooth slow-mo failed: ${e.message ?: "unknown error"}")
-            } finally {
-                trackRunning = false
-                trackProgress = null
-                trackJob = null
-                removeLabel = null
-            }
-        }
-    }
-
-    /** Video Reverse: pre-renders the layer backwards, then swaps the layer to the new file (no sound, like smooth slow-mo). */
+    /** Video Reverse: pre-renders the layer backwards, then swaps the layer to the new file (no sound). */
     val startVideoReverse: (String) -> Unit = startRv@{ clipId ->
         val video = tracks.flatMap { it.clips }.find { it.id == clipId } ?: return@startRv
         if (video.type != LayerType.VIDEO || video.isImage || video.uri == null) return@startRv
@@ -1515,10 +1329,6 @@ fun VideoEditorScreen(
         val audio = tracks.flatMap { it.clips }.find { it.id == clipId } ?: return@startAr
         if (audio.type != LayerType.AUDIO || audio.uri == null) return@startAr
         if (trackRunning) return@startAr
-        if (com.example.engine.AudioReverse.hasSpeedRamp(audio)) {
-            scope.launch { snackbarHostState.showSnackbar("Remove the speed ramp (keyframes) first, then reverse") }
-            return@startAr
-        }
         viewModel.pause()
         viewModel.beginAdjust()
         trackStop.set(false)
@@ -1649,7 +1459,7 @@ fun VideoEditorScreen(
                         val bmp = r.getFrameAtTime(srcUs, android.media.MediaMetadataRetriever.OPTION_CLOSEST)
                             ?: r.getFrameAtTime(srcUs, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
                             ?: error("Could not read the picture")
-                        com.example.engine.CutoutEngine.savePng(context, bmp)
+                        com.example.engine.RvmEngine.savePng(context, bmp)
                     } finally {
                         runCatching { r.release() }
                     }
@@ -2483,9 +2293,6 @@ fun VideoEditorScreen(
             androidx.compose.foundation.layout.Column {
                 cutoutProgress?.let { p ->
                     com.example.ui.components.CutoutProgressBar(p, cutoutLabel, onCancel = { cutoutJob?.cancel() })
-                }
-                captionStatus?.let { st ->
-                    com.example.ui.components.CutoutProgressBar(st.progress, st.label, onCancel = { captionJob?.cancel() })
                 }
                 faceProgress?.let { p ->
                     com.example.ui.components.CutoutProgressBar(p, faceLabel, onCancel = { faceJob?.cancel() })
@@ -3572,7 +3379,6 @@ fun VideoEditorScreen(
                                 viewModel.beginAdjust()
                                 showAudioNoiseSheet = true
                             },
-                            onCaptions = { requestCaptions(targetClipId) },
                             onRename = { renameTargetId = targetClipId },
                             // Build 199: layer actions for audio layers too (A1/A6/A2/A7).
                             onLockLayer = { viewModel.toggleClipLocked(targetClipId) },
@@ -3740,30 +3546,13 @@ fun VideoEditorScreen(
                                     }
                                     scope.launch { snackbarHostState.showSnackbar("Cutout removed") }
                                 } else if (target.isImage) {
-                                    scope.launch { snackbarHostState.showSnackbar("Cutting out the person…") }
-                                    scope.launch {
-                                        val result = withContext(Dispatchers.Default) {
-                                            runCatching {
-                                                val src = CutoutEngine.loadPhoto(context, srcUri.toUri())
-                                                if (src == null) null
-                                                else {
-                                                    val (out, engine) = CutoutEngine.cutoutAuto(context, src)
-                                                    Pair(Triple(CutoutEngine.savePng(context, out), out.width, out.height), engine)
-                                                }
-                                            }
-                                        }
-                                        snackbarHostState.currentSnackbarData?.dismiss()
-                                        val done = result.getOrNull()
-                                        if (done == null) {
-                                            scope.launch { snackbarHostState.showSnackbar("Cutout failed: " + (result.exceptionOrNull()?.message ?: "could not read the picture")) }
-                                        } else {
-                                            val (saved, w, h) = done.first
-                                            viewModel.beginAdjust()
-                                            viewModel.updateClip(target.id) {
-                                                it.copy(uri = saved, mimeType = "image/png", name = it.name + " cutout", sourceAspect = w / h.toFloat())
-                                            }
-                                            scope.launch { snackbarHostState.showSnackbar("Cutout done - " + done.second) }
-                                        }
+                                    // Photo cutout is RVM-only since build 237 (the ML Kit selfie fallback
+                                    // is gone): without the model on the phone, the one-time download
+                                    // dialog is the only path — exactly like video cutout below.
+                                    if (!com.example.engine.RvmEngine.isAvailable(context)) {
+                                        askModelDownload = target
+                                    } else {
+                                        runPhotoCutout(target, false)
                                     }
                                 } else if (!com.example.engine.RvmEngine.isAvailable(context)) {
                                     askModelDownload = target
@@ -3771,24 +3560,6 @@ fun VideoEditorScreen(
                                     runVideoCutout(target, false)
                                 }
                             },
-                            onRoto = if (tracks.flatMap { it.clips }.any {
-                                    it.id == targetClipId && it.type == LayerType.VIDEO && !it.isImage && it.uri != null
-                                }
-                            ) {
-                                {
-                                    val t = tracks.flatMap { it.clips }.find { it.id == targetClipId }
-                                    if (t != null && t.cutoutDir != null) {
-                                        // Same slot as the person cutout: tap again to remove the roto result.
-                                        viewModel.beginAdjust()
-                                        viewModel.updateClip(t.id) {
-                                            it.copy(cutoutDir = null, cutoutFps = 0f, cutoutStartMs = 0L, cutoutFrames = 0)
-                                        }
-                                        scope.launch { snackbarHostState.showSnackbar("Cutout removed") }
-                                    } else if (t != null) {
-                                        rotoClipId = t.id
-                                    }
-                                }
-                            } else null,
                             onVolume = if (tracks.flatMap { it.clips }.any {
                                     it.id == targetClipId && it.type == LayerType.VIDEO && !it.isImage && it.uri != null
                                 }
@@ -3815,12 +3586,6 @@ fun VideoEditorScreen(
                                 }
                             ) {
                                 { requestStabilize(targetClipId) }
-                            } else null,
-                            onCaptions = if (tracks.flatMap { it.clips }.any {
-                                    it.id == targetClipId && it.type == LayerType.VIDEO && !it.isImage && it.uri != null
-                                }
-                            ) {
-                                { requestCaptions(targetClipId) }
                             } else null,
                             onFaceAi = if (tracks.flatMap { it.clips }.any {
                                     it.id == targetClipId && it.type == LayerType.VIDEO && !it.isImage && it.uri != null
@@ -4187,8 +3952,6 @@ fun VideoEditorScreen(
                                             isOpen = showClipAnimationsSheet, close = { showClipAnimationsSheet = false }),
                                         panel219("masks", "Mask", Icons.Default.Tonality,
                                             isOpen = showClipMasksSheet, close = { showClipMasksSheet = false }),
-                                        panel219("roto", "Roto Brush", Icons.Default.Brush,
-                                            isOpen = clip219.cutoutDir != null || rotoClipId == clip219.id, close = { fire219("roto") }),
                                         panel219("track", "Track", Icons.Default.GpsFixed,
                                             isOpen = false, close = {})
                                     ))
@@ -4197,8 +3960,6 @@ fun VideoEditorScreen(
                                     panel219("freeze", "Freeze", Icons.Default.Image,
                                         isOpen = false, close = {}),
                                     panel219("extract_audio", "Extract Audio", Icons.Default.Audiotrack,
-                                        isOpen = false, close = {}),
-                                    panel219("captions", "Caption", Icons.Default.ClosedCaption,
                                         isOpen = false, close = {}),
                                     panel219("face_swap", "Face Swap", Icons.Default.SwapHoriz,
                                         badge = "AI", isOpen = false, close = {}),
@@ -4899,25 +4660,9 @@ fun VideoEditorScreen(
                             )
                         } else if (showAudioSpeedSheet) {
                             AudioSpeedSheet(
-                                speed = audioClip.at(playheadState.value).speed,
+                                speed = audioClip.speed,
                                 onSpeedChange = { viewModel.setClipSpeed(audioClip.id, it) },
-                                onDismiss = closeAudioPanel,
-                                rawClip = audioClip,
-                                playheadMs = playheadState.value,
-                                onLiveSpeed = { v ->
-                                    viewModel.updateClipLive(audioClip.id) { it.copy(speed = v) }
-                                },
-                                onToggleKeyframes = { props -> viewModel.toggleKeyframes(audioClip.id, props) },
-                                onEasingBegin = { viewModel.beginAdjust() },
-                                onEasingChange = { prop, kfTime, easing ->
-                                    viewModel.setKeyframeEasing(audioClip.id, prop, kfTime, easing)
-                                },
-                                onSmooth = if (audioClip.type == LayerType.VIDEO && !audioClip.isImage && audioClip.uri != null) {
-                                    {
-                                        closeAudioPanel()
-                                        startSmoothSlowMo(audioClip.id)
-                                    }
-                                } else null
+                                onDismiss = closeAudioPanel
                             )
                         } else if (showAudioDuckingSheet) {
                             AudioDuckingSheet(
@@ -6019,14 +5764,7 @@ fun VideoEditorScreen(
         if (stickerClip != null && stickerClip.type == LayerType.STICKER) {
             StickerSpeedSheet(
                 clip = stickerClip,
-                playheadMs = playheadState.value,
                 onSpeedChange = { viewModel.setClipSpeed(stickerClip.id, it) },
-                onLiveSpeed = { v -> viewModel.updateClipLive(stickerClip.id) { it.copy(speed = v) } },
-                onToggleKeyframes = { props -> viewModel.toggleKeyframes(stickerClip.id, props) },
-                onEasingBegin = { viewModel.beginAdjust() },
-                onEasingChange = { prop, kfTime, easing ->
-                    viewModel.setKeyframeEasing(stickerClip.id, prop, kfTime, easing)
-                },
                 onDismiss = { showStickerSpeedSheet = false }
             )
         }

@@ -13,12 +13,10 @@ android {
     minSdk = 30
     targetSdk = 36
     versionCode = 1
-    versionName = "0.1.197"
+    versionName = "0.1.198"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-    // whisper.cpp (Auto Captions) is built for 64-bit ARM phones only; other CPUs still run the app,
-    // Auto Captions just says it is not available there (see engine/WhisperEngine.kt).
     externalNativeBuild {
       cmake {
         abiFilters("arm64-v8a", "x86_64")
@@ -26,9 +24,7 @@ android {
     }
   }
 
-  // Native build: libam_engine.so (decoder pool + OpenGL renderer) is always built. whisper.cpp
-  // (Auto Captions) is optional - without src/main/cpp/whisper.cpp the app builds and Auto Captions
-  // reports that the speech engine is missing (see src/main/cpp/CMakeLists.txt).
+  // Native build: libam_engine.so (decoder pool + OpenGL renderer).
   externalNativeBuild {
     cmake {
       path = file("src/main/cpp/CMakeLists.txt")
@@ -77,7 +73,7 @@ android {
 
   // APK size (build 107): the x86 / x86_64 folders carry ONLY third-party dependency libraries
   // (MediaPipe, ONNX Runtime, xeno) for PC emulators — the app's own native code
-  // (libam_engine.so, libwhisper_jni.so) is arm64-v8a only and every real phone is ARM.
+  // (libam_engine.so) is arm64-v8a only and every real phone is ARM.
   // Excluding the two x86 ABIs from packaging removes ~81 MB of dead weight while the APK
   // stays a single universal file for ARM phones (arm64-v8a + armeabi-v7a, unchanged).
   packaging {
@@ -116,7 +112,6 @@ dependencies {
   implementation(libs.coil.compose)
   implementation(libs.kotlinx.serialization.json)
   implementation(libs.coil.video)
-  implementation(libs.mlkit.segmentation.selfie)
   implementation(libs.onnxruntime.android)
   implementation(libs.mediapipe.tasks.vision)
   implementation(libs.kotlinx.coroutines.android)
