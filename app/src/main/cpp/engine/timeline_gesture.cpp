@@ -56,7 +56,9 @@ void Gesture::cancelLongPress(std::vector<Event>* out) {
 
 void Gesture::armLongPress(std::vector<Event>* out) {
     cancelLongPress(out);
-    if (downZone_ != kZoneBar && downZone_ != kZoneRail) return;
+    // Build 235: the eye is part of the rail head — a press starting on it must arm
+    // the long-press too, or a long-press on the eye can never enter multi-select.
+    if (downZone_ != kZoneBar && downZone_ != kZoneRail && downZone_ != kZoneEye) return;
     longPressArmed_ = true;
     emit(out, kEvArmLongPress, (double)longPressMs_);
 }
@@ -261,7 +263,10 @@ void Gesture::longPressFired(const Renderer& r, std::vector<Event>* out) {
     if (!longPressArmed_) return;
     longPressArmed_ = false;  // the timer is spent: no cancel event needed
     if (mode_ != kPending || !hasClip()) return;
-    if (downZone_ == kZoneRail) {
+    // Build 235: long-press anywhere on the rail head — the eye included — is a
+    // multi-select press, exactly like the plain rail. (A short TAP on the eye
+    // still toggles visibility; see dispatchTap.)
+    if (downZone_ == kZoneRail || downZone_ == kZoneEye) {
         emit(out, r.snapshot().multiMode ? kEvToggleMulti : kEvEnterMulti);
         mode_ = kDead;
     } else {

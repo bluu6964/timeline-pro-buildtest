@@ -3,7 +3,6 @@ package com.example.ui.components
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -44,39 +43,40 @@ import com.example.ui.util.bouncyClickable
 private val IconColor = AmTextPrimary // build 223 (colour balance): light glyphs — the bar surface is the dark AmPanel (build 216's white bar is gone; its ink glyphs were invisible on dark)
 
 /**
+ * Build 235: the compact bar's heights. The single row is 40 dp inside
+ * 6 dp outer + 2 dp inner vertical padding = 56 dp total; the boolean
+ * row adds 46 dp. The timeline's multi-select bottom reservation is
+ * [MultiSelectBarHeightWithBoolean] + 4 dp (see timelineBottomPadDp),
+ * so the last lane can always scroll fully clear of the bar.
+ */
+internal val MultiSelectBarBaseHeight = 56.dp
+internal val MultiSelectBarBooleanRowHeight = 46.dp
+internal val MultiSelectBarHeightWithBoolean = MultiSelectBarBaseHeight + MultiSelectBarBooleanRowHeight
+
+/**
  * Bar shown at the bottom of the timeline while several layers are selected.
- * First row: left group depends on the playhead ([mode]); right group aligns the checked
- * layers IN TIME. Second row (build 188): canvas SPATIAL align / canvas-centre of the
- * checked layers (see [com.example.model.SpatialAlign]) — bare tiles like the rest of
- * the bar. Third row: distribute (dims below 3 checked layers — it needs three to
- * space), Chain, Group, and the labelled All / Delete tiles. Fourth row (build 192):
- * shape BOOLEAN ops (see [com.example.model.ShapeBoolean]) — composed ONLY when
- * [showBooleanRow] (exactly two eligible shape layers checked); Subtract reads
- * first-checked minus second-checked.
  *
- * RE-BUDGETED in build 201 (audit B-5, HIGH): the bar's content width is
- * 320 dp (360 − 2×8 outer − 2×12 inner padding) and builds 188–199 had grown
- * row 1 to 418 dp and row 2 to 356 dp — the tiles overflowed the bar and
- * clipped. The regroup above (no tile shrunk, no action dropped) fits every
- * row, SPLIT mode (the widest) included:
- *   row 1: mode group 136 (SPLIT 3×44+2×2) + time-align 114 (3×34+2×6) = 250
- *   row 2: 8 spatial tiles × 34 + 7×2 = 286
- *   row 3: distribute 70 + chain 34 + group 34 + 2×2 gaps = 142 left,
- *          All 38 + Delete 38 + 6 = 82 right → 224 across
- *   row 4 (boolean): 4 × 58 spaced evenly = 232
+ * Build 235 (Sarowar's report): the old four-row bar (mode group + time
+ * align, spatial align, distribute / Chain / Group, booleans) stood
+ * 142–188 dp tall over the lanes — in multi-select he could no longer
+ * SEE or TAP the other lanes to add/remove layers. The on-timeline bar
+ * is now ONE compact row — the checked count and the labelled All /
+ * Delete tiles — plus, only when [showBooleanRow] (exactly two eligible
+ * shape layers checked, build 192), the boolean row under it
+ * (Union / Subtract / Intersect / XOR; Subtract reads first-checked
+ * minus second-checked). Every other action the old bar carried (mode
+ * group, time align, spatial align / distribute, Chain, Group) lives
+ * in the tools grid as head tiles via [multiBarActionTiles] (build
+ * 211) — open the tools panel during multi-select to reach them.
  */
 @Composable
 fun MultiSelectBar(
-    mode: MultiBarMode,
-    onAction: (MultiAction) -> Unit,
     modifier: Modifier = Modifier,
-    /** How many layers are checked (the distribute tiles need >= 3). */
+    /** How many layers are checked (the row's count label). */
     selectedCount: Int = 0,
-    /** A spatial align / distribute tile of the second row. */
-    onSpatialAction: (SpatialAction) -> Unit = {},
     /** Show the boolean row (exactly two eligible shape layers are checked). */
     showBooleanRow: Boolean = false,
-    /** A boolean tile of the third row. */
+    /** A boolean tile of the boolean row. */
     onBooleanAction: (ShapeBooleanOp) -> Unit = {},
     /** Delete tile (build 199, A11): deletes ALL checked layers at once (one undo step; locked layers are skipped). */
     onDeleteChecked: () -> Unit = {},
@@ -93,78 +93,17 @@ fun MultiSelectBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(50.dp),
+                .height(40.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                when (mode) {
-                    MultiBarMode.SPLIT -> {
-                        BarIcon(MultiAction.DELETE_LEFT, onAction) { drawSplitIcon(dashLeft = true, dashRight = false) }
-                        BarIcon(MultiAction.SPLIT, onAction) { drawSplitIcon(dashLeft = false, dashRight = false) }
-                        BarIcon(MultiAction.DELETE_RIGHT, onAction) { drawSplitIcon(dashLeft = false, dashRight = true) }
-                    }
-                    MultiBarMode.START -> {
-                        BarIcon(MultiAction.EXTEND_START, onAction) { drawExtendIcon(atStart = true) }
-                        BarIcon(MultiAction.MOVE_START, onAction) { drawMoveIcon(atStart = true) }
-                    }
-                    MultiBarMode.END -> {
-                        BarIcon(MultiAction.EXTEND_END, onAction) { drawExtendIcon(atStart = false) }
-                        BarIcon(MultiAction.MOVE_END, onAction) { drawMoveIcon(atStart = false) }
-                    }
-                }
-            }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                AlignTile(MultiAction.ALIGN_START, onAction) { drawBars(BarsKind.LEFT) }
-                AlignTile(MultiAction.SEQUENCE, onAction) { drawBars(BarsKind.STAIR) }
-                AlignTile(MultiAction.ALIGN_END, onAction) { drawBars(BarsKind.RIGHT) }
-            }
-        }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(38.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                SpatialTile(SpatialAction.ALIGN_LEFT, onSpatialAction) { drawAlignGlyph(AlignGlyph.LEFT) }
-                SpatialTile(SpatialAction.ALIGN_CENTER_H, onSpatialAction) { drawAlignGlyph(AlignGlyph.CENTER_H) }
-                SpatialTile(SpatialAction.ALIGN_RIGHT, onSpatialAction) { drawAlignGlyph(AlignGlyph.RIGHT) }
-                SpatialTile(SpatialAction.ALIGN_TOP, onSpatialAction) { drawAlignGlyph(AlignGlyph.TOP) }
-                SpatialTile(SpatialAction.ALIGN_CENTER_V, onSpatialAction) { drawAlignGlyph(AlignGlyph.CENTER_V) }
-                SpatialTile(SpatialAction.ALIGN_BOTTOM, onSpatialAction) { drawAlignGlyph(AlignGlyph.BOTTOM) }
-                SpatialTile(SpatialAction.CANVAS_CENTER_H, onSpatialAction) { drawCanvasCentreGlyph(horizontal = true) }
-                SpatialTile(SpatialAction.CANVAS_CENTER_V, onSpatialAction) { drawCanvasCentreGlyph(horizontal = false) }
-            }
-        }
-        // Third row (build 201 regroup): distribute + Chain / Group + the
-        // labelled All / Delete tiles — the groups that overflowed rows 1–2.
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(38.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                SpatialTile(SpatialAction.DISTRIBUTE_H, onSpatialAction, enabled = selectedCount >= 3) { drawDistributeGlyph(horizontal = true) }
-                SpatialTile(SpatialAction.DISTRIBUTE_V, onSpatialAction, enabled = selectedCount >= 3) { drawDistributeGlyph(horizontal = false) }
-                AlignTile(MultiAction.CHAIN, onAction) { drawChainIcon() }
-                AlignTile(MultiAction.GROUP, onAction) { drawGroupIcon() }
-            }
+            Text(
+                "$selectedCount layers",
+                color = AmTextPrimary,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1
+            )
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -177,7 +116,7 @@ fun MultiSelectBar(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(46.dp),
+                    .height(MultiSelectBarBooleanRowHeight),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
@@ -326,55 +265,7 @@ private fun MiniTile(
     }
 }
 
-@Composable
-private fun BarIcon(
-    action: MultiAction,
-    onAction: (MultiAction) -> Unit,
-    draw: DrawScope.() -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .size(width = 44.dp, height = 44.dp)
-            .bouncyClickable { onAction(action) },
-        contentAlignment = Alignment.Center
-    ) {
-        Canvas(modifier = Modifier.size(width = 40.dp, height = 30.dp)) { draw() }
-    }
-}
 
-@Composable
-private fun AlignTile(
-    action: MultiAction,
-    onAction: (MultiAction) -> Unit,
-    draw: DrawScope.() -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .size(width = 34.dp, height = 36.dp)
-            .bouncyClickable { onAction(action) },
-        contentAlignment = Alignment.Center
-    ) {
-        Canvas(modifier = Modifier.size(width = 24.dp, height = 20.dp)) { draw() }
-    }
-}
-
-/** A spatial align / distribute tile of the second row (same bare tile as [AlignTile]). */
-@Composable
-private fun SpatialTile(
-    action: SpatialAction,
-    onAction: (SpatialAction) -> Unit,
-    enabled: Boolean = true,
-    draw: DrawScope.() -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .size(width = 34.dp, height = 34.dp)
-            .bouncyClickable(enabled = enabled) { onAction(action) },
-        contentAlignment = Alignment.Center
-    ) {
-        Canvas(modifier = Modifier.size(width = 24.dp, height = 20.dp)) { draw() }
-    }
-}
 
 // ---------------------------------------------------------------------------------------------
 // Icons (drawn, so they match the reference screenshots without extra assets)

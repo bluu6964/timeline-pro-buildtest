@@ -263,6 +263,34 @@ int main() {
         CHECK(count(lp, kEvToggleMulti) == 1, "rail long-press in multi-select toggles");
     }
     {
+        // Build 235: a long-press starting on the EYE is a rail-head press too —
+        // it arms the timer and enters multi-select; the release does nothing more.
+        Rig rig(makeScene());
+        auto d = rig.send(kActionDown, 42, 128);
+        CHECK(count(d, kEvArmLongPress) == 1, "long-press armed on the eye");
+        std::vector<Event> lp;
+        rig.g.longPressFired(rig.r, &lp);
+        CHECK(count(lp, kEvEnterMulti) == 1, "eye long-press enters multi-select");
+        CHECK(count(lp, kEvToggleVisibility) == 0 && count(lp, kEvSelect) == 0,
+              "eye long-press does not toggle visibility or select");
+        auto u = rig.send(kActionUp, 42, 128);
+        CHECK(count(u, kEvToggleVisibility) == 0 && count(u, kEvToggleMulti) == 0,
+              "release after an eye long-press does nothing more");
+        // in multi-select an eye long-press toggles the check instead
+        Rig m2(makeScene(true));
+        m2.send(kActionDown, 42, 128);
+        lp.clear();
+        m2.g.longPressFired(m2.r, &lp);
+        CHECK(count(lp, kEvToggleMulti) == 1 && count(lp, kEvToggleVisibility) == 0,
+              "eye long-press in multi-select toggles the check");
+        // a plain tap on the eye still ONLY toggles visibility
+        Rig t2(makeScene());
+        t2.send(kActionDown, 42, 128);
+        auto tu = t2.send(kActionUp, 42, 128);
+        CHECK(count(tu, kEvToggleVisibility) == 1 && count(tu, kEvSelect) == 0 &&
+              count(tu, kEvEnterMulti) == 0, "eye tap toggles visibility only");
+    }
+    {
         // moving before the timer cancels it
         Rig rig(makeScene());
         rig.send(kActionDown, 300, 128);

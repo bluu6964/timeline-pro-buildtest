@@ -103,7 +103,7 @@ struct Snapshot {
     float railWPx = 0;      // 42 dp in px
     float topPadPx = 0;     // lanes content top padding (4 dp)
     float gapPx = 0;        // lane gap (4 dp)
-    float bottomPadPx = 0;  // lanes content bottom padding (4 dp; 68 dp in multi-select)
+    float bottomPadPx = 0;  // lanes content bottom padding (4 dp; 106 dp in multi-select, build 235)
     int64_t totalMs = 0;
     std::vector<int64_t> beatMs;
     bool hasRange = false;

@@ -504,7 +504,7 @@ fun TimelineLayerPanel(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(verticalScrollState)
-                .padding(top = 4.dp, bottom = if (toolsPanelOpen && (isMulti || showActionBar)) 4.dp else if (isMulti) 68.dp else if (showActionBar) SelectedBarHeight + 4.dp else 4.dp)
+                .padding(top = 4.dp, bottom = if (toolsPanelOpen && (isMulti || showActionBar)) 4.dp else if (isMulti) MultiSelectBarHeightWithBoolean + 4.dp else if (showActionBar) SelectedBarHeight + 4.dp else 4.dp)
         ) {
             // Timeline content, shifted so currentPlayheadMs sits under the center line.
             Box(
@@ -871,10 +871,15 @@ internal fun TimelineMultiBarOverlay(
  * Build 224: the lanes column's bottom padding, exactly as the Compose
  * panel computes it (its vertical-scroll content padding) — the native
  * surface needs the same content height for its scroll range.
+ *
+ * Build 235: the multi-select reservation is the COMPACT bar's tallest
+ * height (56 dp base + 46 dp boolean row = 102 dp) + the same 4 dp
+ * margin the selected bar uses — the old 68 dp never matched the old
+ * bar's 142–188 dp, so the last lanes could not scroll clear of it.
  */
 internal fun timelineBottomPadDp(toolsPanelOpen: Boolean, isMulti: Boolean, showActionBar: Boolean): Float =
     if (toolsPanelOpen && (isMulti || showActionBar)) 4f
-    else if (isMulti) 68f
+    else if (isMulti) MultiSelectBarHeightWithBoolean.value + 4f
     else if (showActionBar) SelectedBarHeight.value + 4f
     else 4f
 
@@ -973,11 +978,11 @@ private fun MultiBarHost(
         ) else null
     )
     if (!toolsPanelOpen) {
+        // Build 235: the on-timeline bar is compact (count + All / Delete
+        // + the boolean row) — mode / time-align / spatial / Chain /
+        // Group live in the tools grid tiles published above.
         MultiSelectBar(
-            mode = mode,
-            onAction = onAction,
             selectedCount = multiSelectIds.size,
-            onSpatialAction = onSpatialAction,
             showBooleanRow = booleanReady,
             onBooleanAction = onBooleanAction,
             onDeleteChecked = onDeleteChecked,
