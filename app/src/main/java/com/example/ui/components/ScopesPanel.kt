@@ -104,10 +104,11 @@ private fun HistogramPlot(data: ScopeData?) {
         EmptyPlot()
         return
     }
-NativeGlTextureHost(
+    NativeGlTextureHost(
         isOpaque = true,
         drawOnGl = { sid -> UiGlRuntime.drawScopeHistogramOnGl(sid, data) },
         modifier = Modifier.fillMaxSize()
+    )
 }
 
 @Composable
@@ -116,10 +117,11 @@ private fun WaveformPlot(data: ScopeData?) {
         EmptyPlot()
         return
     }
-NativeGlTextureHost(
+    NativeGlTextureHost(
         isOpaque = true,
         drawOnGl = { sid -> UiGlRuntime.drawScopeWaveformOnGl(sid, data) },
         modifier = Modifier.fillMaxSize()
+    )
 }
 
 @Composable
@@ -128,8 +130,9 @@ private fun VectorscopePlot(data: ScopeData?) {
         EmptyPlot()
         return
     }
-NativeGlTextureHost(
+    NativeGlTextureHost(
         isOpaque = true,
         drawOnGl = { sid -> UiGlRuntime.drawScopeVectorscopeOnGl(sid, data) },
         modifier = Modifier.fillMaxSize()
+    )
 }
