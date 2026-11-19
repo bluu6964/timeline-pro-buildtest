@@ -82,13 +82,14 @@ jobs:
           mkdir -p /tmp/hostlib/shim
           cat > /tmp/hostlib/shim/audio_decoder.h <<'EOF'
           #pragma once
-          #include <cstddef>
           #include <cstdint>
           #include <memory>
+          #include "audio_dsp.h"
           namespace am {
-          class AudioFileSource {
+          class AudioFileSource : public FrameSource {
            public:
-            static std::unique_ptr<AudioFileSource> open(int, int64_t) { return nullptr; }
+            static std::unique_ptr<AudioFileSource> open(int, int64_t, int64_t) { return nullptr; }
+            int read(float*, int) override { return 0; }
           };
           }  // namespace am
           EOF
@@ -99,11 +100,13 @@ jobs:
             -o /tmp/hostlib/libam_engine.so \
             $E/audio_analysis.cpp /tmp/hostlib/shim/audio_analysis_jni.cpp \
             $E/frame_eval.cpp $E/frame_eval_jni.cpp \
-            $E/gif_engine.cpp $E/gif_engine_jni.cpp \
+            $E/gif_engine.cpp $E/gif_jni.cpp \
             $E/project_doc.cpp $E/project_doc_jni.cpp \
             $E/scene_math.cpp $E/scene_math_jni.cpp \
             $E/scope_stats.cpp $E/scope_stats_jni.cpp \
             $E/shape_boolean.cpp $E/shape_boolean_jni.cpp \
+            $E/canvas_gesture.cpp $E/canvas_gesture_jni.cpp \
+            $E/lk_tracker.cpp $E/lk_tracker_jni.cpp \
             -lm
 
       - name: Unit tests
