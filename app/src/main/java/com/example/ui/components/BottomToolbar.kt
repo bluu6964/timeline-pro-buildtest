@@ -70,9 +70,11 @@ import com.example.ui.util.bouncyClickable
 /**
  * The editor DOCK (build 217 — Sarowar's HTML reference, copied
  * exactly): a top hairline (#1E1E24), then a horizontally scrolling row
- * of tiles. A tile = a 58 dp square box (r14, surface fill, 1 dp
- * white-at-4% border) with its glyph, and the label UNDER it (11 sp/600,
- * muted).
+ * of tiles. A tile = a square box (surface fill, 1 dp white-at-4%
+ * border) with its glyph, and the label UNDER it (11 sp/600, muted).
+ * Build 239 (Sarowar): the tiles shrink 58 → 46 dp (r14 → r11, glyphs
+ * scaled in proportion) so the dock is SHORTER and more timeline lanes
+ * fit above it — same twelve tiles, same order, same layout otherwise.
  *
  * Build 218 (Sarowar's HTML reference v3): the dock is the ALL-LAYER add
  * dock — exactly TWELVE tiles in the reference's order: Video/Photo,
@@ -128,7 +130,7 @@ fun BottomToolbar(
             DockTile("Music", "toolbar_audio_button", onAudioClick) {
                 Icon(
                     Icons.Default.MusicNote, contentDescription = null,
-                    tint = com.example.ui.theme.RefCtrl, modifier = Modifier.size(24.dp)
+                    tint = com.example.ui.theme.RefCtrl, modifier = Modifier.size(19.dp)
                 )
             }
             DockTile("Fx", "toolbar_fx_button", onFxClick) { DockFxGlyph() }
@@ -137,7 +139,7 @@ fun BottomToolbar(
             DockTile("Sticker", "toolbar_sticker_button", onStickerClick) {
                 Icon(
                     Icons.Default.SentimentSatisfiedAlt, contentDescription = null,
-                    tint = com.example.ui.theme.RefCtrl, modifier = Modifier.size(24.dp)
+                    tint = com.example.ui.theme.RefCtrl, modifier = Modifier.size(19.dp)
                 )
             }
             DockTile("Vector", "toolbar_vector_button", onVectorClick) { DockVectorGlyph() }
@@ -146,7 +148,7 @@ fun BottomToolbar(
             DockTile("3D Camera", "toolbar_camera_button", onCameraClick) {
                 Icon(
                     Icons.Default.Videocam, contentDescription = null,
-                    tint = com.example.ui.theme.RefCtrl, modifier = Modifier.size(24.dp)
+                    tint = com.example.ui.theme.RefCtrl, modifier = Modifier.size(19.dp)
                 )
             }
             DockTile("Group", "toolbar_group_button", onGroupClick) { DockGroupGlyph() }
@@ -164,22 +166,22 @@ private fun DockTile(
 ) {
     Column(
         modifier = Modifier
-            .width(58.dp)
+            .width(46.dp)
             .bouncyClickable(pressedScale = 0.94f, onClick = onClick)
             .testTag(tag),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
             modifier = Modifier
-                .size(58.dp)
-                .clip(RoundedCornerShape(14.dp))
+                .size(46.dp)
+                .clip(RoundedCornerShape(11.dp))
                 .background(com.example.ui.theme.RefSurface)
-                .border(1.dp, Color.White.copy(alpha = 0.04f), RoundedCornerShape(14.dp)),
+                .border(1.dp, Color.White.copy(alpha = 0.04f), RoundedCornerShape(11.dp)),
             contentAlignment = Alignment.Center
         ) {
             glyph()
         }
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(3.dp))
         Text(
             text = label,
             color = AmTextDim,
@@ -193,7 +195,7 @@ private fun DockTile(
 /** The reference's media glyph: a rounded rect with a play triangle. */
 @Composable
 private fun DockMediaGlyph() {
-    Canvas(Modifier.size(24.dp)) {
+    Canvas(Modifier.size(19.dp)) {
         val u = size.width / 24f
         drawRoundRect(
             Color(0xFFD4D4D8),
@@ -215,7 +217,7 @@ private fun DockMediaGlyph() {
 /** The reference's fx glyph: a small grey sparkle and a big white one. */
 @Composable
 private fun DockFxGlyph() {
-    Canvas(Modifier.size(25.dp)) {
+    Canvas(Modifier.size(20.dp)) {
         val u = size.width / 25f
         fun star(cx: Float, cy: Float, r: Float, col: Color) {
             val path = Path()
@@ -237,7 +239,7 @@ private fun DockFxGlyph() {
 /** The reference's text glyph: T strokes. */
 @Composable
 private fun DockTextGlyph() {
-    Canvas(Modifier.size(24.dp)) {
+    Canvas(Modifier.size(19.dp)) {
         val u = size.width / 24f
         val c = Color(0xFFD4D4D8)
         val w = 2.3f * u
@@ -250,7 +252,7 @@ private fun DockTextGlyph() {
 /** The reference's shapes glyph: a grey circle + a white rounded square. */
 @Composable
 private fun DockShapesGlyph() {
-    Canvas(Modifier.size(25.dp)) {
+    Canvas(Modifier.size(20.dp)) {
         val u = size.width / 25f
         drawCircle(Color(0xFF71717A), radius = 5.2f * u, center = Offset(9.8f * u, 9.8f * u))
         drawRoundRect(
@@ -265,7 +267,7 @@ private fun DockShapesGlyph() {
 /** The reference's null glyph: a centre square + four corner squares. */
 @Composable
 private fun DockNullGlyph() {
-    Canvas(Modifier.size(25.dp)) {
+    Canvas(Modifier.size(20.dp)) {
         val u = size.width / 25f
         val c = Color(0xFFE4E4E7)
         drawRoundRect(
@@ -295,7 +297,7 @@ private fun DockNullGlyph() {
 /** Build 218: the Vector tile's glyph — a node polyline (the Pen tool). */
 @Composable
 private fun DockVectorGlyph() {
-    Canvas(Modifier.size(25.dp)) {
+    Canvas(Modifier.size(20.dp)) {
         val u = size.width / 25f
         val c = Color(0xFFE4E4E7)
         val pts = listOf(5f to 19f, 10f to 7.5f, 15f to 14.5f, 20f to 6f)
@@ -313,7 +315,7 @@ private fun DockVectorGlyph() {
 /** Build 218: the Drawing tile's glyph — a freehand scribble stroke. */
 @Composable
 private fun DockDrawingGlyph() {
-    Canvas(Modifier.size(25.dp)) {
+    Canvas(Modifier.size(20.dp)) {
         val u = size.width / 25f
         val c = Color(0xFFE4E4E7)
         val p = Path().apply {
@@ -328,7 +330,7 @@ private fun DockDrawingGlyph() {
 /** Build 218: the Group tile's glyph — two overlapping rounded squares. */
 @Composable
 private fun DockGroupGlyph() {
-    Canvas(Modifier.size(25.dp)) {
+    Canvas(Modifier.size(20.dp)) {
         val u = size.width / 25f
         val c = Color(0xFFE4E4E7)
         drawRoundRect(
@@ -351,7 +353,7 @@ private fun DockGroupGlyph() {
 /** Build 218: the Chain tile's glyph — two interlocked rounded links. */
 @Composable
 private fun DockChainGlyph() {
-    Canvas(Modifier.size(25.dp)) {
+    Canvas(Modifier.size(20.dp)) {
         val u = size.width / 25f
         val c = Color(0xFFE4E4E7)
         drawRoundRect(

@@ -2454,7 +2454,21 @@ fun VideoEditorScreen(
             // 10 + bottom pad 10); the timeline absorbs the difference
             // (CANVAS LAW: the canvas is never touched).
             val footerH = if (sel219) com.example.ui.components.SELECTED_PAGER_HEIGHT_DP.dp
-                else if (toolbarH >= 88.dp) toolbarH else 88.dp // build 217: the dock's 58 dp tiles + labels + hairline need ~86 dp
+                else if (toolbarH >= 88.dp) toolbarH else 88.dp // build 217 floor, kept: the publisher panels share this height (build 214)
+            // Build 239 (Sarowar): the ADD-LAYER DOCK gets its own,
+            // SHORTER height — he asked for a lower toolbar so more
+            // layer lanes fit at once. The dock's tiles are 46 dp now
+            // (BottomToolbar), so the dock needs only ~70 dp; footerH
+            // above stays 88 for the publisher panels, which are a
+            // different toolbar sharing the old floor.
+            val dockH = if (toolbarH >= 70.dp) toolbarH else 70.dp
+            // The height the footer zone ACTUALLY renders in this
+            // state: the dock (no selection), a publisher panel
+            // (selection outside the pager state), or the pager
+            // (sel219). zonePoolH pays exactly this, so the dock's
+            // saved 18 dp land in the layer panel — more lanes
+            // visible (CANVAS LAW: canvasH is never touched).
+            val renderedFooterH = if (selectedClipId == null) dockH else footerH
             // Build 217: the ruler is the reference's 44 dp. The build-216
             // workspace row and contextual bar are GONE (their controls
             // live in the controls bar and the sheets now — Sarowar's
@@ -2463,7 +2477,7 @@ fun VideoEditorScreen(
             val rulerH = 44.dp
             val workspaceH = 0.dp
             val contextualH = 0.dp
-            val zonePoolH = (lowerZoneH - rulerH - footerH - onionRowH - scopesPanelH - workspaceH - contextualH)
+            val zonePoolH = (lowerZoneH - rulerH - renderedFooterH - onionRowH - scopesPanelH - workspaceH - contextualH)
                 .coerceAtLeast(0.dp)
             // Build 215: the tools panel is now ONE row, so when EVERY layer's lane still fits in the
             // zone beside it, all layers stay visible (the selected one keeps its white edge);
@@ -3987,7 +4001,10 @@ fun VideoEditorScreen(
                         }
                     } else {
                         BottomToolbar(
-                            height = footerH,
+                            // Build 239: the dock's own shorter height
+                            // (dockH) — footerH's 88 dp floor now serves
+                            // only the publisher panels.
+                            height = dockH,
                             // Build 218 (Sarowar's HTML reference v3):
                             // EXACTLY the reference's TWELVE tiles, each
                             // performing its own add directly — Video/Photo
