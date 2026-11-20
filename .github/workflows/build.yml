@@ -68,6 +68,9 @@ jobs:
       # compiles. audio_decoder.h is stubbed: the NDK decoder cannot exist on a
       # desktop JVM, so the two fd-based entry points return null there (the
       # unit tests never call them).
+      # The ClipFx migration adds fx_defs.cpp / fx_defs_jni.cpp (the effect
+      # definition table ClipFxLibrary now reads natively) and fx_plan.cpp
+      # (fx_defs_jni's keyFromRgb wraps its fxKeyFromRgb).
       - name: Build host JNI library for unit tests
         run: |
           set -e
@@ -106,6 +109,7 @@ jobs:
             $E/canvas_gesture.cpp $E/canvas_gesture_jni.cpp \
             $E/lk_tracker.cpp $E/lk_tracker_jni.cpp \
             $E/ui_widgets.cpp $E/ui_widgets_jni.cpp \
+            $E/fx_defs.cpp $E/fx_defs_jni.cpp $E/fx_plan.cpp \
             -lm
 
       - name: Unit tests
