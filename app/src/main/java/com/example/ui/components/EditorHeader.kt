@@ -96,21 +96,21 @@ fun EditorHeader(
     // pill (42 dp tall, r12, surface), and EXPORT as a 42 dp LIME icon
     // button with the lime glow. No project name, no save-frame button
     // (Save frame lives in the timeline options sheet now).
-    val btnShape = RoundedCornerShape(12.dp)
+    val btnShape = RoundedCornerShape(9.dp)
     val btnBorder = Color.White.copy(alpha = 0.04f)
     Row(
         modifier = modifier
             .fillMaxWidth()
             .height(height)
             .background(AmBase)
-            .padding(horizontal = 14.dp)
+            .padding(horizontal = 10.dp)
             .testTag("editor_top_bar"),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // ── Close ──────────────────────────────────────────────
         Box(
             modifier = Modifier
-                .size(42.dp)
+                .size(32.dp)
                 .clip(btnShape)
                 .background(com.example.ui.theme.RefSurface)
                 .border(1.dp, btnBorder, btnShape)
@@ -119,9 +119,9 @@ fun EditorHeader(
                 .testTag("header_back_button"),
             contentAlignment = Alignment.Center
         ) {
-            Canvas(Modifier.size(15.dp)) {
+            Canvas(Modifier.size(12.dp)) {
                 val c = TextPrimary
-                val w = 2.7.dp.toPx()
+                val w = 2.2.dp.toPx()
                 val m = w / 2f
                 drawLine(c, Offset(m, m), Offset(size.width - m, size.height - m), w, StrokeCap.Round)
                 drawLine(c, Offset(size.width - m, m), Offset(m, size.height - m), w, StrokeCap.Round)
@@ -132,15 +132,15 @@ fun EditorHeader(
 
         // ── Right group: aspect ratio · resolution · export ────
         Row(
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(7.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Aspect ratio (42 dp icon button + the ratio popover).
+            // Aspect ratio (32 dp icon button + the ratio popover).
             var ratioMenuOpen by remember { mutableStateOf(false) }
             Box {
                 Box(
                     modifier = Modifier
-                        .size(42.dp)
+                        .size(32.dp)
                         .clip(btnShape)
                         .background(com.example.ui.theme.RefSurface)
                         .border(1.dp, btnBorder, btnShape)
@@ -157,8 +157,8 @@ fun EditorHeader(
                     expanded = ratioMenuOpen,
                     onDismissRequest = { ratioMenuOpen = false },
                     modifier = Modifier
-                        .background(com.example.ui.theme.RefPopoverBg, RoundedCornerShape(14.dp))
-                        .border(1.dp, com.example.ui.theme.RefPopoverBorder, RoundedCornerShape(14.dp))
+                        .background(com.example.ui.theme.RefPopoverBg, RoundedCornerShape(11.dp))
+                        .border(1.dp, com.example.ui.theme.RefPopoverBorder, RoundedCornerShape(11.dp))
                 ) {
                     ratioOptions.forEach { option ->
                         val isCurrent = option.label == aspectRatio.label
@@ -167,7 +167,7 @@ fun EditorHeader(
                                 Text(
                                     option.label,
                                     color = if (isCurrent) com.example.ui.theme.RefLime else com.example.ui.theme.RefPopoverText,
-                                    fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1
+                                    fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1
                                 )
                             },
                             onClick = {
@@ -175,20 +175,20 @@ fun EditorHeader(
                                 onRatioPick(option)
                             },
                             modifier = if (isCurrent) Modifier.background(
-                                com.example.ui.theme.RefLime.copy(alpha = 0.14f), RoundedCornerShape(9.dp)
+                                com.example.ui.theme.RefLime.copy(alpha = 0.14f), RoundedCornerShape(7.dp)
                             ) else Modifier,
-                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 6.dp)
                         )
                     }
                 }
             }
 
-            // Resolution pill (42 dp, r12) + the resolution popover.
+            // Resolution pill (32 dp, r9) + the resolution popover.
             var resMenuOpen by remember { mutableStateOf(false) }
             Box {
                 Box(
                     modifier = Modifier
-                        .height(42.dp)
+                        .height(32.dp)
                         .clip(btnShape)
                         .background(com.example.ui.theme.RefSurface)
                         .border(1.dp, btnBorder, btnShape)
@@ -198,12 +198,12 @@ fun EditorHeader(
                     contentAlignment = Alignment.Center
                 ) {
                     Row(
-                        modifier = Modifier.padding(start = 14.dp, end = 12.dp),
+                        modifier = Modifier.padding(start = 10.dp, end = 9.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(resolutionLabel, color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                        Spacer(Modifier.width(6.dp))
-                        Canvas(Modifier.size(10.dp)) {
+                        Text(resolutionLabel, color = TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                        Spacer(Modifier.width(4.dp))
+                        Canvas(Modifier.size(8.dp)) {
                             val p = Path().apply {
                                 val u = size.width / 12f
                                 moveTo(3f * u, 4.5f * u); lineTo(9f * u, 4.5f * u); lineTo(6f * u, 8.5f * u); close()
@@ -216,8 +216,8 @@ fun EditorHeader(
                     expanded = resMenuOpen,
                     onDismissRequest = { resMenuOpen = false },
                     modifier = Modifier
-                        .background(com.example.ui.theme.RefPopoverBg, RoundedCornerShape(14.dp))
-                        .border(1.dp, com.example.ui.theme.RefPopoverBorder, RoundedCornerShape(14.dp))
+                        .background(com.example.ui.theme.RefPopoverBg, RoundedCornerShape(11.dp))
+                        .border(1.dp, com.example.ui.theme.RefPopoverBorder, RoundedCornerShape(11.dp))
                 ) {
                     resolutionOptions.forEach { option ->
                         val isCurrent = option == currentResolution
@@ -226,7 +226,7 @@ fun EditorHeader(
                                 Text(
                                     option.substringBefore(' ').uppercase(),
                                     color = if (isCurrent) com.example.ui.theme.RefLime else com.example.ui.theme.RefPopoverText,
-                                    fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1
+                                    fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1
                                 )
                             },
                             onClick = {
@@ -234,20 +234,20 @@ fun EditorHeader(
                                 onResolutionPick(option)
                             },
                             modifier = if (isCurrent) Modifier.background(
-                                com.example.ui.theme.RefLime.copy(alpha = 0.14f), RoundedCornerShape(9.dp)
+                                com.example.ui.theme.RefLime.copy(alpha = 0.14f), RoundedCornerShape(7.dp)
                             ) else Modifier,
-                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 6.dp)
                         )
                     }
                 }
             }
 
-            // Export: the 42 dp LIME button with its glow (the reference's one lime control up here).
+            // Export: the 32 dp LIME button with its glow.
             Box(
                 modifier = Modifier
-                    .size(42.dp)
+                    .size(32.dp)
                     .shadow(
-                        elevation = 7.dp, shape = btnShape, clip = false,
+                        elevation = 5.dp, shape = btnShape, clip = false,
                         ambientColor = com.example.ui.theme.RefLime.copy(alpha = 0.25f),
                         spotColor = com.example.ui.theme.RefLime.copy(alpha = 0.25f)
                     )
@@ -267,7 +267,7 @@ fun EditorHeader(
 /** The reference's aspect-ratio glyph: four frame corners, two dots and the crossed diagonals (21 dp). */
 @Composable
 private fun RatioGlyph() {
-    Canvas(Modifier.size(21.dp)) {
+    Canvas(Modifier.size(16.dp)) {
         val u = size.width / 24f
         val c = TextPrimary
         val st = Stroke(1.8f * u, cap = StrokeCap.Round, join = StrokeJoin.Round)
@@ -292,7 +292,7 @@ private fun RatioGlyph() {
 /** Arrow down into a tray, 19 dp wide (build 214: drawn in the Export button's content colour). */
 @Composable
 private fun DownloadGlyph(tint: Color = AmInk) {
-    Canvas(Modifier.size(20.dp)) {
+    Canvas(Modifier.size(16.dp)) {
         val u = size.width / 20f
         val st = Stroke(2.2f * u, cap = StrokeCap.Round, join = StrokeJoin.Round)
         val arrow = Path().apply {
@@ -352,7 +352,7 @@ fun LayerHeader(
     toolsPanelOpen: Boolean = false
 ) {
     // Reference icon zones are ~44 dp; never taller than the slot itself.
-    val zone = minOf(44.dp, height)
+    val zone = minOf(36.dp, height)
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -367,7 +367,6 @@ fun LayerHeader(
                 .padding(horizontal = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Back: leave the layer (deselect) — the editor's own chevron.
             Box(
                 modifier = Modifier
                     .width(zone)
@@ -377,21 +376,17 @@ fun LayerHeader(
                     .testTag("layer_header_back"),
                 contentAlignment = Alignment.Center
             ) {
-                Canvas(Modifier.size(16.dp)) {
-                    val w = 2.7.dp.toPx()
+                Canvas(Modifier.size(13.dp)) {
+                    val w = 2.2.dp.toPx()
                     val m = w / 2f
                     drawLine(TextPrimary, Offset(size.width - m, m), Offset(m, size.height / 2f), w, StrokeCap.Round)
                     drawLine(TextPrimary, Offset(m, size.height / 2f), Offset(size.width - m, size.height - m), w, StrokeCap.Round)
                 }
             }
-            // The name field: the name alone, large and white, with the
-            // reference's underline beneath it. Tapping it renames (when
-            // a rename action exists — the multi-select count is inert
-            // and carries no underline: it is not a field).
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .padding(start = 2.dp, end = 10.dp)
+                    .padding(start = 2.dp, end = 8.dp)
                     .then(
                         if (onRename != null) Modifier
                             .semantics { contentDescription = "Rename layer" }
@@ -401,22 +396,19 @@ fun LayerHeader(
                     .testTag("layer_header_name")
             ) {
                 Text(
-                    name, color = TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.SemiBold,
+                    name, color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
                     maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
                 if (onRename != null) {
                     Box(
                         Modifier
                             .fillMaxWidth()
-                            .padding(top = 3.dp)
+                            .padding(top = 2.dp)
                             .height(1.dp)
                             .background(TextPrimary.copy(alpha = 0.45f))
                     )
                 }
             }
-            // The reference's right-side actions, in its order:
-            // duplicate (overlapping squares), delete (trash), circled
-            // three-dots (the tools panel toggle).
             if (onDuplicate != null) {
                 Box(
                     modifier = Modifier
@@ -427,7 +419,7 @@ fun LayerHeader(
                         .testTag("layer_header_duplicate"),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Default.ContentCopy, contentDescription = null, tint = TextPrimary, modifier = Modifier.size(20.dp))
+                    Icon(Icons.Default.ContentCopy, contentDescription = null, tint = TextPrimary, modifier = Modifier.size(16.dp))
                 }
             }
             if (onDelete != null) {
@@ -440,7 +432,7 @@ fun LayerHeader(
                         .testTag("layer_header_delete"),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Default.Delete, contentDescription = null, tint = TextPrimary, modifier = Modifier.size(21.dp))
+                    Icon(Icons.Default.Delete, contentDescription = null, tint = TextPrimary, modifier = Modifier.size(17.dp))
                 }
             }
             if (onToolsClick != null) {
@@ -455,14 +447,14 @@ fun LayerHeader(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(28.dp)
-                            .border(1.4.dp, if (toolsPanelOpen) TextPrimary else TextPrimary.copy(alpha = 0.75f), CircleShape),
+                            .size(22.dp)
+                            .border(1.2.dp, if (toolsPanelOpen) TextPrimary else TextPrimary.copy(alpha = 0.75f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             Icons.Default.MoreHoriz, contentDescription = null,
                             tint = TextPrimary,
-                            modifier = Modifier.size(17.dp)
+                            modifier = Modifier.size(14.dp)
                         )
                     }
                 }

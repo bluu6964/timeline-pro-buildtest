@@ -164,7 +164,7 @@ fun TransformView(
     panelOnly: Boolean = false,
     /** false = no 2D / 3D switcher and no 3D properties (a Null object only has 2D move / scale / rotation). */
     show3d: Boolean = true,
-    timescaleHeight: androidx.compose.ui.unit.Dp = 28.dp,
+    timescaleHeight: androidx.compose.ui.unit.Dp = 24.dp,
     layerRow: (@Composable () -> Unit)? = null,
     resetTick: Int = 0,
     /** Diamond button: add / remove a keyframe of this property at the playhead. */
@@ -315,18 +315,18 @@ fun TransformView(
                     RoundedCornerShape(AmCornerPanel),
                     fill = amGlassBrush()
                 )
-                .padding(horizontal = 16.dp, vertical = 6.dp)
+                .padding(horizontal = 12.dp, vertical = 4.dp)
         ) {
             // Drag handle pill at top
             Box(
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
-                    .width(36.dp)
-                    .height(4.dp)
+                    .width(28.dp)
+                    .height(3.dp)
                     .background(AmHairlineStrong, CircleShape)
             )
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(2.dp))
 
             val headerText = when (activeTab) {
                 TransformTab.TWO_D -> when (part2d) {
@@ -379,13 +379,13 @@ fun TransformView(
                 onEasing = { if (easingEnabled) showEasing = !showEasing }
             )
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(2.dp))
 
             // Left icons = sections. Only the chosen section is shown, and it fills the free space.
             if (showEasing && segStart != null && segEnd != null) {
                 Box(
                     modifier = if (panelOnly) Modifier.weight(1f).fillMaxWidth()
-                    else Modifier.fillMaxWidth().height(110.dp)
+                    else Modifier.fillMaxWidth().height(94.dp)
                 ) {
                     EasingEditor(
                         easing = segStart.easing,
@@ -406,7 +406,7 @@ fun TransformView(
                 label = "transformTabTransition"
             ) { currentTab ->
                 val areaMod = if (panelOnly) Modifier.fillMaxSize()
-                else Modifier.fillMaxWidth().height(110.dp)
+                else Modifier.fillMaxWidth().height(94.dp)
                 when (currentTab) {
                     TransformTab.TWO_D -> Row(modifier = areaMod, verticalAlignment = Alignment.CenterVertically) {
                         IconRail(
@@ -535,14 +535,14 @@ fun TransformView(
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
             // Bottom mode switcher tabs: [2D] [3D]
             if (show3d) Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    .padding(bottom = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 TransformTab.values().forEach { tab ->
                     val isSelected = tab == activeTab
@@ -552,7 +552,7 @@ fun TransformView(
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .height(38.dp)
+                            .height(30.dp)
                             .bouncyClickable(
                                 pressedScale = 0.94f,
                                 onClick = { activeTab = tab }
@@ -562,7 +562,7 @@ fun TransformView(
                         Text(
                             text = tab.title,
                             color = if (isSelected) TextPrimary else AmTextDim,
-                            fontSize = 14.sp,
+                            fontSize = 12.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                         )
                     }
@@ -643,16 +643,16 @@ private fun PositionPad(
     Row(
         modifier = modifier
             .fillMaxSize()
-            .padding(vertical = 4.dp),
+            .padding(vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxHeight()
-                .clip(RoundedCornerShape(12.dp))
+                .clip(RoundedCornerShape(10.dp))
                 .background(AmPanel)
-                .border(1.dp, AmHairline, RoundedCornerShape(12.dp))
+                .border(1.dp, AmHairline, RoundedCornerShape(10.dp))
                 .pointerInput(Unit) {
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false)
@@ -685,7 +685,7 @@ private fun PositionPad(
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val w = size.width
                 val h = size.height
-                val grid = 24.dp.toPx()
+                val grid = 18.dp.toPx()
                 var gx = w / 2f % grid
                 while (gx < w) {
                     drawLine(AmTickMinor, Offset(gx, 0f), Offset(gx, h), strokeWidth = 1.dp.toPx())
@@ -700,7 +700,7 @@ private fun PositionPad(
                 drawLine(AmTickMajor, Offset(w / 2f, 0f), Offset(w / 2f, h), strokeWidth = 1.5.dp.toPx())
                 drawLine(AmTickMajor, Offset(0f, h / 2f), Offset(w, h / 2f), strokeWidth = 1.5.dp.toPx())
                 // Current position
-                val r = 9.dp.toPx()
+                val r = 7.dp.toPx()
                 val dx = (w / 2f + (x / visualRange) * (w / 2f)).coerceIn(r, w - r)
                 val dy = (h / 2f + (y / visualRange) * (h / 2f)).coerceIn(r, h - r)
                 drawCircle(AmMint.copy(alpha = 0.25f), radius = r * 1.9f, center = Offset(dx, dy))
@@ -719,7 +719,7 @@ private fun IconRail(
     modifier: Modifier = Modifier
 ) {
     Column(
-        modifier = modifier.width(44.dp).fillMaxHeight(),
+        modifier = modifier.width(36.dp).fillMaxHeight(),
         verticalArrangement = Arrangement.SpaceEvenly,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -730,7 +730,7 @@ private fun IconRail(
             val tint = if (selected) AmMint else AmTextDim
             Box(
                 modifier = Modifier
-                    .size(width = 40.dp, height = 32.dp)
+                    .size(width = 36.dp, height = 26.dp)
                     .clip(RectangleShape)
                     .bouncyClickable(onClick = { onSelect(i) }),
                 contentAlignment = Alignment.Center
@@ -739,15 +739,15 @@ private fun IconRail(
                     imageVector = item.icon,
                     contentDescription = item.description,
                     tint = tint,
-                    modifier = Modifier.size(22.dp)
+                    modifier = Modifier.size(18.dp)
                 )
                 if (item.badge != null) {
                     Text(
                         text = item.badge,
                         color = tint,
-                        fontSize = 9.sp,
+                        fontSize = 8.sp,
                         fontWeight = FontWeight.Bold,
-                        modifier = Modifier.align(Alignment.BottomEnd).padding(end = 3.dp, bottom = 1.dp)
+                        modifier = Modifier.align(Alignment.BottomEnd).padding(end = 2.dp, bottom = 1.dp)
                     )
                 }
             }
@@ -779,13 +779,13 @@ internal fun TransformValueHeader(
 ) {
     val accent = AmMint
     Row(
-        modifier = modifier.fillMaxWidth().height(40.dp),
+        modifier = modifier.fillMaxWidth().height(34.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (onBack != null) {
             Box(
                 modifier = Modifier
-                    .size(40.dp)
+                    .size(32.dp)
                     .clip(RectangleShape)
                     .bouncyClickable(onClick = onBack)
                     .testTag("panel_back_button"),
@@ -795,17 +795,17 @@ internal fun TransformValueHeader(
                     imageVector = Icons.Default.KeyboardArrowDown,
                     contentDescription = "Back",
                     tint = IconActive,
-                    modifier = Modifier.size(26.dp)
+                    modifier = Modifier.size(20.dp)
                 )
             }
         } else {
-            Spacer(modifier = Modifier.width(40.dp))
+            Spacer(modifier = Modifier.width(32.dp))
         }
 
         Text(
             text = valueText,
             color = TextPrimary,
-            fontSize = 15.sp,
+            fontSize = 13.sp,
             fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
             fontWeight = FontWeight.Bold,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -815,7 +815,7 @@ internal fun TransformValueHeader(
         // Keyframe diamond
         Box(
             modifier = Modifier
-                .size(40.dp)
+                .size(32.dp)
                 .graphicsLayer { alpha = if (keyframeEnabled) 1f else 0.35f }
                 .bouncyClickable(onClick = { if (keyframeEnabled) onKeyframe() })
                 .testTag("transform_keyframe_button"),
@@ -823,7 +823,7 @@ internal fun TransformValueHeader(
         ) {
             Box(
                 modifier = Modifier
-                    .size(22.dp)
+                    .size(17.dp)
                     .graphicsLayer { rotationZ = 45f }
                     .background(if (onKeyframeNow) accent else AmPanelHigh, RoundedCornerShape(3.dp))
                     .then(
@@ -838,7 +838,7 @@ internal fun TransformValueHeader(
                         contentDescription = "Keyframe",
                         tint = Color.White,
                         modifier = Modifier
-                            .size(14.dp)
+                            .size(11.dp)
                             .graphicsLayer { rotationZ = -45f }
                     )
                 }
@@ -848,14 +848,14 @@ internal fun TransformValueHeader(
         // Easing curve (between two keyframes only)
         Box(
             modifier = Modifier
-                .size(40.dp)
+                .size(32.dp)
                 .clip(CircleShape)
                 .background(if (easingOpen) AmPanelHigh else Color.Transparent, CircleShape)
                 .bouncyClickable(onClick = { if (easingEnabled) onEasing() })
                 .testTag("transform_easing_button"),
             contentAlignment = Alignment.Center
         ) {
-            Canvas(modifier = Modifier.size(20.dp)) {
+            Canvas(modifier = Modifier.size(16.dp)) {
                 drawEasingIcon(
                     easing = if (easingEnabled) easing else null,
                     color = when {
@@ -863,7 +863,7 @@ internal fun TransformValueHeader(
                         easingOpen -> accent
                         else -> TextPrimary
                     },
-                    strokeWidth = 2.dp.toPx()
+                    strokeWidth = 1.75.dp.toPx()
                 )
             }
         }

@@ -150,9 +150,9 @@ fun TemplatesDialog(
             ) {
                 Text(
                     "Built-in templates",
-                    color = HeaderText, fontWeight = FontWeight.Bold, fontSize = 17.sp
+                    color = HeaderText, fontWeight = FontWeight.Bold, fontSize = 14.sp
                 )
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(8.dp))
                 TemplateSection(
                     title = "Carousel — Photo Ring",
                     description = "$carouselCards photo slots rotating in a ring · one turn in " +
@@ -165,16 +165,16 @@ fun TemplatesDialog(
                     onAdd = { onAddCarousel(carouselParams) },
                     settings = if (carouselSettingsOpen) {
                         {
-                            Spacer(Modifier.height(8.dp))
+                            Spacer(Modifier.height(6.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("Cards", color = HeaderText, fontSize = 14.sp)
+                                Text("Cards", color = HeaderText, fontSize = 12.sp)
                                 Spacer(Modifier.weight(1f))
                                 DialogSecondaryButton(
                                     text = "−",
                                     onClick = { carouselCards-- },
                                     enabled = carouselCards > CarouselSpec.MIN_CARDS
                                 )
-                                Text("$carouselCards", color = HeaderText, fontSize = 15.sp)
+                                Text("$carouselCards", color = HeaderText, fontSize = 12.5.sp)
                                 DialogSecondaryButton(
                                     text = "+",
                                     onClick = { carouselCards++ },
@@ -183,7 +183,7 @@ fun TemplatesDialog(
                             }
                             Text(
                                 "One turn: ${carouselSeconds}s",
-                                color = HeaderText, fontSize = 14.sp
+                                color = HeaderText, fontSize = 12.sp
                             )
                             Slider(
                                 value = carouselSeconds.toFloat(),
@@ -192,7 +192,7 @@ fun TemplatesDialog(
                                 steps = 7,
                                 modifier = Modifier.fillMaxWidth()
                             )
-                            Text("Direction", color = HeaderText, fontSize = 14.sp)
+                            Text("Direction", color = HeaderText, fontSize = 12.sp)
                             Spacer(Modifier.height(6.dp))
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -319,10 +319,10 @@ fun TemplatesDialog(
                     onAdd = onAddSocialGrowth,
                     preview = { SocialGrowthPreview(modifier = Modifier.fillMaxWidth()) }
                 )
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(8.dp))
                 Text(
                     "My Templates",
-                    color = HeaderText, fontWeight = FontWeight.Bold, fontSize = 17.sp
+                    color = HeaderText, fontWeight = FontWeight.Bold, fontSize = 14.sp
                 )
                 Spacer(Modifier.height(4.dp))
                 if (userTemplates.isEmpty()) {
@@ -330,31 +330,31 @@ fun TemplatesDialog(
                         "Nothing saved yet. Build a group, select it, and tap " +
                             "“Save as Template” in its tools — it will appear here and can " +
                             "be added to any project.",
-                        color = TextSecondary, fontSize = 13.sp
+                        color = TextSecondary, fontSize = 11.sp
                     )
                 }
                 for (tpl in userTemplates) {
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(8.dp))
                     TemplateCard {
                         Text(
                             tpl.name,
-                            color = HeaderText, fontWeight = FontWeight.SemiBold, fontSize = 16.sp
+                            color = HeaderText, fontWeight = FontWeight.SemiBold, fontSize = 13.5.sp
                         )
                         Text(
                             "Your saved group · ${tpl.clips.size} layer${if (tpl.clips.size == 1) "" else "s"} · " +
                                 "added as one group layer",
-                            color = TextSecondary, fontSize = 13.sp
+                            color = TextSecondary, fontSize = 11.sp
                         )
-                        Spacer(Modifier.height(10.dp))
+                        Spacer(Modifier.height(8.dp))
                         // The white pill (build 207 redesign), delete as a ghost pill.
                         GradientPillButton(
                             onClick = { onAddUserTemplate(tpl) },
                             modifier = Modifier.fillMaxWidth(),
-                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 10.dp)
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 7.dp)
                         ) {
-                            Text("Add to project", color = AmInk, fontWeight = FontWeight.SemiBold)
+                            Text("Add to project", color = AmInk, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                         }
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(6.dp))
                         DialogSecondaryButton(text = "Delete template", onClick = { pendingDelete = tpl })
                     }
                 }
@@ -375,7 +375,7 @@ fun TemplatesDialog(
                 Text(
                     "“${tpl.name}” will be removed from My Templates, with its saved pictures. " +
                         "Groups you already added to projects are not changed.",
-                    color = TextSecondary, fontSize = 13.sp
+                    color = TextSecondary, fontSize = 11.5.sp
                 )
             },
             confirmButton = {
@@ -409,7 +409,7 @@ private fun TemplateCard(content: @Composable ColumnScope.() -> Unit) {
             .clip(card)
             .background(AmPanelHigh)
             .border(1.dp, AmHairline, card)
-            .padding(12.dp),
+            .padding(10.dp),
         content = content
     )
 }
@@ -430,23 +430,23 @@ private fun ColumnScope.TemplateSection(
 ) {
     TemplateCard {
         Box(Modifier.fillMaxWidth()) { preview() }
-        Spacer(Modifier.height(10.dp))
-        Text(title, color = HeaderText, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-        Text(description, color = TextSecondary, fontSize = 13.sp)
+        Spacer(Modifier.height(7.dp))
+        Text(title, color = HeaderText, fontWeight = FontWeight.SemiBold, fontSize = 13.5.sp)
+        Text(description, color = TextSecondary, fontSize = 11.sp)
         settings?.invoke(this)
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(7.dp))
         // The white pill (build 207 redesign): the card's primary action.
         GradientPillButton(
             onClick = onAdd,
             modifier = Modifier.fillMaxWidth(),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 10.dp)
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 7.dp)
         ) {
-            Text("Add to project", color = AmInk, fontWeight = FontWeight.SemiBold)
+            Text("Add to project", color = AmInk, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
         }
-        Spacer(Modifier.height(8.dp))
-        Text(footnote, color = TextSecondary, fontSize = 12.sp)
+        Spacer(Modifier.height(6.dp))
+        Text(footnote, color = TextSecondary, fontSize = 10.sp)
     }
-    Spacer(Modifier.height(12.dp))
+    Spacer(Modifier.height(8.dp))
 }
 
 /**

@@ -244,7 +244,7 @@ fun ClipEffectsPanel(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .padding(horizontal = 12.dp, vertical = 2.dp)
             .testTag("clip_effects_panel")
     ) {
         when (mode) {
@@ -253,7 +253,7 @@ fun ClipEffectsPanel(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(48.dp)
+                        .height(38.dp)
                         .clip(CircleShape)
                         .background(if (full) AmPanelHigh.copy(alpha = 0.45f) else AmPanelHigh, CircleShape)
                         .then(
@@ -266,30 +266,30 @@ fun ClipEffectsPanel(
                     Text(
                         if (full) "Effect limit reached" else "Add effect",
                         color = if (full) AmTextDim else TextPrimary,
-                        fontSize = 15.sp,
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
                         "${effects.size} / ${ClipFxLibrary.MAX_EFFECTS}",
                         color = AmTextDim,
-                        fontSize = 12.sp,
+                        fontSize = 10.5.sp,
                         modifier = Modifier
                             .align(Alignment.CenterEnd)
-                            .padding(end = 14.dp)
+                            .padding(end = 12.dp)
                     )
                 }
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(8.dp))
                 if (effects.isEmpty()) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 24.dp, vertical = 10.dp),
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             "See applied effects here, reorder them by dragging, and control their parameters",
                             color = AmTextDim,
-                            fontSize = 13.sp,
+                            fontSize = 11.5.sp,
                             textAlign = TextAlign.Center
                         )
                     }
@@ -297,14 +297,14 @@ fun ClipEffectsPanel(
                     // ---- Applied rows with grip drag-reorder (writes the same list funnel) ----
                     var draggingId by remember(clip.id) { mutableStateOf<String?>(null) }
                     var dragAccum by remember(clip.id) { mutableFloatStateOf(0f) }
-                    val rowStepPx = with(LocalDensity.current) { 58.dp.toPx() } // 52 dp row + 6 dp gap
+                    val rowStepPx = with(LocalDensity.current) { 45.dp.toPx() } // 40 dp row + 5 dp gap
                     val scrollState = rememberScrollState()
                     Column(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth()
                             .verticalScroll(scrollState, enabled = draggingId == null),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        verticalArrangement = Arrangement.spacedBy(5.dp)
                     ) {
                         for (fx in effects) {
                             val def = ClipFxLibrary.def(fx.type) ?: continue
@@ -363,7 +363,7 @@ fun ClipEffectsPanel(
                     Row(
                         modifier = Modifier
                             .bouncyClickable(onClick = { mode = FxPanelMode.APPLIED })
-                            .padding(vertical = 6.dp, horizontal = 4.dp)
+                            .padding(vertical = 4.dp, horizontal = 4.dp)
                             .testTag("fx_browser_back"),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -371,21 +371,21 @@ fun ClipEffectsPanel(
                             Icons.Default.KeyboardArrowDown,
                             contentDescription = "Back to applied effects",
                             tint = TextPrimary,
-                            modifier = Modifier.size(22.dp)
+                            modifier = Modifier.size(18.dp)
                         )
-                        Spacer(Modifier.width(6.dp))
-                        Text("Add effect", color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.width(4.dp))
+                        Text("Add effect", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     }
                     Spacer(Modifier.weight(1f))
                     if (full) {
                         Text(
                             "Limit ${ClipFxLibrary.MAX_EFFECTS} reached",
                             color = AmTextDim,
-                            fontSize = 12.sp
+                            fontSize = 10.5.sp
                         )
                     }
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(6.dp))
                 // ---- Category chips: selected = white fill / black text ----
                 val chips = listOf(FX_CHIP_ALL, FX_CHIP_FAVORITES, FX_CHIP_RECENT) + ClipFxLibrary.categories
                 Row(
@@ -398,7 +398,7 @@ fun ClipEffectsPanel(
                         val on = c == chip
                         Box(
                             modifier = Modifier
-                                .padding(end = 8.dp)
+                                .padding(end = 6.dp)
                                 .clip(CircleShape)
                                 .background(if (on) Color.White else AmPanelHigh, CircleShape)
                                 .bouncyClickable(onClick = { chip = c })
@@ -408,14 +408,14 @@ fun ClipEffectsPanel(
                             Text(
                                 c,
                                 color = if (on) Color.Black else TextPrimary,
-                                fontSize = 13.sp,
+                                fontSize = 11.5.sp,
                                 fontWeight = if (on) FontWeight.Bold else FontWeight.SemiBold,
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                             )
                         }
                     }
                 }
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(8.dp))
                 val defs = when (chip) {
                     FX_CHIP_ALL -> ClipFxLibrary.all
                     FX_CHIP_FAVORITES -> FxLists.favoriteDefs(ClipFxLibrary.all, favorites)
@@ -426,7 +426,7 @@ fun ClipEffectsPanel(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 24.dp, vertical = 16.dp),
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -438,7 +438,7 @@ fun ClipEffectsPanel(
                                 else -> "No effects in this category."
                             },
                             color = AmTextDim,
-                            fontSize = 13.sp,
+                            fontSize = 11.5.sp,
                             textAlign = TextAlign.Center
                         )
                     }
@@ -448,8 +448,8 @@ fun ClipEffectsPanel(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(defs, key = { it.id }) { def ->
                             val selected = def.id == browserSelDefId
@@ -482,7 +482,7 @@ fun ClipEffectsPanel(
                         Row(
                             modifier = Modifier
                                 .bouncyClickable(onClick = { mode = FxPanelMode.APPLIED })
-                                .padding(vertical = 6.dp, horizontal = 4.dp)
+                                .padding(vertical = 4.dp, horizontal = 4.dp)
                                 .testTag("fx_editor_back"),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -490,10 +490,10 @@ fun ClipEffectsPanel(
                                 Icons.Default.KeyboardArrowLeft,
                                 contentDescription = "Back to applied effects",
                                 tint = TextPrimary,
-                                modifier = Modifier.size(22.dp)
+                                modifier = Modifier.size(18.dp)
                             )
                             Spacer(Modifier.width(4.dp))
-                            Text("Applied Effects", color = AmTextDim, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                            Text("Applied Effects", color = AmTextDim, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
                         }
                         Spacer(Modifier.weight(1f))
                         Row(
@@ -505,16 +505,16 @@ fun ClipEffectsPanel(
                                     editingId = null
                                     mode = FxPanelMode.APPLIED
                                 })
-                                .padding(vertical = 8.dp, horizontal = 12.dp)
+                                .padding(vertical = 5.dp, horizontal = 9.dp)
                                 .testTag("fx_remove_${fx.type}"),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.Delete, contentDescription = "Remove effect", tint = AmDanger, modifier = Modifier.size(17.dp))
-                            Spacer(Modifier.width(5.dp))
-                            Text("Remove", color = AmDanger, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                            Icon(Icons.Default.Delete, contentDescription = "Remove effect", tint = AmDanger, modifier = Modifier.size(14.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Remove", color = AmDanger, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
                         }
                     }
-                    Spacer(Modifier.height(6.dp))
+                    Spacer(Modifier.height(4.dp))
                     Column(
                         modifier = Modifier
                             .weight(1f)
@@ -561,7 +561,7 @@ fun ClipEffectsPanel(
                             val value = (fx.values.getOrNull(idx) ?: p.default).coerceIn(p.min, p.max)
                             RulerDialSlider(
                                 label = p.name,
-                                labelWidth = 104.dp,
+                                labelWidth = 86.dp,
                                 value = value,
                                 onValueChange = { v ->
                                     // Keep values past the declared params (Motion Blur stores its
@@ -594,15 +594,15 @@ fun ClipEffectsPanel(
                             contentAlignment = Alignment.Center
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 11.dp),
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Default.Refresh, contentDescription = null, tint = TextPrimary, modifier = Modifier.size(16.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text("Reset", color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                Icon(Icons.Default.Refresh, contentDescription = null, tint = TextPrimary, modifier = Modifier.size(14.dp))
+                                Spacer(Modifier.width(5.dp))
+                                Text("Reset", color = TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                             }
                         }
-                        Spacer(Modifier.height(12.dp))
+                        Spacer(Modifier.height(8.dp))
                     }
                 }
             }
@@ -623,11 +623,11 @@ private fun AppliedFxRow(
     onDrag: (Float) -> Unit,
     onDragEnd: () -> Unit
 ) {
-    val rowShape = RoundedCornerShape(16.dp)
+    val rowShape = RoundedCornerShape(12.dp)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(52.dp)
+            .height(40.dp)
             .offset { IntOffset(0, dragOffsetPx.roundToInt()) }
             .zIndex(if (isDragging) 1f else 0f)
             .clip(rowShape)
@@ -644,27 +644,27 @@ private fun AppliedFxRow(
                 .weight(1f)
                 .fillMaxHeight()
                 .bouncyClickable(pressedScale = 0.99f, onClick = onOpen)
-                .padding(start = 12.dp),
+                .padding(start = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
                 Icons.Default.KeyboardArrowRight,
                 contentDescription = null,
                 tint = TextSecondary,
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.size(17.dp)
             )
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(6.dp))
             Text(
                 def.name,
                 color = if (fx.enabled) TextPrimary else TextSecondary,
-                fontSize = 14.sp,
+                fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
             if (!fx.enabled) {
-                Spacer(Modifier.width(8.dp))
-                Text("Off", color = TextSecondary, fontSize = 11.sp)
+                Spacer(Modifier.width(6.dp))
+                Text("Off", color = TextSecondary, fontSize = 10.sp)
             }
         }
         Icon(
@@ -672,14 +672,14 @@ private fun AppliedFxRow(
             contentDescription = if (fx.enabled) "Turn off" else "Turn on",
             tint = if (fx.enabled) TextPrimary else TextSecondary,
             modifier = Modifier
-                .size(44.dp)
+                .size(34.dp)
                 .bouncyClickable(onClick = onToggleEnabled)
-                .padding(11.dp)
+                .padding(8.dp)
                 .testTag("fx_toggle_${fx.type}")
         )
         Box(
             modifier = Modifier
-                .size(44.dp)
+                .size(34.dp)
                 .pointerInput(fx.id) {
                     detectDragGestures(
                         onDragStart = { onDragStart() },
@@ -698,7 +698,7 @@ private fun AppliedFxRow(
                 Icons.Default.DragHandle,
                 contentDescription = "Drag to reorder",
                 tint = TextSecondary,
-                modifier = Modifier.size(22.dp)
+                modifier = Modifier.size(18.dp)
             )
         }
     }
@@ -713,7 +713,7 @@ private fun FxGridTile(
     onClick: () -> Unit,
     onBadgeClick: () -> Unit
 ) {
-    val tileShape = RoundedCornerShape(10.dp) // the ARTWORK's corners (content, as in the reference)
+    val tileShape = RoundedCornerShape(8.dp) // the ARTWORK's corners (content, as in the reference)
     Column(
         modifier = Modifier
             .bouncyClickable(onClick = onClick)
@@ -739,23 +739,24 @@ private fun FxGridTile(
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopStart)
-                        .padding(4.dp)
-                        .size(22.dp)
+                        .padding(3.dp)
+                        .size(18.dp)
                         .clip(CircleShape)
                         .background(Color.Black.copy(alpha = 0.55f), CircleShape)
                         .bouncyClickable(onClick = onBadgeClick)
                         .testTag("fx_badge_${def.id}"),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Default.Tune, contentDescription = "Edit parameters", tint = Color.White, modifier = Modifier.size(14.dp))
+                    Icon(Icons.Default.Tune, contentDescription = "Edit parameters", tint = Color.White, modifier = Modifier.size(11.dp))
                 }
             }
         }
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(3.dp))
         Text(
             def.name,
             color = if (dimmed) TextSecondary else TextPrimary,
-            fontSize = 11.sp,
+            fontSize = 9.5.sp,
+            lineHeight = 11.sp,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center,
@@ -829,13 +830,13 @@ private fun FxTileArtwork(def: FxDef, modifier: Modifier = Modifier) {
         Box(
             modifier = Modifier
                 .align(Alignment.Center)
-                .size(40.dp)
+                .size(32.dp)
                 .background(Color.Black.copy(alpha = 0.28f), CircleShape),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 fxIcon(def.id), contentDescription = null,
-                tint = Color.White, modifier = Modifier.size(24.dp)
+                tint = Color.White, modifier = Modifier.size(19.dp)
             )
         }
     }
@@ -891,26 +892,26 @@ private fun KeyPickerRow(swatch: Color, onPick: () -> Unit) {
     ) {
         Box(
             modifier = Modifier
-                .size(34.dp)
+                .size(28.dp)
                 .clip(CircleShape)
                 .background(swatch)
                 .border(1.5.dp, Color.White.copy(alpha = 0.6f), CircleShape)
                 .testTag("fx_key_swatch")
         )
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(10.dp))
         // Pill button (build 209): the filled capsule of the redesign language.
         Row(
             modifier = Modifier
                 .clip(CircleShape)
                 .background(AmPanelHigh, CircleShape)
                 .bouncyClickable(onClick = onPick)
-                .padding(horizontal = 16.dp, vertical = 10.dp)
+                .padding(horizontal = 12.dp, vertical = 7.dp)
                 .testTag("fx_key_pick"),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(Icons.Default.Colorize, contentDescription = null, tint = TextPrimary, modifier = Modifier.size(17.dp))
-            Spacer(Modifier.width(7.dp))
-            Text("Pick from picture", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            Icon(Icons.Default.Colorize, contentDescription = null, tint = TextPrimary, modifier = Modifier.size(14.dp))
+            Spacer(Modifier.width(6.dp))
+            Text("Pick from picture", color = TextPrimary, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
         }
     }
 }

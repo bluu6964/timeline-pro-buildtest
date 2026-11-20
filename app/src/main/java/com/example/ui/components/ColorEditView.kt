@@ -156,7 +156,7 @@ fun ColorEditSheet(
                 indication = null,
                 onClick = {}
             )
-            .padding(horizontal = 12.dp, vertical = 12.dp)
+            .padding(horizontal = 10.dp, vertical = 8.dp)
             .testTag("color_edit_sheet")
     ) {
         // ---- Top card: back + live value + keyframe diamond + easing (same as the Transform panel) ----
@@ -208,7 +208,7 @@ fun ColorEditSheet(
             onEasing = { if (easingEnabled) showEasing = !showEasing }
         )
 
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(3.dp))
 
         if (showEasing && segStart != null && segEnd != null) {
             Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
@@ -231,7 +231,7 @@ fun ColorEditSheet(
                 Text(
                     "No fill — the layer shows no colour.\nPick Solid or Gradient to color it again.",
                     color = TextSecondary,
-                    fontSize = 14.sp,
+                    fontSize = 12.sp,
                     textAlign = TextAlign.Center
                 )
             }
@@ -253,21 +253,21 @@ fun ColorEditSheet(
                             .clip(RectangleShape)
                             .background(CeTabBg)
                             .bouncyClickable(pressedScale = 0.92f, onClick = { editingStop = -1 })
-                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
                             .testTag("color_gradient_back"),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack, "Back to gradient",
-                            tint = TextPrimary, modifier = Modifier.size(18.dp)
+                            tint = TextPrimary, modifier = Modifier.size(15.dp)
                         )
-                        Spacer(Modifier.width(6.dp))
+                        Spacer(Modifier.width(5.dp))
                         Text(
                             if (stop == 0) "Gradient · start color" else "Gradient · end color",
-                            color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium
+                            color = TextPrimary, fontSize = 11.5.sp, fontWeight = FontWeight.Medium
                         )
                     }
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(6.dp))
                     ColorPickerPanel(
                         color = if (stop == 0) clip.gradColor1 else clip.gradColor2,
                         onColor = { c ->
@@ -302,13 +302,13 @@ fun ColorEditSheet(
             )
         }
 
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(6.dp))
 
         // ---- Bottom card: none / solid / gradient / image (smaller) ------------------
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(44.dp)
+                .height(36.dp)
                 .clip(RectangleShape)
                 .background(CeTabBg)
         ) {
@@ -350,7 +350,7 @@ private fun androidx.compose.foundation.layout.RowScope.FillTab(
         Icon(
             icon, description,
             tint = if (selected) CeAccent else Color.White,
-            modifier = Modifier.size(24.dp)
+            modifier = Modifier.size(19.dp)
         )
     }
 }
@@ -383,8 +383,8 @@ private fun GradientOverview(
                 val selected = clip.gradType == type
                 Box(
                     modifier = Modifier
-                        .width(72.dp)
-                        .height(52.dp)
+                        .width(58.dp)
+                        .height(40.dp)
                         .background(if (selected) CeInnerBg else Color.Transparent)
                         .bouncyClickable(pressedScale = 0.92f) { onUpdate { it.copy(gradType = type) } }
                         .testTag("gradient_type_$name"),
@@ -392,11 +392,11 @@ private fun GradientOverview(
                 ) {
                     Canvas(
                         modifier = Modifier
-                            .size(34.dp)
+                            .size(26.dp)
                             .border(
-                                2.dp,
+                                1.75.dp,
                                 if (selected) CeAccent else Color.White,
-                                RoundedCornerShape(7.dp)
+                                RoundedCornerShape(5.dp)
                             )
                             .padding(2.dp)
                     ) {
@@ -410,27 +410,27 @@ private fun GradientOverview(
                                     ), w, h
                                 )
                             },
-                            cornerRadius = CornerRadius(5.dp.toPx(), 5.dp.toPx())
+                            cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
                         )
                     }
                 }
             }
         }
 
-        Spacer(Modifier.height(26.dp))
+        Spacer(Modifier.height(16.dp))
 
         // Gradient bar with its two colour stops (tap a stop to change its colour)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(56.dp)
+                .height(44.dp)
         ) {
             Canvas(
                 modifier = Modifier
                     .align(Alignment.Center)
                     .fillMaxWidth()
-                    .padding(horizontal = 22.dp)
-                    .height(22.dp)
+                    .padding(horizontal = 16.dp)
+                    .height(18.dp)
                     .clip(RoundedCornerShape(3.dp))
             ) {
                 drawChecker(Size(size.width, size.height))
@@ -440,13 +440,13 @@ private fun GradientOverview(
             StopHandle(c2, "color_stop_end", Modifier.align(Alignment.CenterEnd)) { onEditStop(1) }
         }
 
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(4.dp))
         Text(
             "Tap a color box to change it.\nDrag the two points on the canvas to move the gradient.",
-            color = TextSecondary, fontSize = 12.sp, textAlign = TextAlign.Center
+            color = TextSecondary, fontSize = 10.5.sp, textAlign = TextAlign.Center
         )
 
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(6.dp))
         Row(
             modifier = Modifier
                 .clip(RectangleShape)
@@ -454,15 +454,15 @@ private fun GradientOverview(
                 .bouncyClickable(pressedScale = 0.94f) {
                     onUpdate { it.copy(gradColor1 = it.gradColor2, gradColor2 = it.gradColor1) }
                 }
-                .padding(horizontal = 16.dp, vertical = 10.dp)
+                .padding(horizontal = 12.dp, vertical = 7.dp)
                 .testTag("gradient_swap"),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(Icons.Default.SwapHoriz, "Swap colors", tint = Color.White, modifier = Modifier.size(20.dp))
-            Spacer(Modifier.width(8.dp))
-            Text("Swap colors", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            Icon(Icons.Default.SwapHoriz, "Swap colors", tint = Color.White, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(6.dp))
+            Text("Swap colors", color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
         }
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(4.dp))
     }
 }
 
@@ -470,10 +470,10 @@ private fun GradientOverview(
 private fun StopHandle(color: Color, tag: String, modifier: Modifier, onClick: () -> Unit) {
     Box(
         modifier = modifier
-            .size(46.dp)
+            .size(36.dp)
             .clip(RectangleShape)
             .background(Color.White)
-            .padding(3.dp)
+            .padding(2.5.dp)
             .clip(RectangleShape)
             .background(Color(0xFF8A8A8A))
             .bouncyClickable(pressedScale = 0.9f, onClick = onClick)
@@ -519,7 +519,7 @@ private fun ColorPickerPanel(
         }
         Column(
             modifier = Modifier
-                .width(58.dp)
+                .width(46.dp)
                 .fillMaxHeight()
         ) {
             RailButton(Icons.Default.Colorize, "Pick from canvas", false, "color_eyedropper") {
@@ -553,7 +553,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.RailButton(
         Icon(
             icon, description,
             tint = if (selected) CeAccent else Color.White,
-            modifier = Modifier.size(26.dp)
+            modifier = Modifier.size(20.dp)
         )
     }
 }
@@ -564,13 +564,13 @@ private fun SwatchGrid(color: Long, onColor: (Long) -> Unit, modifier: Modifier 
     Column(
         modifier = modifier
             .verticalScroll(rememberScrollState())
-            .padding(8.dp)
+            .padding(6.dp)
     ) {
         // Header: current colour with its hex code and opacity
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(44.dp)
+                .height(34.dp)
                 .clip(RectangleShape)
         ) {
             Canvas(Modifier.fillMaxSize()) { drawChecker(size) }
@@ -583,16 +583,16 @@ private fun SwatchGrid(color: Long, onColor: (Long) -> Unit, modifier: Modifier 
                 Text(
                     hexLabel(color),
                     color = contrastOn(Color(color)),
-                    fontSize = 16.sp,
+                    fontSize = 13.5.sp,
                     fontWeight = FontWeight.Medium
                 )
             }
         }
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(6.dp))
         CeSwatches.chunked(7).forEach { row ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 row.forEach { c ->
                     val selected = (c and 0xFFFFFFL) == rgb
@@ -600,18 +600,18 @@ private fun SwatchGrid(color: Long, onColor: (Long) -> Unit, modifier: Modifier 
                         modifier = Modifier
                             .weight(1f)
                             .aspectRatio(1f)
-                            .clip(RoundedCornerShape(9.dp))
+                            .clip(RoundedCornerShape(7.dp))
                             .background(Color(c))
                             .border(
-                                if (selected) 2.5.dp else 1.dp,
+                                if (selected) 2.dp else 1.dp,
                                 if (selected) Color.White else Color.White.copy(alpha = 0.12f),
-                                RoundedCornerShape(9.dp)
+                                RoundedCornerShape(7.dp)
                             )
                             .bouncyClickable(pressedScale = 0.85f) { onColor(c) }
                     )
                 }
             }
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(4.dp))
         }
     }
 }
@@ -656,11 +656,11 @@ private fun WheelPicker(color: Long, onColor: (Long) -> Unit, modifier: Modifier
     )
     val hueColor = Color(android.graphics.Color.HSVToColor(floatArrayOf(hue.coerceIn(0f, 359.99f), 1f, 1f)))
 
-    BoxWithConstraints(modifier = modifier.padding(10.dp)) {
+    BoxWithConstraints(modifier = modifier.padding(6.dp)) {
         // Two squares side by side (wheel + saturation/value) with the opacity bar underneath.
-        val barH = 28.dp
-        val gap = 12.dp
-        val s = minOf((maxWidth - gap) / 2f, maxHeight - barH - gap).coerceAtLeast(80.dp)
+        val barH = 22.dp
+        val gap = 8.dp
+        val s = minOf((maxWidth - gap) / 2f, maxHeight - barH - gap).coerceAtLeast(64.dp)
 
         Column(
             modifier = Modifier.fillMaxSize(),
@@ -691,7 +691,7 @@ private fun WheelPicker(color: Long, onColor: (Long) -> Unit, modifier: Modifier
                                 }
                             }
                     ) {
-                        val ringW = 18.dp.toPx()
+                        val ringW = 14.dp.toPx()
                         val r = size.minDimension / 2f - ringW / 2f
                         drawCircle(
                             brush = Brush.sweepGradient(
@@ -707,12 +707,12 @@ private fun WheelPicker(color: Long, onColor: (Long) -> Unit, modifier: Modifier
                             size.width / 2f + r * cos(rad).toFloat(),
                             size.height / 2f + r * sin(rad).toFloat()
                         )
-                        drawCircle(hueColor, radius = ringW / 2f + 2.dp.toPx(), center = p)
-                        drawCircle(Color.White, radius = ringW / 2f + 2.dp.toPx(), center = p, style = Stroke(2.5.dp.toPx()))
+                        drawCircle(hueColor, radius = ringW / 2f + 1.5.dp.toPx(), center = p)
+                        drawCircle(Color.White, radius = ringW / 2f + 1.5.dp.toPx(), center = p, style = Stroke(2.dp.toPx()))
                     }
                     Box(
                         modifier = Modifier
-                            .size(s - 44.dp)
+                            .size(s - 34.dp)
                             .clip(CircleShape)
                     ) {
                         Canvas(Modifier.fillMaxSize()) { drawChecker(size) }
@@ -725,7 +725,7 @@ private fun WheelPicker(color: Long, onColor: (Long) -> Unit, modifier: Modifier
                             Text(
                                 hexLabel(current.toLongArgb(), twoLines = true),
                                 color = contrastOn(current),
-                                fontSize = 12.sp,
+                                fontSize = 10.5.sp,
                                 fontWeight = FontWeight.Medium,
                                 textAlign = TextAlign.Center
                             )
@@ -737,7 +737,7 @@ private fun WheelPicker(color: Long, onColor: (Long) -> Unit, modifier: Modifier
                 Canvas(
                     modifier = Modifier
                         .size(s)
-                        .clip(RoundedCornerShape(10.dp))
+                        .clip(RoundedCornerShape(8.dp))
                         .testTag("color_sv_square")
                         .pointerInput(Unit) {
                             detectTapGestures { o ->
@@ -758,8 +758,8 @@ private fun WheelPicker(color: Long, onColor: (Long) -> Unit, modifier: Modifier
                     drawRect(Brush.horizontalGradient(listOf(Color.White, hueColor)))
                     drawRect(Brush.verticalGradient(listOf(Color.Transparent, Color.Black)))
                     val p = Offset(sat * size.width, (1f - value) * size.height)
-                    drawCircle(Color.White, radius = 9.dp.toPx(), center = p, style = Stroke(2.dp.toPx()))
-                    drawCircle(Color.Black.copy(alpha = 0.4f), radius = 11.dp.toPx(), center = p, style = Stroke(1.dp.toPx()))
+                    drawCircle(Color.White, radius = 7.dp.toPx(), center = p, style = Stroke(1.75.dp.toPx()))
+                    drawCircle(Color.Black.copy(alpha = 0.4f), radius = 9.dp.toPx(), center = p, style = Stroke(1.dp.toPx()))
                 }
             }
 
@@ -849,8 +849,8 @@ private fun androidx.compose.foundation.layout.ColumnScope.RailWheelButton(selec
             .testTag("color_view_wheel"),
         contentAlignment = Alignment.Center
     ) {
-        Canvas(Modifier.size(28.dp)) {
-            val w = 6.dp.toPx()
+        Canvas(Modifier.size(22.dp)) {
+            val w = 5.dp.toPx()
             drawCircle(
                 brush = Brush.sweepGradient(
                     (0..6).map { Color(android.graphics.Color.HSVToColor(floatArrayOf((it * 60f).coerceAtMost(359.9f), 1f, 1f))) }
@@ -858,7 +858,7 @@ private fun androidx.compose.foundation.layout.ColumnScope.RailWheelButton(selec
                 radius = size.minDimension / 2f - w / 2f,
                 style = Stroke(w)
             )
-            if (selected) drawCircle(CeAccent, radius = 3.dp.toPx())
+            if (selected) drawCircle(CeAccent, radius = 2.5.dp.toPx())
         }
     }
 }
@@ -878,7 +878,7 @@ private fun ImageFillPanel(
     ) {
         Box(
             modifier = Modifier
-                .size(120.dp)
+                .size(90.dp)
                 .clip(RectangleShape)
                 .background(CeInnerBg)
                 .border(1.dp, AmHairline, RectangleShape)
@@ -894,27 +894,27 @@ private fun ImageFillPanel(
                     modifier = Modifier.fillMaxSize()
                 )
             } else {
-                Icon(Icons.Default.AddPhotoAlternate, "Choose picture", tint = Color.White, modifier = Modifier.size(40.dp))
+                Icon(Icons.Default.AddPhotoAlternate, "Choose picture", tint = Color.White, modifier = Modifier.size(30.dp))
             }
         }
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(6.dp))
         Row(
             modifier = Modifier
                 .clip(RectangleShape)
                 .background(CeTabBg)
                 .bouncyClickable(pressedScale = 0.94f, onClick = onPickImage)
-                .padding(horizontal = 16.dp, vertical = 10.dp)
+                .padding(horizontal = 12.dp, vertical = 7.dp)
                 .testTag("fill_image_choose"),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(Icons.Default.AddPhotoAlternate, "Choose picture", tint = Color.White, modifier = Modifier.size(20.dp))
-            Spacer(Modifier.width(8.dp))
+            Icon(Icons.Default.AddPhotoAlternate, "Choose picture", tint = Color.White, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(6.dp))
             Text(
                 if (clip.fillImageUri == null) "Choose picture" else "Change picture",
-                color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium
+                color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Medium
             )
         }
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(8.dp))
         Row(
             modifier = Modifier
                 .clip(RectangleShape)
@@ -928,20 +928,20 @@ private fun ImageFillPanel(
                 val selected = clip.fillImageMode == mode
                 Column(
                     modifier = Modifier
-                        .width(86.dp)
-                        .height(60.dp)
+                        .width(70.dp)
+                        .height(46.dp)
                         .background(if (selected) CeInnerBg else Color.Transparent)
                         .bouncyClickable(pressedScale = 0.92f) { onUpdate { it.copy(fillImageMode = mode) } }
                         .testTag("fill_image_$name"),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
-                    Icon(icon, name, tint = if (selected) CeAccent else Color.White, modifier = Modifier.size(24.dp))
+                    Icon(icon, name, tint = if (selected) CeAccent else Color.White, modifier = Modifier.size(19.dp))
                     Spacer(Modifier.height(2.dp))
-                    Text(name, color = if (selected) CeAccent else TextPrimary, fontSize = 12.sp)
+                    Text(name, color = if (selected) CeAccent else TextPrimary, fontSize = 10.5.sp)
                 }
             }
         }
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(4.dp))
     }
 }

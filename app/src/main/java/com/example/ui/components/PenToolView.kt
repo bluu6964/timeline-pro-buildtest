@@ -242,43 +242,43 @@ fun PenToolPanel(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 10.dp)
+            .padding(horizontal = 12.dp, vertical = 8.dp)
     ) {
         Text(
             "Tap to place a point — drag after a tap to bend the line. Tap the first point again to close the shape.",
-            color = AmTextDim, fontSize = 12.sp
+            color = AmTextDim, fontSize = 10.5.sp
         )
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(7.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Width", color = TextPrimary, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.width(12.dp))
+            Text("Width", color = TextPrimary, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.width(10.dp))
             Slider(
                 value = widthDp,
                 onValueChange = onWidth,
                 valueRange = 1f..30f,
                 modifier = Modifier.weight(1f).testTag("pen_width_slider")
             )
-            Spacer(Modifier.width(10.dp))
-            Text("${widthDp.roundToInt()}", color = AmTextDim, fontSize = 12.sp)
+            Spacer(Modifier.width(8.dp))
+            Text("${widthDp.roundToInt()}", color = AmTextDim, fontSize = 11.sp)
         }
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(2.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             PenPanelButton("Undo point", enabled = anchorCount > 0, onClick = onUndoPoint)
             Spacer(Modifier.weight(1f))
             PenPanelButton("Cancel", enabled = true, onClick = onCancel)
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(8.dp))
             GradientPillButton(onClick = onDone, tag = "pen_done_button") {
-                Text("Done", color = AmInk, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text("Done", color = AmInk, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
         }
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(2.dp))
         Text(
             when {
                 closed -> "Closed shape — it will be filled"
                 anchorCount == 0 -> "No points yet"
                 else -> "$anchorCount points"
             },
-            color = AmTextFaint, fontSize = 11.sp
+            color = AmTextFaint, fontSize = 10.sp
         )
     }
 }
@@ -579,18 +579,18 @@ fun NodeEditPanel(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 10.dp)
+            .padding(horizontal = 12.dp, vertical = 8.dp)
     ) {
         Text(
             "Drag a point to move it. Drag a round handle to bend the curve. Tap a line to add a point.",
-            color = AmTextDim, fontSize = 12.sp
+            color = AmTextDim, fontSize = 10.5.sp
         )
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(6.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             PenPanelButton("Delete point", enabled = canDelete, onClick = onDeletePoint)
             Spacer(Modifier.weight(1f))
             GradientPillButton(onClick = onDone, tag = "node_edit_done_button") {
-                Text("Done", color = AmInk, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text("Done", color = AmInk, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -602,13 +602,13 @@ private fun PenPanelButton(label: String, enabled: Boolean, onClick: () -> Unit)
     Box(
         modifier = Modifier
             .bouncyClickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 8.dp),
+            .padding(horizontal = 8.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             label,
             color = if (enabled) TextPrimary else AmTextFaint,
-            fontSize = 13.sp, fontWeight = FontWeight.SemiBold
+            fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold
         )
     }
 }

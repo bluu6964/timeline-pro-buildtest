@@ -98,20 +98,20 @@ fun PillToolItem(
                         .clip(CircleShape)
                     else Modifier
                 )
-                .padding(horizontal = 12.dp, vertical = 9.dp),
+                .padding(horizontal = 10.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
                 tint = if (selected) TextPrimary else AmTextDim,
-                modifier = Modifier.size(19.dp)
+                modifier = Modifier.size(16.dp)
             )
-            Spacer(Modifier.width(6.dp))
+            Spacer(Modifier.width(5.dp))
             Text(
                 text = label,
                 color = if (selected) TextPrimary else AmTextDim,
-                fontSize = 12.5.sp,
+                fontSize = 11.sp,
                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                 maxLines = 1
             )
@@ -129,13 +129,13 @@ fun SheetDragHandle() {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 10.dp, bottom = 6.dp),
+            .padding(top = 7.dp, bottom = 4.dp),
         contentAlignment = Alignment.Center
     ) {
         Box(
             modifier = Modifier
-                .width(36.dp)
-                .height(5.dp)
+                .width(28.dp)
+                .height(3.dp)
                 .background(AmPillSelected, CircleShape)
                 .clip(CircleShape)
         )
@@ -161,17 +161,17 @@ fun PillActionButton(
     if (tag != null) m = m.testTag(tag)
     Box(
         m
-            .heightIn(min = 40.dp)
+            .heightIn(min = 32.dp)
             .background(if (enabled) containerColor else containerColor.copy(alpha = 0.45f), CircleShape)
             .clip(CircleShape)
             .bouncyClickable(enabled = enabled, pressedScale = 0.94f, onClick = onClick)
-            .padding(horizontal = 18.dp, vertical = 10.dp),
+            .padding(horizontal = 14.dp, vertical = 7.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text,
             color = if (enabled) contentColor else contentColor.copy(alpha = 0.55f),
-            fontSize = 14.sp,
+            fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1
         )
@@ -233,9 +233,9 @@ fun PillTextField(
             Text(
                 label,
                 color = AmTextDim,
-                fontSize = 12.sp,
+                fontSize = 10.5.sp,
                 fontWeight = FontWeight.Medium,
-                modifier = Modifier.padding(start = 6.dp, bottom = 6.dp)
+                modifier = Modifier.padding(start = 5.dp, bottom = 4.dp)
             )
         }
         Box(
@@ -243,19 +243,19 @@ fun PillTextField(
                 .fillMaxWidth()
                 .background(AmPanelHigh, CircleShape)
                 .clip(CircleShape)
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(horizontal = 12.dp, vertical = 9.dp),
             contentAlignment = Alignment.CenterStart
         ) {
             BasicTextField(
                 value = value,
                 onValueChange = onValueChange,
                 singleLine = singleLine,
-                textStyle = TextStyle(color = TextPrimary, fontSize = 15.sp),
+                textStyle = TextStyle(color = TextPrimary, fontSize = 13.sp),
                 cursorBrush = SolidColor(TextPrimary),
                 modifier = Modifier.fillMaxWidth(),
                 decorationBox = { inner ->
                     if (value.isEmpty() && placeholder != null) {
-                        Text(placeholder, color = TextSecondary, fontSize = 15.sp)
+                        Text(placeholder, color = TextSecondary, fontSize = 13.sp)
                     }
                     inner()
                 }
@@ -274,7 +274,7 @@ fun VioletPillButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     tag: String? = null,
-    contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+    contentPadding: PaddingValues = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
     content: @Composable RowScope.() -> Unit
 ) {
     var m = modifier

@@ -66,21 +66,21 @@ fun AudioVolumeSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 8.dp)
-                .padding(bottom = 28.dp)
+                .padding(horizontal = 14.dp, vertical = 6.dp)
+                .padding(bottom = 16.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Volume", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text("Volume", color = TextPrimary, fontSize = 14.5.sp, fontWeight = FontWeight.Bold)
                 Text(
                     if (muted) "Muted" else "${(volume * 100f).roundToInt()}%",
-                    color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold
+                    color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold
                 )
             }
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             Slider(
                 value = volume.coerceIn(0f, 2f),
                 onValueChange = {
@@ -92,13 +92,13 @@ fun AudioVolumeSheet(
                 colors = sliderColors()
             )
             if (onMutedChange != null) {
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Mute this layer", color = TextSecondary, fontSize = 14.sp)
+                    Text("Mute this layer", color = TextSecondary, fontSize = 12.sp)
                     Switch(
                         checked = muted,
                         onCheckedChange = onMutedChange,
@@ -125,18 +125,18 @@ fun AudioFadeSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 8.dp)
-                .padding(bottom = 28.dp)
+                .padding(horizontal = 14.dp, vertical = 6.dp)
+                .padding(bottom = 16.dp)
         ) {
-            Text("Fade", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            Spacer(modifier = Modifier.height(12.dp))
+            Text("Fade", color = TextPrimary, fontSize = 14.5.sp, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(8.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("Fade in", color = TextSecondary, fontSize = 14.sp)
-                Text(String.format(Locale.US, "%.1fs", fadeInMs / 1000f), color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text("Fade in", color = TextSecondary, fontSize = 12.sp)
+                Text(String.format(Locale.US, "%.1fs", fadeInMs / 1000f), color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
             Slider(
                 value = fadeInMs.toFloat().coerceIn(0f, maxFade),
@@ -145,13 +145,13 @@ fun AudioFadeSheet(
                 colors = sliderColors()
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(6.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("Fade out", color = TextSecondary, fontSize = 14.sp)
-                Text(String.format(Locale.US, "%.1fs", fadeOutMs / 1000f), color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text("Fade out", color = TextSecondary, fontSize = 12.sp)
+                Text(String.format(Locale.US, "%.1fs", fadeOutMs / 1000f), color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
             Slider(
                 value = fadeOutMs.toFloat().coerceIn(0f, maxFade),
@@ -199,10 +199,10 @@ fun AudioSpeedSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 8.dp)
-                .padding(bottom = 28.dp)
+                .padding(horizontal = 14.dp, vertical = 6.dp)
+                .padding(bottom = 16.dp)
         ) {
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(2.dp))
             Slider(
                 value = shown,
                 onValueChange = { v -> shown = v },
@@ -210,21 +210,21 @@ fun AudioSpeedSheet(
                 valueRange = MIN_SPEED..MAX_SPEED,
                 colors = sliderColors()
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(6.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 listOf(0.1f, 0.5f, 1f, 2f, 4f).forEach { preset ->
                     Text(
                         text = String.format(Locale.US, "%.1fx", preset),
                         color = TextPrimary,
-                        fontSize = 13.sp,
+                        fontSize = 11.5.sp,
                         modifier = Modifier
                             .clip(CircleShape)
                             .background(AmPanelHigh)
                             .bouncyClickable { applySpeed(preset) }
-                            .padding(horizontal = 14.dp, vertical = 8.dp)
+                            .padding(horizontal = 10.dp, vertical = 5.dp)
                     )
                 }
             }
@@ -255,15 +255,15 @@ fun AudioDuckingSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 8.dp)
-                .padding(bottom = 28.dp)
+                .padding(horizontal = 14.dp, vertical = 6.dp)
+                .padding(bottom = 16.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Ducking", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text("Ducking", color = TextPrimary, fontSize = 14.5.sp, fontWeight = FontWeight.Bold)
                 Switch(
                     checked = enabled,
                     onCheckedChange = { onChange(it, triggerId, amountDb, smoothness) },
@@ -273,49 +273,49 @@ fun AudioDuckingSheet(
             Text(
                 "Lower this layer's volume automatically while another layer is loud, " +
                     "and let it back up in the gaps.",
-                color = TextSecondary, fontSize = 13.sp
+                color = TextSecondary, fontSize = 11.sp
             )
             if (triggers.isEmpty()) {
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     "No other layer with sound yet. Add a voice or music layer first, " +
                         "then pick it here as the trigger.",
-                    color = TextSecondary, fontSize = 14.sp
+                    color = TextSecondary, fontSize = 12.sp
                 )
             } else if (enabled) {
-                Spacer(modifier = Modifier.height(14.dp))
-                Text("Duck under", color = TextSecondary, fontSize = 14.sp)
+                Spacer(modifier = Modifier.height(10.dp))
+                Text("Duck under", color = TextSecondary, fontSize = 12.sp)
                 Spacer(modifier = Modifier.height(4.dp))
                 triggers.forEach { trigger ->
                     val selected = trigger.id == triggerId
                     Text(
                         text = trigger.name,
                         color = if (selected) TextPrimary else TextSecondary,
-                        fontSize = 15.sp,
+                        fontSize = 12.5.sp,
                         fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
                         maxLines = 1,
                         modifier = Modifier
                             .fillMaxWidth()
                             .bouncyClickable { onChange(true, trigger.id, amountDb, smoothness) }
-                            .padding(vertical = 8.dp)
+                            .padding(vertical = 6.dp)
                     )
                 }
                 if (triggerId != null && triggers.none { it.id == triggerId }) {
                     Text(
                         "The trigger layer was removed — pick another layer above.",
-                        color = TextSecondary, fontSize = 13.sp,
+                        color = TextSecondary, fontSize = 11.sp,
                         modifier = Modifier.padding(vertical = 4.dp)
                     )
                 }
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text("Amount", color = TextSecondary, fontSize = 14.sp)
+                    Text("Amount", color = TextSecondary, fontSize = 12.sp)
                     Text(
                         "−${amountDb.roundToInt()} dB",
-                        color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold
+                        color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold
                     )
                 }
                 Slider(
@@ -328,10 +328,10 @@ fun AudioDuckingSheet(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text("Smoothness", color = TextSecondary, fontSize = 14.sp)
+                    Text("Smoothness", color = TextSecondary, fontSize = 12.sp)
                     Text(
                         "${(smoothness * 100f).roundToInt()}%",
-                        color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold
+                        color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold
                     )
                 }
                 Slider(
@@ -365,15 +365,15 @@ fun AudioNoiseSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 8.dp)
-                .padding(bottom = 28.dp)
+                .padding(horizontal = 14.dp, vertical = 6.dp)
+                .padding(bottom = 16.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Noise reduction", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text("Noise reduction", color = TextPrimary, fontSize = 14.5.sp, fontWeight = FontWeight.Bold)
                 Switch(
                     checked = enabled,
                     onCheckedChange = { onChange(it, strength) },
@@ -383,18 +383,18 @@ fun AudioNoiseSheet(
             Text(
                 "Remove the steady background noise of this layer — hiss, hum, fan " +
                     "noise — while keeping the voice or music on top of it.",
-                color = TextSecondary, fontSize = 13.sp
+                color = TextSecondary, fontSize = 11.sp
             )
             if (enabled) {
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(10.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text("Strength", color = TextSecondary, fontSize = 14.sp)
+                    Text("Strength", color = TextSecondary, fontSize = 12.sp)
                     Text(
                         "${(strength * 100f).roundToInt()}%",
-                        color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold
+                        color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold
                     )
                 }
                 Slider(
@@ -407,7 +407,7 @@ fun AudioNoiseSheet(
                     "The layer's sound is analysed the first time it plays and after " +
                         "its trim or speed changes — until the analysis lands, the layer " +
                         "plays unprocessed. Exports are always cleaned.",
-                    color = TextSecondary, fontSize = 13.sp
+                    color = TextSecondary, fontSize = 11.sp
                 )
             }
         }

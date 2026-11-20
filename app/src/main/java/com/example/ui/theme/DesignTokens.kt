@@ -128,17 +128,17 @@ fun amBarBrush(): Brush = SolidColor(AmBarSurface)
 // tokens size the rounded surfaces. Functional round shapes (play disc,
 // thumbs, etc.) stay circular and are not affected by these tokens.
 /** Large cards / dialogs (build 214: cards are 20 dp). */
-val AmCornerCard = 20.dp
-/** Bottom sheets / the panel stage: top corners (build 214: 24 dp). */
-val AmCornerSheet = 22.dp
+val AmCornerCard = 16.dp
+/** Bottom sheets / the panel stage: top corners. */
+val AmCornerSheet = 18.dp
 /** Panels, major containers. */
-val AmCornerPanel = 20.dp
+val AmCornerPanel = 16.dp
 /** Toolbar items, medium chips, buttons. */
-val AmCornerItem = 8.dp
+val AmCornerItem = 7.dp
 /** Small chips, readout pills. */
-val AmCornerChip = 6.dp
+val AmCornerChip = 5.dp
 /** Micro badges / tiny containers. */
-val AmCornerMicro = 4.dp
+val AmCornerMicro = 3.dp
 /**
  * The bottom-sheet shape (build 207): [AmCornerSheet] top corners, square
  * bottom (the sheet sits on the screen edge). Every bottom sheet in the
@@ -149,53 +149,53 @@ val AmSheetShape = RoundedCornerShape(topStart = AmCornerSheet, topEnd = AmCorne
 // ── Spacing scale ────────────────────────────────────────────────────────
 object AmSpace {
     val xxs: Dp = 2.dp
-    val xs: Dp = 4.dp
-    val sm: Dp = 8.dp
-    val md: Dp = 12.dp
-    val lg: Dp = 16.dp
-    val xl: Dp = 20.dp
-    val xxl: Dp = 24.dp
-    val xxxl: Dp = 32.dp
+    val xs: Dp = 3.dp
+    val sm: Dp = 6.dp
+    val md: Dp = 10.dp
+    val lg: Dp = 12.dp
+    val xl: Dp = 16.dp
+    val xxl: Dp = 20.dp
+    val xxxl: Dp = 24.dp
 }
 
 // ── Elevation / stroke helpers ───────────────────────────────────────────
 /** Standard content padding inside panels. */
-val AmPanelPadding = 16.dp
+val AmPanelPadding = 12.dp
 /** Compact content padding (toolbars, dense lists). */
-val AmPanelPaddingCompact = 12.dp
+val AmPanelPaddingCompact = 8.dp
 /** Minimum comfortable touch target. */
-val AmTouchTarget = 44.dp
+val AmTouchTarget = 36.dp
 
 // ── Type emphasis ────────────────────────────────────────────────────────
 /** Tiny uppercase micro-label — call site should apply .uppercase(). */
 val AmMicroLabel = TextStyle(
-    fontSize = 10.sp,
+    fontSize = 9.sp,
     fontWeight = FontWeight.SemiBold,
-    letterSpacing = 1.2.sp,
+    letterSpacing = 1.0.sp,
     color = AmTextDim
 )
 /** Large bold numeral for stats / counters. */
 val AmBigNumeral = TextStyle(
-    fontSize = 28.sp,
+    fontSize = 22.sp,
     fontWeight = FontWeight.Bold,
     letterSpacing = (-0.5).sp
 )
 /** Control / toolbar label. */
 val AmControlLabel = TextStyle(
-    fontSize = 11.sp,
+    fontSize = 10.sp,
     fontWeight = FontWeight.Medium,
     letterSpacing = 0.2.sp
 )
 /** Section title inside sheets. */
 val AmSectionTitle = TextStyle(
-    fontSize = 13.sp,
+    fontSize = 11.5.sp,
     fontWeight = FontWeight.SemiBold,
     letterSpacing = 0.1.sp
 )
 /** Body text for descriptions. */
 val AmBody = TextStyle(
-    fontSize = 14.sp,
+    fontSize = 12.sp,
     fontWeight = FontWeight.Normal,
     letterSpacing = 0.15.sp,
-    lineHeight = 20.sp
+    lineHeight = 16.sp
 )

@@ -28,11 +28,11 @@ import androidx.compose.ui.unit.sp
 fun GroupEditBar(name: String, onExit: () -> Unit, modifier: Modifier = Modifier) {
     Row(
         modifier = modifier
-            .padding(6.dp)
+            .padding(4.dp)
             .clip(RoundedCornerShape(percent = 50))
             .background(Color(0xE63F8F43))
             .clickable { onExit() }
-            .padding(horizontal = 10.dp, vertical = 6.dp)
+            .padding(horizontal = 8.dp, vertical = 4.dp)
             .testTag("group_edit_bar"),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -40,15 +40,15 @@ fun GroupEditBar(name: String, onExit: () -> Unit, modifier: Modifier = Modifier
             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
             contentDescription = "Exit group",
             tint = Color.White,
-            modifier = Modifier.size(16.dp)
+            modifier = Modifier.size(14.dp)
         )
         Text(
             text = "  $name",
             color = Color.White,
-            fontSize = 12.sp,
+            fontSize = 10.5.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.width(96.dp)
+            modifier = Modifier.width(84.dp)
         )
     }
 }

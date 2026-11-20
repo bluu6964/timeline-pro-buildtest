@@ -46,7 +46,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 /** Distance between two ruler ticks. One tick = one [step] of value. */
-private val RULER_TICK_SPACING = 10.dp
+private val RULER_TICK_SPACING = 8.dp
 
 /** Standard fling feel (Compose default is 1f; a bit higher = a bit shorter glide for precise sliders). */
 private const val RULER_FLING_FRICTION = 1.2f
@@ -199,26 +199,26 @@ fun RulerDial(
                 color = needleColor.copy(alpha = 0.20f),
                 start = Offset(centerX, needleStart),
                 end = Offset(centerX, needleStart + needleHeight),
-                strokeWidth = 7.dp.toPx(),
+                strokeWidth = 5.5.dp.toPx(),
                 cap = StrokeCap.Round
             )
             drawLine(
                 color = needleColor,
                 start = Offset(centerX, needleStart),
                 end = Offset(centerX, needleStart + needleHeight),
-                strokeWidth = 2.5.dp.toPx(),
+                strokeWidth = 2.dp.toPx(),
                 cap = StrokeCap.Round
             )
             if (accentNeedle) {
-                drawCircle(AmFxAccent, radius = 7.5.dp.toPx(), center = Offset(centerX, h / 2f))
+                drawCircle(AmFxAccent, radius = 6.dp.toPx(), center = Offset(centerX, h / 2f))
                 drawCircle(
                     Color.Black.copy(alpha = 0.35f),
-                    radius = 7.5.dp.toPx(),
+                    radius = 6.dp.toPx(),
                     center = Offset(centerX, h / 2f),
                     style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.dp.toPx())
                 )
             } else {
-                drawFlatThumb(Offset(centerX, h / 2f), 7.5.dp.toPx())
+                drawFlatThumb(Offset(centerX, h / 2f), 6.dp.toPx())
             }
         }
     }
@@ -233,7 +233,7 @@ fun RulerDialSlider(
     max: Float = 200f,
     unit: String = "%",
     isPercentage: Boolean = true,
-    labelWidth: Dp = 105.dp,
+    labelWidth: Dp = 86.dp,
     step: Float = 1f,
     /** When set, this icon is shown on the left instead of the [label] text. */
     icon: ImageVector? = null,
@@ -261,7 +261,7 @@ fun RulerDialSlider(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(44.dp),
+            .height(36.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // 1. Label on left (e.g., "Width", "Height", "Intensity", "Rotation", "Edge Hardness")
@@ -271,14 +271,14 @@ fun RulerDialSlider(
                     imageVector = icon,
                     contentDescription = label,
                     tint = TextPrimary,
-                    modifier = Modifier.size(22.dp)
+                    modifier = Modifier.size(18.dp)
                 )
             }
         } else {
             Text(
                 text = label,
                 color = TextPrimary,
-                fontSize = 14.sp,
+                fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -303,15 +303,15 @@ fun RulerDialSlider(
         // grey pill (the readout format is build 160's step-exact logic, untouched).
         if (showValue) Box(
             modifier = Modifier
-                .width(68.dp)
-                .height(30.dp),
+                .width(58.dp)
+                .height(24.dp),
             contentAlignment = Alignment.Center
         ) {
             FlatPill(Modifier.matchParentSize())
             Text(
                 text = displayValue,
                 color = TextPrimary,
-                fontSize = 13.sp,
+                fontSize = 11.5.sp,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,

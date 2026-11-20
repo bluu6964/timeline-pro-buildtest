@@ -120,28 +120,28 @@ fun ClipMasksPanel(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .padding(horizontal = 12.dp, vertical = 2.dp)
             .testTag("clip_masks_panel")
     ) {
         if (penPoints >= 0) {
             Text(
                 if (penPoints < 3) "Tap the picture to place points ($penPoints / ${ClipMaskLibrary.MAX_POINTS}, at least 3)"
                 else "$penPoints points. Keep tapping, or press Done.",
-                color = TextPrimary, fontSize = 13.sp
+                color = TextPrimary, fontSize = 11.5.sp
             )
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Spacer(Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Chip("Undo point", false, enabled = penPoints > 0, tag = "mask_pen_undo", onClick = onPenUndo)
                 Chip("Done", true, enabled = penPoints >= 3, tag = "mask_pen_done", onClick = onPenDone)
                 Chip("Cancel", false, tag = "mask_pen_cancel", onClick = onPenCancel)
             }
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(10.dp))
             return@Column
         }
 
         Text("Add a mask", color = AmTextDim, style = AmMicroLabel)
-        Spacer(Modifier.height(6.dp))
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Spacer(Modifier.height(4.dp))
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             items(addTiles) { (id, label) ->
                 ShapeTile(id, label, onClick = {
                     if (id == "pen") {
@@ -162,18 +162,18 @@ fun ClipMasksPanel(
                 })
             }
         }
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(10.dp))
 
         Text("Masks (combined top to bottom)", color = AmTextDim, style = AmMicroLabel)
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(4.dp))
         if (masks.isEmpty()) {
-            Text("Nothing yet. Tap a shape above, then drag it on the picture.", color = TextSecondary, fontSize = 13.sp)
+            Text("Nothing yet. Tap a shape above, then drag it on the picture.", color = TextSecondary, fontSize = 11.5.sp)
         }
         masks.forEachIndexed { idx, m ->
             val on = m.id == selectedId
             Box(
                 modifier = Modifier
-                    .padding(bottom = 8.dp)
+                    .padding(bottom = 5.dp)
                     .fillMaxWidth()
                     .bouncyClickable(pressedScale = 0.99f, onClick = { onSelect(if (on) null else m.id) })
                     .testTag("mask_row_$idx"),
@@ -184,18 +184,18 @@ fun ClipMasksPanel(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                        .padding(horizontal = 10.dp, vertical = 2.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                 Text(
                     "${idx + 1}. ${MaskShape.names[m.shape] ?: "Mask"}" + (if (m.isAnimated) "  ◆" else ""),
                     color = if (!m.enabled) TextSecondary else if (on) TextPrimary else AmTextDim,
-                    fontSize = 14.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.SemiBold,
+                    fontSize = 12.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.SemiBold,
                     modifier = Modifier.weight(1f)
                 )
                 Text(
                     (MaskMode.names.firstOrNull { it.first == m.mode }?.second ?: "") + if (m.inverted) " (inv)" else "",
-                    color = TextSecondary, fontSize = 11.sp
+                    color = TextSecondary, fontSize = 10.sp
                 )
                 IconBtn(if (m.enabled) Icons.Default.Visibility else Icons.Default.VisibilityOff, "Turn off / on", "mask_toggle_$idx") {
                     replace(m.copy(enabled = !m.enabled))
@@ -226,25 +226,25 @@ fun ClipMasksPanel(
             Spacer(Modifier.height(6.dp))
             Text("Combine", color = AmTextDim, style = AmMicroLabel)
             Spacer(Modifier.height(6.dp))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 items(MaskMode.names) { (mode, label) ->
                     Chip(label, selected.mode == mode, tag = "mask_mode_$mode") { replace(selected.copy(mode = mode)) }
                 }
                 item { Chip("Invert", selected.inverted, tag = "mask_invert") { replace(selected.copy(inverted = !selected.inverted)) } }
             }
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(8.dp))
 
             // keyframes of this mask
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Animate", color = TextSecondary, fontSize = 12.sp, modifier = Modifier.width(78.dp))
+                Text("Animate", color = TextSecondary, fontSize = 10.5.sp, modifier = Modifier.width(66.dp))
                 IconBtn(Icons.Default.SkipPrevious, "Previous key", "mask_key_prev") {
                     val i = selected.neighbourKey(rel, false)
                     if (i >= 0) onSeekTo(clip.startMs + selected.keys[i].timeMs)
                 }
                 Box(
                     modifier = Modifier
-                        .size(40.dp)
-                        .clip(RoundedCornerShape(10.dp))
+                        .size(32.dp)
+                        .clip(RoundedCornerShape(8.dp))
                         .bouncyClickable(onClick = { replace(selected.toggleKeyAt(rel)) })
                         .testTag("mask_key_toggle"),
                     contentAlignment = Alignment.Center
@@ -255,7 +255,7 @@ fun ClipMasksPanel(
                 }
                 Text(
                     if (selected.isAnimated) "${selected.keys.size} keys" else "off",
-                    color = TextSecondary, fontSize = 11.sp, modifier = Modifier.padding(start = 6.dp)
+                    color = TextSecondary, fontSize = 10.sp, modifier = Modifier.padding(start = 4.dp)
                 )
             }
             Spacer(Modifier.height(4.dp))
@@ -263,8 +263,8 @@ fun ClipMasksPanel(
             // motion track: the mask follows an object of the video (place the mask on the object first)
             val tr = selected.track
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Track", color = TextSecondary, fontSize = 12.sp, modifier = Modifier.width(78.dp))
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Track", color = TextSecondary, fontSize = 10.5.sp, modifier = Modifier.width(66.dp))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     item {
                         Chip(if (tr == null) "Track object" else "Track again", tr != null, tag = "mask_track") { onTrackMask(selected.id) }
                     }
@@ -325,7 +325,7 @@ private fun MaskSlider(label: String, value: Float, min: Float, max: Float, unit
     // The same ruler slider as Transform / Effects.
     RulerDialSlider(
         label = label,
-        labelWidth = 105.dp,
+        labelWidth = 86.dp,
         value = value.coerceIn(min, max),
         onValueChange = onValue,
         min = min,
@@ -353,8 +353,8 @@ private fun Chip(label: String, on: Boolean, enabled: Boolean = true, tag: Strin
         Text(
             label,
             color = if (!enabled) TextSecondary else if (on) TextPrimary else AmTextDim,
-            fontSize = 13.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.SemiBold,
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+            fontSize = 11.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.SemiBold,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
         )
     }
 }
@@ -364,16 +364,16 @@ private fun IconBtn(icon: androidx.compose.ui.graphics.vector.ImageVector, desc:
     Icon(
         icon, contentDescription = desc, tint = TextPrimary,
         modifier = Modifier
-            .size(36.dp)
+            .size(28.dp)
             .bouncyClickable(onClick = onClick)
-            .padding(8.dp)
+            .padding(6.dp)
             .testTag(tag)
     )
 }
 
 @Composable
 private fun Diamond(filled: Boolean, active: Boolean) {
-    Canvas(Modifier.size(20.dp)) {
+    Canvas(Modifier.size(16.dp)) {
         val c = Color(if (active) 0xFFFFC107 else 0xFF9E9E9E)
         rotate(45f) {
             val s = size.width * 0.62f
@@ -387,19 +387,19 @@ private fun Diamond(filled: Boolean, active: Boolean) {
 private fun ShapeTile(id: String, label: String, onClick: () -> Unit) {
     Column(
         modifier = Modifier
-            .width(72.dp)
+            .width(56.dp)
             .bouncyClickable(onClick = onClick)
             .testTag("mask_tile_$id"),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
-            modifier = Modifier.size(56.dp),
+            modifier = Modifier.size(42.dp),
             contentAlignment = Alignment.Center
         ) {
-            Canvas(Modifier.size(30.dp)) { drawGlyph(id) }
+            Canvas(Modifier.size(24.dp)) { drawGlyph(id) }
         }
-        Spacer(Modifier.height(4.dp))
-        Text(label, color = TextPrimary, fontSize = 11.sp, maxLines = 1)
+        Spacer(Modifier.height(3.dp))
+        Text(label, color = TextPrimary, fontSize = 9.5.sp, maxLines = 1)
     }
 }
 

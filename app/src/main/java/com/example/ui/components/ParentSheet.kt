@@ -60,27 +60,27 @@ fun ParentSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .padding(bottom = 28.dp)
+                .padding(horizontal = 14.dp)
+                .padding(bottom = 18.dp)
                 .testTag("parent_sheet")
         ) {
-            Text("Parent of $layerName", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(4.dp))
+            Text("Parent of $layerName", color = TextPrimary, fontSize = 14.5.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(3.dp))
             Text(
                 "The layer follows the move, turn and size of its parent (a Null). A Controller is not a parent: the layer is only connected to it, and whatever is done to the Controller is done to the connected layers too, each in its own place.",
-                color = TextSecondary, fontSize = 12.sp
+                color = TextSecondary, fontSize = 10.5.sp
             )
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(10.dp))
             Row1("None", null, currentId == null) { onPick(null) }
             for ((id, name) in nulls) {
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(6.dp))
                 Row1(name, id, currentId == id) { onPick(id) }
             }
             if (nulls.isEmpty()) {
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(8.dp))
                 Text(
                     "No Null or Controller layer yet. Add one using the Null / Controller buttons in the bottom toolbar.",
-                    color = TextSecondary, fontSize = 13.sp
+                    color = TextSecondary, fontSize = 11.sp
                 )
             }
         }
@@ -94,23 +94,23 @@ private fun Row1(name: String, id: String?, selected: Boolean, onClick: () -> Un
             .fillMaxWidth()
             .background(
                 if (selected) AmPillSelected else AmCardSurface,
-                RoundedCornerShape(20.dp)
+                RoundedCornerShape(14.dp)
             )
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(14.dp))
             .bouncyClickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 14.dp)
+            .padding(horizontal = 12.dp, vertical = 9.dp)
             .testTag("parent_pick_${id ?: "none"}"),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        if (id != null) Icon(Icons.Default.CenterFocusWeak, null, tint = IconActive, modifier = Modifier.size(22.dp))
+        if (id != null) Icon(Icons.Default.CenterFocusWeak, null, tint = IconActive, modifier = Modifier.size(18.dp))
         Text(
             name,
             color = TextPrimary,
-            fontSize = 15.sp,
+            fontSize = 12.5.sp,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
             modifier = Modifier.weight(1f)
         )
-        if (selected) Icon(Icons.Default.Check, null, tint = NeonCyan, modifier = Modifier.size(20.dp))
+        if (selected) Icon(Icons.Default.Check, null, tint = NeonCyan, modifier = Modifier.size(16.dp))
     }
 }

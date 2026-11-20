@@ -197,13 +197,13 @@ fun AppliedEffectsView(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(48.dp)
-                .padding(horizontal = 8.dp),
+                .height(40.dp)
+                .padding(horizontal = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
-                    .size(44.dp)
+                    .size(34.dp)
                     .bouncyClickable(onClick = {
                         when (screenMode) {
                             AppliedEffectsScreenMode.PARAMETERS -> {
@@ -227,7 +227,7 @@ fun AppliedEffectsView(
                     imageVector = Icons.Default.KeyboardArrowDown,
                     contentDescription = "Back",
                     tint = IconActive,
-                    modifier = Modifier.size(28.dp)
+                    modifier = Modifier.size(22.dp)
                 )
             }
 
@@ -240,12 +240,12 @@ fun AppliedEffectsView(
                     "Applied Effects"
                 },
                 color = TextPrimary,
-                fontSize = 17.sp,
+                fontSize = 14.5.sp,
                 fontWeight = FontWeight.Bold
             )
 
             Spacer(modifier = Modifier.weight(1f))
-            Spacer(modifier = Modifier.size(44.dp))
+            Spacer(modifier = Modifier.size(34.dp))
         }
 
         // 2. Canvas Area (STRICTLY LOCKED TO PROJECT ASPECT RATIO)
@@ -324,34 +324,34 @@ fun AppliedEffectsView(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 4.dp)
+                .padding(vertical = 2.dp)
         ) {
             // Controls: Skip Prev, Play/Pause, Skip Next, Undo, Redo
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 24.dp),
+                    .padding(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Spacer(modifier = Modifier.width(40.dp))
+                Spacer(modifier = Modifier.width(30.dp))
 
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(36.dp)
+                            .size(30.dp)
                             .bouncyClickable(onClick = { currentTimeMs = 0L }),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Default.SkipPrevious, contentDescription = "Prev", tint = IconActive, modifier = Modifier.size(24.dp))
+                        Icon(Icons.Default.SkipPrevious, contentDescription = "Prev", tint = IconActive, modifier = Modifier.size(19.dp))
                     }
 
                     Box(
                         modifier = Modifier
-                            .size(40.dp)
+                            .size(34.dp)
                             .bouncyClickable(onClick = { isPlaying = !isPlaying }),
                         contentAlignment = Alignment.Center
                     ) {
@@ -359,26 +359,26 @@ fun AppliedEffectsView(
                             imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                             contentDescription = "Play/Pause",
                             tint = IconActive,
-                            modifier = Modifier.size(30.dp)
+                            modifier = Modifier.size(23.dp)
                         )
                     }
 
                     Box(
                         modifier = Modifier
-                            .size(36.dp)
+                            .size(30.dp)
                             .bouncyClickable(onClick = { currentTimeMs = totalTimeMs }),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Default.SkipNext, contentDescription = "Next", tint = IconActive, modifier = Modifier.size(24.dp))
+                        Icon(Icons.Default.SkipNext, contentDescription = "Next", tint = IconActive, modifier = Modifier.size(19.dp))
                     }
                 }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(modifier = Modifier.size(32.dp), contentAlignment = Alignment.Center) {
-                        Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = "Undo", tint = IconActive, modifier = Modifier.size(20.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Box(modifier = Modifier.size(28.dp), contentAlignment = Alignment.Center) {
+                        Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = "Undo", tint = IconActive, modifier = Modifier.size(17.dp))
                     }
-                    Box(modifier = Modifier.size(32.dp), contentAlignment = Alignment.Center) {
-                        Icon(Icons.AutoMirrored.Filled.Redo, contentDescription = "Redo", tint = IconActive, modifier = Modifier.size(20.dp))
+                    Box(modifier = Modifier.size(28.dp), contentAlignment = Alignment.Center) {
+                        Icon(Icons.AutoMirrored.Filled.Redo, contentDescription = "Redo", tint = IconActive, modifier = Modifier.size(17.dp))
                     }
                 }
             }
@@ -387,33 +387,33 @@ fun AppliedEffectsView(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 2.dp),
+                    .padding(horizontal = 12.dp, vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Spacer(modifier = Modifier.weight(0.38f))
                 Text(
                     text = "00:00 01",
                     color = TextPrimary,
-                    fontSize = 13.sp,
+                    fontSize = 10.5.sp,
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold
                 )
-                Text(text = "  |  ", color = TextSecondary, fontSize = 13.sp)
+                Text(text = "  |  ", color = TextSecondary, fontSize = 10.5.sp)
                 Text(
                     text = "00:37 00",
                     color = TextSecondary,
-                    fontSize = 13.sp,
+                    fontSize = 10.5.sp,
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Medium
                 )
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(6.dp))
                 // Ruler ticks
                 Canvas(
                     modifier = Modifier
                         .weight(0.45f)
-                        .height(14.dp)
+                        .height(11.dp)
                 ) {
-                    val tickSpacing = 8.dp.toPx()
+                    val tickSpacing = 7.dp.toPx()
                     val count = (size.width / tickSpacing).toInt()
                     for (i in 0..count) {
                         val isMajor = (i % 5 == 0)
@@ -431,13 +431,13 @@ fun AppliedEffectsView(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 2.dp)
-                    .height(30.dp)
+                    .padding(horizontal = 12.dp, vertical = 2.dp)
+                    .height(24.dp)
             ) {
                 Row(
                     modifier = Modifier
-                        .offset(x = 120.dp)
-                        .height(28.dp)
+                        .offset(x = 96.dp)
+                        .height(22.dp)
                         .clip(RectangleShape)
                         .background(AmPanelElevated) // build 223: raised surface on the dark strip
                         .padding(horizontal = 4.dp),
@@ -448,17 +448,17 @@ fun AppliedEffectsView(
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
-                            .width(80.dp)
-                            .height(24.dp)
+                            .width(64.dp)
+                            .height(18.dp)
                             .clip(RectangleShape)
                     )
 
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
 
                     // Diamond/Keyframe + button (matching screenshot)
                     Box(
                         modifier = Modifier
-                            .size(20.dp)
+                            .size(16.dp)
                             .graphicsLayer { rotationZ = 45f }
                             .background(AmVioletDeep, RectangleShape)
                             .bouncyClickable(onClick = {}),
@@ -469,7 +469,7 @@ fun AppliedEffectsView(
                             contentDescription = "Keyframe",
                             tint = Color.White,
                             modifier = Modifier
-                                .size(12.dp)
+                                .size(10.dp)
                                 .graphicsLayer { rotationZ = -45f }
                         )
                     }
@@ -496,21 +496,21 @@ fun AppliedEffectsView(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
+                .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
                 .background(AmPanel) // build 223 (colour balance): the section joins the unified dark surfaces (was build 216's white)
-                .padding(horizontal = 16.dp, vertical = 10.dp)
+                .padding(horizontal = 12.dp, vertical = 6.dp)
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
                 // Top drag handle pill
                 Box(
                     modifier = Modifier
                         .align(Alignment.CenterHorizontally)
-                        .width(36.dp)
-                        .height(4.dp)
+                        .width(28.dp)
+                        .height(3.dp)
                         .background(AmTextFaint, CircleShape)
                 )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 AnimatedContent(
                     targetState = screenMode,
@@ -528,7 +528,7 @@ fun AppliedEffectsView(
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(46.dp)
+                                        .height(38.dp)
                                         .clip(CircleShape)
                                         .background(AmPanelElevated, CircleShape) // build 223: raised surface button
                                         .bouncyClickable(
@@ -541,26 +541,26 @@ fun AppliedEffectsView(
                                     Text(
                                         text = "Add effect",
                                         color = TextPrimary,
-                                        fontSize = 15.sp,
+                                        fontSize = 13.sp,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
 
-                                Spacer(modifier = Modifier.height(14.dp))
+                                Spacer(modifier = Modifier.height(10.dp))
 
                                 if (appliedEffects.isEmpty()) {
                                     // Empty state message (Image 1 matching screenshot)
                                     Box(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(vertical = 24.dp, horizontal = 20.dp),
+                                            .padding(vertical = 16.dp, horizontal = 14.dp),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(
                                             text = "See applied effects here, reorder them by dragging, and control their parameters",
                                             color = AmTextDim,
-                                            fontSize = 13.sp,
-                                            lineHeight = 19.sp,
+                                            fontSize = 11.5.sp,
+                                            lineHeight = 16.sp,
                                             textAlign = TextAlign.Center
                                         )
                                     }
@@ -568,22 +568,22 @@ fun AppliedEffectsView(
                                     // List of Applied Effects (Image 3 matching screenshot)
                                     LazyColumn(
                                         modifier = Modifier.fillMaxWidth(),
-                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                        verticalArrangement = Arrangement.spacedBy(6.dp)
                                     ) {
                                         items(appliedEffects) { effect ->
                                             Row(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
-                                                    .height(48.dp)
-                                                    .clip(RoundedCornerShape(14.dp))
-                                                    .background(AmPanelElevated, RoundedCornerShape(14.dp)) // build 223
-                                                    .padding(horizontal = 10.dp),
+                                                    .height(40.dp)
+                                                    .clip(RoundedCornerShape(11.dp))
+                                                    .background(AmPanelElevated, RoundedCornerShape(11.dp)) // build 223
+                                                    .padding(horizontal = 8.dp),
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 // Left dropdown arrow ▶ to open parameters
                                                 Box(
                                                     modifier = Modifier
-                                                        .size(32.dp)
+                                                        .size(26.dp)
                                                         .bouncyClickable(onClick = {
                                                             selectedEffectForEditing = effect
                                                             screenMode = AppliedEffectsScreenMode.PARAMETERS
@@ -595,17 +595,17 @@ fun AppliedEffectsView(
                                                         imageVector = Icons.Default.ArrowRight,
                                                         contentDescription = "Expand effect",
                                                         tint = IconActive,
-                                                        modifier = Modifier.size(24.dp)
+                                                        modifier = Modifier.size(19.dp)
                                                     )
                                                 }
 
-                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Spacer(modifier = Modifier.width(4.dp))
 
                                                 // Effect Name
                                                 Text(
                                                     text = effect.name,
                                                     color = TextPrimary,
-                                                    fontSize = 15.sp,
+                                                    fontSize = 12.5.sp,
                                                     fontWeight = FontWeight.SemiBold,
                                                     modifier = Modifier
                                                         .weight(1f)
@@ -618,7 +618,7 @@ fun AppliedEffectsView(
                                                 // Visibility Eye Toggle
                                                 Box(
                                                     modifier = Modifier
-                                                        .size(32.dp)
+                                                        .size(26.dp)
                                                         .bouncyClickable(onClick = {
                                                             effect.isEnabled = !effect.isEnabled
                                                         }),
@@ -628,27 +628,27 @@ fun AppliedEffectsView(
                                                         imageVector = if (effect.isEnabled) Icons.Default.Visibility else Icons.Default.VisibilityOff,
                                                         contentDescription = "Toggle visibility",
                                                         tint = if (effect.isEnabled) IconActive else AmTextFaint,
-                                                        modifier = Modifier.size(20.dp)
+                                                        modifier = Modifier.size(17.dp)
                                                     )
                                                 }
 
-                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Spacer(modifier = Modifier.width(6.dp))
 
                                                 // Drag reorder handle (6 dots ⠿)
                                                 Box(
-                                                    modifier = Modifier.size(32.dp),
+                                                    modifier = Modifier.size(26.dp),
                                                     contentAlignment = Alignment.Center
                                                 ) {
-                                                    Canvas(modifier = Modifier.size(14.dp)) {
-                                                        val dotR = 1.3.dp.toPx()
-                                                        val spacingX = 5.dp.toPx()
-                                                        val spacingY = 4.5.dp.toPx()
+                                                    Canvas(modifier = Modifier.size(12.dp)) {
+                                                        val dotR = 1.1.dp.toPx()
+                                                        val spacingX = 4.dp.toPx()
+                                                        val spacingY = 3.8.dp.toPx()
                                                         for (row in 0..2) {
                                                             for (col in 0..1) {
                                                                 drawCircle(
                                                                     color = AmTextDim,
                                                                     radius = dotR,
-                                                                    center = Offset(col * spacingX + 2.dp.toPx(), row * spacingY + 2.dp.toPx())
+                                                                    center = Offset(col * spacingX + 1.5.dp.toPx(), row * spacingY + 1.5.dp.toPx())
                                                                 )
                                                             }
                                                         }
@@ -667,7 +667,7 @@ fun AppliedEffectsView(
                                 // Category Pill Tabs: [Blur] [Background] [Mask & Edges]
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
                                     categories.forEach { cat ->
                                         val isSelected = cat == selectedCategory
@@ -676,29 +676,29 @@ fun AppliedEffectsView(
                                                 .clip(CircleShape)
                                                 .background(if (isSelected) AmAccent else AmPanelElevated, CircleShape)
                                                 .bouncyClickable(onClick = { selectedCategory = cat })
-                                                .padding(horizontal = 14.dp, vertical = 7.dp),
+                                                .padding(horizontal = 10.dp, vertical = 5.dp),
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Text(
                                                 text = cat,
                                                 color = if (isSelected) AmInk else AmTextPrimary,
-                                                fontSize = 13.sp,
+                                                fontSize = 11.5.sp,
                                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                                             )
                                         }
                                     }
                                 }
 
-                                Spacer(modifier = Modifier.height(14.dp))
+                                Spacer(modifier = Modifier.height(10.dp))
 
                                 // Grid of Effect Cards (matching Image 2)
                                 LazyVerticalGrid(
                                     columns = GridCells.Fixed(4),
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(180.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                        .height(145.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
                                     items(currentPresets) { preset ->
                                         Column(
@@ -727,25 +727,25 @@ fun AppliedEffectsView(
                                             // Effect Card with checkerboard & 3D Rocket/Blur Graphic + Star Badge
                                             Box(
                                                 modifier = Modifier
-                                                    .size(62.dp)
-                                                    .clip(RoundedCornerShape(12.dp))
-                                                    .background(AmCardSurface, RoundedCornerShape(12.dp))
-                                                    .border(1.dp, AmHairlineStrong, RoundedCornerShape(12.dp)),
+                                                    .size(50.dp)
+                                                    .clip(RoundedCornerShape(10.dp))
+                                                    .background(AmCardSurface, RoundedCornerShape(10.dp))
+                                                    .border(1.dp, AmHairlineStrong, RoundedCornerShape(10.dp)),
                                                 contentAlignment = Alignment.Center
                                             ) {
                                                 // Stylized Rocket / Graphic Canvas
-                                                Canvas(modifier = Modifier.size(38.dp)) {
+                                                Canvas(modifier = Modifier.size(30.dp)) {
                                                     // Draw rocket body
                                                     val cX = size.width / 2f
                                                     val cY = size.height / 2f
                                                     drawCircle(
                                                         color = Color(0xFFFF5252),
-                                                        radius = 12.dp.toPx(),
+                                                        radius = 10.dp.toPx(),
                                                         center = Offset(cX, cY)
                                                     )
                                                     drawCircle(
                                                         color = Color(0xFFABE41D),
-                                                        radius = 6.dp.toPx(),
+                                                        radius = 5.dp.toPx(),
                                                         center = Offset(cX, cY)
                                                     )
                                                 }
@@ -755,8 +755,8 @@ fun AppliedEffectsView(
                                                     Box(
                                                         modifier = Modifier
                                                             .align(Alignment.TopEnd)
-                                                            .padding(3.dp)
-                                                            .size(14.dp)
+                                                            .padding(2.dp)
+                                                            .size(12.dp)
                                                             .background(Color(0xFF00B0FF), CircleShape),
                                                         contentAlignment = Alignment.Center
                                                     ) {
@@ -764,22 +764,22 @@ fun AppliedEffectsView(
                                                             imageVector = Icons.Default.Star,
                                                             contentDescription = null,
                                                             tint = Color.White,
-                                                            modifier = Modifier.size(10.dp)
+                                                            modifier = Modifier.size(8.dp)
                                                         )
                                                     }
                                                 }
                                             }
 
-                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Spacer(modifier = Modifier.height(3.dp))
 
                                             Text(
                                                 text = preset.name,
                                                 color = TextPrimary,
-                                                fontSize = 10.sp,
+                                                fontSize = 9.5.sp,
                                                 fontWeight = FontWeight.Medium,
                                                 textAlign = TextAlign.Center,
                                                 maxLines = 2,
-                                                lineHeight = 12.sp
+                                                lineHeight = 11.sp
                                             )
                                         }
                                     }
@@ -800,10 +800,10 @@ fun AppliedEffectsView(
                                         min = 0f,
                                         max = 100f,
                                         unit = "%",
-                                        labelWidth = 105.dp
+                                        labelWidth = 86.dp
                                     )
 
-                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Spacer(modifier = Modifier.height(4.dp))
 
                                     // 2. Secondary Slider (e.g. "Rotation" with 45°)
                                     RulerDialSlider(
@@ -813,10 +813,10 @@ fun AppliedEffectsView(
                                         min = 0f,
                                         max = if (effect.secondaryUnit == "°") 360f else 100f,
                                         unit = effect.secondaryUnit,
-                                        labelWidth = 105.dp
+                                        labelWidth = 86.dp
                                     )
 
-                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Spacer(modifier = Modifier.height(4.dp))
 
                                     // 3. Tertiary Slider (e.g. "Edge Hardness" with 0%)
                                     RulerDialSlider(
@@ -826,7 +826,7 @@ fun AppliedEffectsView(
                                         min = 0f,
                                         max = 100f,
                                         unit = effect.tertiaryUnit,
-                                        labelWidth = 105.dp
+                                        labelWidth = 86.dp
                                     )
                                 }
                             }

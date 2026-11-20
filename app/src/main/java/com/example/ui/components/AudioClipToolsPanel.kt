@@ -164,7 +164,7 @@ fun AudioClipToolsPanel(
         modifier = modifier
             .fillMaxWidth()
             .height(height)
-            .padding(vertical = 4.dp)
+            .padding(vertical = 2.dp)
             .testTag("audio_clip_tools_panel")
     ) {
         // Build 206: the panel floats as a rounded bar (the redesign's pill
@@ -172,15 +172,15 @@ fun AudioClipToolsPanel(
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .background(AmBarSurface, RoundedCornerShape(24.dp))
-                .clip(RoundedCornerShape(24.dp))
-                .padding(vertical = 4.dp),
+                .background(AmBarSurface, RoundedCornerShape(18.dp))
+                .clip(RoundedCornerShape(18.dp))
+                .padding(vertical = 2.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
-                    .padding(start = 8.dp, end = 6.dp)
-                    .size(46.dp)
+                    .padding(start = 6.dp, end = 4.dp)
+                    .size(36.dp)
                     .bouncyClickable(pressedScale = 0.88f, hoverScale = 1.08f, onClick = onDeselect)
                     .testTag("audio_tools_back_button"),
                 contentAlignment = Alignment.Center
@@ -189,14 +189,14 @@ fun AudioClipToolsPanel(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Exit audio edit",
                     tint = IconActive,
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier.size(19.dp)
                 )
             }
 
             Box(
                 modifier = Modifier
                     .width(1.dp)
-                    .height(32.dp)
+                    .height(24.dp)
                     .background(AmHairline)
             )
 

@@ -116,7 +116,7 @@ fun PlayControlsSection(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(height)
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // ── Left group: undo · redo · Full badge ──────────────
@@ -127,10 +127,10 @@ fun PlayControlsSection(
                 Icon(
                     Icons.AutoMirrored.Filled.Undo, contentDescription = null,
                     tint = if (canUndo) RefCtrl else RefCtrlDisabled,
-                    modifier = Modifier.size(22.dp)
+                    modifier = Modifier.size(17.dp)
                 )
             }
-            Spacer(Modifier.size(14.dp))
+            Spacer(Modifier.size(10.dp))
             CtrlButton(
                 enabled = canRedo, onClick = onRedoClick,
                 tag = "workspace_redo_button", description = "Redo"
@@ -138,14 +138,10 @@ fun PlayControlsSection(
                 Icon(
                     Icons.AutoMirrored.Filled.Redo, contentDescription = null,
                     tint = if (canRedo) RefCtrl else RefCtrlDisabled,
-                    modifier = Modifier.size(22.dp)
+                    modifier = Modifier.size(17.dp)
                 )
             }
-            Spacer(Modifier.size(14.dp))
-            // The "Full" outline badge (1.8 dp border, r6, 11 sp / 800):
-            // in the editor it is the reference's fullscreen button; a
-            // chrome host wires it to its preview-resolution cycle and
-            // labels it with the real resolution state.
+            Spacer(Modifier.size(10.dp))
             CtrlButton(
                 enabled = true,
                 onClick = if (showEditorControls) onFullScreenClick else onResolutionClick,
@@ -154,14 +150,14 @@ fun PlayControlsSection(
             ) {
                 Box(
                     modifier = Modifier
-                        .border(1.8.dp, RefCtrl, RoundedCornerShape(6.dp))
-                        .padding(horizontal = 5.dp, vertical = 1.dp),
+                        .border(1.5.dp, RefCtrl, RoundedCornerShape(5.dp))
+                        .padding(horizontal = 4.dp, vertical = 1.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = if (showEditorControls) "Full" else resolutionLabel,
                         color = RefCtrl,
-                        fontSize = 11.sp,
+                        fontSize = 9.5.sp,
                         fontWeight = FontWeight.ExtraBold,
                         textAlign = TextAlign.Center,
                         maxLines = 1
@@ -189,28 +185,27 @@ fun PlayControlsSection(
                 ) {
                     MagnetGlyph(snapOn)
                 }
-                Spacer(Modifier.size(14.dp))
+                Spacer(Modifier.size(10.dp))
                 CtrlButton(
                     enabled = true, onClick = onGridClick, active = gridOn,
                     tag = "workspace_grid_toggle", description = "Grid"
                 ) {
                     GridToggleGlyph(gridOn)
                 }
-                Spacer(Modifier.size(14.dp))
+                Spacer(Modifier.size(10.dp))
                 CtrlButton(
                     enabled = true, onClick = onAddKeyframeClick,
                     tag = "add_keyframe_button", description = "Add Keyframe"
                 ) {
                     Box {
                         KeyframeShieldGlyph()
-                        // The reference's orange dot (7 dp) at the icon's bottom-right.
                         Box(
                             modifier = Modifier
                                 .align(Alignment.BottomEnd)
-                                .size(7.dp)
+                                .size(5.5.dp)
                                 .clip(CircleShape)
                                 .background(RefOrange)
-                                .border(1.5.dp, AmBase, CircleShape)
+                                .border(1.dp, AmBase, CircleShape)
                         )
                     }
                 }
@@ -222,14 +217,14 @@ fun PlayControlsSection(
                 ) {
                     SkipGlyph(mirrored = true)
                 }
-                Spacer(Modifier.size(14.dp))
+                Spacer(Modifier.size(10.dp))
                 CtrlButton(
                     enabled = true, onClick = onNextClick,
                     tag = "next_button", description = "Next"
                 ) {
                     SkipGlyph(mirrored = false)
                 }
-                Spacer(Modifier.size(14.dp))
+                Spacer(Modifier.size(10.dp))
                 CtrlButton(
                     enabled = true, onClick = onFullScreenClick,
                     tag = "fullscreen_button", description = "Full Screen"
@@ -261,8 +256,8 @@ private fun CtrlButton(
 ) {
     Box(
         modifier = Modifier
-            .size(34.dp)
-            .clip(RoundedCornerShape(8.dp))
+            .size(28.dp)
+            .clip(RoundedCornerShape(6.dp))
             .semantics { contentDescription = description }
             .bouncyClickable(enabled = enabled, pressedScale = 0.9f, onClick = onClick)
             .testTag(tag),
@@ -272,10 +267,10 @@ private fun CtrlButton(
 
 // ── Glyphs ───────────────────────────────────────────────────────────────
 
-/** Soft rounded play triangle, or two bars while playing (24 dp, controls colour). */
+/** Soft rounded play triangle, or two bars while playing (19 dp, controls colour). */
 @Composable
 private fun PlayGlyph(isPlaying: Boolean) {
-    Canvas(Modifier.size(24.dp)) {
+    Canvas(Modifier.size(19.dp)) {
         val u = size.width / 24f
         val c = RefCtrl
         if (isPlaying) {
@@ -302,7 +297,7 @@ private fun PlayGlyph(isPlaying: Boolean) {
 /** Skip triangle + bar (previous / next) — chrome hosts only. */
 @Composable
 private fun SkipGlyph(mirrored: Boolean) {
-    Canvas(Modifier.size(22.dp)) {
+    Canvas(Modifier.size(17.dp)) {
         val u = size.width / 24f
         val c = RefCtrl
         fun x(v: Float) = (if (mirrored) 24f - v else v) * u
@@ -318,7 +313,7 @@ private fun SkipGlyph(mirrored: Boolean) {
 /** Four corners + two overlapping layers — the fullscreen glyph (chrome hosts). */
 @Composable
 private fun FrameGlyph() {
-    Canvas(Modifier.size(21.dp)) {
+    Canvas(Modifier.size(17.dp)) {
         val u = size.width / 24f
         val c = RefCtrl
         val a = 4.7f * u
@@ -337,7 +332,7 @@ private fun FrameGlyph() {
 /** The snap magnet (build 222): a horseshoe magnet, WHITE while on, GREY while off (21 dp). */
 @Composable
 private fun MagnetGlyph(on: Boolean) {
-    Canvas(Modifier.size(21.dp)) {
+    Canvas(Modifier.size(17.dp)) {
         val u = size.width / 24f
         val c = if (on) RefCtrl else RefCtrlDisabled
         val w = 3.6f * u
@@ -363,7 +358,7 @@ private fun MagnetGlyph(on: Boolean) {
 /** The reference's grid glyph: a rounded square divided in thirds both ways (21 dp). Lime while on. */
 @Composable
 private fun GridToggleGlyph(on: Boolean) {
-    Canvas(Modifier.size(21.dp)) {
+    Canvas(Modifier.size(17.dp)) {
         val u = size.width / 24f
         val c = if (on) RefLime else RefCtrl
         drawRoundRect(
@@ -380,7 +375,7 @@ private fun GridToggleGlyph(on: Boolean) {
 /** The reference's Add-Keyframe glyph: a filled shield with a plus cut out of it (21 dp). */
 @Composable
 private fun KeyframeShieldGlyph() {
-    Canvas(Modifier.size(21.dp)) {
+    Canvas(Modifier.size(17.dp)) {
         val u = size.width / 24f
         val shield = Path().apply {
             moveTo(12f * u, 2.5f * u)

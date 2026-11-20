@@ -290,24 +290,22 @@ fun ClipEditToolsPanel(
         modifier = modifier
             .fillMaxWidth()
             .height(height)
-            .padding(vertical = 4.dp)
+            .padding(vertical = 3.dp)
             .testTag("clip_edit_tools_panel")
     ) {
-        // Build 206: the panel floats as a rounded bar (the redesign's pill
-        // language) — full width, so the ToolRowSplit budgets are untouched.
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .background(AmBarSurface, RoundedCornerShape(24.dp))
-                .clip(RoundedCornerShape(24.dp))
-                .padding(vertical = 4.dp),
+                .background(AmBarSurface, RoundedCornerShape(18.dp))
+                .clip(RoundedCornerShape(18.dp))
+                .padding(vertical = 3.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // 1. Left Back Button to deselect clip and return to main toolbar
             Box(
                 modifier = Modifier
-                    .padding(start = 8.dp, end = 6.dp)
-                    .size(46.dp)
+                    .padding(start = 6.dp, end = 4.dp)
+                    .size(36.dp)
                     .bouncyClickable(
                         pressedScale = 0.88f,
                         hoverScale = 1.08f,
@@ -320,7 +318,7 @@ fun ClipEditToolsPanel(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Exit Clip Edit",
                     tint = IconActive,
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier.size(19.dp)
                 )
             }
 
@@ -328,7 +326,7 @@ fun ClipEditToolsPanel(
             Box(
                 modifier = Modifier
                     .width(1.dp)
-                    .height(32.dp)
+                    .height(24.dp)
                     .background(AmHairline)
             )
 

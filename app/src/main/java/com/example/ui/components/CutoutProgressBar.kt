@@ -35,31 +35,31 @@ fun CutoutProgressBar(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 6.dp)
-            .clip(RoundedCornerShape(16.dp))
+            .padding(horizontal = 10.dp, vertical = 4.dp)
+            .clip(RoundedCornerShape(12.dp))
             .background(AmCardSurface)
-            .padding(horizontal = 14.dp, vertical = 10.dp)
+            .padding(horizontal = 11.dp, vertical = 7.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = "$label ${(p * 100).toInt()}%",
                 color = Color.White,
-                fontSize = 13.sp,
+                fontSize = 11.5.sp,
                 modifier = Modifier.weight(1f)
             )
-            TextButton(onClick = onCancel) { Text(actionLabel, color = Color.White, fontSize = 13.sp) }
+            TextButton(onClick = onCancel) { Text(actionLabel, color = Color.White, fontSize = 11.5.sp) }
         }
         Box(
             Modifier
                 .fillMaxWidth()
-                .height(5.dp)
+                .height(4.dp)
                 .clip(CircleShape)
                 .background(AmPanelElevated)
         ) {
             Box(
                 Modifier
                     .fillMaxWidth(p)
-                    .height(5.dp)
+                    .height(4.dp)
                     .background(AmAccentViolet)
             )
         }

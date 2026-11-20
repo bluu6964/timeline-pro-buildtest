@@ -154,7 +154,7 @@ fun ClipAnimationsPanel(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .padding(horizontal = 12.dp, vertical = 2.dp)
             .testTag("clip_animations_sheet")
     ) {
         // In / Out tabs + section switch on one line (keeps the panel low)
@@ -163,7 +163,7 @@ fun ClipAnimationsPanel(
                 val on = s == slot
                 Box(
                     modifier = Modifier
-                        .padding(end = 8.dp)
+                        .padding(end = 6.dp)
                         .background(
                             if (on) AmPillSelected else AmPanelHigh,
                             CircleShape
@@ -177,9 +177,9 @@ fun ClipAnimationsPanel(
                     Text(
                         s.label,
                         color = if (on) TextPrimary else AmTextDim,
-                        fontSize = 13.sp,
+                        fontSize = 11.5.sp,
                         fontWeight = if (on) FontWeight.Bold else FontWeight.SemiBold,
-                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 6.dp)
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                     )
                 }
             }
@@ -189,7 +189,7 @@ fun ClipAnimationsPanel(
                     val on = sec == section
                     Box(
                         modifier = Modifier
-                            .padding(start = 6.dp)
+                            .padding(start = 5.dp)
                             .background(
                                 if (on) AmPillSelected else AmPanelHigh,
                                 CircleShape
@@ -200,15 +200,15 @@ fun ClipAnimationsPanel(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            sec.label, color = if (on) TextPrimary else AmTextDim, fontSize = 12.sp,
+                            sec.label, color = if (on) TextPrimary else AmTextDim, fontSize = 10.5.sp,
                             fontWeight = if (on) FontWeight.Bold else FontWeight.Normal,
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                         )
                     }
                 }
             }
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(6.dp))
 
         // Animations: tap = applied
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -240,16 +240,16 @@ fun ClipAnimationsPanel(
         }
 
         if (appliedPreset != null && canAnimate) {
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(6.dp))
             if (section == AnimSection.OPTIONS) {
                 // Direction
                 if (appliedPreset.dirs.isNotEmpty()) {
                     Text(
                         if (appliedPreset.id.startsWith("spin")) "Turn" else if (slot == AnimSlot.IN) "From" else "To",
-                        color = TextSecondary, fontSize = 12.sp
+                        color = TextSecondary, fontSize = 10.5.sp
                     )
-                    Spacer(Modifier.height(4.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Spacer(Modifier.height(3.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         for (d in appliedPreset.dirs) {
                             val on = d == dir
                             val spin = appliedPreset.id.startsWith("spin")
@@ -266,21 +266,21 @@ fun ClipAnimationsPanel(
                                 Text(
                                     if (spin) (if (d == AnimDir.RIGHT) "↻ Clockwise" else "↺ Counter")
                                     else "${d.arrow} ${d.label}",
-                                    color = if (on) TextPrimary else AmTextDim, fontSize = 13.sp,
+                                    color = if (on) TextPrimary else AmTextDim, fontSize = 11.5.sp,
                                     fontWeight = if (on) FontWeight.Bold else FontWeight.Normal,
-                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                                 )
                             }
                         }
                     }
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(6.dp))
                 }
 
                 // Length
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Length", color = TextSecondary, fontSize = 12.sp)
+                    Text("Length", color = TextSecondary, fontSize = 10.5.sp)
                     Spacer(Modifier.weight(1f))
-                    Text("%.2f s".format(durMs / 1000f), color = TextPrimary, fontSize = 13.sp)
+                    Text("%.2f s".format(durMs / 1000f), color = TextPrimary, fontSize = 11.5.sp)
                 }
                 Slider(
                     value = durMs.coerceIn(ANIM_MIN_MS.toFloat(), sliderMax),
@@ -314,7 +314,7 @@ fun ClipAnimationsPanel(
                     }
                 }
                 Row(
-                    modifier = Modifier.fillMaxWidth().height(118.dp),
+                    modifier = Modifier.fillMaxWidth().height(96.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     AnimShapePreview(
@@ -324,9 +324,9 @@ fun ClipAnimationsPanel(
                         easing = shownEasing,
                         t = t,
                         aspectRatio = aspectRatio,
-                        modifier = Modifier.fillMaxHeight().padding(vertical = 4.dp)
+                        modifier = Modifier.fillMaxHeight().padding(vertical = 3.dp)
                     )
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(6.dp))
                     Box(Modifier.weight(1f).fillMaxHeight()) {
                         EasingEditor(
                             easing = shownEasing,
@@ -341,8 +341,8 @@ fun ClipAnimationsPanel(
                         )
                     }
                 }
-                Spacer(Modifier.height(6.dp))
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Spacer(Modifier.height(4.dp))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     item {
                         CurveChip(label = "Auto", easing = null, selected = easing == null) {
                             easing = null
@@ -359,16 +359,16 @@ fun ClipAnimationsPanel(
                     }
                 }
             }
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(4.dp))
             Text(
                 "The animation is made of normal keyframes: edit them in Transform, Crop or Blend.",
-                color = TextSecondary, fontSize = 11.sp
+                color = TextSecondary, fontSize = 10.sp
             )
         } else if (!canAnimate) {
-            Spacer(Modifier.height(14.dp))
-            Text("This layer is too short for another animation.", color = TextSecondary, fontSize = 12.sp)
+            Spacer(Modifier.height(10.dp))
+            Text("This layer is too short for another animation.", color = TextSecondary, fontSize = 10.5.sp)
         }
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(8.dp))
     }
 }
 
@@ -444,26 +444,26 @@ private fun AnimShapePreview(
 private fun AnimTile(label: String, icon: ImageVector, selected: Boolean, tag: String, onClick: () -> Unit) {
     Column(
         modifier = Modifier
-            .width(72.dp)
+            .width(56.dp)
             .bouncyClickable(onClick = onClick)
             .testTag(tag),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
             modifier = Modifier
-                .size(60.dp)
+                .size(44.dp)
                 .background(
                     if (selected) AmPillSelected else AmPanelHigh,
-                    RoundedCornerShape(16.dp)
+                    RoundedCornerShape(12.dp)
                 )
-                .clip(RoundedCornerShape(16.dp)),
+                .clip(RoundedCornerShape(12.dp)),
             contentAlignment = Alignment.Center
         ) {
             // Rounded tile (build 207): selected = filled pill surface.
-            Icon(icon, contentDescription = label, tint = if (selected) Color.White else AmTextDim, modifier = Modifier.size(26.dp))
+            Icon(icon, contentDescription = label, tint = if (selected) Color.White else AmTextDim, modifier = Modifier.size(20.dp))
         }
-        Spacer(Modifier.height(5.dp))
-        Text(label, color = if (selected) TextPrimary else AmTextDim, fontSize = 11.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal, maxLines = 1)
+        Spacer(Modifier.height(4.dp))
+        Text(label, color = if (selected) TextPrimary else AmTextDim, fontSize = 9.5.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal, maxLines = 1)
     }
 }
 
@@ -471,27 +471,27 @@ private fun AnimTile(label: String, icon: ImageVector, selected: Boolean, tag: S
 private fun CurveChip(label: String, easing: Easing?, selected: Boolean, onClick: () -> Unit) {
     Box(
         modifier = Modifier
-            .width(62.dp)
+            .width(50.dp)
             .background(
                 if (selected) AmPillSelected else AmPanelHigh,
-                RoundedCornerShape(12.dp)
+                RoundedCornerShape(9.dp)
             )
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(9.dp))
             .bouncyClickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Column(
-            modifier = Modifier.padding(vertical = 6.dp, horizontal = 4.dp),
+            modifier = Modifier.padding(vertical = 4.dp, horizontal = 3.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
         if (easing == null) {
-            Box(Modifier.size(34.dp), contentAlignment = Alignment.Center) {
-                Text("A", color = if (selected) Color.White else AmTextDim, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Box(Modifier.size(26.dp), contentAlignment = Alignment.Center) {
+                Text("A", color = if (selected) Color.White else AmTextDim, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             }
         } else {
             val tint = if (selected) Color.White else AmTextDim
-            Canvas(Modifier.size(34.dp)) {
-                val pad = 4.dp.toPx()
+            Canvas(Modifier.size(26.dp)) {
+                val pad = 3.dp.toPx()
                 val w = size.width - 2 * pad
                 val h = size.height - 2 * pad
                 val yMin = -0.3f
@@ -502,10 +502,10 @@ private fun CurveChip(label: String, easing: Easing?, selected: Boolean, onClick
                     val p = Offset(pad + x * w, pad + h - (y - yMin) / (yMax - yMin) * h)
                     if (i == 0) path.moveTo(p.x, p.y) else path.lineTo(p.x, p.y)
                 }
-                drawPath(path, tint, style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round))
+                drawPath(path, tint, style = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round))
             }
         }
-        Text(label, color = if (selected) TextPrimary else AmTextDim, fontSize = 9.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal, maxLines = 1)
+        Text(label, color = if (selected) TextPrimary else AmTextDim, fontSize = 8.5.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal, maxLines = 1)
         }
     }
 }

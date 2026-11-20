@@ -93,52 +93,52 @@ fun TextColorRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(52.dp),
+            .height(40.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(label, color = TextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Medium,
-            modifier = Modifier.width(76.dp))
+        Text(label, color = TextPrimary, fontSize = 13.5.sp, fontWeight = FontWeight.Medium,
+            modifier = Modifier.width(64.dp))
         LazyRow(
             modifier = Modifier.weight(1f),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             items(Swatches) { c ->
                 Box(
                     modifier = Modifier
-                        .size(44.dp)
-                        .clip(RoundedCornerShape(11.dp))
+                        .size(34.dp)
+                        .clip(RoundedCornerShape(8.dp))
                         .background(Color(c))
                         .then(
-                            if (c == selected) Modifier.border(2.5.dp, Color.White, RoundedCornerShape(11.dp))
-                            else Modifier.border(1.dp, Color.Black.copy(alpha = 0.10f), RoundedCornerShape(11.dp))
+                            if (c == selected) Modifier.border(2.dp, Color.White, RoundedCornerShape(8.dp))
+                            else Modifier.border(1.dp, Color.Black.copy(alpha = 0.10f), RoundedCornerShape(8.dp))
                         )
                         .bouncyClickable(pressedScale = 0.85f) { onSelect(c) }
                 )
             }
         }
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(6.dp))
         Box(
             modifier = Modifier
-                .size(44.dp)
-                .clip(RoundedCornerShape(11.dp))
+                .size(34.dp)
+                .clip(RoundedCornerShape(8.dp))
                 .background(if (isCustom) Color(selected) else Color.Transparent)
-                .border(2.dp, Color.White.copy(alpha = if (isCustom) 1f else 0.85f), RoundedCornerShape(11.dp))
+                .border(1.5.dp, Color.White.copy(alpha = if (isCustom) 1f else 0.85f), RoundedCornerShape(8.dp))
                 .bouncyClickable(pressedScale = 0.88f) { showPicker = true },
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Default.Palette, "Custom color", tint = Color.White, modifier = Modifier.size(22.dp))
+            Icon(Icons.Default.Palette, "Custom color", tint = Color.White, modifier = Modifier.size(17.dp))
         }
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(6.dp))
         Box(
             modifier = Modifier
-                .size(44.dp)
-                .clip(RoundedCornerShape(11.dp))
+                .size(34.dp)
+                .clip(RoundedCornerShape(8.dp))
                 .background(ChipBg)
                 .bouncyClickable(pressedScale = 0.88f) { onEyedropper(onSelect) },
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Default.Colorize, "Pick from canvas", tint = TextPrimary, modifier = Modifier.size(22.dp))
+            Icon(Icons.Default.Colorize, "Pick from canvas", tint = TextPrimary, modifier = Modifier.size(17.dp))
         }
     }
 
@@ -178,14 +178,14 @@ fun ColorPickerDialog(
                 .enterPop()
                 .clip(RoundedCornerShape(AmCornerCard))
                 .background(SheetBg)
-                .padding(18.dp)
+                .padding(14.dp)
         ) {
             // Saturation (x) / value (y)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(180.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .height(150.dp)
+                    .clip(RoundedCornerShape(10.dp))
             ) {
                 Canvas(
                     modifier = Modifier
@@ -209,13 +209,13 @@ fun ColorPickerDialog(
                     drawRect(Brush.horizontalGradient(listOf(Color.White, hueColor)))
                     drawRect(Brush.verticalGradient(listOf(Color.Transparent, Color.Black)))
                     val p = Offset(sat * size.width, (1f - value) * size.height)
-                    drawCircle(Color.White, radius = 9.dp.toPx(), center = p,
+                    drawCircle(Color.White, radius = 8.dp.toPx(), center = p,
                         style = androidx.compose.ui.graphics.drawscope.Stroke(2.dp.toPx()))
-                    drawCircle(Color.Black.copy(alpha = 0.4f), radius = 11.dp.toPx(), center = p,
+                    drawCircle(Color.Black.copy(alpha = 0.4f), radius = 10.dp.toPx(), center = p,
                         style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx()))
                 }
             }
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(10.dp))
             // Hue
             PickerBar(
                 fraction = hue / 360f,
@@ -224,7 +224,7 @@ fun ColorPickerDialog(
                 ),
                 onFraction = { hue = (it * 360f).coerceIn(0f, 359.9f) }
             )
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(9.dp))
             // Opacity
             PickerBar(
                 fraction = alpha,
@@ -232,23 +232,23 @@ fun ColorPickerDialog(
                 onFraction = { alpha = it.coerceIn(0f, 1f) },
                 checker = true
             )
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(10.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
-                        .size(40.dp)
-                        .clip(RoundedCornerShape(10.dp))
+                        .size(32.dp)
+                        .clip(RoundedCornerShape(8.dp))
                         .background(current)
-                        .border(1.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
+                        .border(1.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
                 )
-                Spacer(Modifier.width(12.dp))
+                Spacer(Modifier.width(10.dp))
                 Text(
                     String.format(Locale.US, "#%08X", current.toArgb()),
-                    color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium
+                    color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium
                 )
                 Spacer(Modifier.weight(1f))
                 DialogSecondaryButton(text = "Cancel", onClick = onDismiss)
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(6.dp))
                 DialogPrimaryButton(
                     text = "OK",
                     onClick = { onPick(current); onDismiss() }
@@ -269,8 +269,8 @@ private fun PickerBar(
     Canvas(
         modifier = Modifier
             .fillMaxWidth()
-            .height(26.dp)
-            .clip(RoundedCornerShape(13.dp))
+            .height(22.dp)
+            .clip(RoundedCornerShape(11.dp))
             .pointerInput(Unit) { detectTapGestures { update((it.x / size.width).coerceIn(0f, 1f)) } }
             .pointerInput(Unit) {
                 detectDragGestures { change, _ ->
@@ -320,11 +320,11 @@ fun TextRulerSlider(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(52.dp),
+            .height(38.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(label, color = TextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Medium,
-            modifier = Modifier.width(112.dp))
+        Text(label, color = TextPrimary, fontSize = 13.5.sp, fontWeight = FontWeight.Medium,
+            modifier = Modifier.width(88.dp))
         RulerDial(
             value = value,
             onValueChange = onValueChange,
@@ -336,9 +336,9 @@ fun TextRulerSlider(
         )
         Text(
             text = String.format(Locale.US, "%d%s", value.toInt(), unit),
-            color = TextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Bold,
+            color = TextPrimary, fontSize = 13.5.sp, fontWeight = FontWeight.Bold,
             textAlign = androidx.compose.ui.text.style.TextAlign.End,
-            modifier = Modifier.width(64.dp)
+            modifier = Modifier.width(52.dp)
         )
     }
 }

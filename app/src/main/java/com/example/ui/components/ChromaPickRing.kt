@@ -166,43 +166,43 @@ fun ChromaPickRing(
         Row(
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .padding(top = 8.dp)
+                .padding(top = 6.dp)
                 .clip(RectangleShape)
                 .background(Color.Black.copy(alpha = 0.72f))
-                .padding(horizontal = 10.dp, vertical = 6.dp),
+                .padding(horizontal = 8.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
-                    .size(28.dp)
+                    .size(24.dp)
                     .clip(CircleShape)
                     .background(color?.let { Color(it.toInt()) } ?: Color.DarkGray)
                     .border(1.dp, Color.White.copy(alpha = 0.7f), CircleShape)
                     .testTag("chroma_pick_swatch")
             )
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(8.dp))
             Text(
                 "Cancel",
                 color = Color.White,
-                fontSize = 13.sp,
+                fontSize = 11.5.sp,
                 fontWeight = FontWeight.Medium,
                 modifier = Modifier
                     .clip(RectangleShape)
                     .bouncyClickable(onClick = onCancel)
-                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
                     .testTag("chroma_pick_cancel")
             )
             Spacer(Modifier.width(4.dp))
             Text(
                 "Done",
                 color = Color.Black,
-                fontSize = 13.sp,
+                fontSize = 11.5.sp,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier
                     .clip(RectangleShape)
                     .background(if (color != null) NeonCyan else Color.Gray)
                     .bouncyClickable(onClick = { color?.let(onConfirm) })
-                    .padding(horizontal = 14.dp, vertical = 6.dp)
+                    .padding(horizontal = 10.dp, vertical = 4.dp)
                     .testTag("chroma_pick_done")
             )
         }

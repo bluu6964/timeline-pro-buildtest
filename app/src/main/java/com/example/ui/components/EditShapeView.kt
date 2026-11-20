@@ -245,13 +245,13 @@ fun EditShapeView(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(52.dp)
-                .padding(horizontal = 12.dp),
+                .height(42.dp)
+                .padding(horizontal = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
-                    .size(40.dp)
+                    .size(34.dp)
                     .bouncyClickable(onClick = onDismiss)
                     .testTag("edit_shape_back_button"),
                 contentAlignment = Alignment.Center
@@ -260,7 +260,7 @@ fun EditShapeView(
                     imageVector = Icons.Default.Close,
                     contentDescription = "Cancel",
                     tint = IconActive,
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier.size(20.dp)
                 )
             }
 
@@ -269,7 +269,7 @@ fun EditShapeView(
             Text(
                 text = "Edit shape",
                 color = TextPrimary,
-                fontSize = 17.sp,
+                fontSize = 14.5.sp,
                 fontWeight = FontWeight.Bold
             )
 
@@ -296,13 +296,13 @@ fun EditShapeView(
                         )
                         onDismiss()
                     })
-                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                    .padding(horizontal = 11.dp, vertical = 5.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = saveLabel,
                     color = EditorBackground,
-                    fontSize = 14.sp,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
@@ -549,34 +549,34 @@ fun EditShapeView(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 4.dp)
+                .padding(vertical = 2.dp)
         ) {
             // Controls: Skip Prev, Play/Pause, Skip Next, Undo, Redo
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 24.dp),
+                    .padding(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Spacer(modifier = Modifier.width(40.dp))
+                Spacer(modifier = Modifier.width(34.dp))
 
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(36.dp)
+                            .size(30.dp)
                             .bouncyClickable(onClick = { onSeekTo(0L) }),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Default.SkipPrevious, contentDescription = "Prev", tint = IconActive, modifier = Modifier.size(24.dp))
+                        Icon(Icons.Default.SkipPrevious, contentDescription = "Prev", tint = IconActive, modifier = Modifier.size(19.dp))
                     }
 
                     Box(
                         modifier = Modifier
-                            .size(40.dp)
+                            .size(34.dp)
                             .bouncyClickable(onClick = onTogglePlay),
                         contentAlignment = Alignment.Center
                     ) {
@@ -584,26 +584,26 @@ fun EditShapeView(
                             imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                             contentDescription = "Play/Pause",
                             tint = IconActive,
-                            modifier = Modifier.size(30.dp)
+                            modifier = Modifier.size(24.dp)
                         )
                     }
 
                     Box(
                         modifier = Modifier
-                            .size(36.dp)
+                            .size(30.dp)
                             .bouncyClickable(onClick = { onSeekTo(totalDurationMs) }),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Default.SkipNext, contentDescription = "Next", tint = IconActive, modifier = Modifier.size(24.dp))
+                        Icon(Icons.Default.SkipNext, contentDescription = "Next", tint = IconActive, modifier = Modifier.size(19.dp))
                     }
                 }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(modifier = Modifier.size(32.dp), contentAlignment = Alignment.Center) {
-                        Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = "Undo", tint = IconActive, modifier = Modifier.size(20.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Box(modifier = Modifier.size(28.dp), contentAlignment = Alignment.Center) {
+                        Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = "Undo", tint = IconActive, modifier = Modifier.size(17.dp))
                     }
-                    Box(modifier = Modifier.size(32.dp), contentAlignment = Alignment.Center) {
-                        Icon(Icons.AutoMirrored.Filled.Redo, contentDescription = "Redo", tint = IconActive, modifier = Modifier.size(20.dp))
+                    Box(modifier = Modifier.size(28.dp), contentAlignment = Alignment.Center) {
+                        Icon(Icons.AutoMirrored.Filled.Redo, contentDescription = "Redo", tint = IconActive, modifier = Modifier.size(17.dp))
                     }
                 }
             }
@@ -612,33 +612,33 @@ fun EditShapeView(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 2.dp),
+                    .padding(horizontal = 12.dp, vertical = 1.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Spacer(modifier = Modifier.weight(0.38f))
                 Text(
                     text = formatTimeCode(currentPlayheadMs),
                     color = TextPrimary,
-                    fontSize = 13.sp,
+                    fontSize = 10.5.sp,
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold
                 )
-                Text(text = "  |  ", color = TextSecondary, fontSize = 13.sp)
+                Text(text = "  |  ", color = TextSecondary, fontSize = 10.5.sp)
                 Text(
                     text = formatTimeCode(totalDurationMs),
                     color = TextSecondary,
-                    fontSize = 13.sp,
+                    fontSize = 10.5.sp,
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Medium
                 )
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(6.dp))
                 // Ruler ticks
                 Canvas(
                     modifier = Modifier
                         .weight(0.45f)
-                        .height(14.dp)
+                        .height(11.dp)
                 ) {
-                    val tickSpacing = 8.dp.toPx()
+                    val tickSpacing = 7.dp.toPx()
                     val count = (size.width / tickSpacing).toInt()
                     for (i in 0..count) {
                         val isMajor = (i % 5 == 0)
@@ -657,28 +657,28 @@ fun EditShapeView(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 2.dp)
-                    .height(30.dp)
+                    .padding(horizontal = 12.dp, vertical = 2.dp)
+                    .height(24.dp)
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth(progressFraction.coerceIn(0.2f, 1f))
-                        .height(28.dp)
-                        .clip(RoundedCornerShape(8.dp))
+                        .height(22.dp)
+                        .clip(RoundedCornerShape(6.dp))
                         .background(AmPanelElevated) // build 223: raised track
-                        .padding(horizontal = 8.dp),
+                        .padding(horizontal = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(18.dp)
+                            .size(14.dp)
                             .background(fillColor.copy(alpha = fillOpacity / 100f), CircleShape)
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(5.dp))
                     Text(
                         text = selectedShapeType.label,
                         color = TextPrimary,
-                        fontSize = 12.sp,
+                        fontSize = 10.5.sp,
                         fontWeight = FontWeight.Medium
                     )
                 }
@@ -694,7 +694,7 @@ fun EditShapeView(
                         color = Color.White,
                         start = Offset(0f, 0f),
                         end = Offset(0f, size.height),
-                        strokeWidth = 2.dp.toPx()
+                        strokeWidth = 1.5.dp.toPx()
                     )
                 }
             }
@@ -706,23 +706,23 @@ fun EditShapeView(
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(topStart = AmCornerSheet, topEnd = AmCornerSheet))
                 .background(AmPanel) // build 223 (colour balance): dark panel (was build 216's white)
-                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .padding(horizontal = 12.dp, vertical = 6.dp)
         ) {
             // Drag handle pill at top
             Box(
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
-                    .width(36.dp)
-                    .height(4.dp)
+                    .width(28.dp)
+                    .height(3.dp)
                     .background(AmTextFaint, CircleShape)
             )
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(7.dp))
 
             // Tab Bar: [Shape] [Fill] [Stroke] [Shadow] [Glow]
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 ShapeEditTab.values().forEach { tab ->
                     val isSelected = tab == activeTab
@@ -734,20 +734,20 @@ fun EditShapeView(
                                 pressedScale = 0.92f,
                                 onClick = { activeTab = tab }
                             )
-                            .padding(horizontal = 14.dp, vertical = 7.dp),
+                            .padding(horizontal = 10.dp, vertical = 5.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = tab.title,
                             color = if (isSelected) AmInk else AmTextPrimary,
-                            fontSize = 13.sp,
+                            fontSize = 11.5.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             // Tab Contents
             when (activeTab) {
@@ -762,26 +762,26 @@ fun EditShapeView(
                         Text(
                             text = "Shape",
                             color = TextPrimary,
-                            fontSize = 14.sp,
+                            fontSize = 12.sp,
                             fontWeight = FontWeight.Medium,
-                            modifier = Modifier.width(62.dp)
+                            modifier = Modifier.width(52.dp)
                         )
 
                         LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             items(ShapeType.values()) { shape ->
                                 val isSelected = shape == selectedShapeType
                                 Box(
                                     modifier = Modifier
-                                        .size(38.dp)
-                                        .clip(RoundedCornerShape(12.dp))
+                                        .size(32.dp)
+                                        .clip(RoundedCornerShape(9.dp))
                                         .background(if (isSelected) AmHairlineStrong else AmCardSurface)
                                         .border(
-                                            width = if (isSelected) 2.dp else 1.dp,
+                                            width = if (isSelected) 1.5.dp else 1.dp,
                                             color = if (isSelected) Color.White else AmTextFaint,
-                                            shape = RoundedCornerShape(12.dp)
+                                            shape = RoundedCornerShape(9.dp)
                                         )
                                         .bouncyClickable(onClick = {
                                             selectedShapeType = shape
@@ -885,21 +885,21 @@ fun EditShapeView(
 
                 ShapeEditTab.FILL -> {
                     // Color Palette
-                    Text("Fill Color", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Fill Color", color = TextPrimary, fontSize = 11.5.sp, fontWeight = FontWeight.Medium)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf(Color.White, Color(0xFFABE41D), Color(0xFFABE41D), Color(0xFFFFEB3B), Color(0xFF00E676), Color(0xFF9C27B0), Color(0xFFFF5722), Color(0xFF1E2129)).forEach { col ->
                             Box(
                                 modifier = Modifier
-                                    .size(34.dp)
+                                    .size(28.dp)
                                     .clip(CircleShape)
                                     .background(col)
-                                    .border(2.dp, if (fillColor == col) Color.White else Color.Transparent, CircleShape)
+                                    .border(1.5.dp, if (fillColor == col) Color.White else Color.Transparent, CircleShape)
                                     .bouncyClickable(onClick = { fillColor = col })
                             )
                         }
                     }
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
                     RulerDialSlider(
                         label = "Opacity",
                         value = fillOpacity,
@@ -919,15 +919,15 @@ fun EditShapeView(
                         max = 30f,
                         isPercentage = false
                     )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf(Color.White, Color(0xFFABE41D), Color(0xFFABE41D), Color(0xFFFFEB3B), Color.Black).forEach { col ->
                             Box(
                                 modifier = Modifier
-                                    .size(32.dp)
+                                    .size(26.dp)
                                     .clip(CircleShape)
                                     .background(col)
-                                    .border(2.dp, if (strokeColor == col) Color.White else Color.Transparent, CircleShape)
+                                    .border(1.5.dp, if (strokeColor == col) Color.White else Color.Transparent, CircleShape)
                                     .bouncyClickable(onClick = { strokeColor = col })
                             )
                         }
@@ -936,14 +936,14 @@ fun EditShapeView(
                     // outline — 0–100 % draws the whole stroke, a narrower window draws it on.
                     // The sliders clamp against each other so start can never pass end.
                     if (strokeWidth > 0f) {
-                        Spacer(modifier = Modifier.height(10.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
                         if (keyframedTrim) {
                             // Animated trim (build 175): the sliders would silently mislead — the
                             // window changes over time — so they stay hidden, like the build-173
                             // corner-radius slider, until an explicit tap freezes it at the playhead.
                             Text(
                                 "Animated stroke trim — the trim is keyframed in Alight Motion, so it changes over time.",
-                                color = TextSecondary, fontSize = 15.sp
+                                color = TextSecondary, fontSize = 12.sp
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             ShapeEditChip(label = "Use static trim", onClick = {
@@ -999,7 +999,7 @@ fun EditShapeView(
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             // The violet primary pill (build 207 redesign).
             VioletPillButton(
@@ -1021,17 +1021,17 @@ fun EditShapeView(
                     onDismiss()
                 },
                 modifier = Modifier.fillMaxWidth(),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 13.dp)
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 9.dp)
             ) {
                 Text(
                     text = if (editing) "Save Shape" else "Add Shape to Timeline",
                     color = com.example.ui.theme.AmInk, // build 216: ink on the lime pill
-                    fontSize = 15.sp,
+                    fontSize = 13.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(10.dp))
         }
     }
 }
@@ -1059,17 +1059,17 @@ private fun shapeTypeOf(pattern: String?): ShapeType = when (pattern?.uppercase(
 private fun ShapeEditChip(label: String, onClick: () -> Unit) {
     Box(
         modifier = Modifier
-            .height(48.dp)
+            .height(36.dp)
             .clip(CircleShape)
             .background(ChipBg)
             .bouncyClickable(pressedScale = 0.9f, onClick = onClick)
-            .padding(horizontal = 22.dp),
+            .padding(horizontal = 16.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             label,
             color = Color.White,
-            fontSize = 17.sp,
+            fontSize = 13.sp,
             fontWeight = FontWeight.Bold,
             maxLines = 1
         )

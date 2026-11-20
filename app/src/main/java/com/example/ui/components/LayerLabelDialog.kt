@@ -46,19 +46,19 @@ fun LayerLabelDialog(
         title = { Text("Layer label", color = HeaderText) },
         text = {
             Column {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     LABEL_PALETTE.take(6).forEach { c -> Swatch(c, currentColor, onPick) }
                 }
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier.padding(top = 10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(top = 8.dp)
                 ) {
                     LABEL_PALETTE.drop(6).forEach { c -> Swatch(c, currentColor, onPick) }
                 }
                 Text(
                     text = "The label colour tints the layer's timeline bar.",
                     color = TextSecondary,
-                    modifier = Modifier.padding(top = 12.dp)
+                    modifier = Modifier.padding(top = 10.dp)
                 )
             }
         },
@@ -77,10 +77,10 @@ private fun Swatch(colorValue: Long, currentColor: Long, onPick: (Long) -> Unit)
     val selected = colorValue == currentColor
     Box(
         modifier = Modifier
-            .size(34.dp)
-            .background(Color(colorValue), RoundedCornerShape(10.dp))
+            .size(28.dp)
+            .background(Color(colorValue), RoundedCornerShape(8.dp))
             .then(
-                if (selected) Modifier.border(2.dp, Color.White, RoundedCornerShape(10.dp)) else Modifier
+                if (selected) Modifier.border(1.5.dp, Color.White, RoundedCornerShape(8.dp)) else Modifier
             )
             .bouncyClickable { onPick(colorValue) }
     )

@@ -51,31 +51,31 @@ fun MissingMediaDialog(
         shape = RoundedCornerShape(AmCornerCard),
         title = { Text("Replace missing media", color = HeaderText, fontWeight = FontWeight.Bold) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
                     "This project points at files from the phone that made it, so those spots are " +
                         "empty. Pick your own file for each one, or press Done and leave them empty.",
-                    color = TextSecondary, fontSize = 12.sp
+                    color = TextSecondary, fontSize = 11.sp
                 )
                 LazyColumn(
-                    modifier = Modifier.fillMaxWidth().heightIn(max = 320.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 260.dp),
+                    verticalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
                     items(items, key = { it.sourceUri }) { item ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(16.dp))
+                                .clip(RoundedCornerShape(12.dp))
                                 .background(AmPanelHigh)
-                                .border(1.dp, AmHairline, RoundedCornerShape(16.dp))
-                                .padding(start = 12.dp, top = 6.dp, bottom = 6.dp, end = 6.dp),
+                                .border(1.dp, AmHairline, RoundedCornerShape(12.dp))
+                                .padding(start = 10.dp, top = 5.dp, bottom = 5.dp, end = 5.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     item.label,
                                     color = HeaderText,
-                                    fontSize = 15.sp,
+                                    fontSize = 12.5.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
@@ -84,7 +84,7 @@ fun MissingMediaDialog(
                                     item.where + " · needs a " + item.kind.pickerLabel +
                                         if (item.layerCount > 1) " · used by ${item.layerCount} layers" else "",
                                     color = TextSecondary,
-                                    fontSize = 11.sp
+                                    fontSize = 10.sp
                                 )
                             }
                             DialogSecondaryButton(

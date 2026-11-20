@@ -26,7 +26,7 @@ import com.example.ui.util.bouncyClickable
 fun NeonAddFab(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    size: Dp = 61.dp
+    size: Dp = 44.dp
 ) {
     Box(
         modifier = modifier

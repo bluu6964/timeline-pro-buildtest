@@ -60,12 +60,12 @@ fun ToolTile(
         contentAlignment = Alignment.Center
     ) {
         Column(
-            modifier = Modifier
-                .then(
-                    if (used) Modifier.background(AmPillSelected, RoundedCornerShape(14.dp))
-                    else Modifier
-                )
-                .padding(horizontal = 4.dp, vertical = 4.dp),
+                modifier = Modifier
+                    .then(
+                        if (used) Modifier.background(AmPillSelected, RoundedCornerShape(10.dp))
+                        else Modifier
+                    )
+                    .padding(horizontal = 3.dp, vertical = 3.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
@@ -73,13 +73,13 @@ fun ToolTile(
                 imageVector = tool.icon,
                 contentDescription = tool.label,
                 tint = if (used) AmInk else AmTextDim, // used = ink on the lime wash
-                modifier = Modifier.size(ToolRowSplit.ICON_DP.dp)
+                modifier = Modifier.size(18.dp)
             )
-            Spacer(modifier = Modifier.height(3.dp))
+            Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = tool.label,
                 color = if (used) AmInk else AmTextDim,
-                fontSize = 11.sp,
+                fontSize = 9.5.sp,
                 fontWeight = if (used) FontWeight.Bold else FontWeight.Normal,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,

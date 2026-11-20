@@ -122,8 +122,8 @@ fun TransformHeaderBar(
             Box(
                 modifier = Modifier
                     .align(Alignment.CenterStart)
-                    .padding(start = 12.dp)
-                    .size(44.dp)
+                    .padding(start = 8.dp)
+                    .size(34.dp)
                     .bouncyClickable(onClick = onBack)
                     .testTag("transform_back_button"),
                 contentAlignment = Alignment.Center
@@ -132,14 +132,14 @@ fun TransformHeaderBar(
                     imageVector = Icons.Default.KeyboardArrowDown,
                     contentDescription = "Back",
                     tint = IconActive,
-                    modifier = Modifier.size(30.dp)
+                    modifier = Modifier.size(22.dp)
                 )
             }
         }
         Text(
             text = title,
             color = TextPrimary,
-            fontSize = 17.sp,
+            fontSize = 14.5.sp,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.align(Alignment.Center)
         )
@@ -147,12 +147,12 @@ fun TransformHeaderBar(
             Box(
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
-                    .padding(end = 12.dp)
-                    .size(40.dp)
+                    .padding(end = 8.dp)
+                    .size(32.dp)
                     .bouncyClickable(onClick = onReset),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.Refresh, "Reset", tint = IconActive, modifier = Modifier.size(20.dp))
+                Icon(Icons.Default.Refresh, "Reset", tint = IconActive, modifier = Modifier.size(17.dp))
             }
         }
     }
@@ -181,68 +181,68 @@ fun TransformPlaybackRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(44.dp)
-            .padding(horizontal = 24.dp),
+            .height(34.dp)
+            .padding(horizontal = 16.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Spacer(modifier = Modifier.width(72.dp))
+        Spacer(modifier = Modifier.width(56.dp))
 
         Row(
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
-                modifier = Modifier.size(36.dp).bouncyClickable(onClick = { onSeekTo(startMs) }),
+                modifier = Modifier.size(28.dp).bouncyClickable(onClick = { onSeekTo(startMs) }),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.SkipPrevious, "Layer start", tint = IconActive, modifier = Modifier.size(24.dp))
+                Icon(Icons.Default.SkipPrevious, "Layer start", tint = IconActive, modifier = Modifier.size(19.dp))
             }
             Box(
-                modifier = Modifier.size(40.dp).bouncyClickable(onClick = onTogglePlay),
+                modifier = Modifier.size(32.dp).bouncyClickable(onClick = onTogglePlay),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                     contentDescription = "Play/Pause",
                     tint = IconActive,
-                    modifier = Modifier.size(30.dp)
+                    modifier = Modifier.size(23.dp)
                 )
             }
             Box(
-                modifier = Modifier.size(36.dp).bouncyClickable(onClick = { onSeekTo(lastMs) }),
+                modifier = Modifier.size(28.dp).bouncyClickable(onClick = { onSeekTo(lastMs) }),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.SkipNext, "Layer end", tint = IconActive, modifier = Modifier.size(24.dp))
+                Icon(Icons.Default.SkipNext, "Layer end", tint = IconActive, modifier = Modifier.size(19.dp))
             }
         }
 
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
-                modifier = Modifier.size(32.dp).bouncyClickable(enabled = canUndo, onClick = onUndo),
+                modifier = Modifier.size(26.dp).bouncyClickable(enabled = canUndo, onClick = onUndo),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     Icons.AutoMirrored.Filled.Undo, "Undo",
                     tint = if (canUndo) IconActive else AmTextFaint,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(16.dp)
                 )
             }
             Box(
-                modifier = Modifier.size(32.dp).bouncyClickable(enabled = canRedo, onClick = onRedo),
+                modifier = Modifier.size(26.dp).bouncyClickable(enabled = canRedo, onClick = onRedo),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     Icons.AutoMirrored.Filled.Redo, "Redo",
                     tint = if (canRedo) IconActive else AmTextFaint,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(16.dp)
                 )
             }
         }
     }
 }
 
-private val StripLeftInset = 56.dp
+private val StripLeftInset = 44.dp
 private const val STRIP_FLING_FRICTION = 0.55f
 
 /**
@@ -269,7 +269,7 @@ fun TransformLayerStrip(
     BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
-            .height(52.dp)
+            .height(40.dp)
             .testTag("transform_layer_strip")
             .pointerInput(Unit) {
                 awaitEachGesture {
@@ -328,7 +328,7 @@ fun TransformLayerStrip(
                 .clipToBounds()
         ) {
             if (clip != null) {
-                val clipWidthDp = (clip.durationMs * TIMELINE_PX_PER_MS).dp.coerceAtLeast(36.dp)
+                val clipWidthDp = (clip.durationMs * TIMELINE_PX_PER_MS).dp.coerceAtLeast(30.dp)
                 val xDp = centerInViewport.value + (clip.startMs - currentPlayheadMs) * TIMELINE_PX_PER_MS
                 val wPx = (clipWidthDp.value * density).roundToInt().coerceIn(1, 200_000)
                 val xPx = (xDp * density).roundToInt()
@@ -344,7 +344,7 @@ fun TransformLayerStrip(
                             val placeable = measurable.measure(Constraints.fixed(wPx, constraints.maxHeight))
                             layout(constraints.maxWidth, constraints.maxHeight) { placeable.place(xPx, 0) }
                         }
-                        .padding(vertical = 6.dp)
+                        .padding(vertical = 4.dp)
                         .clip(RectangleShape)
                 ) {
                     if (clip.type == LayerType.SHAPE) {
@@ -367,24 +367,24 @@ fun TransformLayerStrip(
         Box(
             modifier = Modifier
                 .align(Alignment.CenterStart)
-                .padding(start = 12.dp)
-                .size(32.dp)
+                .padding(start = 8.dp)
+                .size(26.dp)
                 .bouncyClickable(onClick = onReset),
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Default.Refresh, "Reset Transform", tint = IconActive, modifier = Modifier.size(18.dp))
+            Icon(Icons.Default.Refresh, "Reset Transform", tint = IconActive, modifier = Modifier.size(15.dp))
         }
 
         // 3. Keyframe + easing icons (right)
         Row(
             modifier = Modifier
                 .align(Alignment.CenterEnd)
-                .padding(end = 12.dp),
+                .padding(end = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
-                    .size(22.dp)
+                    .size(17.dp)
                     .graphicsLayer { rotationZ = 45f }
                     .border(1.5.dp, AmTextPrimary, RectangleShape) // build 223: light glyph on the dark strip (build 216's ink was invisible)
                     .bouncyClickable(onClick = {}),
@@ -394,16 +394,16 @@ fun TransformLayerStrip(
                     imageVector = Icons.Default.Add,
                     contentDescription = "Keyframe",
                     tint = AmTextPrimary,
-                    modifier = Modifier.size(14.dp).graphicsLayer { rotationZ = -45f }
+                    modifier = Modifier.size(11.dp).graphicsLayer { rotationZ = -45f }
                 )
             }
-            Spacer(modifier = Modifier.width(18.dp))
-            Canvas(modifier = Modifier.size(20.dp)) {
+            Spacer(modifier = Modifier.width(12.dp))
+            Canvas(modifier = Modifier.size(16.dp)) {
                 val path = Path().apply {
                     moveTo(0f, size.height)
                     cubicTo(size.width * 0.4f, size.height, size.width * 0.6f, 0f, size.width, 0f)
                 }
-                drawPath(path, color = Color(0xFF8E8E8E), style = Stroke(width = 2.dp.toPx()))
+                drawPath(path, color = Color(0xFF8E8E8E), style = Stroke(width = 1.75.dp.toPx()))
             }
         }
 

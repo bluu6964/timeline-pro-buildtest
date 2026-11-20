@@ -129,18 +129,18 @@ fun TextEditSheet(
             .background(SheetBg)
     ) {
         if (imeVisible) {
-            Column(modifier = Modifier.padding(horizontal = 16.dp).padding(top = 12.dp, bottom = 12.dp)) {
+            Column(modifier = Modifier.padding(horizontal = 12.dp).padding(top = 8.dp, bottom = 8.dp)) {
                 TextBoxField(text, onText)
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(8.dp))
                 TextQuickRow(clip, onUpdate)
             }
         } else {
             Box(
                 modifier = Modifier
-                    .padding(top = 10.dp, bottom = 6.dp)
+                    .padding(top = 6.dp, bottom = 4.dp)
                     .align(Alignment.CenterHorizontally)
-                    .width(44.dp)
-                    .height(4.dp)
+                    .width(34.dp)
+                    .height(3.dp)
                     .clip(CircleShape)
                     .background(AmTextFaint)
             )
@@ -154,8 +154,8 @@ fun TextEditSheet(
                         .weight(1f)
                         .fillMaxWidth()
                         .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp, vertical = 6.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     when (tool) {
                         TextTool.EDIT -> {
@@ -206,32 +206,32 @@ private fun TextToolBar(selected: TextTool, onSelect: (TextTool) -> Unit) {
             .fillMaxWidth()
             .background(ToolbarBg)
             .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 4.dp, vertical = 6.dp)
+            .padding(horizontal = 4.dp, vertical = 4.dp)
     ) {
         TextTool.values().forEach { t ->
             val on = t == selected
             Column(
                 modifier = Modifier
-                    .width(64.dp)
+                    .width(52.dp)
                     .bouncyClickable(pressedScale = 0.92f) { onSelect(t) }
-                    .padding(vertical = 4.dp),
+                    .padding(vertical = 3.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Box(
                     modifier = Modifier
-                        .width(44.dp)
-                        .height(30.dp)
-                        .clip(RoundedCornerShape(15.dp))
+                        .width(36.dp)
+                        .height(24.dp)
+                        .clip(RoundedCornerShape(12.dp))
                         .background(if (on) ToolAccent else Color.Transparent),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(t.icon, contentDescription = t.label, tint = if (on) AmInk else ToolIdle, modifier = Modifier.size(22.dp)) // ink on the lime tab
+                    Icon(t.icon, contentDescription = t.label, tint = if (on) AmInk else ToolIdle, modifier = Modifier.size(17.dp)) // ink on the lime tab
                 }
                 Spacer(Modifier.height(2.dp))
                 Text(
                     t.label,
                     color = if (on) TextPrimary else ToolIdle,
-                    fontSize = 11.sp,
+                    fontSize = 9.5.sp,
                     maxLines = 1
                 )
             }
@@ -246,12 +246,12 @@ private fun TextBoxField(text: String, onText: (String) -> Unit) {
     TextField(
         value = text,
         onValueChange = onText,
-        placeholder = { Text("Write Text", color = AmTextDim, fontSize = 18.sp) },
+        placeholder = { Text("Write Text", color = AmTextDim, fontSize = 14.sp) },
         leadingIcon = {
-            Icon(Icons.Default.TextFields, null, tint = TextPrimary, modifier = Modifier.size(26.dp))
+            Icon(Icons.Default.TextFields, null, tint = TextPrimary, modifier = Modifier.size(20.dp))
         },
         maxLines = 3,
-        textStyle = androidx.compose.ui.text.TextStyle(fontSize = 18.sp),
+        textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp),
         shape = RoundedCornerShape(AmCornerCard),
         colors = TextFieldDefaults.colors(
             focusedContainerColor = FieldBg,
@@ -283,12 +283,12 @@ private fun TextQuickRow(
     onUpdate: ((TimelineClip) -> TimelineClip) -> Unit
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().height(52.dp),
+        modifier = Modifier.fillMaxWidth().height(38.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Row(
             modifier = Modifier.weight(1f),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             StyleToggle("I", clip.isItalic, Modifier.weight(1f), fontStyle = FontStyle.Italic) {
                 onUpdate { it.copy(isItalic = !it.isItalic) }
@@ -300,15 +300,15 @@ private fun TextQuickRow(
                 onUpdate { it.copy(isStrikethrough = !it.isStrikethrough) }
             }
         }
-        Spacer(Modifier.width(12.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            AlignButton(Icons.Default.FormatAlignLeft, clip.textAlign == 0, Modifier.width(48.dp)) {
+        Spacer(Modifier.width(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            AlignButton(Icons.Default.FormatAlignLeft, clip.textAlign == 0, Modifier.width(40.dp)) {
                 onUpdate { it.copy(textAlign = 0) }
             }
-            AlignButton(Icons.Default.FormatAlignCenter, clip.textAlign == 1, Modifier.width(48.dp)) {
+            AlignButton(Icons.Default.FormatAlignCenter, clip.textAlign == 1, Modifier.width(40.dp)) {
                 onUpdate { it.copy(textAlign = 1) }
             }
-            AlignButton(Icons.Default.FormatAlignRight, clip.textAlign == 2, Modifier.width(48.dp)) {
+            AlignButton(Icons.Default.FormatAlignRight, clip.textAlign == 2, Modifier.width(40.dp)) {
                 onUpdate { it.copy(textAlign = 2) }
             }
         }
@@ -325,18 +325,18 @@ private fun SheetChip(
 ) {
     Box(
         modifier = modifier
-            .height(48.dp)
+            .height(34.dp)
             .clip(CircleShape)
             .background(if (selected) ChipSelectedBg else ChipBg)
             .bouncyClickable(pressedScale = 0.9f, onClick = onClick)
-            .padding(horizontal = 22.dp),
+            .padding(horizontal = 14.dp),
         contentAlignment = Alignment.Center
     ) {
         if (content != null) content() else {
             Text(
                 label,
                 color = if (selected) AmInk else Color.White,
-                fontSize = 17.sp,
+                fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1
             )
@@ -382,8 +382,8 @@ private fun FontsTab(clip: TimelineClip, onUpdate: ((TimelineClip) -> TimelineCl
         TextField(
             value = query,
             onValueChange = { query = it },
-            placeholder = { Text("Search Fonts", color = Color(0xFF8A8A8E), fontSize = 19.sp) },
-            leadingIcon = { Icon(Icons.Default.Search, null, tint = Color(0xFFB0B0B4), modifier = Modifier.size(28.dp)) },
+            placeholder = { Text("Search Fonts", color = Color(0xFF8A8A8E), fontSize = 14.sp) },
+            leadingIcon = { Icon(Icons.Default.Search, null, tint = Color(0xFFB0B0B4), modifier = Modifier.size(20.dp)) },
             singleLine = true,
             shape = RoundedCornerShape(AmCornerCard),
             colors = TextFieldDefaults.colors(
@@ -397,8 +397,8 @@ private fun FontsTab(clip: TimelineClip, onUpdate: ((TimelineClip) -> TimelineCl
             ),
             modifier = Modifier.fillMaxWidth()
         )
-        Spacer(Modifier.height(12.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             SheetChip(label = "System", selected = true, onClick = {})
             Box {
                 SheetChip(
@@ -415,46 +415,46 @@ private fun FontsTab(clip: TimelineClip, onUpdate: ((TimelineClip) -> TimelineCl
                     }
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Add, null, tint = Color.White, modifier = Modifier.size(24.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("Add font", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                        Icon(Icons.Default.Add, null, tint = Color.White, modifier = Modifier.size(17.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Add font", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     }
                 }
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(top = 4.dp, end = 4.dp)
-                        .size(11.dp)
+                        .padding(top = 3.dp, end = 3.dp)
+                        .size(9.dp)
                         .clip(RoundedCornerShape(50))
                         .background(AmAccent)
                 )
             }
         }
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(8.dp))
 
         // Build 201 (audit S-6): imported fonts live in this app's private
         // storage on THIS device — say so where the user adds them.
         Text(
             text = "Fonts you add are stored on this device only — they don't travel with the project file.",
             color = TextSecondary,
-            fontSize = 11.sp
+            fontSize = 10.sp
         )
 
         Spacer(Modifier.height(4.dp))
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+                .padding(bottom = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             groups.forEach { (category, fonts) ->
                 FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Box(modifier = Modifier.height(46.dp).padding(end = 6.dp), contentAlignment = Alignment.CenterStart) {
-                        Text(category, color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Box(modifier = Modifier.height(34.dp).padding(end = 4.dp), contentAlignment = Alignment.CenterStart) {
+                        Text(category, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     }
                     fonts.forEach { f ->
                         FontChip(
@@ -474,15 +474,15 @@ private fun FontChip(name: String, selected: Boolean, onClick: () -> Unit) {
     val family = rememberFontFamily(name)
     Box(
         modifier = Modifier
-            .height(46.dp)
-            .clip(RoundedCornerShape(14.dp))
+            .height(34.dp)
+            .clip(RoundedCornerShape(10.dp))
             .background(ChipBg)
-            .then(if (selected) Modifier.border(2.dp, Color.White, RoundedCornerShape(14.dp)) else Modifier)
+            .then(if (selected) Modifier.border(2.dp, Color.White, RoundedCornerShape(10.dp)) else Modifier)
             .bouncyClickable(pressedScale = 0.9f, onClick = onClick)
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = 12.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(name, color = Color.White, fontSize = 20.sp, fontFamily = family, maxLines = 1)
+        Text(name, color = Color.White, fontSize = 15.sp, fontFamily = family, maxLines = 1)
     }
 }
 
@@ -510,14 +510,14 @@ private fun StyleCardContent(
                 (preset.shadowOpacity == 0f || clip.shadowBlur == preset.shadowBlur)
             Box(
                 modifier = Modifier
-                    .size(64.dp)
-                    .clip(RoundedCornerShape(14.dp))
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(10.dp))
                     .background(ChipBg)
-                    .then(if (isCurrent) Modifier.border(2.dp, Color.White, RoundedCornerShape(14.dp)) else Modifier)
+                    .then(if (isCurrent) Modifier.border(2.dp, Color.White, RoundedCornerShape(10.dp)) else Modifier)
                     .bouncyClickable(pressedScale = 0.93f) { onUpdate { preset.applyTo(it) } },
                 contentAlignment = Alignment.Center
             ) {
-                TextLayerContent(clip = preset.applyTo(PreviewClip), frameWidth = 290.dp)
+                TextLayerContent(clip = preset.applyTo(PreviewClip), frameWidth = 220.dp)
             }
         }
     }
@@ -535,15 +535,15 @@ private fun FontWeightRow(
     clip: TimelineClip,
     onUpdate: ((TimelineClip) -> TimelineClip) -> Unit
 ) {
-    Row(modifier = Modifier.fillMaxWidth().height(56.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text("Font weight", color = TextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Medium,
-            modifier = Modifier.width(112.dp))
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    Row(modifier = Modifier.fillMaxWidth().height(42.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text("Font weight", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+            modifier = Modifier.width(92.dp))
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             items(listOf(200, 400, 500, 600, 700, 800, 900)) { w ->
                 Box(
                     modifier = Modifier
-                        .width(66.dp)
-                        .height(52.dp)
+                        .width(52.dp)
+                        .height(38.dp)
                         .clip(CircleShape)
                         .background(if (clip.fontWeight == w) ChipSelectedBg else ChipBg)
                         .bouncyClickable(pressedScale = 0.92f) { onUpdate { it.copy(fontWeight = w) } },
@@ -552,7 +552,7 @@ private fun FontWeightRow(
                     Text(
                         "$w",
                         color = if (clip.fontWeight == w) AmInk else Color.White,
-                        fontSize = 17.sp, fontWeight = FontWeight.Bold
+                        fontSize = 13.sp, fontWeight = FontWeight.Bold
                     )
                 }
             }
@@ -575,9 +575,9 @@ private fun RevealBlock(
     if (TextRevealValues.isKeyframed(reveal)) {
         Text(
             "Animated reveal — the window is keyframed in Alight Motion, so it changes over time.",
-            color = TextSecondary, fontSize = 15.sp
+            color = TextSecondary, fontSize = 12.5.sp
         )
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(6.dp))
         SheetChip(label = "Use static window", selected = false, onClick = {
             val (s, e) = TextRevealValues.windowAt(reveal, 1f)
             onUpdate { it.copy(textAnimators = TextRevealValues.withStaticWindow(it.textAnimators, s, e)) }
@@ -604,7 +604,7 @@ private fun StyleToggle(
 ) {
     Box(
         modifier = modifier
-            .height(52.dp)
+            .height(38.dp)
             .clip(CircleShape)
             .background(if (on) ChipSelectedBg else ChipBg)
             .bouncyClickable(pressedScale = 0.9f, onClick = onClick),
@@ -613,7 +613,7 @@ private fun StyleToggle(
         Text(
             glyph,
             color = if (on) AmInk else Color.White,
-            fontSize = 20.sp, fontWeight = FontWeight.Bold,
+            fontSize = 15.sp, fontWeight = FontWeight.Bold,
             fontStyle = fontStyle, textDecoration = decoration
         )
     }
@@ -672,13 +672,13 @@ private fun SpacingTab(clip: TimelineClip, onUpdate: ((TimelineClip) -> Timeline
 private fun AlignButton(icon: ImageVector, on: Boolean, modifier: Modifier, onClick: () -> Unit) {
     Box(
         modifier = modifier
-            .height(52.dp)
+            .height(38.dp)
             .clip(CircleShape)
             .background(if (on) ChipSelectedBg else ChipBg)
             .bouncyClickable(pressedScale = 0.9f, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Icon(icon, null, tint = if (on) AmInk else Color.White, modifier = Modifier.size(26.dp))
+        Icon(icon, null, tint = if (on) AmInk else Color.White, modifier = Modifier.size(19.dp))
     }
 }
 
@@ -703,10 +703,10 @@ private fun PathTab(
     val attached = pathLayers.firstOrNull { it.id == attachedId }
     when {
         attached != null -> {
-            Row(modifier = Modifier.fillMaxWidth().height(52.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("Layer", color = TextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Medium,
-                    modifier = Modifier.width(112.dp))
-                Text(attached.name, color = TextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Bold,
+            Row(modifier = Modifier.fillMaxWidth().height(40.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Layer", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                    modifier = Modifier.width(88.dp))
+                Text(attached.name, color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold,
                     maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
             }
             TextRulerSlider("Start offset", clip.textPathStart * 100f,
@@ -715,18 +715,18 @@ private fun PathTab(
         }
         attachedId != null -> {
             Text("The path layer this text was attached to is gone.",
-                color = TextSecondary, fontSize = 15.sp)
-            Spacer(Modifier.height(8.dp))
+                color = TextSecondary, fontSize = 12.5.sp)
+            Spacer(Modifier.height(6.dp))
             PathActionRow("Detach") { onUpdate { it.copy(textPathLayerId = null) } }
         }
         pathLayers.isEmpty() -> {
             Text("No path layer in this project yet. Draw one with the Pen tool first, then attach this text to it here.",
-                color = TextSecondary, fontSize = 15.sp)
+                color = TextSecondary, fontSize = 12.5.sp)
         }
         else -> {
             Text("Attach to a path layer — the text will follow its outline:",
-                color = TextSecondary, fontSize = 15.sp)
-            Spacer(Modifier.height(8.dp))
+                color = TextSecondary, fontSize = 12.5.sp)
+            Spacer(Modifier.height(6.dp))
             pathLayers.forEach { layer ->
                 PathActionRow(layer.name) { onUpdate { it.copy(textPathLayerId = layer.id) } }
             }
@@ -739,14 +739,14 @@ private fun PathActionRow(label: String, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(52.dp)
+            .height(40.dp)
             .clip(CircleShape)
             .background(ChipBg)
             .bouncyClickable(pressedScale = 0.97f, onClick = onClick)
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = 14.dp),
         contentAlignment = Alignment.CenterStart
     ) {
-        Text(label, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium,
+        Text(label, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium,
             maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
     }
 }

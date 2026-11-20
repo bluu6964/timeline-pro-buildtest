@@ -50,15 +50,13 @@ fun OnionSkinRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            // 40 dp (build 201): the row grew with its steppers (28 -> 40 dp
-            // targets); the screen's onionRowH matches this height.
-            .height(40.dp)
+            .height(32.dp)
             .background(AmBase)
-            .padding(horizontal = 12.dp),
+            .padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("Ghosts", color = TextSecondary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.width(6.dp))
+        Text("Ghosts", color = TextSecondary, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.width(4.dp))
         StepperButton(
             label = "−",
             description = "Fewer ghost frames",
@@ -69,10 +67,10 @@ fun OnionSkinRow(
         Text(
             text = settings.countPerSide.toString(),
             color = TextPrimary,
-            fontSize = 13.sp,
+            fontSize = 11.5.sp,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center,
-            modifier = Modifier.width(18.dp)
+            modifier = Modifier.width(16.dp)
         )
         StepperButton(
             label = "+",
@@ -81,9 +79,9 @@ fun OnionSkinRow(
             enabled = settings.countPerSide < OnionSkin.MAX_PER_SIDE,
             onClick = { onCountChange(settings.countPerSide + 1) }
         )
-        Spacer(Modifier.width(18.dp))
-        Text("Opacity", color = TextSecondary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(14.dp))
+        Text("Opacity", color = TextSecondary, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.width(6.dp))
         Slider(
             value = settings.opacity,
             onValueChange = onOpacityChange,
@@ -100,14 +98,14 @@ fun OnionSkinRow(
                 .semantics { contentDescription = "Ghost opacity" }
                 .testTag("onion_opacity_slider")
         )
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(6.dp))
         Text(
             text = "${(settings.opacity * 100f).roundToInt()}%",
             color = TextPrimary,
-            fontSize = 11.sp,
+            fontSize = 10.sp,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.End,
-            modifier = Modifier.width(34.dp)
+            modifier = Modifier.width(30.dp)
         )
     }
 }
@@ -123,8 +121,7 @@ private fun StepperButton(
 ) {
     Box(
         modifier = Modifier
-            // 40 dp target (build 201, audit B-3: the steppers were 28 dp).
-            .size(40.dp)
+            .size(32.dp)
             .semantics { contentDescription = description }
             .bouncyClickable(enabled = enabled, onClick = onClick)
             .testTag(tag),
@@ -133,7 +130,7 @@ private fun StepperButton(
         Text(
             text = label,
             color = if (enabled) TextPrimary else IconDisabled,
-            fontSize = 16.sp,
+            fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center
         )

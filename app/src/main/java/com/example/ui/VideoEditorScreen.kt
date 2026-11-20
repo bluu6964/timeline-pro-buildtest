@@ -2340,26 +2340,14 @@ fun VideoEditorScreen(
             // footer), whose total height is constant, and they are paid
             // for from inside that zone only — see the allocation below.
             // Sum of all rows ALWAYS equals totalHeight — nothing off-screen.
-            val onionRowH = if (onionSkin.enabled) 40.dp else 0.dp
+            val onionRowH = if (onionSkin.enabled) 32.dp else 0.dp
             val scopesPanelH = if (scopesOn) ScopesPanelHeight else 0.dp
-            // Tools grid (build 206): while open it is a section of this
-            // column (between the layer panel and the footer), in NORMAL
-            // LAYOUT FLOW. toolsGridHeightDp is the grid sheet's own
-            // geometry function, so the budget and the sheet cannot drift.
-            // Build 214 (ITEM 1): the utility tiles are UNIVERSAL tools —
-            // they are counted (and shown) only in the no-selection panel;
-            // a selected layer's panel is that layer's tools only.
             val toolsGridTiles =
                 (if (selectedClipId == null && multiSelectIds.isEmpty())
                     com.example.ui.components.TOOLS_GRID_UTILITY_COUNT else 0) +
                     (morePanelState.clipSection()?.tools?.size ?: 0) +
                     (barActionsState.section()?.tiles?.size ?: 0)
 
-            // Ideal proportional sizes for the six permanent sections,
-            // computed for the BASE layout (all extra rows closed) — the
-            // layout build 206 rendered with everything closed. This is
-            // the ONLY computation of headerH / canvasH / playControlsH:
-            // they are pinned for every panel state (CANVAS LAW).
             var headerH = totalHeight * (1f / 18f)
             var playControlsH = totalHeight * (1f / 18f)
             var timescaleH = totalHeight * (1f / 30f)
@@ -2368,12 +2356,12 @@ fun VideoEditorScreen(
             var toolbarH = totalHeight - (headerH + canvasH + playControlsH + timescaleH + layerPanelH)
 
             // Soft minima — preferred when they still fit (base layout only).
-            val minHeader = 40.dp
-            val minPlay = 40.dp
+            val minHeader = 36.dp
+            val minPlay = 32.dp
             val minTimescale = 20.dp
-            val minLayer = 120.dp
+            val minLayer = 100.dp
             val minCanvas = 180.dp
-            val minToolbar = 48.dp
+            val minToolbar = 44.dp
 
             val minSum = minHeader + minPlay + minTimescale + minLayer + minCanvas + minToolbar
             if (minSum <= totalHeight) {
@@ -2435,57 +2423,23 @@ fun VideoEditorScreen(
             // bar's 68) INSIDE the panel — the bars are gone now (their
             // actions are tiles in the grid), so the reserve is 0 and
             // the rows' exact height is the whole floor.
-            val minLayerZoneH = 64.dp
-            // Build 217: the reference's top bar is a fixed 58 dp
-            // (8 padding + 42 dp buttons + 8 padding). canvasH above is
-            // computed from the screen fraction alone and is NOT touched
-            // (CANVAS LAW); the lower zone absorbs the difference.
-            headerH = 58.dp
+            val minLayerZoneH = 56.dp
+            headerH = 44.dp
+            playControlsH = 34.dp
             val lowerZoneH = totalHeight - headerH - canvasH - playControlsH
-            // Build 214 (THE DOCK): the footer is the dock's primary
-            // toolbar — it is ALWAYS visible (the project toolbar with
-            // no selection, the selected layer's primary tools with
-            // one), so it always keeps its full height; the panel stage
-            // above it is paid for from the layer panel's share, exactly
-            // as the grid was (CANVAS LAW). This supersedes build 211's
-            // footer-collapses-to-0 rule.
-            // Build 219: in the selected state the footer is the
-            // reference's 3-page pager — exactly 222 dp (page 202 + dots
-            // 10 + bottom pad 10); the timeline absorbs the difference
-            // (CANVAS LAW: the canvas is never touched).
             val footerH = if (sel219) com.example.ui.components.SELECTED_PAGER_HEIGHT_DP.dp
-                else if (toolbarH >= 88.dp) toolbarH else 88.dp // build 217 floor, kept: the publisher panels share this height (build 214)
-            // Build 239 (Sarowar): the ADD-LAYER DOCK gets its own,
-            // SHORTER height — he asked for a lower toolbar so more
-            // layer lanes fit at once. The dock's tiles are 46 dp now
-            // (BottomToolbar), so the dock needs only ~70 dp; footerH
-            // above stays 88 for the publisher panels, which are a
-            // different toolbar sharing the old floor.
-            val dockH = if (toolbarH >= 70.dp) toolbarH else 70.dp
-            // The height the footer zone ACTUALLY renders in this
-            // state: the dock (no selection), a publisher panel
-            // (selection outside the pager state), or the pager
-            // (sel219). zonePoolH pays exactly this, so the dock's
-            // saved 18 dp land in the layer panel — more lanes
-            // visible (CANVAS LAW: canvasH is never touched).
+                else if (toolbarH >= 70.dp) toolbarH else 70.dp
+            val dockH = if (toolbarH >= 56.dp) toolbarH else 56.dp
             val renderedFooterH = if (selectedClipId == null) dockH else footerH
-            // Build 217: the ruler is the reference's 44 dp. The build-216
-            // workspace row and contextual bar are GONE (their controls
-            // live in the controls bar and the sheets now — Sarowar's
-            // no-added-buttons rule), so both budget lines are 0.
-            // canvasH above is never touched (CANVAS LAW).
-            val rulerH = 44.dp
+            val rulerH = 34.dp
             val workspaceH = 0.dp
             val contextualH = 0.dp
             val zonePoolH = (lowerZoneH - rulerH - renderedFooterH - onionRowH - scopesPanelH - workspaceH - contextualH)
                 .coerceAtLeast(0.dp)
-            // Build 215: the tools panel is now ONE row, so when EVERY layer's lane still fits in the
-            // zone beside it, all layers stay visible (the selected one keeps its white edge);
-            // only when they would not fit does the build-210 rule apply (selected rows only).
             val allLanesH = if (shownTracks.isEmpty()) 0.dp else (shownTracks.sumOf { t ->
                 (t.clips.maxOfOrNull { c -> com.example.ui.components.laneHeightFor(c.type, comfortDensity) }
-                    ?: 24.dp).value.toDouble() + 4.0
-            } - 4.0 + 4.0).toFloat().dp
+                    ?: 20.dp).value.toDouble() + 3.0
+            } - 3.0 + 3.0).toFloat().dp
             // Build 214: the panel stage's header rides on top of the
             // tools row inside the stage — the fit test budgets both.
             val oneRowGridH = com.example.ui.components
@@ -2517,10 +2471,10 @@ fun VideoEditorScreen(
             val restrictedLanesH = restrictedTracks?.let { rt ->
                 val lanesDp = rt.sumOf { t ->
                     (t.clips.maxOfOrNull { c -> com.example.ui.components.laneHeightFor(c.type, comfortDensity) }
-                        ?: 24.dp).value.toDouble() + 4.0
-                } - 4.0 // the column's spacedBy leaves no gap after the last lane
-                val chromeDp = 0f // build 211: no bar renders inside the panel — no reserve
-                (4f + lanesDp.toFloat() + chromeDp).dp
+                        ?: 20.dp).value.toDouble() + 3.0
+                } - 3.0
+                val chromeDp = 0f
+                (3f + lanesDp.toFloat() + chromeDp).dp
             }
             var toolsGridH = 0.dp
             var toolsGridRows = 0
@@ -3852,7 +3806,7 @@ fun VideoEditorScreen(
                                     else -> null
                                 }
                                 val page1_219 = listOf(
-                                    com.example.ui.components.PagerRow219(46, true, listOf(
+                                    com.example.ui.components.PagerRow219(36, true, listOf(
                                         action219("speed", "Speed", Icons.Default.Speed,
                                             enabled = type219 == LayerType.AUDIO || isVideoMedia219 || type219 == LayerType.STICKER,
                                             active = showAudioSpeedSheet || showStickerSpeedSheet,
@@ -3886,7 +3840,7 @@ fun VideoEditorScreen(
                                             active = clip219.isMuted,
                                             onClick = { viewModel.setClipMuted(clip219.id, !clip219.isMuted) })
                                     )),
-                                    com.example.ui.components.PagerRow219(62, false, listOf(
+                                    com.example.ui.components.PagerRow219(48, false, listOf(
                                         panel219("color", "Color & Fill", Icons.Default.FormatColorFill,
                                             isOpen = editingColorId != null, close = { editingColorId = null }),
                                         // Border & Shadow: the text editor's
@@ -3908,7 +3862,7 @@ fun VideoEditorScreen(
                                         panel219("blend", "Blending & Opacity", Icons.Default.Opacity,
                                             isOpen = editingBlendId != null, close = { editingBlendId = null })
                                     )),
-                                    com.example.ui.components.PagerRow219(62, false, listOf(
+                                    com.example.ui.components.PagerRow219(48, false, listOf(
                                         panel219("transform", "Move & Transform", Icons.Default.OpenWith,
                                             isOpen = showTransformMode, close = { showTransformMode = false }),
                                         com.example.ui.components.PagerTool219(
@@ -3936,7 +3890,7 @@ fun VideoEditorScreen(
                                     ))
                                 )
                                 val page2_219 = listOf(
-                                    com.example.ui.components.PagerRow219(46, true, listOf(
+                                    com.example.ui.components.PagerRow219(36, true, listOf(
                                         panel219("crop", "Crop", Icons.Default.Crop,
                                             isOpen = showClipCropSheet, close = { showClipCropSheet = false }),
                                         action219("flip_v", "Flip V", Icons.Default.Flip,
@@ -3953,7 +3907,7 @@ fun VideoEditorScreen(
                                             active = clip219.isLocked,
                                             onClick = { viewModel.toggleClipLocked(clip219.id) })
                                     )),
-                                    com.example.ui.components.PagerRow219(62, false, listOf(
+                                    com.example.ui.components.PagerRow219(48, false, listOf(
                                         panel219("cutout", "Cutout", Icons.Default.Person,
                                             isOpen = clip219.cutoutDir != null, close = { fire219("cutout") }),
                                         panel219("remove", "Remove Object", Icons.Default.AutoFixHigh,
@@ -3961,7 +3915,7 @@ fun VideoEditorScreen(
                                         panel219("face_ai", "Face AI", Icons.Default.Face,
                                             badge = "AI", isOpen = false, close = {})
                                     )),
-                                    com.example.ui.components.PagerRow219(62, false, listOf(
+                                    com.example.ui.components.PagerRow219(48, false, listOf(
                                         panel219("animations", "Animation", Icons.Default.Animation,
                                             isOpen = showClipAnimationsSheet, close = { showClipAnimationsSheet = false }),
                                         panel219("masks", "Mask", Icons.Default.Tonality,
@@ -4103,16 +4057,16 @@ fun VideoEditorScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 8.dp)
+                            .padding(horizontal = 6.dp)
                             .background(
                                 com.example.ui.theme.AmCardSurface,
-                                RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+                                RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
                             )
                             .border(
                                 1.dp, com.example.ui.theme.RefCardBorder,
-                                RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+                                RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
                             )
-                            .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
+                            .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
                             .testTag("selected_tools_grid_219")
                     ) {
                         com.example.ui.components.ToolsGridSheet(

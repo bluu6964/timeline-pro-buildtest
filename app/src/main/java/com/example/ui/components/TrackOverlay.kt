@@ -127,50 +127,50 @@ fun BoxScope.TrackSetupOverlay(
 
     // cancel (top left)
     RoundButton(
-        modifier = Modifier.align(Alignment.TopStart).padding(6.dp).testTag("track_cancel"),
+        modifier = Modifier.align(Alignment.TopStart).padding(5.dp).testTag("track_cancel"),
         onClick = onCancel
-    ) { Icon(Icons.Default.Close, contentDescription = "Cancel tracking", tint = Color.White, modifier = Modifier.size(18.dp)) }
+    ) { Icon(Icons.Default.Close, contentDescription = "Cancel tracking", tint = Color.White, modifier = Modifier.size(15.dp)) }
 
     // start (top right)
     Row(
         modifier = Modifier
             .align(Alignment.TopEnd)
-            .padding(6.dp)
+            .padding(5.dp)
             .clip(RoundedCornerShape(50))
             .background(Color(0xFF4C8DFF))
             .clickable(onClick = onStart)
-            .padding(horizontal = 12.dp, vertical = 7.dp)
+            .padding(horizontal = 10.dp, vertical = 5.dp)
             .testTag("track_start"),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-        Text("Track", color = Color.White, fontSize = 13.sp, modifier = Modifier.padding(start = 3.dp))
+        Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+        Text("Track", color = Color.White, fontSize = 11.5.sp, modifier = Modifier.padding(start = 3.dp))
     }
 
     // turn / zoom switches (bottom right)
     Row(
-        modifier = Modifier.align(Alignment.BottomEnd).padding(6.dp),
+        modifier = Modifier.align(Alignment.BottomEnd).padding(5.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         FollowChip("Rotate", followRotation, { onFollowRotation(!followRotation) }, Modifier.testTag("track_follow_rotation"))
-        Box(Modifier.size(6.dp))
+        Box(Modifier.size(5.dp))
         FollowChip("Scale", followScale, { onFollowScale(!followScale) }, Modifier.testTag("track_follow_scale"))
     }
 
     // smaller / bigger (bottom left)
     Row(
-        modifier = Modifier.align(Alignment.BottomStart).padding(6.dp),
+        modifier = Modifier.align(Alignment.BottomStart).padding(5.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         RoundButton(
             modifier = Modifier.testTag("track_smaller"),
             onClick = { onCircleNow(circleNow.resized(0.85f)) }
-        ) { Icon(Icons.Default.Remove, contentDescription = "Smaller circle", tint = Color.White, modifier = Modifier.size(18.dp)) }
-        Box(Modifier.size(6.dp))
+        ) { Icon(Icons.Default.Remove, contentDescription = "Smaller circle", tint = Color.White, modifier = Modifier.size(15.dp)) }
+        Box(Modifier.size(5.dp))
         RoundButton(
             modifier = Modifier.testTag("track_bigger"),
             onClick = { onCircleNow(circleNow.resized(1.18f)) }
-        ) { Icon(Icons.Default.Add, contentDescription = "Bigger circle", tint = Color.White, modifier = Modifier.size(18.dp)) }
+        ) { Icon(Icons.Default.Add, contentDescription = "Bigger circle", tint = Color.White, modifier = Modifier.size(15.dp)) }
     }
 }
 
@@ -219,9 +219,9 @@ private fun FollowChip(label: String, on: Boolean, onClick: () -> Unit, modifier
             .clip(RoundedCornerShape(50))
             .background(if (on) Color(0xFF4C8DFF) else Color(0x99000000))
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 7.dp)
+            .padding(horizontal = 10.dp, vertical = 5.dp)
     ) {
-        Text(label, color = Color.White, fontSize = 12.sp)
+        Text(label, color = Color.White, fontSize = 10.5.sp)
     }
 }
 
@@ -229,7 +229,7 @@ private fun FollowChip(label: String, on: Boolean, onClick: () -> Unit, modifier
 private fun RoundButton(modifier: Modifier = Modifier, onClick: () -> Unit, content: @Composable () -> Unit) {
     Box(
         modifier = modifier
-            .size(34.dp)
+            .size(28.dp)
             .clip(CircleShape)
             .background(Color(0xCC1B2230))
             .clickable(onClick = onClick),
@@ -270,18 +270,18 @@ fun TrackLayerPickDialog(
                 if (onPickCamera != null) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .background(AmCardSurface, RoundedCornerShape(16.dp))
-                                .clip(RoundedCornerShape(16.dp))
+                                .background(AmCardSurface, RoundedCornerShape(12.dp))
+                                .clip(RoundedCornerShape(12.dp))
                                 .bouncyClickable(onClick = onPickCamera)
-                                .padding(horizontal = 14.dp, vertical = 12.dp)
+                                .padding(horizontal = 12.dp, vertical = 9.dp)
                                 .testTag("track_camera")
                         ) {
-                            Text("Camera track (keep it in the center)", color = TextPrimary, fontSize = 14.sp)
+                            Text("Camera track (keep it in the center)", color = TextPrimary, fontSize = 12.sp)
                         }
                         if (onRemoveCamera != null) {
                             DialogSecondaryButton(
@@ -293,43 +293,43 @@ fun TrackLayerPickDialog(
                     }
                     Text(
                         "Camera track needs no layer: the video moves so the part you circle stays exactly in the middle of the screen.",
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(bottom = 8.dp)
+                        fontSize = 10.5.sp,
+                        modifier = Modifier.padding(bottom = 6.dp)
                     )
                 }
                 if (targets.isEmpty()) {
                     Text(
                         "There is no other layer yet. Add a text, shape or sticker layer first, then press Track again.",
-                        fontSize = 13.sp
+                        fontSize = 11.sp
                     )
                 } else {
                     Text(
                         "Pick the layer that will move with the object. It follows the object frame by frame (no keyframes); an earlier track on that layer is replaced. \"Pin\" (video / photo layers) glues the layer onto a flat surface - a screen, poster or wall - with perspective, like Mocha's corner pin.",
-                        fontSize = 13.sp,
-                        modifier = Modifier.padding(bottom = 8.dp)
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(bottom = 6.dp)
                     )
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(max = 260.dp)
+                            .heightIn(max = 240.dp)
                             .verticalScroll(rememberScrollState())
                     ) {
                         targets.forEach { t ->
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                modifier = Modifier.padding(bottom = 6.dp)
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier.padding(bottom = 5.dp)
                             ) {
                                 Box(
                                     modifier = Modifier
                                         .weight(1f)
-                                        .background(AmCardSurface, RoundedCornerShape(16.dp))
-                                        .clip(RoundedCornerShape(16.dp))
+                                        .background(AmCardSurface, RoundedCornerShape(12.dp))
+                                        .clip(RoundedCornerShape(12.dp))
                                         .bouncyClickable { onPick(t.id) }
-                                        .padding(horizontal = 14.dp, vertical = 12.dp)
+                                        .padding(horizontal = 12.dp, vertical = 9.dp)
                                         .testTag("track_target_" + t.id)
                                 ) {
-                                    Text(t.label + if (t.pinned) " (pinned)" else "", color = TextPrimary, fontSize = 14.sp)
+                                    Text(t.label + if (t.pinned) " (pinned)" else "", color = TextPrimary, fontSize = 12.sp)
                                 }
                                 if (t.canPin && onPickPin != null) {
                                     DialogSecondaryButton(
@@ -485,34 +485,34 @@ fun BoxScope.PlanarSetupOverlay(
     )
 
     RoundButton(
-        modifier = Modifier.align(Alignment.TopStart).padding(6.dp).testTag("planar_cancel"),
+        modifier = Modifier.align(Alignment.TopStart).padding(5.dp).testTag("planar_cancel"),
         onClick = onCancel
-    ) { Icon(Icons.Default.Close, contentDescription = "Cancel tracking", tint = Color.White, modifier = Modifier.size(18.dp)) }
+    ) { Icon(Icons.Default.Close, contentDescription = "Cancel tracking", tint = Color.White, modifier = Modifier.size(15.dp)) }
 
     Row(
         modifier = Modifier
             .align(Alignment.TopEnd)
-            .padding(6.dp)
+            .padding(5.dp)
             .clip(RoundedCornerShape(50))
             .background(Color(0xFF4C8DFF))
             .clickable(onClick = onStart)
-            .padding(horizontal = 12.dp, vertical = 7.dp)
+            .padding(horizontal = 10.dp, vertical = 5.dp)
             .testTag("planar_start"),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-        Text(startLabel, color = Color.White, fontSize = 13.sp, modifier = Modifier.padding(start = 3.dp))
+        Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+        Text(startLabel, color = Color.White, fontSize = 11.5.sp, modifier = Modifier.padding(start = 3.dp))
     }
 
     Box(
         modifier = Modifier
             .align(Alignment.BottomCenter)
-            .padding(6.dp)
+            .padding(5.dp)
             .clip(RoundedCornerShape(50))
             .background(Color(0x99000000))
-            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .padding(horizontal = 10.dp, vertical = 4.dp)
     ) {
-        Text(hint, color = Color.White, fontSize = 12.sp)
+        Text(hint, color = Color.White, fontSize = 10.5.sp)
     }
 }
 
@@ -637,13 +637,13 @@ fun BoxScope.RemoveMaskOverlay(
 
     // cancel and "back to the corners" (top left)
     Row(
-        modifier = Modifier.align(Alignment.TopStart).padding(6.dp),
+        modifier = Modifier.align(Alignment.TopStart).padding(5.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         RoundButton(modifier = Modifier.testTag("remove_cancel"), onClick = onCancel) {
-            Icon(Icons.Default.Close, contentDescription = "Cancel", tint = Color.White, modifier = Modifier.size(18.dp))
+            Icon(Icons.Default.Close, contentDescription = "Cancel", tint = Color.White, modifier = Modifier.size(15.dp))
         }
-        Box(Modifier.size(6.dp))
+        Box(Modifier.size(5.dp))
         FollowChip("Corners", false, onBack, Modifier.testTag("remove_back"))
     }
 
@@ -651,16 +651,16 @@ fun BoxScope.RemoveMaskOverlay(
     Row(
         modifier = Modifier
             .align(Alignment.TopEnd)
-            .padding(6.dp)
+            .padding(5.dp)
             .clip(RoundedCornerShape(50))
             .background(Color(0xFF4C8DFF))
             .clickable(onClick = onStart)
-            .padding(horizontal = 12.dp, vertical = 7.dp)
+            .padding(horizontal = 10.dp, vertical = 5.dp)
             .testTag("remove_start"),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-        Text("Remove", color = Color.White, fontSize = 13.sp, modifier = Modifier.padding(start = 3.dp))
+        Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+        Text("Remove", color = Color.White, fontSize = 11.5.sp, modifier = Modifier.padding(start = 3.dp))
     }
 
     // hint
@@ -668,36 +668,36 @@ fun BoxScope.RemoveMaskOverlay(
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 52.dp)
+                .padding(bottom = 42.dp)
                 .clip(RoundedCornerShape(50))
                 .background(Color(0x99000000))
-                .padding(horizontal = 12.dp, vertical = 6.dp)
+                .padding(horizontal = 10.dp, vertical = 4.dp)
         ) {
-            Text("Paint over the thing to remove", color = Color.White, fontSize = 12.sp)
+            Text("Paint over the thing to remove", color = Color.White, fontSize = 10.5.sp)
         }
     }
 
     // brush size, undo, clear (bottom left)
     Row(
-        modifier = Modifier.align(Alignment.BottomStart).padding(6.dp),
+        modifier = Modifier.align(Alignment.BottomStart).padding(5.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         RoundButton(modifier = Modifier.testTag("remove_smaller"), onClick = { onPaintNow(paintNow.resized(0.8f)) }) {
-            Icon(Icons.Default.Remove, contentDescription = "Smaller brush", tint = Color.White, modifier = Modifier.size(18.dp))
+            Icon(Icons.Default.Remove, contentDescription = "Smaller brush", tint = Color.White, modifier = Modifier.size(15.dp))
         }
-        Box(Modifier.size(6.dp))
+        Box(Modifier.size(5.dp))
         RoundButton(modifier = Modifier.testTag("remove_bigger"), onClick = { onPaintNow(paintNow.resized(1.25f)) }) {
-            Icon(Icons.Default.Add, contentDescription = "Bigger brush", tint = Color.White, modifier = Modifier.size(18.dp))
+            Icon(Icons.Default.Add, contentDescription = "Bigger brush", tint = Color.White, modifier = Modifier.size(15.dp))
         }
-        Box(Modifier.size(6.dp))
+        Box(Modifier.size(5.dp))
         FollowChip("Undo", false, { onPaintNow(paintNow.undone()) }, Modifier.testTag("remove_undo"))
-        Box(Modifier.size(6.dp))
+        Box(Modifier.size(5.dp))
         FollowChip("Clear", false, { onPaintNow(paintNow.copy(strokes = emptyList())) }, Modifier.testTag("remove_clear"))
     }
 
     // take what other frames show (bottom right)
     Row(
-        modifier = Modifier.align(Alignment.BottomEnd).padding(6.dp),
+        modifier = Modifier.align(Alignment.BottomEnd).padding(5.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         FollowChip("Other frames", useFrames, { onUseFrames(!useFrames) }, Modifier.testTag("remove_use_frames"))

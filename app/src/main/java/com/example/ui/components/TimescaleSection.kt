@@ -61,7 +61,7 @@ private val PillGap = 5.dp
 private val PillHeight = 19.dp
 private val BarWidth = 4.dp
 private val BarHeight = 16.5.dp
-private val MinBarPitch = 8.dp
+private val MinBarPitch = 7.dp
 private val BeatMarkColor = AmCyanBright
 /** Build 217: the reference orange — the selected layer's keyframe diamonds on the ruler. */
 private val KeyframeDiamondColor = Color(0xFFF97316)
@@ -97,7 +97,7 @@ fun TimescaleSection(
     /** Build 217: keyframe times (project ms) of the selected layer — orange diamonds on the ruler. */
     keyframeTimesMs: List<Long> = emptyList()
 ) {
-    val backInset = if (onBack != null) 44.dp else 0.dp
+    val backInset = if (onBack != null) 36.dp else 0.dp
     BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
@@ -109,22 +109,21 @@ fun TimescaleSection(
             Box(
                 modifier = Modifier
                     .align(Alignment.CenterStart)
-                    .width(44.dp)
+                    .width(36.dp)
                     .fillMaxHeight()
                     .bouncyClickable(onClick = onBack)
                     .testTag("panel_back_button"),
                 contentAlignment = Alignment.Center
             ) {
-                // BARE chevron (boxless order, build 183); the 44 dp hit area is unchanged.
                 Box(
-                    modifier = Modifier.size(32.dp),
+                    modifier = Modifier.size(26.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.KeyboardArrowDown,
                         contentDescription = "Back",
                         tint = IconActive,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(17.dp)
                     )
                 }
             }
@@ -156,7 +155,7 @@ fun TimescaleSection(
             val lastTick = currentMs + halfSpanMs
             // Build 217 (reference): minor ticks are 1 x 7 dp white at
             // 20%, majors 1.5 x 17 dp white at 34%, all from top 4 dp.
-            val tickTop = 4.dp.toPx()
+            val tickTop = 3.dp.toPx()
             val majorEvery = step * 5
 
             var t = firstTick
@@ -167,8 +166,8 @@ fun TimescaleSection(
                     drawLine(
                         color = if (major) RulerTickColor else RulerSubTickColor,
                         start = Offset(x, tickTop),
-                        end = Offset(x, tickTop + (if (major) 17.dp.toPx() else 7.dp.toPx())),
-                        strokeWidth = if (major) 1.5.dp.toPx() else 1.dp.toPx()
+                        end = Offset(x, tickTop + (if (major) 13.dp.toPx() else 6.dp.toPx())),
+                        strokeWidth = if (major) 1.2.dp.toPx() else 1.dp.toPx()
                     )
                 }
                 t += step
@@ -199,8 +198,8 @@ fun TimescaleSection(
 
             // Beat marks: white at 50%, taller than the ticks.
             if (beatMarksMs.isNotEmpty()) {
-                val markW = 3.dp.toPx()
-                val markH = 20.dp.toPx()
+                val markW = 2.5.dp.toPx()
+                val markH = 15.dp.toPx()
                 for (m in beatMarksMs) {
                     val x = centerPx + (m - currentMs) * pxPerMsPx
                     if (x >= areaStart && x <= areaEnd) {
@@ -214,12 +213,9 @@ fun TimescaleSection(
                 }
             }
 
-            // Keyframe diamonds of the selected layer (build 217, the
-            // reference): 6 dp orange squares rotated 45 degrees, their
-            // centres at top 13 dp.
             if (keyframeTimesMs.isNotEmpty()) {
-                val half = 3.dp.toPx()
-                val cy = 13.dp.toPx()
+                val half = 2.5.dp.toPx()
+                val cy = 10.dp.toPx()
                 for (kt in keyframeTimesMs) {
                     val x = centerPx + (kt - currentMs) * pxPerMsPx
                     if (x < areaStart || x > areaEnd) continue
@@ -243,32 +239,29 @@ fun TimescaleSection(
             // is REMOVED.
             drawRoundRect(
                 color = Color.White,
-                topLeft = Offset(centerPx - 1.dp.toPx(), 3.dp.toPx()),
-                size = Size(2.dp.toPx(), 15.dp.toPx()),
+                topLeft = Offset(centerPx - 1.dp.toPx(), 2.dp.toPx()),
+                size = Size(2.dp.toPx(), 11.dp.toPx()),
                 cornerRadius = CornerRadius(1.dp.toPx())
             )
             drawLine(
                 Color.White,
-                Offset(centerPx, 39.dp.toPx()),
+                Offset(centerPx, 29.dp.toPx()),
                 Offset(centerPx, size.height),
                 strokeWidth = 2.dp.toPx()
             )
         }
 
-        // ── Centred playhead timecode (build 216): 13.5 sp bold tabular,
-        // directly under the cap. Only this tiny text recomposes while
-        // the playhead moves. ────────────────────────────────────────────
         Box(
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .padding(top = 22.dp)
+                .padding(top = 15.dp)
                 .testTag("playhead_time_pill"),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = formatTimeCode(playheadMs()),
                 color = TextPrimary,
-                fontSize = 12.sp,
+                fontSize = 10.sp,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
                 maxLines = 1,
@@ -279,45 +272,42 @@ fun TimescaleSection(
         Box(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(end = 8.dp, bottom = 5.dp)
+                .padding(end = 6.dp, bottom = 3.dp)
                 .testTag("total_time_pill"),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = formatClock(totalDurationMs),
                 color = AmTextFaint,
-                fontSize = 11.sp,
+                fontSize = 9.5.sp,
                 fontWeight = FontWeight.Medium,
                 textAlign = TextAlign.Center,
                 maxLines = 1
             )
         }
 
-        // Build 217: the layer-count pill at the ruler's left end (the
-        // reference's pill — real count, chevron). Its tap opens the
-        // timeline options sheet (the universal tools' home now).
         if (layerCount != null) {
             Row(
                 modifier = Modifier
                     .align(Alignment.CenterStart)
-                    .padding(start = 10.dp)
+                    .padding(start = 8.dp)
                     .clip(androidx.compose.foundation.shape.CircleShape)
                     .background(com.example.ui.theme.RefPillBg)
                     .border(1.dp, com.example.ui.theme.RefPillBorder, androidx.compose.foundation.shape.CircleShape)
                     .bouncyClickable(pressedScale = 0.95f, onClick = { onLayerPillClick?.invoke() })
-                    .padding(horizontal = 9.dp, vertical = 3.dp)
+                    .padding(horizontal = 7.dp, vertical = 2.dp)
                     .testTag("layer_count_pill"),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     text = "$layerCount Layers",
                     color = AmTextDim,
-                    fontSize = 11.sp,
+                    fontSize = 9.5.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1
                 )
-                Spacer(Modifier.width(5.dp))
-                Canvas(Modifier.size(11.dp)) {
+                Spacer(Modifier.width(4.dp))
+                Canvas(Modifier.size(9.dp)) {
                     val u = size.width / 24f
                     val c = AmTextDim
                     val p1 = Path().apply {

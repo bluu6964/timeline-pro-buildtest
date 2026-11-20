@@ -164,22 +164,22 @@ fun AspectRatioSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
-                .padding(bottom = 28.dp)
+                .padding(bottom = 18.dp)
                 .testTag("aspect_ratio_sheet")
         ) {
             SheetTitle("Aspect Ratio")
             LazyRow(
-                contentPadding = PaddingValues(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                contentPadding = PaddingValues(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(AspectRatio.values()) { ratio ->
                     val selected = ratio.label == currentRatio.label
                     val shape = if (ratio.isOriginal && originalAspect > 0.05f) originalAspect else ratio.ratioFloat
                     Column(
                         modifier = Modifier
-                            .width(100.dp)
-                            .height(100.dp)
-                            .clip(RoundedCornerShape(16.dp))
+                            .width(78.dp)
+                            .height(78.dp)
+                            .clip(RoundedCornerShape(12.dp))
                             .background(if (selected) Color(0xFFE8E4E4) else Color(0xFF3A3A3D))
                             .bouncyClickable(pressedScale = 0.94f) { onRatioSelected(ratio) }
                             .testTag("aspect_${ratio.label}"),
@@ -189,28 +189,28 @@ fun AspectRatioSheet(
                         val tint = if (selected) Color(0xFF1C1D20) else Color(0xFFE5E5E7)
                         // A little outline with the real shape of the canvas.
                         Box(
-                            modifier = Modifier.size(46.dp),
+                            modifier = Modifier.size(34.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            val w = if (shape >= 1f) 44.dp else 44.dp * shape
-                            val h = if (shape >= 1f) 44.dp / shape else 44.dp
+                            val w = if (shape >= 1f) 32.dp else 32.dp * shape
+                            val h = if (shape >= 1f) 32.dp / shape else 32.dp
                             Box(
                                 Modifier
                                     .size(width = w, height = h)
-                                    .border(2.5.dp, tint, RoundedCornerShape(3.dp))
+                                    .border(2.dp, tint, RoundedCornerShape(2.5.dp))
                             )
                         }
-                        Spacer(Modifier.height(8.dp))
-                        Text(ratio.label, color = tint, fontSize = 18.sp, fontWeight = FontWeight.Medium)
+                        Spacer(Modifier.height(6.dp))
+                        Text(ratio.label, color = tint, fontSize = 13.5.sp, fontWeight = FontWeight.Medium)
                     }
                 }
             }
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(16.dp))
             SheetTitle("Canvas color")
             LazyRow(
-                contentPadding = PaddingValues(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 item {
@@ -218,11 +218,11 @@ fun AspectRatioSheet(
                     val custom = CanvasSwatches.none { (it and 0xFFFFFFL) == (canvasColor and 0xFFFFFFL) }
                     Box(
                         modifier = Modifier
-                            .size(48.dp)
+                            .size(38.dp)
                             .clip(CircleShape)
                             .background(if (custom) Color(canvasColor) else Color(0xFF3A3A3D))
                             .border(
-                                if (custom) 3.dp else 1.5.dp,
+                                if (custom) 2.5.dp else 1.dp,
                                 if (custom) Color.White else Color.White.copy(alpha = 0.7f),
                                 CircleShape
                             )
@@ -230,18 +230,18 @@ fun AspectRatioSheet(
                             .testTag("canvas_color_custom"),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Default.Palette, "Custom color", tint = Color.White, modifier = Modifier.size(24.dp))
+                        Icon(Icons.Default.Palette, "Custom color", tint = Color.White, modifier = Modifier.size(19.dp))
                     }
                 }
                 items(CanvasSwatches) { c ->
                     val selected = (c and 0xFFFFFFL) == (canvasColor and 0xFFFFFFL)
                     Box(
                         modifier = Modifier
-                            .size(48.dp)
+                            .size(38.dp)
                             .clip(CircleShape)
                             .background(Color(c))
                             .border(
-                                if (selected) 3.dp else 1.dp,
+                                if (selected) 2.5.dp else 1.dp,
                                 if (selected) Color.White else Color.White.copy(alpha = 0.18f),
                                 CircleShape
                             )
@@ -250,29 +250,29 @@ fun AspectRatioSheet(
                 }
             }
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(16.dp))
             SheetTitle("Resolution")
             LazyRow(
-                contentPadding = PaddingValues(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                contentPadding = PaddingValues(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(ExportResolutions) { (label, detail) ->
                     val selected = label == resolution
                     Column(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(14.dp))
+                            .clip(RoundedCornerShape(11.dp))
                             .background(if (selected) Color(0xFFE8E4E4) else Color(0xFF3A3A3D))
                             .bouncyClickable(pressedScale = 0.94f) { onResolution(label) }
-                            .padding(horizontal = 18.dp, vertical = 12.dp)
+                            .padding(horizontal = 13.dp, vertical = 8.dp)
                             .testTag("resolution_$label"),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            label, fontSize = 17.sp, fontWeight = FontWeight.Medium,
+                            label, fontSize = 13.sp, fontWeight = FontWeight.Medium,
                             color = if (selected) Color(0xFF1C1D20) else Color(0xFFE5E5E7)
                         )
                         Text(
-                            detail, fontSize = 12.sp,
+                            detail, fontSize = 10.5.sp,
                             color = if (selected) Color(0xFF55555A) else Color(0xFF9A9AA0)
                         )
                     }
@@ -295,9 +295,9 @@ private fun SheetTitle(text: String) {
     Text(
         text = text,
         color = TextPrimary,
-        fontSize = 24.sp,
+        fontSize = 16.sp,
         fontWeight = FontWeight.Bold,
-        modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 14.dp)
+        modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 6.dp, bottom = 10.dp)
     )
 }
 
@@ -317,16 +317,16 @@ fun ResolutionSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 8.dp)
-                .padding(bottom = 28.dp)
+                .padding(horizontal = 14.dp, vertical = 6.dp)
+                .padding(bottom = 18.dp)
         ) {
             Text(
                 text = "Preview Resolution",
                 color = TextPrimary,
-                fontSize = 18.sp,
+                fontSize = 14.5.sp,
                 fontWeight = FontWeight.Bold
             )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             PreviewResolution.values().forEach { res ->
                 val isSelected = res == currentResolution
@@ -335,14 +335,14 @@ fun ResolutionSheet(
                         .fillMaxWidth()
                         .background(
                             if (isSelected) AmPillSelected else AmCardSurface,
-                            RoundedCornerShape(20.dp)
+                            RoundedCornerShape(14.dp)
                         )
-                        .clip(RoundedCornerShape(20.dp))
+                        .clip(RoundedCornerShape(14.dp))
                         .bouncyClickable {
                             onResolutionSelected(res)
                             onDismiss()
                         }
-                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                        .padding(horizontal = 11.dp, vertical = 9.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
@@ -350,13 +350,13 @@ fun ResolutionSheet(
                         Text(
                             text = res.label,
                             color = TextPrimary,
-                            fontSize = 15.sp,
+                            fontSize = 12.5.sp,
                             fontWeight = FontWeight.SemiBold
                         )
                         Text(
                             text = res.detail,
                             color = TextSecondary,
-                            fontSize = 12.sp
+                            fontSize = 10.5.sp
                         )
                     }
 
@@ -365,7 +365,7 @@ fun ResolutionSheet(
                             imageVector = Icons.Default.Check,
                             contentDescription = "Selected",
                             tint = com.example.ui.theme.AmAccent, // build 223: unified accent (was NeonCyan)
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(16.dp)
                         )
                     }
                 }
@@ -434,7 +434,7 @@ fun ExportModalDialog(
                     .fillMaxSize()
                     .statusBarsPadding()
                     .navigationBarsPadding()
-                    .padding(horizontal = 24.dp),
+                    .padding(horizontal = 16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 if (!isExporting && !isCompleted) {
@@ -457,30 +457,30 @@ fun ExportModalDialog(
                     )
                 } else {
                 Spacer(modifier = Modifier.weight(1f))
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
                 when {
                     isCompleted -> {
-                        Text("Export Complete!", color = TextPrimary, fontSize = 30.sp,
+                        Text("Export Complete!", color = TextPrimary, fontSize = 22.sp,
                             fontWeight = FontWeight.Black)
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
                         Text(savedToLabel, color = TextSecondary,
-                            fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                        Spacer(modifier = Modifier.height(24.dp))
+                            fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                        Spacer(modifier = Modifier.height(18.dp))
                         // Pill actions (build 209, the redesign language): Done is the
                         // white pill, Share the filled grey pill — same row, same weights.
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                             PillActionButton(
                                 text = "Done",
                                 onClick = onDismiss,
                                 containerColor = AmAccentViolet, // build 216: Done = the lime primary
                                 contentColor = AmInk,
-                                modifier = Modifier.weight(1f).height(48.dp)
+                                modifier = Modifier.weight(1f).height(40.dp)
                             )
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(48.dp)
+                                    .height(40.dp)
                                     .clip(CircleShape)
                                     .background(com.example.ui.theme.AmPanelElevated, CircleShape)
                                     .bouncyClickable(pressedScale = 0.94f, onClick = onShare),
@@ -488,9 +488,9 @@ fun ExportModalDialog(
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(Icons.Default.Share, contentDescription = null,
-                                        tint = TextPrimary, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Share", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                        tint = TextPrimary, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(5.dp))
+                                    Text("Share", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
                                 }
                             }
                         }
@@ -499,11 +499,11 @@ fun ExportModalDialog(
                         // Build 223: the progress ring in the unified language — a lime
                         // arc on the elevated-surface track, the % centred inside.
                         Box(
-                            modifier = Modifier.size(168.dp).testTag("export_progress_ring"),
+                            modifier = Modifier.size(134.dp).testTag("export_progress_ring"),
                             contentAlignment = Alignment.Center
                         ) {
                             Canvas(modifier = Modifier.fillMaxSize()) {
-                                val stroke = 10.dp.toPx()
+                                val stroke = 8.dp.toPx()
                                 val inset = stroke / 2f
                                 val arcSize = Size(size.width - stroke, size.height - stroke)
                                 drawArc(
@@ -522,19 +522,19 @@ fun ExportModalDialog(
                                 )
                             }
                             Text(
-                                "${(progress * 100).toInt()}%", color = TextPrimary, fontSize = 40.sp,
+                                "${(progress * 100).toInt()}%", color = TextPrimary, fontSize = 30.sp,
                                 fontWeight = FontWeight.Black
                             )
                         }
-                        Spacer(modifier = Modifier.height(10.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             "Remaining time approximately ${formatRemaining(remainingMs)}",
-                            color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
+                            color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center
                         )
                         Text(
                             "Please do not exit the application or lock the screen",
-                            color = TextSecondary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
+                            color = TextSecondary, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center
                         )
                     }
@@ -548,15 +548,15 @@ fun ExportModalDialog(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .navigationBarsPadding()
-                    .width(96.dp)
-                    .height(56.dp)
+                    .width(74.dp)
+                    .height(44.dp)
                     .clip(CircleShape)
                     .background(com.example.ui.theme.AmPanelElevated, CircleShape) // build 223: unified elevated surface
                     .clickable { if (isExporting) onCancel() else onDismiss() }
                     .testTag("export_close"),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.Close, contentDescription = "Close", tint = TextPrimary, modifier = Modifier.size(26.dp))
+                Icon(Icons.Default.Close, contentDescription = "Close", tint = TextPrimary, modifier = Modifier.size(20.dp))
             }
         }
     }
@@ -597,13 +597,13 @@ private fun ColumnScope.ExportSettingsPage(
             .weight(1f)
             .fillMaxWidth()
             .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Spacer(modifier = Modifier.height(4.dp))
-        ExportBadge(modifier = Modifier.fillMaxWidth().height(120.dp))
+        Spacer(modifier = Modifier.height(2.dp))
+        ExportBadge(modifier = Modifier.fillMaxWidth().height(92.dp))
         Text(
-            "Export settings", color = TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(top = 4.dp)
+            "Export settings", color = TextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(top = 2.dp)
         )
 
         ExportCard(
@@ -710,16 +710,16 @@ private fun ColumnScope.ExportSettingsPage(
         Spacer(modifier = Modifier.height(4.dp))
     }
 
-    Spacer(modifier = Modifier.height(12.dp))
+    Spacer(modifier = Modifier.height(8.dp))
     // The Export action: the one lime primary pill (DialogPrimaryButton).
     DialogPrimaryButton(
         text = "Export Now",
         onClick = onStartExport,
-        modifier = Modifier.fillMaxWidth().height(52.dp),
+        modifier = Modifier.fillMaxWidth().height(42.dp),
         tag = "export_now"
     )
     // Room for the round "close" tab at the bottom of the screen.
-    Spacer(modifier = Modifier.height(68.dp))
+    Spacer(modifier = Modifier.height(54.dp))
 }
 
 @Composable
@@ -731,15 +731,15 @@ private fun ExportCard(title: String, value: String, hint: String, content: @Com
             .clip(cardShape)
             .background(AmPanel)
             .border(1.dp, AmHairline, cardShape)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(title, color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                Text(hint, color = TextTertiary, fontSize = 11.sp)
+                Text(title, color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Text(hint, color = TextTertiary, fontSize = 10.sp)
             }
-            Text(value, color = com.example.ui.theme.AmAccent, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text(value, color = com.example.ui.theme.AmAccent, fontSize = 14.5.sp, fontWeight = FontWeight.Bold)
         }
         content()
     }
@@ -764,7 +764,7 @@ private fun ExportSlider(value: Float, range: ClosedFloatingPointRange<Float>, t
 private fun ExportChipRow(content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit) {
     Row(
         Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
         content = content
     )
 }
@@ -773,16 +773,16 @@ private fun ExportChipRow(content: @Composable androidx.compose.foundation.layou
 private fun ExportChip(text: String, selected: Boolean, onClick: () -> Unit) {
     Box(
         modifier = Modifier
-            .heightIn(min = 40.dp)
+            .heightIn(min = 30.dp)
             .clip(CircleShape)
             .background(if (selected) com.example.ui.theme.AmAccent else com.example.ui.theme.AmPanelElevated, CircleShape)
             .bouncyClickable(pressedScale = 0.94f) { onClick() }
-            .padding(horizontal = 14.dp),
+            .padding(horizontal = 11.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = text,
-            fontSize = 13.sp,
+            fontSize = 11.sp,
             fontWeight = FontWeight.SemiBold,
             color = if (selected) AmInk else TextPrimary // build 223: ink on the lime chip
         )
@@ -918,11 +918,11 @@ fun AddAudioSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 8.dp)
-                .padding(bottom = 28.dp)
+                .padding(horizontal = 14.dp, vertical = 6.dp)
+                .padding(bottom = 18.dp)
         ) {
-            Text("Add Audio", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            Spacer(modifier = Modifier.height(14.dp))
+            Text("Add Audio", color = TextPrimary, fontSize = 14.5.sp, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(10.dp))
 
             AddAudioRow(
                 icon = Icons.Default.MusicNote,
@@ -933,7 +933,7 @@ fun AddAudioSheet(
                 onAudioFile()
                 onDismiss()
             }
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(6.dp))
             AddAudioRow(
                 icon = Icons.Default.Movie,
                 title = "Extract from video",
@@ -958,18 +958,18 @@ private fun AddAudioRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(AmCardSurface, RoundedCornerShape(20.dp))
-            .clip(RoundedCornerShape(20.dp))
+            .background(AmCardSurface, RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(14.dp))
             .bouncyClickable(onClick = onClick)
-            .padding(vertical = 12.dp, horizontal = 14.dp)
+            .padding(vertical = 9.dp, horizontal = 12.dp)
             .testTag(tag),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(icon, contentDescription = null, tint = TextPrimary, modifier = Modifier.size(24.dp))
-        Spacer(modifier = Modifier.width(12.dp))
+        Icon(icon, contentDescription = null, tint = TextPrimary, modifier = Modifier.size(19.dp))
+        Spacer(modifier = Modifier.width(10.dp))
         Column {
-            Text(title, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-            Text(subtitle, color = TextSecondary, fontSize = 12.sp, maxLines = 1)
+            Text(title, color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            Text(subtitle, color = TextSecondary, fontSize = 10.5.sp, maxLines = 1)
         }
     }
 }
@@ -992,11 +992,11 @@ fun AddTextSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 8.dp)
-                .padding(bottom = 28.dp)
+                .padding(horizontal = 14.dp, vertical = 6.dp)
+                .padding(bottom = 18.dp)
         ) {
-            Text("Add Text Layer", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            Spacer(modifier = Modifier.height(12.dp))
+            Text("Add Text Layer", color = TextPrimary, fontSize = 14.5.sp, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(8.dp))
 
             PillTextField(
                 value = textInput,
@@ -1004,19 +1004,19 @@ fun AddTextSheet(
                 label = "Title / Caption"
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
-            Text("Color Preset", color = TextSecondary, fontSize = 13.sp)
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("Color Preset", color = TextSecondary, fontSize = 11.sp)
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(0xFFFFFFFF, 0xFF00F0FF, 0xFFFFEB3B, 0xFFFF4081, 0xFF00E676).forEach { colorValue ->
                     Box(
                         modifier = Modifier
-                            .size(36.dp)
+                            .size(28.dp)
                             .clip(CircleShape)
                             .background(Color(colorValue))
                             .border(
-                                width = if (selectedColor == colorValue) 3.dp else 1.dp,
+                                width = if (selectedColor == colorValue) 2.dp else 1.dp,
                                 color = if (selectedColor == colorValue) Color.White else Color.Transparent,
                                 shape = CircleShape
                             )
@@ -1025,7 +1025,7 @@ fun AddTextSheet(
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             VioletPillButton(
                 onClick = {
@@ -1035,9 +1035,9 @@ fun AddTextSheet(
                     onDismiss()
                 },
                 modifier = Modifier.fillMaxWidth(),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 9.dp)
             ) {
-                Text("Add to Timeline", color = AmInk, fontWeight = FontWeight.Bold) // build 216: ink on the lime pill
+                Text("Add to Timeline", color = AmInk, fontSize = 13.sp, fontWeight = FontWeight.Bold) // build 216: ink on the lime pill
             }
         }
     }
@@ -1071,25 +1071,25 @@ fun AddShapeSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .padding(horizontal = 16.dp)
-                .padding(bottom = 20.dp)
+                .padding(horizontal = 12.dp)
+                .padding(bottom = 14.dp)
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 6.dp),
+                    .padding(vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
                     text = "Shapes",
                     color = TextPrimary,
-                    fontSize = 18.sp,
+                    fontSize = 14.5.sp,
                     fontWeight = FontWeight.SemiBold
                 )
                 Box(
                     modifier = Modifier
-                        .size(32.dp)
+                        .size(28.dp)
                         .clip(CircleShape)
                         .background(AmPanelHigh)
                         .bouncyClickable(pressedScale = 0.88f) { onDismiss() },
@@ -1099,7 +1099,7 @@ fun AddShapeSheet(
                         Icons.Default.Close,
                         contentDescription = "Close",
                         tint = TextSecondary,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(16.dp)
                     )
                 }
             }
@@ -1109,12 +1109,12 @@ fun AddShapeSheet(
                     .height(1.dp)
                     .background(AmHairline)
             )
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(10.dp))
 
             ShapeOptions.chunked(4).forEach { rowItems ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     rowItems.forEach { opt ->
                         ShapePickerCard(
@@ -1126,13 +1126,13 @@ fun AddShapeSheet(
                     }
                     repeat(4 - rowItems.size) { Spacer(Modifier.weight(1f)) }
                 }
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(8.dp))
             }
 
             Text(
                 text = "Tap a shape to add it at the playhead",
                 color = TextTertiary,
-                fontSize = 12.sp,
+                fontSize = 10.sp,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 2.dp),
@@ -1149,7 +1149,7 @@ private fun ShapePickerCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val tile = RoundedCornerShape(16.dp)
+    val tile = RoundedCornerShape(12.dp)
     Column(
         modifier = modifier.bouncyClickable(pressedScale = 0.94f, hoverScale = 1.0f, onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -1163,7 +1163,7 @@ private fun ShapePickerCard(
                 .border(1.dp, AmHairline, tile),
             contentAlignment = Alignment.Center
         ) {
-            Canvas(modifier = Modifier.fillMaxSize(0.52f)) {
+            Canvas(modifier = Modifier.fillMaxSize(0.48f)) {
                 val c = Color(0xFFEDEDED)
                 when (pattern) {
                     "CIRCLE" -> drawCircle(c)
@@ -1189,11 +1189,11 @@ private fun ShapePickerCard(
                 }
             }
         }
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(4.dp))
         Text(
             name,
             color = TextSecondary,
-            fontSize = 11.sp,
+            fontSize = 9.5.sp,
             fontWeight = FontWeight.Medium,
             maxLines = 1
         )
@@ -1273,34 +1273,34 @@ fun FullscreenPlayerModal(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .fillMaxWidth()
-                    .padding(16.dp),
+                    .padding(12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     text = "${formatTimeCode(currentPlayheadMs)} / ${formatTimeCode(totalDurationMs)}",
                     color = Color.White,
-                    fontSize = 14.sp,
+                    fontSize = 11.5.sp,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier
                         .clip(CircleShape)
                         .background(Color.Black.copy(alpha = 0.5f), CircleShape)
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                        .padding(horizontal = 10.dp, vertical = 5.dp)
                 )
                 // Build 217 (the reference's fullscreen overlay): the
                 // "Exit Fullscreen" pill — dark glass fill, white-at-15%
                 // border, r10 — at the top right.
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
+                        .clip(RoundedCornerShape(8.dp))
                         .background(Color(0xFF202026).copy(alpha = 0.85f))
-                        .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(10.dp))
+                        .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
                         .clickable(onClick = onDismiss)
-                        .padding(horizontal = 14.dp, vertical = 8.dp)
+                        .padding(horizontal = 11.dp, vertical = 6.dp)
                         .testTag("fullscreen_exit_button"),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("Exit Fullscreen", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text("Exit Fullscreen", color = Color.White, fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -1309,15 +1309,15 @@ fun FullscreenPlayerModal(
                 onClick = onTogglePlay,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 32.dp)
-                    .size(56.dp)
+                    .padding(bottom = 24.dp)
+                    .size(44.dp)
                     .background(Color.Black.copy(alpha = 0.5f), CircleShape)
             ) {
                 Icon(
                     imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                     contentDescription = "Play/Pause",
                     tint = Color.White,
-                    modifier = Modifier.size(36.dp)
+                    modifier = Modifier.size(28.dp)
                 )
             }
         }

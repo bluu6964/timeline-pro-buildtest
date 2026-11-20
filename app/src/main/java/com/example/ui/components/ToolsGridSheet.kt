@@ -104,9 +104,9 @@ private val IconWhite = AmTextPrimary // build 223: tokenized (was a near-white 
  * target ≥ 40 dp.
  */
 const val TOOLS_GRID_COLUMNS = 4
-const val TOOLS_GRID_TILE_H_DP = 62
-const val TOOLS_GRID_GAP_DP = 8
-const val TOOLS_GRID_PAD_V_DP = 8
+const val TOOLS_GRID_TILE_H_DP = 48
+const val TOOLS_GRID_GAP_DP = 6
+const val TOOLS_GRID_PAD_V_DP = 5
 const val TOOLS_GRID_MAX_ROWS = 4
 
 /** Tiles in the grid's utility section (IN, OUT, beat, onion, scopes, snap, frame, canvas + the displaced chrome). */
@@ -234,10 +234,10 @@ fun ToolsGridSheet(
     // with the transport row's snap/canvas appended (build 202's order).
     val utilityEntries = listOf(
         GridEntry("Range in", exportInSet, "export_in_button", "Export range in point", closeOnTap = true, onClick = onExportInClick) {
-            Text("IN", color = if (exportInSet) IconWhite else IconDisabled, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
+            Text("IN", color = if (exportInSet) IconWhite else IconDisabled, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
         },
         GridEntry("Range out", exportOutSet, "export_out_button", "Export range out point", closeOnTap = true, onClick = onExportOutClick) {
-            Text("OUT", color = if (exportOutSet) IconWhite else IconDisabled, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
+            Text("OUT", color = if (exportOutSet) IconWhite else IconDisabled, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
         },
         GridEntry("Beat mark", false, "beat_mark_button", "Beat mark", closeOnTap = true, onClick = onBeatMarkClick) { BeatMarkGlyph() },
         GridEntry("Onion", onionSkinOn, "onion_skin_button", "Onion skin", closeOnTap = false, onClick = onOnionSkinClick) { OnionGlyph(onionSkinOn) },
@@ -246,52 +246,40 @@ fun ToolsGridSheet(
         GridEntry("Frame", frameOn, "frame_button", "Selection frame", closeOnTap = false, onClick = onFrameClick) { FrameGlyph(frameOn) },
         GridEntry("Native timeline", nativeTimelineOn, "native_timeline_button", "Native timeline renderer", closeOnTap = false, onClick = onNativeTimelineClick) { NativeTimelineGlyph(nativeTimelineOn) },
         GridEntry("Canvas", false, "grid_button", "Canvas", closeOnTap = true, onClick = onCanvasClick) { GridGlyph() },
-        // Build 217: displaced chrome, housed in this sheet — frame
-        // stepping (was the transport), the preview-resolution sheet
-        // (was the transport's resolution button), Save frame (was the
-        // top bar), the master mute (was the timeline's floating
-        // speaker) and the lane-density toggle (the reference's own
-        // layer-pill job, kept as a tile here).
         GridEntry("Prev frame", false, "prev_frame_button", "Previous frame", closeOnTap = false, onClick = onPrevFrameClick) {
-            Icon(Icons.Default.SkipPrevious, null, tint = IconWhite, modifier = Modifier.size(23.dp))
+            Icon(Icons.Default.SkipPrevious, null, tint = IconWhite, modifier = Modifier.size(18.dp))
         },
         GridEntry("Next frame", false, "next_frame_button", "Next frame", closeOnTap = false, onClick = onNextFrameClick) {
-            Icon(Icons.Default.SkipNext, null, tint = IconWhite, modifier = Modifier.size(23.dp))
+            Icon(Icons.Default.SkipNext, null, tint = IconWhite, modifier = Modifier.size(18.dp))
         },
         GridEntry("Preview", false, "preview_resolution_button", "Preview resolution", closeOnTap = true, onClick = onPreviewClick) {
-            Text(previewLabel, color = IconWhite, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
+            Text(previewLabel, color = IconWhite, fontSize = 10.5.sp, fontWeight = FontWeight.ExtraBold)
         },
         GridEntry("Save frame", false, "save_frame_button", "Save current frame", closeOnTap = true, onClick = onSaveFrameClick) {
-            Icon(Icons.Default.PhotoCamera, null, tint = IconWhite, modifier = Modifier.size(23.dp))
+            Icon(Icons.Default.PhotoCamera, null, tint = IconWhite, modifier = Modifier.size(18.dp))
         },
         GridEntry("Master", masterMuted, "master_audio_button", "Master audio mute", closeOnTap = false, onClick = onMasterAudioClick) {
             Icon(
                 if (masterMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
                 null,
                 tint = if (masterMuted) IconWhite else AmTextDim,
-                modifier = Modifier.size(23.dp)
+                modifier = Modifier.size(18.dp)
             )
         },
         GridEntry("Density", densityComfort, "density_button", "Lane density (32 / 44 dp)", closeOnTap = false, onClick = onDensityClick) {
             Icon(
                 Icons.Default.ViewStream, null,
                 tint = if (densityComfort) IconWhite else AmTextDim,
-                modifier = Modifier.size(23.dp)
+                modifier = Modifier.size(18.dp)
             )
         },
-        // Build 218: displaced by the 12-tile dock (no dock tile of their
-        // own) — the Templates library and the Controller add live here.
         GridEntry("Templates", false, "templates_button", "Templates", closeOnTap = true, onClick = onTemplatesClick) {
-            Icon(Icons.Default.Layers, null, tint = IconWhite, modifier = Modifier.size(23.dp))
+            Icon(Icons.Default.Layers, null, tint = IconWhite, modifier = Modifier.size(18.dp))
         },
         GridEntry("Controller", false, "controller_button", "Add controller layer", closeOnTap = true, onClick = onControllerClick) {
-            Icon(Icons.Default.Tune, null, tint = IconWhite, modifier = Modifier.size(23.dp))
+            Icon(Icons.Default.Tune, null, tint = IconWhite, modifier = Modifier.size(18.dp))
         }
     )
-    // The selected panel's tools ride FIRST, in the panel's own order,
-    // dispatched by the panel itself (build 210: while this sheet is the
-    // unified tools panel, the section carries the panel's FULL list —
-    // primary tools first, then its overflow).
     val clipEntries = clipOverflow?.tools?.map { tool ->
         val used = tool.id in clipOverflow.usedTools
         GridEntry(
@@ -306,7 +294,7 @@ fun ToolsGridSheet(
                 imageVector = tool.icon,
                 contentDescription = null,
                 tint = if (used) IconWhite else AmTextDim,
-                modifier = Modifier.size(23.dp)
+                modifier = Modifier.size(18.dp)
             )
         }
     } ?: emptyList()
@@ -350,7 +338,7 @@ fun ToolsGridSheet(
             .testTag("tools_grid_sheet")
     ) {
         LazyRow(
-            contentPadding = PaddingValues(horizontal = 10.dp),
+            contentPadding = PaddingValues(horizontal = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(TOOLS_GRID_GAP_DP.dp),
             modifier = Modifier
                 .fillMaxWidth()
@@ -376,7 +364,7 @@ fun ToolsGridSheet(
 private fun GridTile(entry: GridEntry, onClick: () -> Unit) {
     Box(
         modifier = Modifier
-            .width(68.dp)
+            .width(56.dp)
             .height(TOOLS_GRID_TILE_H_DP.dp)
             .semantics { contentDescription = entry.description }
             .bouncyClickable(pressedScale = 0.92f, onClick = onClick)
@@ -388,21 +376,21 @@ private fun GridTile(entry: GridEntry, onClick: () -> Unit) {
                 .fillMaxSize()
                 .background(
                     if (entry.active) AmPillSelected else AmPanelHigh,
-                    RoundedCornerShape(16.dp)
+                    RoundedCornerShape(12.dp)
                 )
-                .clip(RoundedCornerShape(16.dp))
+                .clip(RoundedCornerShape(12.dp))
                 .alpha(if (entry.enabled) 1f else 0.38f)
-                .padding(horizontal = 4.dp, vertical = 4.dp),
+                .padding(horizontal = 3.dp, vertical = 3.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
             Box(
-                modifier = Modifier.size(24.dp),
+                modifier = Modifier.size(18.dp),
                 contentAlignment = Alignment.Center
             ) {
                 entry.glyph()
             }
-            Spacer(modifier = Modifier.height(2.dp))
+            Spacer(modifier = Modifier.height(1.dp))
             Text(
                 text = entry.label,
                 color = when {
@@ -410,8 +398,8 @@ private fun GridTile(entry: GridEntry, onClick: () -> Unit) {
                     entry.active -> IconWhite
                     else -> AmTextDim
                 },
-                fontSize = 11.sp,
-                lineHeight = 13.sp,
+                fontSize = 9.5.sp,
+                lineHeight = 11.sp,
                 fontWeight = if (entry.active) FontWeight.Bold else FontWeight.Normal,
                 maxLines = 2,
                 textAlign = TextAlign.Center
@@ -425,7 +413,7 @@ private fun GridTile(entry: GridEntry, onClick: () -> Unit) {
 /** Rounded outline with a 4 x 3 grid of small squares. */
 @Composable
 private fun GridGlyph() {
-    Canvas(Modifier.size(24.dp)) {
+    Canvas(Modifier.size(18.dp)) {
         val u = size.width / 24f
         val c = AmTextPrimary
         val w = 20.7f * u - 2.2f * u
@@ -453,7 +441,7 @@ private fun GridGlyph() {
  */
 @Composable
 private fun FrameGlyph(on: Boolean) {
-    Canvas(Modifier.size(24.dp)) {
+    Canvas(Modifier.size(18.dp)) {
         val u = size.width / 24f
         val c = if (on) AmTextPrimary else IconDisabled
         drawRoundRect(c, Offset(5f * u, 5f * u), androidx.compose.ui.geometry.Size(14f * u, 14f * u), androidx.compose.ui.geometry.CornerRadius(1.6f * u), style = Stroke(1.7f * u))
@@ -470,7 +458,7 @@ private fun FrameGlyph(on: Boolean) {
  */
 @Composable
 private fun NativeTimelineGlyph(on: Boolean) {
-    Canvas(Modifier.size(24.dp)) {
+    Canvas(Modifier.size(18.dp)) {
         val u = size.width / 24f
         val c = if (on) AmTextPrimary else IconDisabled
         drawLine(c, Offset(3f * u, 6f * u), Offset(21f * u, 6f * u), strokeWidth = 1.6f * u)
@@ -489,7 +477,7 @@ private fun NativeTimelineGlyph(on: Boolean) {
  */
 @Composable
 private fun OnionGlyph(on: Boolean) {
-    Canvas(Modifier.size(24.dp)) {
+    Canvas(Modifier.size(18.dp)) {
         val u = size.width / 24f
         val c = if (on) AmTextPrimary else IconDisabled
         drawRoundRect(c, Offset(8.6f * u, 3.4f * u), androidx.compose.ui.geometry.Size(12f * u, 12f * u), androidx.compose.ui.geometry.CornerRadius(2.6f * u), style = Stroke(1.8f * u))
@@ -504,7 +492,7 @@ private fun OnionGlyph(on: Boolean) {
  */
 @Composable
 private fun ScopesGlyph(on: Boolean) {
-    Canvas(Modifier.size(24.dp)) {
+    Canvas(Modifier.size(18.dp)) {
         val u = size.width / 24f
         val c = if (on) AmTextPrimary else IconDisabled
         val base = 19.4f * u
@@ -519,7 +507,7 @@ private fun ScopesGlyph(on: Boolean) {
 /** U-magnet (build 199, A3): the snap toggle. White = snapping on, grey = off. */
 @Composable
 private fun MagnetGlyph(on: Boolean) {
-    Canvas(Modifier.size(24.dp)) {
+    Canvas(Modifier.size(18.dp)) {
         val u = size.width / 24f
         val c = if (on) AmTextPrimary else IconDisabled
         val body = Path().apply {
@@ -539,7 +527,7 @@ private fun MagnetGlyph(on: Boolean) {
 /** White diamond (the mark on the ruler) with a white plus beside it: adds a beat mark. */
 @Composable
 private fun BeatMarkGlyph() {
-    Canvas(Modifier.size(24.dp)) {
+    Canvas(Modifier.size(18.dp)) {
         val u = size.width / 24f
         val cyan = AmTextPrimary // build 217: light glyph on the dark panel
         val d = Path().apply {

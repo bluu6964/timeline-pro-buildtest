@@ -73,8 +73,8 @@ void Gesture::clearDrag(std::vector<Event>* out) {
 
 float Gesture::laneStepPx(const Renderer& r, int32_t track) const {
     const Snapshot& s = r.snapshot();
-    if (track < 0 || track >= (int32_t)s.tracks.size()) return 36.f * (s.density > 0 ? s.density : 1.f);
-    // Kotlin: (tallest clip's lane height in dp + 4) * density = lane height px + the 4 dp gap.
+    if (track < 0 || track >= (int32_t)s.tracks.size()) return 27.f * (s.density > 0 ? s.density : 1.f);
+    // Kotlin: (tallest clip's lane height in dp + 3) * density = lane height px + the 3 dp gap.
     return s.tracks[(size_t)track].heightPx + s.gapPx;
 }
 

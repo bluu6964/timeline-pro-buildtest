@@ -79,32 +79,32 @@ fun AddLayerSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .padding(bottom = 28.dp)
+                .padding(horizontal = 12.dp)
+                .padding(bottom = 18.dp)
         ) {
-            Text("Add layer", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(16.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Add layer", color = TextPrimary, fontSize = 14.5.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(10.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 Item("Media", Icons.Default.AddPhotoAlternate, "add_sheet_media") { onDismiss(); onMedia() }
                 Item("Text", Icons.Default.TextFields, "add_sheet_text") { onDismiss(); onText() }
                 Item("Shape", Icons.Default.Category, "add_sheet_shape") { onDismiss(); onShape() }
             }
-            Spacer(Modifier.height(10.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Spacer(Modifier.height(7.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 Item("Audio", Icons.Default.MusicNote, "add_sheet_audio") { onDismiss(); onAudio() }
                 Item("Stickers", Icons.Default.SentimentSatisfiedAlt, "add_sheet_sticker") { onDismiss(); onSticker() }
                 Item("Templates", Icons.Default.Layers, "add_sheet_templates") { onDismiss(); onTemplates() }
             }
-            Spacer(Modifier.height(10.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Spacer(Modifier.height(7.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 Item("Draw", Icons.Default.Brush, "add_sheet_draw") { onDismiss(); onDraw() }
                 Item("Pen", Icons.Default.Polyline, "add_sheet_pen") { onDismiss(); onPen() }
                 Spacer(Modifier.weight(1f))
             }
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(7.dp))
             // Build 214: the helper layers (they were the old toolbar's
             // Null / Controller / Chain / Camera items).
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 Item("Null", Icons.Default.CenterFocusWeak, "add_sheet_null") { onDismiss(); onNull() }
                 Item("Controller", Icons.Default.Tune, "add_sheet_controller") { onDismiss(); onController() }
                 Item("Chain", Icons.Default.ViewStream, "add_sheet_chain") { onDismiss(); onChain() }
@@ -119,8 +119,8 @@ private fun RowScope.Item(label: String, icon: ImageVector, tag: String, onClick
     Box(
         modifier = Modifier
             .weight(1f)
-            .background(AmCardSurface, RoundedCornerShape(20.dp))
-            .clip(RoundedCornerShape(20.dp))
+            .background(AmCardSurface, RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(14.dp))
             .bouncyClickable(onClick = onClick)
             .testTag(tag),
         contentAlignment = Alignment.Center
@@ -128,12 +128,12 @@ private fun RowScope.Item(label: String, icon: ImageVector, tag: String, onClick
         // A rounded card tile (build 207 redesign): icon + label on the card
         // surface — the same tile language as the tools grid.
         Column(
-            modifier = Modifier.padding(vertical = 16.dp),
+            modifier = Modifier.padding(vertical = 10.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Icon(icon, label, tint = AmCyan, modifier = Modifier.size(26.dp))
-            Spacer(Modifier.height(6.dp))
-            Text(label, color = AmTextDim, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+            Icon(icon, label, tint = AmCyan, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.height(4.dp))
+            Text(label, color = AmTextDim, fontSize = 10.5.sp, fontWeight = FontWeight.Medium)
         }
     }
 }

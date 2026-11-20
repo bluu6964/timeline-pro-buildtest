@@ -125,14 +125,14 @@ fun ProjectsDialog(
                 .background(AmBase)
                 .statusBarsPadding()
                 .navigationBarsPadding()
-                .padding(horizontal = 16.dp)
+                .padding(horizontal = 12.dp)
                 .testTag("projects_home")
         ) {
             // ── Brand header ───────────────────────────────────────
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(64.dp),
+                    .height(48.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Build 220: the brand tile is Sarowar's clapperboard
@@ -142,17 +142,17 @@ fun ProjectsDialog(
                     painter = painterResource(id = R.drawable.timeline_pro_logo),
                     contentDescription = null,
                     modifier = Modifier
-                        .size(40.dp)
-                        .clip(RoundedCornerShape(12.dp))
+                        .size(32.dp)
+                        .clip(RoundedCornerShape(9.dp))
                 )
-                Spacer(Modifier.width(12.dp))
+                Spacer(Modifier.width(9.dp))
                 Column {
-                    Text("Timeline Pro", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                    Text("Projects", color = AmTextDim, fontSize = 12.sp, maxLines = 1)
+                    Text("Timeline Pro", color = TextPrimary, fontSize = 14.5.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                    Text("Projects", color = AmTextDim, fontSize = 10.sp, maxLines = 1)
                 }
                 Spacer(Modifier.weight(1f))
-                IconButton(onClick = onDismiss, modifier = Modifier.size(44.dp).testTag("home_close_button")) {
-                    Icon(Icons.Filled.Close, contentDescription = "Close", tint = TextPrimary)
+                IconButton(onClick = onDismiss, modifier = Modifier.size(36.dp).testTag("home_close_button")) {
+                    Icon(Icons.Filled.Close, contentDescription = "Close", tint = TextPrimary, modifier = Modifier.size(19.dp))
                 }
             }
 
@@ -162,32 +162,32 @@ fun ProjectsDialog(
                     .fillMaxWidth()
                     .clip(CircleShape)
                     .background(AmPanelHigh)
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                    .padding(horizontal = 12.dp, vertical = 7.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
                     Icons.Filled.Search,
                     contentDescription = "Search projects",
                     tint = TextSecondary,
-                    modifier = Modifier.size(18.dp)
+                    modifier = Modifier.size(15.dp)
                 )
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(6.dp))
                 BasicTextField(
                     value = query,
                     onValueChange = { query = it },
                     singleLine = true,
-                    textStyle = TextStyle(color = TextPrimary, fontSize = 14.sp),
+                    textStyle = TextStyle(color = TextPrimary, fontSize = 12.sp),
                     cursorBrush = SolidColor(TextPrimary),
                     modifier = Modifier.weight(1f),
                     decorationBox = { inner ->
                         if (query.isEmpty()) {
-                            Text("Search projects", color = TextSecondary, fontSize = 14.sp)
+                            Text("Search projects", color = TextSecondary, fontSize = 12.sp)
                         }
                         inner()
                     }
                 )
             }
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(10.dp))
 
             // ── New Project hero ───────────────────────────────────
             Row(
@@ -196,31 +196,31 @@ fun ProjectsDialog(
                     .clip(RoundedCornerShape(AmCornerCard))
                     .background(com.example.ui.theme.RefLime) // build 217: the New Project hero is LIME with dark content (the reference's primary)
                     .clickable { onNew() }
-                    .padding(horizontal = 18.dp, vertical = 18.dp)
+                    .padding(horizontal = 14.dp, vertical = 12.dp)
                     .testTag("home_new_project"),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(
                     modifier = Modifier
-                        .size(46.dp)
+                        .size(36.dp)
                         .clip(CircleShape)
                         .background(com.example.ui.theme.AmInk),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Filled.Add, contentDescription = null, tint = com.example.ui.theme.RefLime, modifier = Modifier.size(26.dp))
+                    Icon(Icons.Filled.Add, contentDescription = null, tint = com.example.ui.theme.RefLime, modifier = Modifier.size(20.dp))
                 }
-                Spacer(Modifier.width(14.dp))
+                Spacer(Modifier.width(10.dp))
                 Column {
-                    Text("New Project", color = com.example.ui.theme.RefLimeInk, fontSize = 17.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                    Text("Start a fresh edit", color = com.example.ui.theme.RefLimeInk.copy(alpha = 0.65f), fontSize = 12.5.sp, maxLines = 1)
+                    Text("New Project", color = com.example.ui.theme.RefLimeInk, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                    Text("Start a fresh edit", color = com.example.ui.theme.RefLimeInk.copy(alpha = 0.65f), fontSize = 10.5.sp, maxLines = 1)
                 }
             }
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(8.dp))
 
             // ── Secondary actions ──────────────────────────────────
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 DialogSecondaryButton(text = "Import", onClick = onImport)
                 if (missingMediaCount > 0) {
@@ -239,15 +239,15 @@ fun ProjectsDialog(
                 Text(
                     "No projects yet. Start one with New Project above.",
                     color = TextSecondary,
-                    fontSize = 13.sp,
-                    modifier = Modifier.padding(vertical = 8.dp)
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(vertical = 6.dp)
                 )
             } else if (shownProjects.isEmpty()) {
                 Text(
                     "No projects match your search.",
                     color = TextSecondary,
-                    fontSize = 13.sp,
-                    modifier = Modifier.padding(vertical = 8.dp)
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(vertical = 6.dp)
                 )
             } else {
                 LazyVerticalGrid(
@@ -255,8 +255,8 @@ fun ProjectsDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(shownProjects, key = { it.id }) { p ->
                         val isCurrent = p.id == currentId
@@ -275,50 +275,50 @@ fun ProjectsDialog(
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(74.dp)
+                                    .height(58.dp)
                                     .background(com.example.ui.theme.AmPanelElevated),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
                                     p.name.trim().firstOrNull()?.uppercase() ?: "M",
                                     color = AmTextDim,
-                                    fontSize = 28.sp,
+                                    fontSize = 22.sp,
                                     fontWeight = FontWeight.ExtraBold
                                 )
                                 if (isCurrent) {
                                     Box(
                                         modifier = Modifier
                                             .align(Alignment.TopStart)
-                                            .padding(8.dp)
+                                            .padding(6.dp)
                                             .clip(CircleShape)
                                             .background(AmAccent)
-                                            .padding(horizontal = 7.dp, vertical = 2.dp)
+                                            .padding(horizontal = 6.dp, vertical = 1.5.dp)
                                     ) {
-                                        Text("OPEN", color = com.example.ui.theme.AmInk, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold)
+                                        Text("OPEN", color = com.example.ui.theme.AmInk, fontSize = 8.sp, fontWeight = FontWeight.ExtraBold)
                                     }
                                 }
                                 Box(
                                     modifier = Modifier
                                         .align(Alignment.BottomEnd)
-                                        .padding(8.dp)
+                                        .padding(6.dp)
                                         .clip(CircleShape)
                                         .background(Color.Black.copy(alpha = 0.55f))
-                                        .padding(horizontal = 7.dp, vertical = 2.dp)
+                                        .padding(horizontal = 6.dp, vertical = 1.5.dp)
                                 ) {
-                                    Text(formatDuration(p.durationMs), color = Color.White, fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold)
+                                    Text(formatDuration(p.durationMs), color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.SemiBold)
                                 }
                             }
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(start = 12.dp, top = 8.dp, bottom = 10.dp, end = 2.dp),
+                                    .padding(start = 10.dp, top = 6.dp, bottom = 7.dp, end = 2.dp),
                                 verticalAlignment = Alignment.Top
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         p.name,
                                         color = TextPrimary, // build 216: the current project reads ink + bold, not lime text
-                                        fontSize = 14.sp,
+                                        fontSize = 12.sp,
                                         fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.SemiBold,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
@@ -326,7 +326,7 @@ fun ProjectsDialog(
                                     Text(
                                         "${dateFmt.format(Date(p.updatedAt))} · ${p.layerCount} layers",
                                         color = TextSecondary,
-                                        fontSize = 11.5.sp,
+                                        fontSize = 9.5.sp,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
@@ -334,9 +334,9 @@ fun ProjectsDialog(
                                 Box {
                                     IconButton(
                                         onClick = { menuFor = p.id },
-                                        modifier = Modifier.size(36.dp).testTag("project_menu_${p.id}")
+                                        modifier = Modifier.size(30.dp).testTag("project_menu_${p.id}")
                                     ) {
-                                        Icon(Icons.Filled.MoreVert, contentDescription = "Project actions", tint = TextSecondary, modifier = Modifier.size(20.dp))
+                                        Icon(Icons.Filled.MoreVert, contentDescription = "Project actions", tint = TextSecondary, modifier = Modifier.size(16.dp))
                                     }
                                     DropdownMenu(
                                         expanded = menuFor == p.id,

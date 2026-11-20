@@ -168,16 +168,16 @@ private fun glyphKindOf(clip: TimelineClip): Int = when (barGlyphFor(clip)) {
 
 /** The label styles the native renderer blits (sizes/weights mirror the Compose bars). */
 internal enum class TlLabelStyle(val sp: Float, val weight: Int, val italic: Boolean = false) {
-    LABEL(13f, 600),
-    LABEL_SM(12.5f, 600),
-    CHIP(10f, 500),
-    BADGE(10f, 700),
-    PILL(11f, 700),
-    TOTAL(11f, 500),
-    DIGIT(12f, 700),
-    FX(9f, 700, italic = true),
-    CONTROLLER(12f, 700),
-    EMPTY(12f, 500)
+    LABEL(11f, 600),
+    LABEL_SM(10.5f, 600),
+    CHIP(9f, 500),
+    BADGE(9f, 700),
+    PILL(9.5f, 700),
+    TOTAL(9.5f, 500),
+    DIGIT(10f, 700),
+    FX(8f, 700, italic = true),
+    CONTROLLER(10.5f, 700),
+    EMPTY(10.5f, 500)
 }
 
 /**
@@ -469,8 +469,8 @@ internal class NativeTimelineEngine(context: Context) {
                 // The old snapshot's indices are invalid against a fresh atlas:
                 // blank the surface snapshot first, then upload and rebuild.
                 TimelineNative.nativeBeginSnapshot(
-                    h, density, input.pxPerMs, 44f * density, 42f * density,
-                    4f * density, 4f * density, input.bottomPadPx, input.totalMs,
+                    h, density, input.pxPerMs, 34f * density, 34f * density,
+                    3f * density, 3f * density, input.bottomPadPx, input.totalMs,
                     0, -1, 0f, -1, -1, input.comfort, false, false, 0L, 0L
                 )
                 TimelineNative.nativeEndSnapshot(h)
@@ -497,7 +497,7 @@ internal class NativeTimelineEngine(context: Context) {
     /** Returns false when the atlas overflowed and the pass must restart. */
     private fun buildSnapshot(h: Long, input: TlSnapshotInput): Boolean {
         val dpPx = density
-        atlas.ensureDigits(22f * dpPx)
+        atlas.ensureDigits(15f * dpPx)
         val layerCount = input.tracks.sumOf { it.clips.size }
         val pillText = "$layerCount Layers"
         val pillIdx = atlas.resolve(pillText, TlLabelStyle.PILL, 0f)
@@ -519,7 +519,7 @@ internal class NativeTimelineEngine(context: Context) {
                 val inChain = chainClip != null && clip.chainId == chainClip.id
                 val barWidthPx = maxOf(
                     (clip.durationMs * input.pxPerMs * dpPx).toFloat(),
-                    36f * dpPx
+                    30f * dpPx
                 )
                 var label = -1
                 var chip = -1
@@ -529,12 +529,12 @@ internal class NativeTimelineEngine(context: Context) {
                     clip.type == LayerType.CONTROLLER -> {
                         label = atlas.resolve(
                             clip.name, TlLabelStyle.CONTROLLER,
-                            barWidthPx - 46f * dpPx
+                            barWidthPx - 34f * dpPx
                         )
                     }
                     clip.type == LayerType.VIDEO || clip.type == LayerType.AUDIO -> {
                         if (!inChain) {
-                            chip = atlas.resolve(clip.name, TlLabelStyle.CHIP, barWidthPx - 44f * dpPx)
+                            chip = atlas.resolve(clip.name, TlLabelStyle.CHIP, barWidthPx - 34f * dpPx)
                             badge = if (clip.type == LayerType.AUDIO) {
                                 atlas.resolve(
                                     String.format("%.1fs", clip.durationMs / 1000.0),
@@ -546,7 +546,7 @@ internal class NativeTimelineEngine(context: Context) {
                         } else {
                             label = atlas.resolve(
                                 clip.name, TlLabelStyle.LABEL_SM,
-                                barWidthPx - 11f * dpPx - 24f * dpPx - 24f * dpPx
+                                barWidthPx - 8f * dpPx - 18f * dpPx - 20f * dpPx
                             )
                         }
                     }
@@ -555,11 +555,11 @@ internal class NativeTimelineEngine(context: Context) {
                             clip.text?.takeIf { it.isNotBlank() } ?: clip.name
                         } else clip.name
                         val glyph = glyphKindOf(clip) != 0
-                        val endPad = if (inChain) 24f else 40f
+                        val endPad = if (inChain) 20f else 30f
                         label = atlas.resolve(
                             text,
                             if (inChain) TlLabelStyle.LABEL_SM else TlLabelStyle.LABEL,
-                            barWidthPx - 11f * dpPx - (if (glyph) 24f else 0f) * dpPx - endPad * dpPx
+                            barWidthPx - 8f * dpPx - (if (glyph) 18f else 0f) * dpPx - endPad * dpPx
                         )
                     }
                 }
@@ -572,8 +572,8 @@ internal class NativeTimelineEngine(context: Context) {
         uploadAtlasIfDirty(h)
 
         TimelineNative.nativeBeginSnapshot(
-            h, density, input.pxPerMs, 44f * dpPx, 42f * dpPx,
-            4f * dpPx, 4f * dpPx, input.bottomPadPx, input.totalMs,
+            h, density, input.pxPerMs, 34f * dpPx, 34f * dpPx,
+            3f * dpPx, 3f * dpPx, input.bottomPadPx, input.totalMs,
             layerCount, pillIdx, pillW, totalIdx, chainIdx,
             input.comfort, input.multiSelectIds.isNotEmpty(),
             hasRange, input.exportInMs ?: 0L, input.exportOutMs ?: 0L
@@ -583,7 +583,7 @@ internal class NativeTimelineEngine(context: Context) {
             val chainClipIdx = track.clips.indexOfFirst { it.type == LayerType.CHAIN }
             val chainClip = track.clips.getOrNull(chainClipIdx)
             val heightPx = (track.clips.maxOfOrNull { laneHeightFor(it.type, input.comfort) }?.value
-                ?: 24f) * dpPx
+                ?: 20f) * dpPx
             val nativeTrack = TimelineNative.nativeAddTrack(h, heightPx, chainClipIdx)
             track.clips.forEachIndexed { ci, clip ->
                 val inChain = chainClip != null && clip.chainId == chainClip.id

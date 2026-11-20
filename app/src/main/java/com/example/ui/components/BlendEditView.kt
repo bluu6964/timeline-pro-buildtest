@@ -156,17 +156,15 @@ fun BlendEditSheet(
                 indication = null,
                 onClick = {}
             )
-            .padding(top = 8.dp, bottom = 6.dp)
+            .padding(top = 6.dp, bottom = 4.dp)
             .testTag("blend_edit_sheet")
     ) {
         if (easingOpen) {
-            // The easing graph takes the carousel + slider-header zone (134 dp), so the
-            // panel's total height — and the fit — is unchanged while it is open.
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(134.dp)
-                    .padding(horizontal = 12.dp)
+                    .height(108.dp)
+                    .padding(horizontal = 10.dp)
             ) {
                 EasingEditor(
                     easing = segStart!!.easing,
@@ -177,15 +175,15 @@ fun BlendEditSheet(
                     modifier = Modifier.fillMaxSize()
                 )
             }
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(2.dp))
         } else {
             // ---- Mode carousel of the active category --------------------------------
             LazyRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("blend_modes_row"),
-                contentPadding = PaddingValues(horizontal = 18.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                contentPadding = PaddingValues(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(BlendModes.inCategory(category), key = { it.name }) { spec ->
                     BlendModeItem(
@@ -196,22 +194,22 @@ fun BlendEditSheet(
                 }
             }
 
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(6.dp))
 
             // ---- Slider header: 0 — value — 100 ---------------------------------------
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 24.dp),
+                    .padding(horizontal = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("0", color = BlendMuted, fontSize = 12.sp)
+                Text("0", color = BlendMuted, fontSize = 10.5.sp)
                 Text(
                     "${clip.opacity.roundToInt()}",
                     color = BlendGreen,
                     textAlign = TextAlign.Center,
                     style = androidx.compose.ui.text.TextStyle(
-                        fontSize = 14.sp,
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
                         fontFeatureSettings = "tnum"
                     ),
@@ -219,17 +217,17 @@ fun BlendEditSheet(
                         .weight(1f)
                         .testTag("blend_opacity_value")
                 )
-                Text("100", color = BlendMuted, fontSize = 12.sp)
+                Text("100", color = BlendMuted, fontSize = 10.5.sp)
             }
 
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(2.dp))
         }
 
         // ---- Slider row: keyframe | opacity slider | graph ----------------------------
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp),
+                .padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             KeyframeButton221(
@@ -238,16 +236,16 @@ fun BlendEditSheet(
                 onKeyframeNow = onKeyframeNow,
                 onClick = { onToggleKeyframes(opacityProps) }
             )
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(8.dp))
             BlendOpacitySlider(
                 value = clip.opacity,
                 onValueChange = { v -> onUpdate { it.copy(opacity = v) } },
                 modifier = Modifier
                     .weight(1f)
-                    .height(32.dp)
+                    .height(26.dp)
                     .testTag("blend_opacity_slider")
             )
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(8.dp))
             GraphButton221(
                 enabled = easingEnabled,
                 open = easingOpen,
@@ -256,13 +254,13 @@ fun BlendEditSheet(
             )
         }
 
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(6.dp))
 
         // ---- Category pills -----------------------------------------------------------
         LazyRow(
             modifier = Modifier.fillMaxWidth(),
-            contentPadding = PaddingValues(horizontal = 18.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(horizontal = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             items(BlendModes.categories, key = { it }) { name ->
@@ -272,14 +270,14 @@ fun BlendEditSheet(
                         .clip(CircleShape)
                         .background(if (on) BlendGreen else BlendSurface)
                         .bouncyClickable(pressedScale = 0.95f) { category = name }
-                        .padding(horizontal = 18.dp, vertical = 10.dp)
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
                         .testTag("blend_tab_$name"),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         name,
                         color = if (on) BlendInk else BlendIconTint,
-                        fontSize = 13.5.sp,
+                        fontSize = 11.5.sp,
                         fontWeight = if (on) FontWeight.SemiBold else FontWeight.Medium
                     )
                 }
@@ -302,13 +300,13 @@ private fun BlendModeItem(
     val thumb = remember(spec.name) { BlendThumbs.bitmapFor(spec) }
     Column(
         modifier = Modifier
-            .width(82.dp)
+            .width(64.dp)
             .bouncyClickable(pressedScale = 0.95f, onClick = onClick)
             .testTag("blend_mode_${spec.name}"),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Box(modifier = Modifier.size(82.dp)) {
-            val shape = if (selected) CircleShape else RoundedCornerShape(16.dp)
+        Box(modifier = Modifier.size(64.dp)) {
+            val shape = if (selected) CircleShape else RoundedCornerShape(12.dp)
             Image(
                 bitmap = thumb.asImageBitmap(),
                 contentDescription = spec.name,
@@ -329,7 +327,7 @@ private fun BlendModeItem(
                 )
                 Box(
                     modifier = Modifier
-                        .size(32.dp)
+                        .size(24.dp)
                         .align(Alignment.Center)
                         .clip(CircleShape)
                         .background(BlendGreen),
@@ -337,16 +335,16 @@ private fun BlendModeItem(
                 ) {
                     Icon(
                         Icons.Default.Check, "Selected",
-                        tint = BlendCheckInk, modifier = Modifier.size(17.dp)
+                        tint = BlendCheckInk, modifier = Modifier.size(13.dp)
                     )
                 }
             }
         }
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(6.dp))
         Text(
             spec.name,
             color = if (selected) Color.White else BlendMuted,
-            fontSize = 12.5.sp,
+            fontSize = 11.sp,
             fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -357,8 +355,8 @@ private fun BlendModeItem(
 }
 
 // =====================================================================================
-// Opacity slider (build 221): 5 dp track, green fill, 20 dp thumb with the dark
-// 3 dp border and the soft green ring of the reference; the thumb grows while dragged.
+// Opacity slider (build 221): 4 dp track, green fill, 15 dp thumb with the dark
+// 2 dp border and the soft green ring of the reference; the thumb grows while dragged.
 // =====================================================================================
 
 @Composable
@@ -372,7 +370,7 @@ private fun BlendOpacitySlider(
     Canvas(
         modifier = modifier.pointerInput(Unit) {
             awaitEachGesture {
-                val thumbR = 10.dp.toPx()
+                val thumbR = 7.5.dp.toPx()
                 fun toValue(x: Float): Float {
                     val span = (size.width - 2f * thumbR).coerceAtLeast(1f)
                     return (((x - thumbR) / span).coerceIn(0f, 1f) * 100f).roundToInt().toFloat()
@@ -392,18 +390,18 @@ private fun BlendOpacitySlider(
             }
         }
     ) {
-        val thumbR = 10.dp.toPx()
+        val thumbR = 7.5.dp.toPx()
         val y = size.height / 2f
         val x = thumbR + (size.width - 2f * thumbR) * (value / 100f).coerceIn(0f, 1f)
         drawLine(
             color = BlendTrack,
             start = Offset(thumbR, y), end = Offset(size.width - thumbR, y),
-            strokeWidth = 5.dp.toPx(), cap = StrokeCap.Round
+            strokeWidth = 4.dp.toPx(), cap = StrokeCap.Round
         )
         drawLine(
             color = BlendGreen,
             start = Offset(thumbR, y), end = Offset(x, y),
-            strokeWidth = 5.dp.toPx(), cap = StrokeCap.Round
+            strokeWidth = 4.dp.toPx(), cap = StrokeCap.Round
         )
         val r = thumbR * if (dragging) 1.15f else 1f
         // soft outer ring (the reference's 1 px green glow line)
@@ -414,7 +412,7 @@ private fun BlendOpacitySlider(
             style = Stroke(width = 1.dp.toPx())
         )
         drawCircle(color = BlendInk, radius = r, center = Offset(x, y))
-        drawCircle(color = BlendGreen, radius = r - 3.dp.toPx(), center = Offset(x, y))
+        drawCircle(color = BlendGreen, radius = r - 2.dp.toPx(), center = Offset(x, y))
     }
 }
 
@@ -432,15 +430,15 @@ private fun KeyframeButton221(
 ) {
     Box(
         modifier = Modifier
-            .size(32.dp)
+            .size(26.dp)
             .graphicsLayer { alpha = if (enabled) 1f else 0.35f }
             .bouncyClickable { if (enabled) onClick() }
             .testTag("blend_keyframe_button"),
         contentAlignment = Alignment.Center
     ) {
-        Canvas(modifier = Modifier.size(32.dp)) {
+        Canvas(modifier = Modifier.size(26.dp)) {
             val c = center
-            val r = 8.5.dp.toPx()
+            val r = 6.8.dp.toPx()
             val corners = listOf(
                 Offset(c.x, c.y - r), Offset(c.x + r, c.y),
                 Offset(c.x, c.y + r), Offset(c.x - r, c.y)
@@ -469,9 +467,9 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawPlus(
     c: Offset,
     color: Color
 ) {
-    val arm = 3.5.dp.toPx()
-    drawLine(color, Offset(c.x - arm, c.y), Offset(c.x + arm, c.y), 1.5.dp.toPx(), StrokeCap.Round)
-    drawLine(color, Offset(c.x, c.y - arm), Offset(c.x, c.y + arm), 1.5.dp.toPx(), StrokeCap.Round)
+    val arm = 2.8.dp.toPx()
+    drawLine(color, Offset(c.x - arm, c.y), Offset(c.x + arm, c.y), 1.4.dp.toPx(), StrokeCap.Round)
+    drawLine(color, Offset(c.x, c.y - arm), Offset(c.x, c.y + arm), 1.4.dp.toPx(), StrokeCap.Round)
 }
 
 @Composable
@@ -483,7 +481,7 @@ private fun GraphButton221(
 ) {
     Box(
         modifier = Modifier
-            .size(32.dp)
+            .size(26.dp)
             .clip(CircleShape)
             .background(if (open) BlendSurface else Color.Transparent)
             .graphicsLayer { alpha = if (enabled) 1f else 0.35f }
@@ -491,7 +489,7 @@ private fun GraphButton221(
             .testTag("blend_graph_button"),
         contentAlignment = Alignment.Center
     ) {
-        Canvas(modifier = Modifier.size(20.dp)) {
+        Canvas(modifier = Modifier.size(16.dp)) {
             drawEasingIcon(
                 easing = easing,
                 color = when {
@@ -499,7 +497,7 @@ private fun GraphButton221(
                     open -> BlendGreen
                     else -> Color.White
                 },
-                strokeWidth = 2.dp.toPx()
+                strokeWidth = 1.75.dp.toPx()
             )
         }
     }

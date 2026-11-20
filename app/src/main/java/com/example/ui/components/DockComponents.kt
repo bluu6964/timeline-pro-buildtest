@@ -61,7 +61,7 @@ import com.example.ui.util.bouncyClickable
  */
 
 /** The panel stage header's height — the screen's lower-zone math budgets it with the stage. */
-const val PANEL_STAGE_HEADER_DP = 40
+const val PANEL_STAGE_HEADER_DP = 32
 
 /** The stage's header row: panel title + the selected layer's name + close. */
 @Composable
@@ -76,22 +76,22 @@ fun PanelStageHeader(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(PANEL_STAGE_HEADER_DP.dp)
-                .padding(start = 16.dp, end = 6.dp),
+                .padding(start = 12.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
                 title,
                 color = TextPrimary,
-                fontSize = 14.sp,
+                fontSize = 12.5.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1
             )
             if (layerName != null) {
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(6.dp))
                 Text(
                     layerName,
                     color = AmTextDim,
-                    fontSize = 12.5.sp,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -101,7 +101,7 @@ fun PanelStageHeader(
             Spacer(Modifier.weight(1f))
             Box(
                 modifier = Modifier
-                    .size(36.dp)
+                    .size(28.dp)
                     .semantics { contentDescription = "Close panel" }
                     .bouncyClickable(pressedScale = 0.9f, onClick = onClose)
                     .testTag("panel_stage_close"),
@@ -111,7 +111,7 @@ fun PanelStageHeader(
                     Icons.Default.Close,
                     contentDescription = null,
                     tint = AmTextDim,
-                    modifier = Modifier.size(19.dp)
+                    modifier = Modifier.size(16.dp)
                 )
             }
         }
@@ -140,9 +140,9 @@ fun PanelStage(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(AmCardSurface, RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)) // build 217: the reference's card radius
-            .border(1.dp, com.example.ui.theme.RefCardBorder, RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
-            .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)) // build 217: sheet radius 20
+            .background(AmCardSurface, RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
+            .border(1.dp, com.example.ui.theme.RefCardBorder, RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
+            .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
             .testTag("panel_stage")
     ) {
         PanelStageHeader(title = title, layerName = layerName, onClose = onClose)
@@ -156,10 +156,10 @@ fun PanelSectionLabel(text: String, modifier: Modifier = Modifier) {
     Text(
         text.uppercase(),
         color = AmTextDim,
-        fontSize = 10.5.sp,
+        fontSize = 9.5.sp,
         fontWeight = FontWeight.SemiBold,
-        letterSpacing = 1.1.sp,
-        modifier = modifier.padding(top = 14.dp, bottom = 6.dp)
+        letterSpacing = 0.9.sp,
+        modifier = modifier.padding(top = 10.dp, bottom = 4.dp)
     )
 }
 
@@ -173,13 +173,13 @@ fun PanelRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(52.dp),
+            .height(40.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             label,
             color = TextPrimary,
-            fontSize = 14.sp,
+            fontSize = 12.sp,
             fontWeight = FontWeight.Medium,
             maxLines = 1,
             modifier = Modifier.weight(1f)
@@ -204,7 +204,7 @@ fun PanelSliderRow(
             Text(
                 label,
                 color = TextPrimary,
-                fontSize = 14.sp,
+                fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
                 maxLines = 1,
                 modifier = Modifier.weight(1f)
@@ -212,7 +212,7 @@ fun PanelSliderRow(
             Text(
                 valueText,
                 color = AmTextDim,
-                fontSize = 13.sp,
+                fontSize = 11.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1
             )

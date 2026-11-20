@@ -81,18 +81,18 @@ fun ClipEffectsSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 8.dp)
-                .padding(bottom = 28.dp)
+                .padding(horizontal = 14.dp, vertical = 6.dp)
+                .padding(bottom = 16.dp)
         ) {
-            Text("Video Effects", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            Spacer(modifier = Modifier.height(14.dp))
+            Text("Video Effects", color = TextPrimary, fontSize = 14.5.sp, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(10.dp))
 
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(effects) { effect ->
                     val isSelected = effect == (currentEffect ?: "None")
                     Column(
                         modifier = Modifier
-                            .width(80.dp)
+                            .width(60.dp)
                             .bouncyClickable(onClick = {
                                 onEffectSelect(effect)
                                 onDismiss()
@@ -101,19 +101,19 @@ fun ClipEffectsSheet(
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(64.dp)
+                                .size(48.dp)
                                 .background(
                                     if (isSelected) AmPillSelected else AmCardSurface,
-                                    RoundedCornerShape(18.dp)
+                                    RoundedCornerShape(13.dp)
                                 )
-                                .clip(RoundedCornerShape(18.dp)),
+                                .clip(RoundedCornerShape(13.dp)),
                             contentAlignment = Alignment.Center
                         ) {
                             // Rounded tile (build 207): selected = filled pill surface.
-                            Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = if (isSelected) Color.White else AmTextDim, modifier = Modifier.size(28.dp))
+                            Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = if (isSelected) Color.White else AmTextDim, modifier = Modifier.size(21.dp))
                         }
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(effect, color = if (isSelected) TextPrimary else AmTextDim, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, maxLines = 1)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(effect, color = if (isSelected) TextPrimary else AmTextDim, fontSize = 9.5.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, maxLines = 1)
                     }
                 }
             }
@@ -142,24 +142,24 @@ fun ClipReplaceSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 8.dp)
-                .padding(bottom = 28.dp)
+                .padding(horizontal = 14.dp, vertical = 6.dp)
+                .padding(bottom = 16.dp)
         ) {
-            Text("Replace Media", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            Spacer(modifier = Modifier.height(14.dp))
+            Text("Replace Media", color = TextPrimary, fontSize = 14.5.sp, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(10.dp))
 
             mediaOptions.forEach { (res, name, desc) ->
                 // (card rows, spaced by the spacer after each row)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(AmCardSurface, RoundedCornerShape(20.dp))
-                        .clip(RoundedCornerShape(20.dp))
+                        .background(AmCardSurface, RoundedCornerShape(14.dp))
+                        .clip(RoundedCornerShape(14.dp))
                         .bouncyClickable(onClick = {
                             onMediaSelected(res, name)
                             onDismiss()
                         })
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                        .padding(horizontal = 10.dp, vertical = 7.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Image(
@@ -167,16 +167,16 @@ fun ClipReplaceSheet(
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
-                            .size(54.dp)
-                            .clip(RoundedCornerShape(12.dp))
+                            .size(42.dp)
+                            .clip(RoundedCornerShape(9.dp))
                     )
-                    Spacer(modifier = Modifier.width(12.dp))
+                    Spacer(modifier = Modifier.width(10.dp))
                     Column {
-                        Text(name, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                        Text(desc, color = TextSecondary, fontSize = 12.sp)
+                        Text(name, color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        Text(desc, color = TextSecondary, fontSize = 10.5.sp)
                     }
                 }
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(6.dp))
             }
         }
     }
@@ -200,11 +200,11 @@ fun ClipBlendSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 8.dp)
-                .padding(bottom = 28.dp)
+                .padding(horizontal = 14.dp, vertical = 6.dp)
+                .padding(bottom = 16.dp)
         ) {
-            Text("Blending Mode", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            Spacer(modifier = Modifier.height(14.dp))
+            Text("Blending Mode", color = TextPrimary, fontSize = 14.5.sp, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(10.dp))
 
             blendModes.forEach { mode ->
                 val isSelected = mode == currentBlend
@@ -213,23 +213,23 @@ fun ClipBlendSheet(
                         .fillMaxWidth()
                         .background(
                             if (isSelected) AmPillSelected else AmCardSurface,
-                            RoundedCornerShape(20.dp)
+                            RoundedCornerShape(14.dp)
                         )
-                        .clip(RoundedCornerShape(20.dp))
+                        .clip(RoundedCornerShape(14.dp))
                         .bouncyClickable(onClick = {
                             onBlendSelected(mode)
                             onDismiss()
                         })
-                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                        .padding(horizontal = 11.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(mode, color = TextPrimary, fontSize = 14.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
+                    Text(mode, color = TextPrimary, fontSize = 12.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
                     if (isSelected) {
-                        Icon(Icons.Default.Check, contentDescription = null, tint = NeonCyan, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Default.Check, contentDescription = null, tint = NeonCyan, modifier = Modifier.size(16.dp))
                     }
                 }
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(5.dp))
             }
         }
     }
@@ -252,13 +252,13 @@ fun ClipCropSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 8.dp)
-                .padding(bottom = 28.dp)
+                .padding(horizontal = 14.dp, vertical = 6.dp)
+                .padding(bottom = 16.dp)
         ) {
-            Text("Crop Ratio", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            Spacer(modifier = Modifier.height(14.dp))
+            Text("Crop Ratio", color = TextPrimary, fontSize = 14.5.sp, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(10.dp))
 
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(cropRatios) { ratio ->
                     Box(
                         modifier = Modifier
@@ -268,10 +268,10 @@ fun ClipCropSheet(
                                 onCropRatioSelected(ratio)
                                 onDismiss()
                             })
-                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(ratio, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        Text(ratio, color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                     }
                 }
             }

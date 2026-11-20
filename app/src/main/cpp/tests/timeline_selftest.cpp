@@ -168,13 +168,13 @@ int main() {
         CHECK_F(x, 270.f, "video bar x"); CHECK_F(y, 96.f, "video bar y");
         CHECK_F(w, 360.f, "video bar w"); CHECK_F(h, 64.f, "video bar h");
         Snapshot s2 = s;
-        s2.tracks[4].clips[0].durMs = 100;  // 100 ms -> 9 px, under the 36 dp floor
+        s2.tracks[4].clips[0].durMs = 100;  // 100 ms -> 9 px, under the 30 dp floor
         barRectPx(s2, v, 4, 0, &x, &y, &w, &h);
-        CHECK_F(w, 72.f, "bar width floor = 36 dp");
-        // Chain child: 4 dp insets inside the section.
+        CHECK_F(w, 60.f, "bar width floor = 30 dp");
+        // Chain child: 3 dp / 6 dp insets inside the section.
         barRectPx(s, v, 3, 1, &x, &y, &w, &h);
-        CHECK_F(y, 320.f, "chain child y = section top + 4 dp");
-        CHECK_F(h, 72.f, "chain child h = section - 8 dp");
+        CHECK_F(y, 318.f, "chain child y = section top + 3 dp");
+        CHECK_F(h, 76.f, "chain child h = section - 6 dp");
     }
     {
         Clip fc;

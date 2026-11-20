@@ -84,9 +84,9 @@ fun SaveTemplateDialog(
                     "The whole group — every layer, keyframe and effect inside it — is saved " +
                         "under this name. You can add it to any project later from " +
                         "Add → Templates → My Templates.",
-                    fontSize = 13.sp, color = TextSecondary
+                    fontSize = 11.5.sp, color = TextSecondary
                 )
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(8.dp))
                 PillTextField(
                     value = text,
                     onValueChange = { text = it.take(60) }

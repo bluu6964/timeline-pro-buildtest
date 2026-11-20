@@ -131,7 +131,7 @@ fun GlassIconButton(
     tag: String? = null,
     content: @Composable () -> Unit
 ) {
-    var m = modifier.size(44.dp)
+    var m = modifier.size(34.dp)
         .semantics { contentDescription = description }
         .bouncyClickable(enabled = enabled, onClick = onClick)
     if (tag != null) m = m.testTag(tag)
@@ -152,7 +152,7 @@ fun GradientPillButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     tag: String? = null,
-    contentPadding: PaddingValues = PaddingValues(horizontal = 14.dp),
+    contentPadding: PaddingValues = PaddingValues(horizontal = 12.dp),
     content: @Composable RowScope.() -> Unit
 ) {
     var m = modifier
@@ -217,7 +217,7 @@ fun GlassChip(
             fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
             letterSpacing = AmControlLabel.letterSpacing,
             maxLines = 1,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
         )
     }
 }

@@ -134,46 +134,46 @@ fun DrawVectorPanel(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 10.dp)
+            .padding(horizontal = 12.dp, vertical = 8.dp)
     ) {
         Text(
             "Draw on the picture — one stroke becomes a path layer you can move, colour and effect like any shape.",
-            color = AmTextDim, fontSize = 12.sp
+            color = AmTextDim, fontSize = 10.5.sp
         )
-        Spacer(Modifier.height(10.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Spacer(Modifier.height(7.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             GlassChip("Smooth", smooth, onClick = { onSmooth(!smooth) }, tag = "draw_smooth_chip")
             GlassChip("Closed shape", closed, onClick = { onClosed(!closed) }, tag = "draw_closed_chip")
         }
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(4.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Width", color = TextPrimary, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.width(12.dp))
+            Text("Width", color = TextPrimary, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.width(10.dp))
             Slider(
                 value = widthDp,
                 onValueChange = onWidth,
                 valueRange = 1f..30f,
                 modifier = Modifier.weight(1f).testTag("draw_width_slider")
             )
-            Spacer(Modifier.width(10.dp))
-            Text("${widthDp.roundToInt()}", color = AmTextDim, fontSize = 12.sp)
+            Spacer(Modifier.width(8.dp))
+            Text("${widthDp.roundToInt()}", color = AmTextDim, fontSize = 11.sp)
         }
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(2.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box2Button("Clear", enabled = hasStroke, onClick = onClear)
             Spacer(Modifier.weight(1f))
             Box2Button("Cancel", enabled = true, onClick = onCancel)
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(8.dp))
             GradientPillButton(onClick = onDone, tag = "draw_done_button") {
                 Text(
                     "Done", color = AmInk,
-                    fontSize = 14.sp, fontWeight = FontWeight.Bold
+                    fontSize = 12.sp, fontWeight = FontWeight.Bold
                 )
             }
         }
         if (!hasStroke) {
-            Spacer(Modifier.height(4.dp))
-            Text("Nothing drawn yet", color = AmTextFaint, fontSize = 11.sp)
+            Spacer(Modifier.height(2.dp))
+            Text("Nothing drawn yet", color = AmTextFaint, fontSize = 10.sp)
         }
     }
 }
@@ -184,13 +184,13 @@ private fun Box2Button(label: String, enabled: Boolean, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .bouncyClickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 8.dp),
+            .padding(horizontal = 8.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             label,
             color = if (enabled) TextPrimary else AmTextFaint,
-            fontSize = 13.sp, fontWeight = FontWeight.SemiBold
+            fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold
         )
     }
 }

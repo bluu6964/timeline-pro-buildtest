@@ -323,9 +323,9 @@ void barRectPx(const Snapshot& s, const View& v, int32_t track, int32_t clip,
         return;
     }
     float bx = xForMs(s, v, c.startMs);
-    float bw = std::max((float)c.durMs * ppmPx(s), 36.f * s.density);
+    float bw = std::max((float)c.durMs * ppmPx(s), 30.f * s.density);
     if (c.flags & kFlagInChain) {
-        *x = bx; *y = top + 4.f * s.density; *w = bw; *h = t.heightPx - 8.f * s.density;
+        *x = bx; *y = top + 3.f * s.density; *w = bw; *h = t.heightPx - 6.f * s.density;
     } else {
         *x = bx; *y = top; *w = bw; *h = t.heightPx;
     }
@@ -333,7 +333,7 @@ void barRectPx(const Snapshot& s, const View& v, int32_t track, int32_t clip,
 
 int64_t rulerStepMs(float ppm, float density) {
     static const int64_t kSteps[] = {200, 500, 1000, 2000, 5000, 10000, 30000, 60000};
-    float minPitch = 8.f * density;
+    float minPitch = 7.f * density;
     for (int64_t st : kSteps)
         if ((float)st * ppm >= minPitch) return st;
     return kSteps[7];
@@ -645,20 +645,20 @@ void drawClip(Fb& fb, const Ctx& c, int32_t ti, int32_t ci, bool asDragged) {
     bool inChain = (cl.flags & kFlagInChain) != 0;
     bool selected = (cl.flags & kFlagSelected) != 0;
     bool multiSel = (cl.flags & kFlagMulti) != 0;
-    float barR = inChain ? c.dp(8) : (s.comfort ? c.dp(10) : c.dp(9));
+    float barR = inChain ? c.dp(6) : (s.comfort ? c.dp(8) : c.dp(7));
     float cy = y + h / 2.f;
 
     if (cl.flags & kFlagController) {
         // Hollow teal (the settled Controller treatment): no fill but a faint wash when selected.
         if (selected) fillRoundRect(fb, x, y, w, h, barR, mulAlpha(withAlpha(kTeal, 0.14f), alphaMul));
         strokeRoundRectIn(fb, x, y, w, h, barR, c.dp(selected ? 2 : 1.5f), mulAlpha(kTeal, alphaMul));
-        blitLeft(fb, c.at, cl.label, x + c.dp(12), cy, kTeal, alphaMul);
+        blitLeft(fb, c.at, cl.label, x + c.dp(9), cy, kTeal, alphaMul);
         return;
     }
 
-    // Selection outer ring (behind the body, 2.25 dp outside it).
+    // Selection outer ring (behind the body, 2 dp outside it).
     if (selected || multiSel) {
-        float o = c.dp(2.25f);
+        float o = c.dp(2.f);
         strokeRoundRectC(fb, x - o, y - o, w + 2 * o, h + 2 * o, barR + o, c.dp(1),
                          mulAlpha(withAlpha(kWhite, 0.25f), alphaMul));
     }
@@ -668,9 +668,8 @@ void drawClip(Fb& fb, const Ctx& c, int32_t ti, int32_t ci, bool asDragged) {
     // Contents, clipped to the bar's rounded shape (Compose clips the bar box).
     fb.clipOn = true; fb.cx0 = x; fb.cy0 = y; fb.cx1 = x + w; fb.cy1 = y + h; fb.cr = barR;
     if ((cl.flags & kFlagVideo) && !inChain) {
-        // Filmstrip indication: 44 dp frame cells over the body (native step 1 draws the
-        // strip pattern; the Compose path shows decoded thumbnails — see the report).
-        float cellW = c.dp(44);
+        // Filmstrip indication: 34 dp frame cells over the body
+        float cellW = c.dp(34);
         int i0 = std::max(0, (int)std::floor(-x / cellW));
         for (float cellX = x + i0 * cellW, i = (float)i0; cellX < x + w && cellX < fb.w; cellX += cellW, i += 1) {
             float a = ((int)i % 2 == 0) ? 0.11f : 0.045f;
@@ -682,19 +681,19 @@ void drawClip(Fb& fb, const Ctx& c, int32_t ti, int32_t ci, bool asDragged) {
         if (cl.flags & kFlagHasUri) drawVideoWave(fb, c, cl, x, y, w, h, alphaMul);
     } else if ((cl.flags & kFlagAudio) && !inChain) {
         drawAudioWave(fb, c, cl, x, y, w, h, alphaMul);
-        drawChip(fb, c, cl.badge, x + c.dp(4), y + c.dp(2), 4, 1, alphaMul);
+        drawChip(fb, c, cl.badge, x + c.dp(3), y + c.dp(2), 3, 1, alphaMul);
     } else {
         // Capsule bar: type glyph + label.
-        float labelX = x + c.dp(11);
+        float labelX = x + c.dp(8);
         if (cl.kind != kGlyphNone) {
-            drawBarGlyph(fb, cl.kind, x + c.dp(11), cy - c.dp(8), c.dp(16), kWhite, alphaMul);
-            labelX += c.dp(16) + c.dp(8);
+            drawBarGlyph(fb, cl.kind, x + c.dp(8), cy - c.dp(6.5f), c.dp(13), kWhite, alphaMul);
+            labelX += c.dp(13) + c.dp(5);
         }
         blitLeft(fb, c.at, cl.label, labelX, cy, kWhite, alphaMul);
     }
     // Name chip on media bars.
     if ((cl.flags & (kFlagVideo | kFlagAudio)) && !inChain)
-        drawChip(fb, c, cl.chip, x + c.dp(4), y + c.dp(3), 5, 1, alphaMul);
+        drawChip(fb, c, cl.chip, x + c.dp(3), y + c.dp(2), 4, 1, alphaMul);
     // Group member edge.
     if ((cl.flags & kFlagGroupEdge) && !inChain)
         fillRect(fb, x, y, x + c.dp(3), y + h, mulAlpha(kGroupTeal, alphaMul));
@@ -703,10 +702,10 @@ void drawClip(Fb& fb, const Ctx& c, int32_t ti, int32_t ci, bool asDragged) {
         for (int64_t t : cl.keysRelMs) {
             if (t < 0 || t > cl.durMs) continue;
             float kx = x + (float)t * c.ppm;
-            float half = c.dp(8), halfW = half * 0.8f;
+            float half = c.dp(6), halfW = half * 0.8f;
             fillPoly(fb, {{kx, cy - half}, {kx + halfW, cy}, {kx, cy + half}, {kx - halfW, cy}},
                      mulAlpha(kKeyInk, alphaMul));
-            float ih = half - c.dp(2), ihw = halfW - c.dp(2);
+            float ih = half - c.dp(1.5f), ihw = halfW - c.dp(1.5f);
             fillPoly(fb, {{kx, cy - ih}, {kx + ihw, cy}, {kx, cy + ih}, {kx - ihw, cy}},
                      mulAlpha(kWhite, alphaMul));
         }
@@ -714,35 +713,31 @@ void drawClip(Fb& fb, const Ctx& c, int32_t ti, int32_t ci, bool asDragged) {
     fb.clipOn = false;
 
     // Drag handle (three white lines) / chain child's delete x.
-    // Build 227: chainClip is an index into clips — require it in range, not
-    // merely >= 0, before dereferencing (same guard at every site below).
     bool sectionSel = tr.chainClip >= 0 && tr.chainClip < (int32_t)tr.clips.size() &&
                       (tr.clips[tr.chainClip].flags & kFlagSelected);
     if (inChain) {
         if (selected || sectionSel) {
-            float boxX = x + w - c.dp(6) - c.dp(32), boxY = y + (h - c.dp(32)) / 2.f;
-            float vx = boxX + c.dp(7.5f), vy = boxY + c.dp(7.5f);
-            fillRoundRect(fb, vx, vy, c.dp(17), c.dp(17), c.dp(5),
+            float boxX = x + w - c.dp(4) - c.dp(24), boxY = y + (h - c.dp(24)) / 2.f;
+            float vx = boxX + c.dp(5), vy = boxY + c.dp(5);
+            fillRoundRect(fb, vx, vy, c.dp(14), c.dp(14), c.dp(4),
                           mulAlpha(withAlpha(0xFF000000u, 0.35f), alphaMul));
-            drawX(fb, vx + c.dp(8.5f), vy + c.dp(8.5f), c.dp(10), c.dp(1.8f), kWhite, alphaMul);
+            drawX(fb, vx + c.dp(7), vy + c.dp(7), c.dp(8), c.dp(1.5f), kWhite, alphaMul);
         }
     } else if (!(cl.flags & kFlagChain)) {
-        float rightX = x + w - c.dp(10);
-        float startY = cy - c.dp(4.9f);
+        float rightX = x + w - c.dp(8);
+        float startY = cy - c.dp(3.9f);
         for (int i = 0; i < 3; ++i)
-            fillRoundRect(fb, rightX - c.dp(18), startY + i * c.dp(4.1f), c.dp(18), c.dp(1.6f),
-                          c.dp(0.8f), mulAlpha(withAlpha(kWhite, 0.55f), alphaMul));
+            fillRoundRect(fb, rightX - c.dp(14), startY + i * c.dp(3.3f), c.dp(14), c.dp(1.3f),
+                          c.dp(0.65f), mulAlpha(withAlpha(kWhite, 0.55f), alphaMul));
     }
     // Selection border (inside the edge).
     if (selected || multiSel)
         strokeRoundRectIn(fb, x, y, w, h, barR, c.dp(1.5f), mulAlpha(kWhite, alphaMul));
     // fx badge.
     if ((cl.flags & kFlagFx) && !inChain) {
-        float bcx = x + c.dp(2) + c.dp(8.5f), bcy = y - c.dp(2) + c.dp(8.5f), br = c.dp(8.5f);
+        float bcx = x + c.dp(1.5f) + c.dp(7), bcy = y - c.dp(1.5f) + c.dp(7), br = c.dp(7);
         fillCircle(fb, bcx, bcy, br, mulAlpha(kFxBadge, alphaMul));
-        strokeCircle(fb, bcx, bcy, br - c.dp(0.75f), c.dp(1.5f), mulAlpha(kBg, alphaMul));
-        // "fx" text: the atlas entry of the badge (Kotlin supplies it as the clip's badge for
-        // non-audio bars — see NativeTimeline) — drawn only when present.
+        strokeCircle(fb, bcx, bcy, br - c.dp(0.6f), c.dp(1.2f), mulAlpha(kBg, alphaMul));
         if (cl.flags & kFlagAudio) { /* audio's badge slot holds the duration chip instead */ }
         else if (cl.badge >= 0) blitCentered(fb, c.at, cl.badge, bcx, bcy, kWhite, alphaMul);
     }
@@ -750,18 +745,18 @@ void drawClip(Fb& fb, const Ctx& c, int32_t ti, int32_t ci, bool asDragged) {
 
 // Trim handle (white pill) + fade knob for the selected clip, drawn after its track.
 void drawTrimHandle(Fb& fb, const Ctx& c, bool left, float barX, float laneTop, float rowH) {
-    float boxX = left ? barX - c.dp(34) : barX;
-    float pillX = boxX + c.dp(34 - 9) / 2.f;
-    float pillY = laneTop + c.dp(3), pillH = rowH - c.dp(6);
-    fillRoundRect(fb, pillX, pillY, c.dp(9), pillH, c.dp(5), kWhite);
-    strokeRoundRectIn(fb, pillX, pillY, c.dp(9), pillH, c.dp(5), c.dp(1), 0x0F000000u);
+    float boxX = left ? barX - c.dp(26) : barX;
+    float pillX = boxX + c.dp(26 - 7) / 2.f;
+    float pillY = laneTop + c.dp(2), pillH = rowH - c.dp(4);
+    fillRoundRect(fb, pillX, pillY, c.dp(7), pillH, c.dp(4), kWhite);
+    strokeRoundRectIn(fb, pillX, pillY, c.dp(7), pillH, c.dp(4), c.dp(1), 0x0F000000u);
     float lineH = pillH * 0.52f;
-    fillRoundRect(fb, pillX + c.dp(3.5f), pillY + (pillH - lineH) / 2.f, c.dp(2), lineH, c.dp(1), kLimeInk);
+    fillRoundRect(fb, pillX + c.dp(2.7f), pillY + (pillH - lineH) / 2.f, c.dp(1.6f), lineH, c.dp(0.8f), kLimeInk);
 }
 
 void drawFadeKnob(Fb& fb, const Ctx& c, bool left, float cx, float cy) {
-    fillCircle(fb, cx, cy, c.dp(8), kWhite);
-    float s = c.dp(16);
+    fillCircle(fb, cx, cy, c.dp(6.5f), kWhite);
+    float s = c.dp(13);
     std::vector<Pt> tri;
     if (left) tri = {{cx - 0.14f * s, cy - 0.2f * s}, {cx + 0.18f * s, cy}, {cx - 0.14f * s, cy + 0.2f * s}};
     else tri = {{cx + 0.14f * s, cy - 0.2f * s}, {cx - 0.18f * s, cy}, {cx + 0.14f * s, cy + 0.2f * s}};
@@ -794,9 +789,9 @@ void Renderer::draw(uint8_t* dst, int32_t dstW, int32_t dstH, int32_t stride, co
             float x = xForMs(s, v, t);
             if (x < areaStart || x > areaEnd) continue;
             if (t % majorEvery == 0)
-                drawLine(fb, x, c.dp(4), x, c.dp(21), c.dp(1.5f), kTickMajor);
+                drawLine(fb, x, c.dp(3), x, c.dp(16), c.dp(1.2f), kTickMajor);
             else
-                drawLine(fb, x, c.dp(4), x, c.dp(11), c.dp(1), kTickMinor);
+                drawLine(fb, x, c.dp(3), x, c.dp(9), c.dp(1), kTickMinor);
         }
         if (s.hasRange && s.rangeOutMs > s.rangeInMs) {
             float xIn = xForMs(s, v, s.rangeInMs), xOut = xForMs(s, v, s.rangeOutMs);
@@ -810,17 +805,17 @@ void Renderer::draw(uint8_t* dst, int32_t dstW, int32_t dstH, int32_t stride, co
         for (int64_t m : s.beatMs) {
             float x = xForMs(s, v, m);
             if (x < areaStart || x > areaEnd) continue;
-            fillRoundRect(fb, x - c.dp(1.5f), c.dp(4), c.dp(3), c.dp(20), c.dp(1.5f), kBeat);
+            fillRoundRect(fb, x - c.dp(1.25f), c.dp(3), c.dp(2.5f), c.dp(15), c.dp(1.25f), kBeat);
         }
         for (int64_t kt : s.rulerKeysMs) {
             float x = xForMs(s, v, kt);
             if (x < areaStart || x > areaEnd) continue;
-            float half = c.dp(3), kcy = c.dp(13);
+            float half = c.dp(2.5f), kcy = c.dp(10);
             fillPoly(fb, {{x, kcy - half}, {x + half, kcy}, {x, kcy + half}, {x - half, kcy}}, kKeyOrange);
         }
         // Needle + the ruler's own line segment (below the timecode).
-        fillRoundRect(fb, cx - c.dp(1), c.dp(3), c.dp(2), c.dp(15), c.dp(1), kWhite);
-        drawLine(fb, cx, c.dp(39), cx, R, c.dp(2), kWhite);
+        fillRoundRect(fb, cx - c.dp(1), c.dp(2), c.dp(2), c.dp(11), c.dp(1), kWhite);
+        drawLine(fb, cx, c.dp(29), cx, R, c.dp(2), kWhite);
     }
 
     // ---- Lanes ----
@@ -854,22 +849,21 @@ void Renderer::draw(uint8_t* dst, int32_t dstW, int32_t dstH, int32_t stride, co
             }
             if (kids.empty()) {
                 uint32_t ink = chainSel ? kChainInkSel : kChainInk;
-                drawLinkGlyph(fb, c.dp(54) + c.dp(7), top + tr.heightPx / 2.f, c.dp(14), ink, alphaMul);
-                blitLeft(fb, atlas_, s.chainLabel, c.dp(54) + c.dp(14) + c.dp(6),
+                drawLinkGlyph(fb, c.dp(42) + c.dp(6), top + tr.heightPx / 2.f, c.dp(12), ink, alphaMul);
+                blitLeft(fb, atlas_, s.chainLabel, c.dp(42) + c.dp(12) + c.dp(5),
                          top + tr.heightPx / 2.f, ink, alphaMul);
             }
             // The selected section's delete x (screen right edge).
             if (chainSel) {
-                float boxCx = dstW - c.dp(12), boxCy = top + tr.heightPx / 2.f;
-                fillRoundRect(fb, boxCx - c.dp(10), boxCy - c.dp(10), c.dp(20), c.dp(20), c.dp(6),
+                float boxCx = dstW - c.dp(10), boxCy = top + tr.heightPx / 2.f;
+                fillRoundRect(fb, boxCx - c.dp(8), boxCy - c.dp(8), c.dp(16), c.dp(16), c.dp(5),
                               withAlpha(0xFF000000u, 0.45f));
-                drawX(fb, boxCx, boxCy, c.dp(10), c.dp(1.8f), kWhite, 1.f);
+                drawX(fb, boxCx, boxCy, c.dp(8), c.dp(1.5f), kWhite, 1.f);
             }
         }
         for (int32_t ci = 0; ci < (int32_t)tr.clips.size(); ++ci) {
             if (ti == v.dragTrack && ci == v.dragClip) continue;
             drawClip(fb, c, ti, ci, false);
-            // Selection is a single clip in the app; the first selected flag wins.
             if (selTrack < 0 && (tr.clips[ci].flags & kFlagSelected)) { selTrack = ti; selClip = ci; }
         }
         // Trim handles + fade knobs of the selected clip ride on its own track.
@@ -913,20 +907,20 @@ void Renderer::draw(uint8_t* dst, int32_t dstW, int32_t dstH, int32_t stride, co
             fillRect(fb, railW - c.dp(1), top, railW, top + tr.heightPx, hairCol);
             fillRect(fb, 0, top, railW, top + hair, hairCol);
             fillRect(fb, 0, top + tr.heightPx - hair, railW, top + tr.heightPx, hairCol);
-            float colTop = top + (tr.heightPx - c.dp(31)) / 2.f;
-            drawEye(fb, railW / 2.f, colTop + c.dp(10), c.dp(17), headHidden, tint, 1.f);
-            drawLinkGlyph(fb, railW / 2.f, colTop + c.dp(25.5f), c.dp(11), tint, 1.f);
+            float colTop = top + (tr.heightPx - c.dp(25)) / 2.f;
+            drawEye(fb, railW / 2.f, colTop + c.dp(8), c.dp(14), headHidden, tint, 1.f);
+            drawLinkGlyph(fb, railW / 2.f, colTop + c.dp(20.5f), c.dp(9), tint, 1.f);
         } else {
-            fillRoundRect(fb, 0, top, railW, tr.heightPx, 0, c.dp(9), c.dp(9), 0, kEyeBg);
+            fillRoundRect(fb, 0, top, railW, tr.heightPx, 0, c.dp(7), c.dp(7), 0, kEyeBg);
             if (s.multiMode) {
                 if (head.flags & kFlagMulti) {
-                    fillCircle(fb, railW / 2.f, cellCy, c.dp(11), kLime);
-                    drawCheck(fb, railW / 2.f, cellCy, c.dp(16), kLimeInk, 1.f);
+                    fillCircle(fb, railW / 2.f, cellCy, c.dp(9), kLime);
+                    drawCheck(fb, railW / 2.f, cellCy, c.dp(13), kLimeInk, 1.f);
                 } else {
-                    strokeCircle(fb, railW / 2.f, cellCy, c.dp(10), c.dp(1.5f), 0x66A1A1AAu);
+                    strokeCircle(fb, railW / 2.f, cellCy, c.dp(8), c.dp(1.5f), 0x66A1A1AAu);
                 }
             } else {
-                drawEye(fb, railW / 2.f, cellCy, c.dp(19), headHidden,
+                drawEye(fb, railW / 2.f, cellCy, c.dp(15), headHidden,
                         headHidden ? kEyeHidden : kEyeTint, 1.f);
             }
         }
@@ -978,22 +972,22 @@ void Renderer::draw(uint8_t* dst, int32_t dstW, int32_t dstH, int32_t stride, co
         // Total duration, bottom-right.
         if (s.totalLabel >= 0) {
             float ew = entryW(atlas_, s.totalLabel), eh = entryH(atlas_, s.totalLabel);
-            blitCentered(fb, atlas_, s.totalLabel, dstW - c.dp(8) - ew / 2.f,
-                         R - c.dp(5) - eh / 2.f, 0xFF71717Au, 1.f);
+            blitCentered(fb, atlas_, s.totalLabel, dstW - c.dp(6) - ew / 2.f,
+                         R - c.dp(3) - eh / 2.f, 0xFF71717Au, 1.f);
         }
         // Layer-count pill.
         if (s.pillLabel >= 0) {
             float eh = entryH(atlas_, s.pillLabel);
-            float pillH = eh + c.dp(6);
-            float pillW = s.pillTextWPx + c.dp(34);
-            float pillX = c.dp(10), pillY = (R - pillH) / 2.f;
+            float pillH = eh + c.dp(4);
+            float pillW = s.pillTextWPx + c.dp(26);
+            float pillX = c.dp(8), pillY = (R - pillH) / 2.f;
             fillRoundRect(fb, pillX, pillY, pillW, pillH, pillH / 2.f, kPillBg);
             strokeRoundRectIn(fb, pillX, pillY, pillW, pillH, pillH / 2.f, c.dp(1), kPillBorder);
-            blitLeft(fb, atlas_, s.pillLabel, pillX + c.dp(9), R / 2.f, kEyeTint, 1.f);
-            // Double chevron (the reference's stacked carets), 11 dp box.
-            float chX = pillX + c.dp(9) + s.pillTextWPx + c.dp(5);
-            float chY = R / 2.f - c.dp(5.5f);
-            float u = c.dp(11) / 24.f;
+            blitLeft(fb, atlas_, s.pillLabel, pillX + c.dp(7), R / 2.f, kEyeTint, 1.f);
+            // Double chevron (the reference's stacked carets), 9 dp box.
+            float chX = pillX + c.dp(7) + s.pillTextWPx + c.dp(4);
+            float chY = R / 2.f - c.dp(4.5f);
+            float u = c.dp(9) / 24.f;
             std::vector<Pt> p1 = {{chX + 7 * u, chY + 15 * u}, {chX + 12 * u, chY + 20 * u}, {chX + 17 * u, chY + 15 * u}};
             std::vector<Pt> p2 = {{chX + 7 * u, chY + 9 * u}, {chX + 12 * u, chY + 4 * u}, {chX + 17 * u, chY + 9 * u}};
             strokePolyline(fb, p1, false, 2.4f * u, kEyeTint);
@@ -1014,17 +1008,15 @@ Zone Renderer::hitTest(float x, float y, const View& v, int32_t* track, int32_t*
     if (y < R) {
         if (s.pillLabel >= 0) {
             float eh = entryH(atlas_, s.pillLabel);
-            float pillH = eh + dp(6);
-            float pillW = s.pillTextWPx + dp(34);
+            float pillH = eh + dp(4);
+            float pillW = s.pillTextWPx + dp(26);
             float pillY = (R - pillH) / 2.f;
-            if (x >= dp(10) && x <= dp(10) + pillW && y >= pillY && y <= pillY + pillH)
+            if (x >= dp(8) && x <= dp(8) + pillW && y >= pillY && y <= pillY + pillH)
                 return kZonePill;
         }
         return kZoneRuler;
     }
 
-    // The selected audio clip's fade knobs straddle its lane's top edge — test them globally,
-    // before the lane walk (Compose lets the knob's hit box overflow its row the same way).
     int32_t selT = -1, selC = -1;
     for (int32_t ti = 0; ti < (int32_t)s.tracks.size() && selT < 0; ++ti)
         for (int32_t ci = 0; ci < (int32_t)s.tracks[ti].clips.size(); ++ci)
@@ -1037,10 +1029,10 @@ Zone Renderer::hitTest(float x, float y, const View& v, int32_t* track, int32_t*
             float top = laneTopPx(s, v, selT);
             float kx1 = bx + (float)sc.fadeInMs * ppmPx(s);
             float kx2 = bx + bw - (float)sc.fadeOutMs * ppmPx(s);
-            if (std::fabs(x - kx1) <= dp(16) && std::fabs(y - top) <= dp(16)) {
+            if (std::fabs(x - kx1) <= dp(12) && std::fabs(y - top) <= dp(12)) {
                 *track = selT; *clip = selC; return kZoneFadeL;
             }
-            if (std::fabs(x - kx2) <= dp(16) && std::fabs(y - top) <= dp(16)) {
+            if (std::fabs(x - kx2) <= dp(12) && std::fabs(y - top) <= dp(12)) {
                 *track = selT; *clip = selC; return kZoneFadeR;
             }
         }
@@ -1057,14 +1049,14 @@ Zone Renderer::hitTest(float x, float y, const View& v, int32_t* track, int32_t*
             if (headIdx < 0) return kZoneEmpty;
             *clip = headIdx;
             if (hasChain && !s.multiMode) {
-                float colTop = top + (tr.heightPx - dp(31)) / 2.f;
-                if (x >= s.railWPx / 2.f - dp(10) && x <= s.railWPx / 2.f + dp(10) &&
-                    y >= colTop && y <= colTop + dp(20))
+                float colTop = top + (tr.heightPx - dp(25)) / 2.f;
+                if (x >= s.railWPx / 2.f - dp(8) && x <= s.railWPx / 2.f + dp(8) &&
+                    y >= colTop && y <= colTop + dp(16))
                     return kZoneEye;
             } else {
                 float cy = top + tr.heightPx / 2.f;
-                if (x >= s.railWPx / 2.f - dp(15) && x <= s.railWPx / 2.f + dp(15) &&
-                    y >= cy - dp(15) && y <= cy + dp(15))
+                if (x >= s.railWPx / 2.f - dp(12) && x <= s.railWPx / 2.f + dp(12) &&
+                    y >= cy - dp(12) && y <= cy + dp(12))
                     return kZoneEye;
             }
             return kZoneRail;
@@ -1073,7 +1065,7 @@ Zone Renderer::hitTest(float x, float y, const View& v, int32_t* track, int32_t*
         if (tr.chainClip >= 0 && tr.chainClip < (int32_t)tr.clips.size() &&
             (tr.clips[tr.chainClip].flags & kFlagSelected)) {
             float boxCy = top + tr.heightPx / 2.f;
-            if (x >= v.w - dp(28) && std::fabs(y - boxCy) <= dp(16)) {
+            if (x >= v.w - dp(22) && std::fabs(y - boxCy) <= dp(12)) {
                 *clip = tr.chainClip;
                 return kZoneChainX;
             }
@@ -1084,8 +1076,8 @@ Zone Renderer::hitTest(float x, float y, const View& v, int32_t* track, int32_t*
             if (!(sc.flags & kFlagLocked) && !(sc.flags & kFlagChain)) {
                 float bx, by, bw, bh;
                 barRectPx(s, v, selT, selC, &bx, &by, &bw, &bh);
-                if (x >= bx - dp(34) && x < bx) { *clip = selC; return kZoneTrimL; }
-                if (x >= bx + bw && x < bx + bw + dp(34)) { *clip = selC; return kZoneTrimR; }
+                if (x >= bx - dp(26) && x < bx) { *clip = selC; return kZoneTrimL; }
+                if (x >= bx + bw && x < bx + bw + dp(26)) { *clip = selC; return kZoneTrimR; }
             }
         }
         // Bars (topmost last: children over the chain, later clips over earlier).
@@ -1094,16 +1086,14 @@ Zone Renderer::hitTest(float x, float y, const View& v, int32_t* track, int32_t*
             barRectPx(s, v, ti, ci, &bx, &by, &bw, &bh);
             if (x >= bx && x < bx + bw && y >= by && y < by + bh) {
                 const Clip& cl = tr.clips[ci];
-                // A chain child's delete x sits inside its bar (visible when the child or
-                // the section is selected).
                 if (cl.flags & kFlagInChain) {
                     bool sectionSel = tr.chainClip >= 0 &&
                         tr.chainClip < (int32_t)tr.clips.size() &&
                         (tr.clips[tr.chainClip].flags & kFlagSelected);
                     if ((cl.flags & kFlagSelected) || sectionSel) {
-                        float boxX = bx + bw - dp(6) - dp(32);
-                        float boxY = by + (bh - dp(32)) / 2.f;
-                        if (x >= boxX && x < boxX + dp(32) && y >= boxY && y < boxY + dp(32)) {
+                        float boxX = bx + bw - dp(4) - dp(24);
+                        float boxY = by + (bh - dp(24)) / 2.f;
+                        if (x >= boxX && x < boxX + dp(24) && y >= boxY && y < boxY + dp(24)) {
                             *clip = ci;
                             return kZoneChildX;
                         }

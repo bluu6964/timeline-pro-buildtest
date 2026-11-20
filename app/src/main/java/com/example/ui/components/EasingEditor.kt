@@ -91,14 +91,14 @@ fun EasingEditor(
                 .fillMaxHeight()
         ) {
         val density = LocalDensity.current.density
-        val padL = 26f * density
-        val padB = 22f * density
+        val padL = 22f * density
+        val padB = 18f * density
         val padT = 4f * density
-        val padR = 8f * density
+        val padR = 6f * density
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(vertical = 4.dp)
+                .padding(vertical = 2.dp)
         ) {
             val e = easing
             val p = progress
@@ -117,10 +117,10 @@ fun EasingEditor(
                 modifier = Modifier
                     .fillMaxSize()
                     .pointerInput(Unit) {
-                        val pL = 26.dp.toPx()
-                        val pB = 22.dp.toPx()
+                        val pL = 22.dp.toPx()
+                        val pB = 18.dp.toPx()
                         val pT = 4.dp.toPx()
-                        val pR = 8.dp.toPx()
+                        val pR = 6.dp.toPx()
                         fun plot() = androidx.compose.ui.geometry.Rect(
                             pL, pT, size.width - pR, size.height - pB
                         )
@@ -168,11 +168,11 @@ fun EasingEditor(
             androidx.compose.material3.Text(
                 text = "Delete keyframe",
                 color = com.example.ui.theme.AmDanger,
-                fontSize = 11.sp,
+                fontSize = 10.sp,
                 fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
                 modifier = Modifier
                     .align(Alignment.TopStart)
-                    .padding(start = 30.dp, top = 8.dp)
+                    .padding(start = 26.dp, top = 6.dp)
                     .bouncyClickable { onDeleteKeyframe() }
                     .testTag("easing_delete_keyframe")
             )
@@ -182,17 +182,17 @@ fun EasingEditor(
         // ---- Ready-made curves ----
         if (showPresets) LazyVerticalGrid(
             columns = GridCells.Fixed(2),
-            modifier = Modifier.width(150.dp).fillMaxHeight().padding(start = 8.dp),
-            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
-            verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
+            modifier = Modifier.width(120.dp).fillMaxHeight().padding(start = 6.dp),
+            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp),
+            verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)
         ) {
             items(Easing.PRESETS) { (name, preset) ->
                 val selected = preset.sameAs(easing)
                 Box(
                     modifier = Modifier
-                        .size(66.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(if (selected) TileBgSelected else TileBg, RoundedCornerShape(12.dp))
+                        .size(52.dp)
+                        .clip(RoundedCornerShape(9.dp))
+                        .background(if (selected) TileBgSelected else TileBg, RoundedCornerShape(9.dp))
                         .bouncyClickable(pressedScale = 0.92f, onClick = {
                             begin()
                             change(preset)
@@ -200,7 +200,7 @@ fun EasingEditor(
                         .testTag("easing_preset_$name"),
                     contentAlignment = Alignment.Center
                 ) {
-                    EasingTileCanvas(preset, Modifier.size(42.dp))
+                    EasingTileCanvas(preset, Modifier.size(34.dp))
                 }
             }
         }
@@ -211,10 +211,10 @@ fun EasingEditor(
 @Composable
 private fun EasingAxisLabels(valueLabel: String, modifier: Modifier = Modifier) {
     Canvas(modifier) {
-        val padL = 26.dp.toPx()
-        val padB = 22.dp.toPx()
+        val padL = 22.dp.toPx()
+        val padB = 18.dp.toPx()
         val padT = 4.dp.toPx()
-        val padR = 8.dp.toPx()
+        val padR = 6.dp.toPx()
         val left = padL
         val top = padT
         val w = size.width - padL - padR
@@ -223,14 +223,14 @@ private fun EasingAxisLabels(valueLabel: String, modifier: Modifier = Modifier) 
             val paint = android.graphics.Paint().apply {
                 isAntiAlias = true
                 color = 0xFF5B5E63.toInt()
-                textSize = 15.dp.toPx()
+                textSize = 12.dp.toPx()
                 isFakeBoldText = true
                 textAlign = android.graphics.Paint.Align.CENTER
             }
-            cv.nativeCanvas.drawText("Time", left + w / 2f, size.height - 3.dp.toPx(), paint)
+            cv.nativeCanvas.drawText("Time", left + w / 2f, size.height - 2.dp.toPx(), paint)
             cv.nativeCanvas.save()
-            cv.nativeCanvas.rotate(-90f, 12.dp.toPx(), top + h / 2f)
-            cv.nativeCanvas.drawText(valueLabel, 12.dp.toPx(), top + h / 2f + 5.dp.toPx(), paint)
+            cv.nativeCanvas.rotate(-90f, 10.dp.toPx(), top + h / 2f)
+            cv.nativeCanvas.drawText(valueLabel, 10.dp.toPx(), top + h / 2f + 4.dp.toPx(), paint)
             cv.nativeCanvas.restore()
         }
     }

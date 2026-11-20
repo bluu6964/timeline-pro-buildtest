@@ -347,13 +347,13 @@ fun CropView(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(52.dp)
-                .padding(horizontal = 12.dp),
+                .height(42.dp)
+                .padding(horizontal = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
-                    .size(40.dp)
+                    .size(34.dp)
                     .bouncyClickable(onClick = {
                         emitCrop()
                         onDismiss()
@@ -365,7 +365,7 @@ fun CropView(
                     imageVector = Icons.Default.KeyboardArrowDown,
                     contentDescription = "Collapse Crop",
                     tint = IconActive,
-                    modifier = Modifier.size(28.dp)
+                    modifier = Modifier.size(22.dp)
                 )
             }
 
@@ -374,7 +374,7 @@ fun CropView(
             Text(
                 text = "Crop",
                 color = TextPrimary,
-                fontSize = 17.sp,
+                fontSize = 14.5.sp,
                 fontWeight = FontWeight.Bold
             )
 
@@ -382,20 +382,20 @@ fun CropView(
 
             Box(
                 modifier = Modifier
-                    .heightIn(min = 40.dp)
+                    .heightIn(min = 32.dp)
                     .clip(CircleShape)
                     .background(Color.White, CircleShape)
                     .bouncyClickable(onClick = {
                         emitCrop()
                         onDismiss()
                     })
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = "Done",
                     color = EditorBackground,
-                    fontSize = 14.sp,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
@@ -605,8 +605,8 @@ fun CropView(
                         val mx = (l + r) / 2f
                         val my = (t + b) / 2f
                         val pts = listOf(
-                            Offset(l, t) to 7.dp, Offset(r, t) to 7.dp, Offset(l, b) to 7.dp, Offset(r, b) to 7.dp,
-                            Offset(mx, t) to 5.dp, Offset(mx, b) to 5.dp, Offset(l, my) to 5.dp, Offset(r, my) to 5.dp
+                            Offset(l, t) to 5.5.dp, Offset(r, t) to 5.5.dp, Offset(l, b) to 5.5.dp, Offset(r, b) to 5.5.dp,
+                            Offset(mx, t) to 4.dp, Offset(mx, b) to 4.dp, Offset(l, my) to 4.dp, Offset(r, my) to 4.dp
                         )
                         for ((o, rad) in pts) {
                             drawCircle(AmAccent, radius = rad.toPx(), center = o)
@@ -651,19 +651,19 @@ fun CropView(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 2.dp),
+                .padding(horizontal = 16.dp, vertical = 2.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Spacer(modifier = Modifier.width(36.dp))
+            Spacer(modifier = Modifier.width(30.dp))
 
             Row(
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(
                     modifier = Modifier
-                        .size(36.dp)
+                        .size(30.dp)
                         .bouncyClickable(onClick = { onSeekTo(0L) }),
                     contentAlignment = Alignment.Center
                 ) {
@@ -671,13 +671,13 @@ fun CropView(
                         imageVector = Icons.Default.SkipPrevious,
                         contentDescription = "Previous",
                         tint = IconActive,
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(19.dp)
                     )
                 }
 
                 Box(
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(34.dp)
                         .bouncyClickable(onClick = onTogglePlay),
                     contentAlignment = Alignment.Center
                 ) {
@@ -685,13 +685,13 @@ fun CropView(
                         imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                         contentDescription = "Play/Pause",
                         tint = IconActive,
-                        modifier = Modifier.size(30.dp)
+                        modifier = Modifier.size(23.dp)
                     )
                 }
 
                 Box(
                     modifier = Modifier
-                        .size(36.dp)
+                        .size(30.dp)
                         .bouncyClickable(onClick = { onSeekTo(totalDurationMs) }),
                     contentAlignment = Alignment.Center
                 ) {
@@ -699,15 +699,15 @@ fun CropView(
                         imageVector = Icons.Default.SkipNext,
                         contentDescription = "Next",
                         tint = IconActive,
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(19.dp)
                     )
                 }
             }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Box(
                     modifier = Modifier
-                        .size(32.dp)
+                        .size(28.dp)
                         .bouncyClickable(enabled = canUndo, onClick = onUndo),
                     contentAlignment = Alignment.Center
                 ) {
@@ -715,12 +715,12 @@ fun CropView(
                         imageVector = Icons.AutoMirrored.Filled.Undo,
                         contentDescription = "Undo",
                         tint = if (canUndo) IconActive else IconDisabled,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(17.dp)
                     )
                 }
                 Box(
                     modifier = Modifier
-                        .size(32.dp)
+                        .size(28.dp)
                         .bouncyClickable(enabled = canRedo, onClick = onRedo),
                     contentAlignment = Alignment.Center
                 ) {
@@ -728,7 +728,7 @@ fun CropView(
                         imageVector = Icons.AutoMirrored.Filled.Redo,
                         contentDescription = "Redo",
                         tint = if (canRedo) IconActive else IconDisabled,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(17.dp)
                     )
                 }
             }
@@ -738,33 +738,33 @@ fun CropView(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 2.dp),
+                .padding(horizontal = 12.dp, vertical = 2.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Spacer(modifier = Modifier.weight(0.36f))
             Text(
                 text = formatTimeCode(currentPlayheadMs),
                 color = TextPrimary,
-                fontSize = 13.sp,
+                fontSize = 10.5.sp,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold
             )
-            Text(text = "  |  ", color = TextSecondary, fontSize = 13.sp)
+            Text(text = "  |  ", color = TextSecondary, fontSize = 10.5.sp)
             Text(
                 text = formatTimeCode(totalDurationMs),
                 color = TextSecondary,
-                fontSize = 13.sp,
+                fontSize = 10.5.sp,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Medium
             )
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(6.dp))
 
             Canvas(
                 modifier = Modifier
                     .weight(0.48f)
-                    .height(14.dp)
+                    .height(11.dp)
             ) {
-                val tickSpacing = 8.dp.toPx()
+                val tickSpacing = 7.dp.toPx()
                 val count = (size.width / tickSpacing).toInt()
                 for (i in 0..count) {
                     val isMajor = (i % 5 == 0)
@@ -782,15 +782,15 @@ fun CropView(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 2.dp)
-                .height(34.dp),
+                .padding(horizontal = 12.dp, vertical = 2.dp)
+                .height(28.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             // Reset / Rotate Icon Button
             Box(
                 modifier = Modifier
-                    .size(32.dp)
+                    .size(26.dp)
                     .clip(CircleShape)
                     .background(AmPanelElevated)
                     .border(1.dp, AmHairlineStrong, CircleShape)
@@ -805,7 +805,7 @@ fun CropView(
                     imageVector = Icons.Default.Refresh,
                     contentDescription = "Reset Crop",
                     tint = IconActive,
-                    modifier = Modifier.size(18.dp)
+                    modifier = Modifier.size(15.dp)
                 )
             }
 
@@ -813,10 +813,10 @@ fun CropView(
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .height(30.dp)
-                    .clip(RoundedCornerShape(10.dp))
+                    .height(24.dp)
+                    .clip(RoundedCornerShape(8.dp))
                     .background(AmPanelElevated)
-                    .border(1.dp, AmHairlineStrong, RoundedCornerShape(10.dp))
+                    .border(1.dp, AmHairlineStrong, RoundedCornerShape(8.dp))
                     .padding(horizontal = 6.dp),
                 contentAlignment = Alignment.CenterStart
             ) {
@@ -827,7 +827,7 @@ fun CropView(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(20.dp)
+                            .size(16.dp)
                             .graphicsLayer { rotationZ = 45f }
                             .background(AmVioletDeep, RectangleShape)
                             .bouncyClickable(onClick = {}),
@@ -838,19 +838,19 @@ fun CropView(
                             contentDescription = "Keyframe",
                             tint = Color.White,
                             modifier = Modifier
-                                .size(13.dp)
+                                .size(11.dp)
                                 .graphicsLayer { rotationZ = -45f }
                         )
                     }
 
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
 
-                    Canvas(modifier = Modifier.size(18.dp)) {
+                    Canvas(modifier = Modifier.size(15.dp)) {
                         val path = Path().apply {
                             moveTo(0f, size.height)
                             cubicTo(size.width * 0.4f, size.height, size.width * 0.6f, 0f, size.width, 0f)
                         }
-                        drawPath(path = path, color = Color(0xFF8E8E8E), style = Stroke(width = 2.dp.toPx()))
+                        drawPath(path = path, color = Color(0xFF8E8E8E), style = Stroke(width = 1.8.dp.toPx()))
                     }
                 }
             }
@@ -869,18 +869,18 @@ fun CropView(
                 )
                 .clip(RoundedCornerShape(topStart = AmCornerPanel, topEnd = AmCornerPanel))
                 .background(AmPanel)
-                .padding(horizontal = 16.dp, vertical = 6.dp)
+                .padding(horizontal = 12.dp, vertical = 4.dp)
         ) {
             // Drag handle pill
             Box(
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
-                    .width(36.dp)
-                    .height(4.dp)
+                    .width(28.dp)
+                    .height(3.dp)
                     .background(AmPillSelected, CircleShape)
             )
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(3.dp))
 
             // Top card: back + live value + keyframe / easing (same as the Transform panel)
             if (chrome != null) {
@@ -901,10 +901,10 @@ fun CropView(
                 )
             }
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
             if (showEasing && segStart != null && segEnd != null) {
-                Box(modifier = Modifier.fillMaxWidth().height(180.dp)) {
+                Box(modifier = Modifier.fillMaxWidth().height(130.dp)) {
                     EasingEditor(
                         easing = segStart.easing,
                         progress = ((relMs - segStart.timeMs).toFloat() /
@@ -916,32 +916,32 @@ fun CropView(
             } else {
             // Aspect Ratio Preset Pills Row (Free, Original, Project, 9:16, 16:9, 1:1, etc.)
             LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 items(CROP_PRESETS) { preset ->
                     val isSelected = (preset == activePreset)
                     Box(
                         modifier = Modifier
-                            .heightIn(min = 40.dp)
+                            .heightIn(min = 32.dp)
                             .clip(CircleShape)
                             .background(if (isSelected) AmAccent else AmPanelElevated, CircleShape)
                             .border(1.dp, if (isSelected) AmAccent else AmHairlineStrong, CircleShape)
                             .bouncyClickable(onClick = { applyPresetRatio(preset) })
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = preset,
                             color = if (isSelected) AmInk else TextPrimary,
-                            fontSize = 14.sp,
+                            fontSize = 11.5.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             // 4 Fine-Tune Ruler Dial Sliders (Width, Height, Horizontal, Vertical)
             RulerDialSlider(

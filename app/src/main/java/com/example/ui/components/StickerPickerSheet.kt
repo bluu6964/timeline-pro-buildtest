@@ -69,23 +69,23 @@ fun StickerPickerSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp)
-                .padding(bottom = 20.dp)
+                .padding(horizontal = 12.dp)
+                .padding(bottom = 16.dp)
         ) {
-            Text("Stickers", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.height(10.dp))
+            Text("Stickers", color = Color.White, fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(8.dp))
 
             if (categories.isEmpty()) {
                 Text(
                     "No stickers found. Add folders to app/src/main/assets/stickers.",
                     color = Color(0xFFBBBBBB),
-                    fontSize = 14.sp
+                    fontSize = 12.sp
                 )
                 return@Column
             }
 
             // Category tabs
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 items(categories) { cat ->
                     val on = cat == selected
                     Box(
@@ -96,32 +96,32 @@ fun StickerPickerSheet(
                             )
                             .clip(androidx.compose.foundation.shape.CircleShape)
                             .clickable { selected = cat }
-                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                            .padding(horizontal = 11.dp, vertical = 5.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         // Pill tab (build 207): selected = the filled pill.
                         Text(
                             cat.replaceFirstChar { it.uppercase() },
                             color = if (on) Color.White else AmTextDim,
-                            fontSize = 14.sp,
+                            fontSize = 11.5.sp,
                             fontWeight = if (on) FontWeight.Bold else FontWeight.Medium
                         )
                     }
                 }
             }
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(10.dp))
 
             if (stickerItems.isEmpty()) {
-                Text("This category is empty.", color = Color(0xFFBBBBBB), fontSize = 14.sp)
+                Text("This category is empty.", color = Color(0xFFBBBBBB), fontSize = 12.sp)
             } else {
                 LazyVerticalGrid(
-                    columns = GridCells.Fixed(4),
+                    columns = GridCells.Fixed(5),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = 420.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                        .heightIn(max = 320.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     items(stickerItems) { item ->
                         StickerTile(item) {
@@ -142,7 +142,7 @@ private fun StickerTile(item: StickerLibrary.Item, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .aspectRatio(1f)
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(9.dp))
             .background(AmPanelElevated)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
@@ -153,7 +153,7 @@ private fun StickerTile(item: StickerLibrary.Item, onClick: () -> Unit) {
                 contentDescription = item.name,
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(6.dp),
+                    .padding(5.dp),
                 contentScale = ContentScale.Fit
             )
         }
@@ -161,12 +161,12 @@ private fun StickerTile(item: StickerLibrary.Item, onClick: () -> Unit) {
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(4.dp)
-                    .clip(RoundedCornerShape(6.dp))
+                    .padding(3.dp)
+                    .clip(RoundedCornerShape(4.dp))
                     .background(Color(0xCC000000))
-                    .padding(horizontal = 5.dp, vertical = 2.dp)
+                    .padding(horizontal = 4.dp, vertical = 1.dp)
             ) {
-                Text("ANIM", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                Text("ANIM", color = Color.White, fontSize = 7.5.sp, fontWeight = FontWeight.Bold)
             }
         }
     }

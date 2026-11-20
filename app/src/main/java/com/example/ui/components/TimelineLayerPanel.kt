@@ -415,14 +415,14 @@ fun TimelineLayerPanel(
         // right after the speech was done. Lanes outside the window are plain spacers of the same
         // height, so the scroll length and every position stay exactly the same.
         val laneHeights = remember(tracks, comfortDensity) {
-            tracks.map { t -> t.clips.maxOfOrNull { laneHeightFor(it.type, comfortDensity) } ?: 24.dp }
+            tracks.map { t -> t.clips.maxOfOrNull { laneHeightFor(it.type, comfortDensity) } ?: 20.dp }
         }
         val laneTopsPx = remember(laneHeights, dpToPx) {
             val tops = FloatArray(laneHeights.size + 1)
-            var y = 9f * dpToPx // top padding of the scroll content
+            var y = 3f * dpToPx // top padding of the scroll content
             for (i in laneHeights.indices) {
                 tops[i] = y
-                y += (laneHeights[i].value + 4f) * dpToPx // lane + 4 dp gap (build 217: the reference's row gap)
+                y += (laneHeights[i].value + 3f) * dpToPx
             }
             tops[laneHeights.size] = y
             tops
@@ -496,7 +496,7 @@ fun TimelineLayerPanel(
         }
 
         // 1. Left layer controls (eye + thumb) + timeline tracks, shared vertical scroll.
-        val leftRailWidth = 42.dp // build 217: the reference's eye-button width
+        val leftRailWidth = 34.dp
         // The timeline content fills the whole width and runs UNDER the left controls (like Alight
         // Motion): layers are no longer cut off by a black strip, they show between / behind the
         // eye + thumbnail pills. The rail is drawn on top.
@@ -504,7 +504,7 @@ fun TimelineLayerPanel(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(verticalScrollState)
-                .padding(top = 4.dp, bottom = if (toolsPanelOpen && (isMulti || showActionBar)) 4.dp else if (isMulti) MultiSelectBarHeightWithBoolean + 4.dp else if (showActionBar) SelectedBarHeight + 4.dp else 4.dp)
+                .padding(top = 3.dp, bottom = if (toolsPanelOpen && (isMulti || showActionBar)) 3.dp else if (isMulti) MultiSelectBarHeightWithBoolean + 3.dp else if (showActionBar) SelectedBarHeight + 3.dp else 3.dp)
         ) {
             // Timeline content, shifted so currentPlayheadMs sits under the center line.
             Box(
@@ -519,7 +519,7 @@ fun TimelineLayerPanel(
                         .graphicsLayer {
                             translationX = (centerLineX.value - playheadMs() * pxPerMs) * dpToPx - TrimHandleWidth.toPx()
                         },
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                    verticalArrangement = Arrangement.spacedBy(3.dp)
                 ) {
                     tracks.forEachIndexed { laneIndex, track ->
                         androidx.compose.runtime.key(track.id) {
@@ -556,7 +556,7 @@ fun TimelineLayerPanel(
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .width(leftRailWidth), // flush with the screen's left edge, no side padding
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                verticalArrangement = Arrangement.spacedBy(3.dp)
             ) {
                 tracks.forEachIndexed { laneIndex, track ->
                     // Build 218: a chain lane's rail cell belongs to the Chain
@@ -632,7 +632,7 @@ fun TimelineLayerPanel(
                 onClick = onAddClick,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(end = 16.dp, bottom = if (showActionBar && !toolsPanelOpen) SelectedBarHeight + 6.dp else 10.dp)
+                    .padding(end = 12.dp, bottom = if (showActionBar && !toolsPanelOpen) SelectedBarHeight + 5.dp else 8.dp)
             )
         }
 
@@ -745,7 +745,7 @@ internal fun TimelineBarActionsPublisher(
                             Icon(
                                 icon, contentDescription = null,
                                 tint = if (destructive) AmDanger else IconActive,
-                                modifier = Modifier.size(23.dp)
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                     )
@@ -801,11 +801,11 @@ internal fun TimelineSelectedBar(
             .fillMaxWidth()
             .height(SelectedBarHeight)
             .background(EditorBackground)
-            .padding(horizontal = 8.dp)
+            .padding(horizontal = 6.dp)
             .enterPop(fromBottom = true)
             .testTag("selected_layer_action_bar"),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         SelectedBarButton(
             icon = if (isMasterMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
@@ -878,12 +878,12 @@ internal fun TimelineMultiBarOverlay(
  * bar's 142–188 dp, so the last lanes could not scroll clear of it.
  */
 internal fun timelineBottomPadDp(toolsPanelOpen: Boolean, isMulti: Boolean, showActionBar: Boolean): Float =
-    if (toolsPanelOpen && (isMulti || showActionBar)) 4f
-    else if (isMulti) MultiSelectBarHeightWithBoolean.value + 4f
-    else if (showActionBar) SelectedBarHeight.value + 4f
-    else 4f
+    if (toolsPanelOpen && (isMulti || showActionBar)) 3f
+    else if (isMulti) MultiSelectBarHeightWithBoolean.value + 3f
+    else if (showActionBar) SelectedBarHeight.value + 3f
+    else 3f
 
-private val SelectedBarHeight = 52.dp
+private val SelectedBarHeight = 40.dp
 
 @Composable
 private fun SelectedBarButton(
@@ -909,7 +909,7 @@ private fun SelectedBarButton(
             imageVector = icon,
             contentDescription = label,
             tint = if (destructive) AmDanger else tint,
-            modifier = Modifier.size(22.dp)
+            modifier = Modifier.size(18.dp)
         )
     }
 }
@@ -1020,10 +1020,10 @@ private fun LayerLaneControl(
     val latestLong by rememberUpdatedState(onLongPress)
     val latestToggle by rememberUpdatedState(onToggleMulti)
     val latestMulti by rememberUpdatedState(isMulti)
-    val eyeShape = RoundedCornerShape(topEnd = 9.dp, bottomEnd = 9.dp)
+    val eyeShape = RoundedCornerShape(topEnd = 7.dp, bottomEnd = 7.dp)
     Box(
         modifier = Modifier
-            .width(42.dp)
+            .width(34.dp)
             .height(height)
             .clip(eyeShape)
             .background(com.example.ui.theme.RefEyeBg, eyeShape)
@@ -1046,7 +1046,7 @@ private fun LayerLaneControl(
             if (isChecked) {
                 Box(
                     modifier = Modifier
-                        .size(22.dp)
+                        .size(18.dp)
                         .background(com.example.ui.theme.RefLime, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
@@ -1054,20 +1054,20 @@ private fun LayerLaneControl(
                         imageVector = Icons.Default.Check,
                         contentDescription = "Selected",
                         tint = com.example.ui.theme.RefLimeInk,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(13.dp)
                     )
                 }
             } else {
                 Box(
                     Modifier
-                        .size(20.dp)
+                        .size(16.dp)
                         .border(1.5.dp, LaneEyeTint.copy(alpha = 0.4f), CircleShape)
                 )
             }
         } else {
             Box(
                 modifier = Modifier
-                    .size(30.dp)
+                    .size(24.dp)
                     .bouncyClickable(pressedScale = 1f, onClick = { onToggleVisibility(clip.id) }),
                 contentAlignment = Alignment.Center
             ) {
@@ -1075,7 +1075,7 @@ private fun LayerLaneControl(
                     imageVector = if (clip.isVisible) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff,
                     contentDescription = if (clip.isVisible) "Hide layer" else "Show layer",
                     tint = if (clip.isVisible) LaneEyeTint else com.example.ui.theme.RefEyeHidden,
-                    modifier = Modifier.size(19.dp)
+                    modifier = Modifier.size(15.dp)
                 )
             }
         }
@@ -1085,7 +1085,7 @@ private fun LayerLaneControl(
 /** Rounded-square layer thumbnail: gold "T" for text, white tile for shapes, etc. */
 @Composable
 private fun LayerThumb(clip: TimelineClip, thumbColor: Color) {
-    val shape = RoundedCornerShape(7.dp)
+    val shape = RoundedCornerShape(5.dp)
     val isText = clip.type == LayerType.TEXT
     val fill: Brush = when (clip.type) {
         LayerType.TEXT -> Brush.verticalGradient(listOf(GoldThumbTop, GoldThumbBottom))
@@ -1099,7 +1099,7 @@ private fun LayerThumb(clip: TimelineClip, thumbColor: Color) {
     }
     Box(
         modifier = Modifier
-            .size(22.dp)
+            .size(18.dp)
             .clip(shape)
             .background(fill)
             .then(
@@ -1117,8 +1117,8 @@ private fun LayerThumb(clip: TimelineClip, thumbColor: Color) {
         contentAlignment = Alignment.Center
     ) {
         when (clip.type) {
-            LayerType.TEXT -> Text("T", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
-            LayerType.AUDIO -> Icon(Icons.Default.Mic, null, tint = Color.White, modifier = Modifier.size(14.dp))
+            LayerType.TEXT -> Text("T", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
+            LayerType.AUDIO -> Icon(Icons.Default.Mic, null, tint = Color.White, modifier = Modifier.size(11.dp))
             else -> {}
         }
     }
@@ -1148,7 +1148,7 @@ private fun ChainLaneControl(
     }
     Box(
         modifier = Modifier
-            .width(42.dp)
+            .width(34.dp)
             .height(height)
             .background(RefEyeBg)
             .drawBehind {
@@ -1169,7 +1169,7 @@ private fun ChainLaneControl(
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Box(
                 modifier = Modifier
-                    .size(20.dp)
+                    .size(17.dp)
                     .pointerInput(chain.id) {
                         detectTapGestures(onTap = { onToggleVisibility(chain.id) })
                     },
@@ -1179,14 +1179,14 @@ private fun ChainLaneControl(
                     imageVector = if (!chain.isVisible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
                     contentDescription = if (!chain.isVisible) "Show chain" else "Hide chain",
                     tint = eyeTint,
-                    modifier = Modifier.size(17.dp)
+                    modifier = Modifier.size(14.dp)
                 )
             }
             Icon(
                 imageVector = Icons.Default.Link,
                 contentDescription = null,
                 tint = eyeTint,
-                modifier = Modifier.size(11.dp)
+                modifier = Modifier.size(9.dp)
             )
         }
     }
@@ -1223,13 +1223,13 @@ fun TimelineTrackRow(
     columnShiftPx: () -> Float = { 0f }
 ) {
     // Alight Motion: one layer per line → fixed row height by layer type.
-    val trackHeight = track.clips.maxOfOrNull { laneHeightFor(it.type, comfort) } ?: 24.dp
+    val trackHeight = track.clips.maxOfOrNull { laneHeightFor(it.type, comfort) } ?: 20.dp
     // Build 187: the capsule bar's height — the row minus the inset, centred in the row.
     val barHeight = trackHeight - LaneBarInset
     val density = LocalDensity.current
     val pxPerDp = density.density
     // How many vertical pixels ≈ one lane step for reorder.
-    val laneStepPx = with(density) { (trackHeight + 4.dp).toPx() }
+    val laneStepPx = with(density) { (trackHeight + 3.dp).toPx() }
 
     // Room on the left so the left trim handle of a layer at 0:00 is still inside the lane.
     val handlePx = with(density) { TrimHandleWidth.toPx() }
@@ -1332,19 +1332,19 @@ fun TimelineTrackRow(
                     Row(
                         Modifier
                             .align(Alignment.CenterStart)
-                            .offset { IntOffset((columnShiftPx() + 54.dp.toPx()).roundToInt(), 0) },
+                            .offset { IntOffset((columnShiftPx() + 42.dp.toPx()).roundToInt(), 0) },
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Icon(
                             Icons.Default.Link, null,
                             tint = if (chainSelected) ChainEmptyInkSelected else ChainEmptyInk,
-                            modifier = Modifier.size(14.dp)
+                            modifier = Modifier.size(12.dp)
                         )
                         Text(
                             "Chain",
                             color = if (chainSelected) ChainEmptyInkSelected else ChainEmptyInk,
-                            fontSize = 12.sp,
+                            fontSize = 10.5.sp,
                             fontWeight = FontWeight.Medium
                         )
                     }
@@ -1354,7 +1354,7 @@ fun TimelineTrackRow(
         // One clip per lane, except a Chain lane: the chain bar first (behind), its layers on top of it.
         val laneClips = if (track.clips.size > 1) track.clips.sortedBy { if (it.type == LayerType.CHAIN) 0 else 1 } else track.clips
         laneClips.forEach { clip ->
-            val clipWidth = if (clip.type == LayerType.CHAIN) viewWidth else (clip.durationMs * pxPerMs).dp.coerceAtLeast(36.dp)
+            val clipWidth = if (clip.type == LayerType.CHAIN) viewWidth else (clip.durationMs * pxPerMs).dp.coerceAtLeast(30.dp)
             val isSelected = clip.id == selectedClipId
             val dragging = isDragging && dragClipId == clip.id
 
@@ -1364,10 +1364,8 @@ fun TimelineTrackRow(
                         IntOffset(
                             x = if (clip.type == LayerType.CHAIN) 0
                             else (clip.startMs * pxPerMs * pxPerDp + handlePx + if (dragging) dragOffsetX else 0f).roundToInt(),
-                            // Build 187: the capsule bar is centred in its (taller) row; a Chain keeps the full row.
-                            // Build 218: a chain child sits inside the section with a 4 dp top inset.
                             y = if (clip.type == LayerType.CHAIN) 0
-                            else if (chainClip != null && clip.chainId == chainClip.id) (4.dp.value * pxPerDp).roundToInt()
+                            else if (chainClip != null && clip.chainId == chainClip.id) (3.dp.value * pxPerDp).roundToInt()
                             else (LaneBarInset.value / 2f * pxPerDp).roundToInt()
                         )
                     }
@@ -1376,12 +1374,9 @@ fun TimelineTrackRow(
                         if (clip.type == LayerType.CHAIN) Modifier.graphicsLayer { translationX = -columnShiftPx() }
                         else Modifier
                     )
-                    // Build 187: the touch box is the BAR (barHeight), not the whole row —
-                    // the drag/trim gestures themselves are unchanged. A Chain keeps the row.
-                    // Build 218: a chain child's touch box is the section minus its 4 dp insets.
                     .then(
                         if (clip.type == LayerType.CHAIN) Modifier
-                        else if (chainClip != null && clip.chainId == chainClip.id) Modifier.height(trackHeight - 8.dp)
+                        else if (chainClip != null && clip.chainId == chainClip.id) Modifier.height(trackHeight - 6.dp)
                         else Modifier.height(barHeight)
                     )
                     .pointerInput(clip.id, laneIndex, laneCount, pxPerMs) {
@@ -1484,7 +1479,7 @@ fun TimelineTrackRow(
             if (isSelected && !isDragging && !clip.isLocked && clip.type == LayerType.AUDIO) {
                 val barLeftPx = clip.startMs * pxPerMs * pxPerDp + handlePx
                 val barPx = clipWidth.value * pxPerDp
-                val knobHalfPx = 16f * pxPerDp   // half the 32 dp hit box (build 201: was 24 dp box / 12)
+                val knobHalfPx = 12f * pxPerDp
                 val knobTopPx = (LaneBarInset.value / 2f) * pxPerDp - knobHalfPx
                 FadeHandle(
                     isLeft = true,
@@ -1525,23 +1520,23 @@ fun TimelineTrackRow(
                 modifier = Modifier
                     .offset {
                         IntOffset(
-                            (columnShiftPx() + (viewWidth.value - 28f) * pxPerDp).roundToInt(),
-                            ((trackHeight.value - 32f) / 2f * pxPerDp).roundToInt()
+                            (columnShiftPx() + (viewWidth.value - 22f) * pxPerDp).roundToInt(),
+                            ((trackHeight.value - 24f) / 2f * pxPerDp).roundToInt()
                         )
                     }
-                    .size(32.dp)
+                    .size(24.dp)
                     .bouncyClickable(pressedScale = 0.9f, onClick = { onDeleteClipById(chainClip.id) })
                     .testTag("chain_section_delete_x"),
                 contentAlignment = Alignment.Center
             ) {
                 Box(
                     modifier = Modifier
-                        .size(20.dp)
-                        .background(Color.Black.copy(alpha = 0.45f), RoundedCornerShape(6.dp)),
+                        .size(16.dp)
+                        .background(Color.Black.copy(alpha = 0.45f), RoundedCornerShape(5.dp)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Canvas(Modifier.size(10.dp)) {
-                        val w = 1.8.dp.toPx()
+                    Canvas(Modifier.size(8.dp)) {
+                        val w = 1.5.dp.toPx()
                         val m = w / 2f
                         drawLine(Color.White, Offset(m, m), Offset(size.width - m, size.height - m), w, StrokeCap.Round)
                         drawLine(Color.White, Offset(size.width - m, m), Offset(m, size.height - m), w, StrokeCap.Round)
@@ -1552,7 +1547,7 @@ fun TimelineTrackRow(
     }
 }
 
-private val TrimHandleWidth = 34.dp
+private val TrimHandleWidth = 26.dp
 
 /** The composed lane window moves in steps of this many lanes. */
 private const val LANE_WINDOW_STEP = 8
@@ -1574,8 +1569,8 @@ private fun TrimHandle(
             .width(TrimHandleWidth)
             .height(height)
             .clip(
-                if (isLeft) RoundedCornerShape(topStart = 9.dp, bottomStart = 9.dp, topEnd = 2.dp, bottomEnd = 2.dp)
-                else RoundedCornerShape(topEnd = 9.dp, bottomEnd = 9.dp, topStart = 2.dp, bottomStart = 2.dp)
+                if (isLeft) RoundedCornerShape(topStart = 7.dp, bottomStart = 7.dp, topEnd = 2.dp, bottomEnd = 2.dp)
+                else RoundedCornerShape(topEnd = 7.dp, bottomEnd = 7.dp, topStart = 2.dp, bottomStart = 2.dp)
             )
             .pointerInput(pxPerMs, pxPerDp) {
                 var acc = 0f
@@ -1596,21 +1591,18 @@ private fun TrimHandle(
             },
         contentAlignment = Alignment.Center
     ) {
-        // Build 216 (reference): the visible handle is a slim WHITE pill
-        // (9 dp) with a dark centre line, centred in the unchanged 34 dp
-        // touch box — the drag geometry and gestures are untouched.
         Box(
             modifier = Modifier
-                .width(9.dp)
+                .width(7.dp)
                 .fillMaxHeight()
-                .padding(vertical = 3.dp)
-                .background(Color.White, RoundedCornerShape(5.dp))
-                .border(1.dp, Color(0x0F000000), RoundedCornerShape(5.dp)),
+                .padding(vertical = 2.dp)
+                .background(Color.White, RoundedCornerShape(4.dp))
+                .border(1.dp, Color(0x0F000000), RoundedCornerShape(4.dp)),
             contentAlignment = Alignment.Center
         ) {
             Box(
                 modifier = Modifier
-                    .width(2.dp)
+                    .width(1.6.dp)
                     .fillMaxHeight(0.52f)
                     .background(AmInk, RoundedCornerShape(1.dp))
             )
@@ -1637,7 +1629,7 @@ private fun FadeHandle(
     val latestOnFade by rememberUpdatedState(onFadeDelta)
     Box(
         modifier = modifier
-            .size(32.dp)
+            .size(24.dp)
             .pointerInput(pxPerMs, pxPerDp) {
                 var acc = 0f
                 detectHorizontalDragGestures(
@@ -1657,7 +1649,7 @@ private fun FadeHandle(
             },
         contentAlignment = Alignment.Center
     ) {
-        Canvas(Modifier.size(16.dp)) {
+        Canvas(Modifier.size(13.dp)) {
             drawCircle(Color.White)
             val cx = size.width / 2f
             val cy = size.height / 2f
@@ -1685,15 +1677,8 @@ private fun FadeHandle(
 // (the slimmest row, 26 dp, still holds both), and trim handles keep the full row height.
 // Build 214: rail thumb 22 dp + eye hit box 24 dp, so rows are cut a further 2 dp (slimmest 24 dp).
 internal fun laneHeightFor(type: LayerType, comfort: Boolean = false): Dp = when (type) {
-    // Build 218 (Sarowar's HTML reference v3): a Chain lane is the new
-    // full-width SECTION — 44 dp (54 in the comfort density), taller than
-    // a normal row so its children sit inside with a 4 dp inset.
-    LayerType.CHAIN -> if (comfort) 54.dp else 44.dp
-    // Build 217 (Sarowar's HTML reference): EVERY other track row is 32 dp —
-    // the reference's compact lane height (bars fill the row; the
-    // eye-button is 42 dp wide and full row height). The reference's
-    // comfort density (its layer-count pill toggle) makes rows 44 dp.
-    else -> if (comfort) 44.dp else 32.dp
+    LayerType.CHAIN -> if (comfort) 42.dp else 34.dp
+    else -> if (comfort) 34.dp else 24.dp
 }
 
 /** Build 187: the capsule bar is this much shorter than its lane row (centred in it). */
@@ -1786,7 +1771,7 @@ fun TimelineClipItem(
     // Build 217 (Sarowar's HTML reference): the bar is a rounded rect of
     // r9 (r10 in the comfort density) — the reference's exact corners.
     // Build 218: a chain child is r8, the reference's chain-clip corner.
-    val barCorner = if (inChain) 8.dp else if (comfort) 10.dp else 9.dp
+    val barCorner = if (inChain) 6.dp else if (comfort) 8.dp else 7.dp
     val barShape = if (isChain) RectangleShape else RoundedCornerShape(barCorner)
     Box(
         modifier = Modifier.width(width)
@@ -1854,8 +1839,8 @@ fun TimelineClipItem(
                 barColorFor(clip),
                 if (clip.type == LayerType.TEXT) clip.text?.takeIf { it.isNotBlank() } ?: clip.name else clip.name,
                 isSelected,
-                fontSize = 12.5.sp,
-                endPad = 24.dp,
+                fontSize = 10.5.sp,
+                endPad = 20.dp,
                 icon = { BarTypeIcon(barGlyphFor(clip)) }
             )
         } else when (clip.type) {
@@ -1915,13 +1900,13 @@ fun TimelineClipItem(
                         Row(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(horizontal = 8.dp),
+                                .padding(horizontal = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(22.dp)
+                                    .size(18.dp)
                                     .background(Color.White.copy(alpha = 0.25f), CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -1929,14 +1914,14 @@ fun TimelineClipItem(
                                     imageVector = Icons.Default.Mic,
                                     contentDescription = "Mic",
                                     tint = Color.White,
-                                    modifier = Modifier.size(14.dp)
+                                    modifier = Modifier.size(11.dp)
                                 )
                             }
                             repeat(15) {
                                 Box(
                                     modifier = Modifier
-                                        .width(16.dp)
-                                        .height(4.dp)
+                                        .width(12.dp)
+                                        .height(3.dp)
                                         .background(Color.White.copy(alpha = 0.75f), RoundedCornerShape(2.dp))
                                 )
                             }
@@ -1988,15 +1973,15 @@ fun TimelineClipItem(
             Text(
                 text = clip.name,
                 color = Color.White,
-                fontSize = 10.sp,
+                fontSize = 9.sp,
                 fontWeight = FontWeight.Medium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
                     .align(Alignment.TopStart)
-                    .padding(start = 4.dp, top = 3.dp, end = 40.dp)
-                    .background(Color.Black.copy(alpha = 0.55f), RoundedCornerShape(5.dp))
-                    .padding(horizontal = 5.dp, vertical = 1.dp)
+                    .padding(start = 3.dp, top = 2.dp, end = 30.dp)
+                    .background(Color.Black.copy(alpha = 0.55f), RoundedCornerShape(4.dp))
+                    .padding(horizontal = 4.dp, vertical = 1.dp)
             )
         }
         // A layer inside a real Group: a thin edge at its start, in the Group's
@@ -2026,7 +2011,7 @@ fun TimelineClipItem(
         if (!inChain && isSelected && clip.keyframes.isNotEmpty()) {
             val times = remember(clip.keyframes) { clip.keyframeTimes() }
             Canvas(modifier = Modifier.fillMaxSize()) {
-                val half = 8.dp.toPx()
+                val half = 6.dp.toPx()
                 for (t in times) {
                     if (t < 0L || t > clip.durationMs) continue
                     val cx = t * pxPerMs * density
@@ -2038,7 +2023,7 @@ fun TimelineClipItem(
                         lineTo(cx - half * 0.8f, cy)
                         close()
                     }
-                    drawPath(d, AmTextDim, style = Stroke(width = 4.dp.toPx(), join = androidx.compose.ui.graphics.StrokeJoin.Round))
+                    drawPath(d, AmTextDim, style = Stroke(width = 3.dp.toPx(), join = androidx.compose.ui.graphics.StrokeJoin.Round))
                     drawPath(d, Color.White)
                 }
             }
@@ -2053,32 +2038,28 @@ fun TimelineClipItem(
             Row(
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
-                    .padding(end = 6.dp),
+                    .padding(end = 5.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Build 218: a chain child's x (17 dp, r5) shows when the
-                // child is selected OR the section is, and deletes just
-                // the child. Build 223: chain x buttons stay (Sarowar's
-                // __39 design); only the regular bar's x was removed.
                 if (inChain && (isSelected || chainSectionSelected)) {
                     Box(
                         modifier = Modifier
-                            .size(32.dp)
+                            .size(24.dp)
                             .bouncyClickable(pressedScale = 0.9f, onClick = onDeleteSelf)
                             .testTag("bar_delete_x"),
                         contentAlignment = Alignment.Center
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(17.dp)
+                                .size(14.dp)
                                 .background(
                                     Color.Black.copy(alpha = 0.35f),
-                                    RoundedCornerShape(5.dp)
+                                    RoundedCornerShape(4.dp)
                                 ),
                             contentAlignment = Alignment.Center
                         ) {
-                            Canvas(Modifier.size(10.dp)) {
-                                val w = 1.8.dp.toPx()
+                            Canvas(Modifier.size(8.dp)) {
+                                val w = 1.5.dp.toPx()
                                 val m = w / 2f
                                 drawLine(Color.White, Offset(m, m), Offset(size.width - m, size.height - m), w, StrokeCap.Round)
                                 drawLine(Color.White, Offset(size.width - m, m), Offset(m, size.height - m), w, StrokeCap.Round)
@@ -2086,18 +2067,16 @@ fun TimelineClipItem(
                         }
                     }
                 }
-                // Build 218: chain children carry no drag handle (the
-                // reference's chain clips have none).
                 if (!inChain) {
                     Column(
-                        verticalArrangement = Arrangement.spacedBy(2.5.dp),
-                        modifier = Modifier.padding(horizontal = 4.dp)
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                        modifier = Modifier.padding(horizontal = 3.dp)
                     ) {
                         repeat(3) {
                             Box(
                                 Modifier
-                                    .width(18.dp)
-                                    .height(1.6.dp)
+                                    .width(14.dp)
+                                    .height(1.3.dp)
                                     .background(Color.White.copy(alpha = 0.55f), RoundedCornerShape(1.dp))
                             )
                         }
@@ -2106,22 +2085,19 @@ fun TimelineClipItem(
             }
         }
       } // end capsule bar
-      // Build 217 (reference): the fx badge of a bar with effects — a
-      // 17 dp circle (#27272E, 1.5 dp app-bg border) with italic "fx",
-      // overlapping the bar's top-left corner (top -2, left 2).
       if (!isChain && !inChain && clip.effects.isNotEmpty()) {
           Box(
               modifier = Modifier
                   .align(Alignment.TopStart)
-                  .offset(x = 2.dp, y = (-2).dp)
-                  .size(17.dp)
+                  .offset(x = 1.5.dp, y = (-1.5).dp)
+                  .size(14.dp)
                   .background(com.example.ui.theme.RefFxBadge, CircleShape)
-                  .border(1.5.dp, AmBase, CircleShape)
+                  .border(1.2.dp, AmBase, CircleShape)
                   .testTag("bar_fx_badge"),
               contentAlignment = Alignment.Center
           ) {
               Text(
-                  "fx", color = Color.White, fontSize = 9.sp,
+                  "fx", color = Color.White, fontSize = 8.sp,
                   fontWeight = FontWeight.Bold,
                   fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
                   maxLines = 1
@@ -2209,16 +2185,11 @@ private fun CapsuleBar(
     label: String? = null,
     selected: Boolean = false,
     /** Build 218: chain children label at 12.5 sp (the reference). */
-    fontSize: androidx.compose.ui.unit.TextUnit = 13.sp,
+    fontSize: androidx.compose.ui.unit.TextUnit = 11.sp,
     /** Build 218: chain children end padding (no drag handle to clear). */
-    endPad: Dp = 40.dp,
+    endPad: Dp = 30.dp,
     icon: (@Composable () -> Unit)? = null
 ) {
-    // Build 217 (Sarowar's HTML reference): the flat type colour, the
-    // layer-type icon (16 dp, white) at the left and the name in white
-    // 13 sp/600, inner padding 11 start / 18 end (the right end leaves
-    // room for the bar's drag handle). The selection ring is drawn by
-    // TimelineClipItem around the whole bar.
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -2227,12 +2198,12 @@ private fun CapsuleBar(
     ) {
         if (!label.isNullOrBlank()) {
             Row(
-                modifier = Modifier.padding(start = 11.dp, end = endPad),
+                modifier = Modifier.padding(start = 8.dp, end = endPad),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (icon != null) {
                     icon()
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(5.dp))
                 }
                 Text(
                     text = label,
@@ -2247,11 +2218,11 @@ private fun CapsuleBar(
     }
 }
 
-/** The reference's small white type glyphs for the capsule bars (16 dp). */
+/** The reference's small white type glyphs for the capsule bars (13 dp). */
 @Composable
 private fun BarTypeIcon(kind: String) {
     val c = Color.White
-    Canvas(Modifier.size(16.dp)) {
+    Canvas(Modifier.size(13.dp)) {
         val u = size.width / 24f
         when (kind) {
             "text" -> {
@@ -2396,10 +2367,7 @@ private fun BarTypeIcon(kind: String) {
  */
 @Composable
 private fun ControllerBar(label: String?, selected: Boolean) {
-    // Build 217: the outline follows the timeline's bar shape (r9); the
-    // hollow teal treatment itself is unchanged (the reference is
-    // silent on controller bars).
-    val shape = RoundedCornerShape(9.dp)
+    val shape = RoundedCornerShape(7.dp)
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -2411,11 +2379,11 @@ private fun ControllerBar(label: String?, selected: Boolean) {
             Text(
                 text = label,
                 color = ControllerTeal,
-                fontSize = 12.sp,
+                fontSize = 10.5.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(start = 12.dp, end = 34.dp)
+                modifier = Modifier.padding(start = 9.dp, end = 26.dp)
             )
         }
     }
@@ -2433,10 +2401,8 @@ private fun QuietBar(label: String?, selected: Boolean) {
             .fillMaxSize()
             .border(
                 1.dp,
-                Color.White.copy(alpha = if (selected) 0.55f else 0.25f), // build 217: quiet bars read on dark
-                // Build 217: follows the timeline's bar shape (r9); the
-                // quiet hollow treatment itself is unchanged.
-                RoundedCornerShape(9.dp)
+                Color.White.copy(alpha = if (selected) 0.55f else 0.25f),
+                RoundedCornerShape(7.dp)
             ),
         contentAlignment = Alignment.CenterStart
     ) {
@@ -2444,11 +2410,11 @@ private fun QuietBar(label: String?, selected: Boolean) {
             Text(
                 text = label,
                 color = AmTextDim,
-                fontSize = 12.sp,
+                fontSize = 10.5.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(start = 12.dp, end = 34.dp)
+                modifier = Modifier.padding(start = 9.dp, end = 26.dp)
             )
         }
     }
@@ -2492,8 +2458,8 @@ private const val FLING_VELOCITY_THRESHOLD_PX = 100f
 /** Stop the decay once velocity falls below this (ms/s). */
 private const val FLING_ABS_VELOCITY_THRESHOLD = 20f
 
-private val ThumbTileWidth = 44.dp
-private val ThumbTileHeight = 44.dp
+private val ThumbTileWidth = 34.dp
+private val ThumbTileHeight = 34.dp
 
 /** One shared loader that can decode video frames (coil-video). */
 private object ThumbLoader {
@@ -2607,7 +2573,7 @@ fun SelectedLayerRow(
     val track = tracks.firstOrNull { t -> t.clips.any { it.id == clipId } } ?: return
     val clip = track.clips.first { it.id == clipId }
     TimelineLayerPanel(
-        height = laneHeightFor(clip.type) + 8.dp,
+        height = laneHeightFor(clip.type) + 6.dp,
         tracks = listOf(track.copy(clips = listOf(clip))),
         playheadMs = playheadMs,
         totalDurationMs = totalDurationMs,

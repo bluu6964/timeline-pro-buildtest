@@ -49,8 +49,8 @@ private val IconColor = AmTextPrimary // build 223 (colour balance): light glyph
  * [MultiSelectBarHeightWithBoolean] + 4 dp (see timelineBottomPadDp),
  * so the last lane can always scroll fully clear of the bar.
  */
-internal val MultiSelectBarBaseHeight = 56.dp
-internal val MultiSelectBarBooleanRowHeight = 46.dp
+internal val MultiSelectBarBaseHeight = 44.dp
+internal val MultiSelectBarBooleanRowHeight = 36.dp
 internal val MultiSelectBarHeightWithBoolean = MultiSelectBarBaseHeight + MultiSelectBarBooleanRowHeight
 
 /**
@@ -86,21 +86,21 @@ fun MultiSelectBar(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 6.dp)
+            .padding(horizontal = 6.dp, vertical = 4.dp)
             .glassSurface(RoundedCornerShape(AmCornerPanel), fill = amGlassBrush())
-            .padding(horizontal = 12.dp, vertical = 2.dp)
+            .padding(horizontal = 10.dp, vertical = 2.dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(40.dp),
+                .height(32.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
                 "$selectedCount layers",
                 color = AmTextPrimary,
-                fontSize = 13.sp,
+                fontSize = 11.5.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1
             )
@@ -218,16 +218,16 @@ private fun BooleanTile(
 ) {
     Column(
         modifier = Modifier
-            .width(58.dp)
+            .width(48.dp)
             .bouncyClickable { onAction(op) }
-            .padding(vertical = 3.dp),
+            .padding(vertical = 2.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Canvas(modifier = Modifier.size(width = 28.dp, height = 20.dp)) { drawBooleanGlyph(op) }
+        Canvas(modifier = Modifier.size(width = 22.dp, height = 16.dp)) { drawBooleanGlyph(op) }
         Text(
             op.displayName,
             color = AmTextPrimary.copy(alpha = 0.75f),
-            fontSize = 8.sp,
+            fontSize = 7.5.sp,
             fontWeight = FontWeight.Medium,
             maxLines = 1
         )
@@ -249,16 +249,16 @@ private fun MiniTile(
 ) {
     Column(
         modifier = Modifier
-            .width(38.dp)
+            .width(32.dp)
             .bouncyClickable { onClick() }
-            .padding(vertical = 3.dp),
+            .padding(vertical = 2.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Canvas(modifier = Modifier.size(width = 24.dp, height = 20.dp)) { draw() }
+        Canvas(modifier = Modifier.size(width = 20.dp, height = 16.dp)) { draw() }
         Text(
             label,
             color = labelColor,
-            fontSize = 8.sp,
+            fontSize = 7.5.sp,
             fontWeight = FontWeight.Medium,
             maxLines = 1
         )

@@ -45,7 +45,7 @@ import com.example.ui.theme.TextSecondary
  * failed): the cells then show their graticules and an honest "No frame" —
  * never a stale set of traces presented as current.
  */
-val ScopesPanelHeight = 118.dp
+val ScopesPanelHeight = 96.dp
 
 private val PlotBg = Color(0xFF0D0D0D)
 private val GridLine = Color(0xFF262626)
@@ -63,8 +63,8 @@ fun ScopesPanel(data: ScopeData?, modifier: Modifier = Modifier) {
             .fillMaxWidth()
             .height(ScopesPanelHeight)
             .background(AmBase)
-            .padding(horizontal = 10.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         ScopeCell("Histogram", Modifier.weight(1f)) { HistogramPlot(data) }
         ScopeCell("Waveform", Modifier.weight(1f)) { WaveformPlot(data) }
@@ -78,11 +78,11 @@ private fun ScopeCell(label: String, modifier: Modifier = Modifier, plot: @Compo
         Text(
             text = label,
             color = TextSecondary,
-            fontSize = 10.sp,
+            fontSize = 9.sp,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1
         )
-        Box(Modifier.fillMaxWidth().weight(1f).padding(top = 3.dp)) { plot() }
+        Box(Modifier.fillMaxWidth().weight(1f).padding(top = 2.dp)) { plot() }
     }
 }
 
@@ -94,7 +94,7 @@ private fun EmptyPlot() {
         drawRect(GridLine, style = Stroke(1f))
     }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text("No frame", color = TextSecondary, fontSize = 10.sp)
+        Text("No frame", color = TextSecondary, fontSize = 9.sp)
     }
 }
 

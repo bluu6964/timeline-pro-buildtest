@@ -106,8 +106,8 @@ private val SelUnderline = AmHairlineStrong
 private val SelAccent = AmAccent
 private val SelDot = AmHairlineStrong
 
-/** The pager's exact total height: page 202 + dots row 10 + bottom padding 10. */
-const val SELECTED_PAGER_HEIGHT_DP = 222
+/** The pager's exact total height: page 154 + dots row 9 + bottom padding 7. */
+const val SELECTED_PAGER_HEIGHT_DP = 170
 
 /**
  * One header icon-button in the reference's style: a plain white glyph,
@@ -136,7 +136,7 @@ private fun SelIconBtn(
 /** The reference's Layers glyph: a dashed back rect, a filled front rect, and the cyan target badge. */
 @Composable
 private fun LayersGlyph219(modifier: Modifier = Modifier) {
-    Canvas(modifier = modifier.size(24.dp)) {
+    Canvas(modifier = modifier.size(19.dp)) {
         val u = size.width / 24f
         val strokeW = 1.7f * u
         // Back rect (dashed), offset up-left.
@@ -171,7 +171,7 @@ private fun LayersGlyph219(modifier: Modifier = Modifier) {
 /** The reference's More glyph: a circle outline with three dots inside. */
 @Composable
 private fun MoreGlyph219(modifier: Modifier = Modifier) {
-    Canvas(modifier = modifier.size(24.dp)) {
+    Canvas(modifier = modifier.size(19.dp)) {
         val u = size.width / 24f
         drawCircle(
             color = SelName,
@@ -229,36 +229,36 @@ fun SelectedHeader219(
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 14.dp),
+                .padding(horizontal = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp)
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             SelIconBtn(tag = "sel_header_back", onClick = onBack) {
                 Icon(
                     Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Back",
                     tint = Color.White,
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier.size(19.dp)
                 )
             }
-            // The name wrap: flexes, caps at the reference's 210 dp,
+            // The name wrap: flexes, caps at the reference's 180 dp,
             // 1 dp underline under the name; tap = rename.
             Box(modifier = Modifier.weight(1f)) {
                 Column(
                     modifier = Modifier
-                        .widthIn(max = 210.dp)
+                        .widthIn(max = 180.dp)
                         .clickable(onClick = onRename)
                         .testTag("sel_header_name")
                 ) {
                     Text(
                         text = layerName,
                         color = SelName,
-                        fontSize = 17.sp,
-                        letterSpacing = 0.2.sp,
+                        fontSize = 14.5.sp,
+                        letterSpacing = 0.15.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(2.dp))
                     Box(
                         Modifier
                             .fillMaxWidth()
@@ -275,7 +275,7 @@ fun SelectedHeader219(
                     Icons.Default.DeleteOutline,
                     contentDescription = "Delete layer",
                     tint = SelName,
-                    modifier = Modifier.size(22.dp)
+                    modifier = Modifier.size(18.dp)
                 )
             }
             Box {
@@ -314,8 +314,8 @@ fun SelectedHeader219(
 @Composable
 private fun SelMenuItem(label: String, icon: ImageVector, tag: String, onClick: () -> Unit) {
     DropdownMenuItem(
-        text = { Text(label, fontSize = 14.sp) },
-        leadingIcon = { Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp)) },
+        text = { Text(label, fontSize = 12.5.sp) },
+        leadingIcon = { Icon(icon, contentDescription = null, modifier = Modifier.size(17.dp)) },
         onClick = onClick,
         modifier = Modifier.testTag(tag)
     )
@@ -380,8 +380,8 @@ private fun PagerToolBtn(
             val borderPx = if (tool.active) with(density) { 3.dp.roundToPx() } else 0
             val innerW = constraints.maxWidth - with(density) { 4.dp.roundToPx() } - borderPx
             val measurer = rememberTextMeasurer()
-            val baseSp = if (smallLabel) 9.5f else 11f
-            val floorSp = 8f
+            val baseSp = if (smallLabel) 9f else 10f
+            val floorSp = 7.5f
             var fitSp = baseSp
             var oneLine = false
             while (true) {
@@ -395,12 +395,12 @@ private fun PagerToolBtn(
                 fitSp = (fitSp - 0.5f).coerceAtLeast(floorSp)
             }
             val twoLine = !oneLine
-            val effIcon = if (twoLine) minOf(iconSizeDp, 20) else iconSizeDp
-            val effGap = if (twoLine) 2 else labelGapDp
+            val effIcon = if (twoLine) minOf(iconSizeDp, 16) else iconSizeDp
+            val effGap = if (twoLine) 1 else labelGapDp
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 2.dp, vertical = if (smallLabel) 2.dp else 4.dp),
+                    .padding(horizontal = 2.dp, vertical = if (smallLabel) 2.dp else 3.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
@@ -417,7 +417,7 @@ private fun PagerToolBtn(
                     text = tool.label,
                     color = labelColor,
                     fontSize = fitSp.sp,
-                    lineHeight = (fitSp * 1.18f).sp,
+                    lineHeight = (fitSp * 1.15f).sp,
                     style = TextStyle(
                         platformStyle = PlatformTextStyle(includeFontPadding = false)
                     ),
@@ -432,14 +432,14 @@ private fun PagerToolBtn(
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .offset(x = 2.dp, y = (-6).dp)
+                    .offset(x = 2.dp, y = (-4).dp)
                     .background(SelBadge, RoundedCornerShape(3.dp))
-                    .padding(horizontal = 4.dp, vertical = 1.dp)
+                    .padding(horizontal = 3.dp, vertical = 1.dp)
             ) {
                 Text(
                     text = tool.badge,
                     color = SelBadgeText,
-                    fontSize = 9.sp,
+                    fontSize = 8.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 0.3.sp
                 )
@@ -468,7 +468,7 @@ fun SelectedToolsPager219(
         modifier = modifier
             .fillMaxWidth()
             .background(SelBg)
-            .padding(bottom = 10.dp)
+            .padding(bottom = 7.dp)
             .testTag("selected_tools_pager_219")
     ) {
         HorizontalPager(
@@ -480,35 +480,28 @@ fun SelectedToolsPager219(
             ),
             modifier = Modifier
                 .fillMaxWidth()
-                .height(202.dp)
+                .height(154.dp)
         ) { page ->
             if (page == 2) {
-                // Page 3: tall buttons in rows of 3 (2 rows at the current
-                // tool counts). Build 238: the rows are derived from the
-                // list itself (model/PagerGrid) — the old fixed 2×3 grid
-                // indexed page3[r * 3 + c] up to index 5 and crashed once
-                // build 237 shrank the list to 5 tools. A short last row
-                // pads with empty slots of the same weight, so the layout
-                // is unchanged and no tool is invented for the empty slot.
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 6.dp),
-                    verticalArrangement = Arrangement.spacedBy(9.dp)
+                        .padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     PagerGrid.rows(page3).forEach { rowTools ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .weight(1f),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             rowTools.forEach { tool ->
                                 if (tool != null) {
                                     PagerToolBtn(
                                         tool = tool,
-                                        iconSizeDp = 26,
-                                        labelGapDp = 8,
+                                        iconSizeDp = 20,
+                                        labelGapDp = 5,
                                         smallLabel = false,
                                         modifier = Modifier
                                             .weight(1f)
@@ -530,32 +523,25 @@ fun SelectedToolsPager219(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 6.dp),
-                    verticalArrangement = Arrangement.spacedBy(9.dp)
+                        .padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     rows.forEachIndexed { rowIdx, row ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(row.heightDp.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             row.tools.forEach { tool ->
                                 PagerToolBtn(
                                     tool = tool,
-                                    // The reference's icon sizes: page-1
-                                    // small row 22, page-2 small row 18,
-                                    // big rows 24 (page-2 row-4: 23).
                                     iconSizeDp = when {
-                                        // Build 220: page-1 small-row icon
-                                        // 22 -> 20, so the 46 dp stack
-                                        // (padding 2 + icon + gap 2 +
-                                        // label) fits with slack.
-                                        row.heightDp == 46 -> if (page == 0) 20 else 18
-                                        page == 1 && rowIdx == 2 -> 23
-                                        else -> 24
+                                        row.heightDp <= 36 -> if (page == 0) 16 else 15
+                                        page == 1 && rowIdx == 2 -> 19
+                                        else -> 20
                                     },
-                                    labelGapDp = if (row.heightDp == 46) 2 else 6,
+                                    labelGapDp = if (row.heightDp <= 36) 2 else 3,
                                     smallLabel = row.smallLabels,
                                     modifier = Modifier
                                         .weight(1f)
@@ -567,21 +553,21 @@ fun SelectedToolsPager219(
                 }
             }
         }
-        // Pagination dots: 6×6, active = 18 wide in the name colour.
+        // Pagination dots: 5×5, active = 14 wide in the name colour.
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(7.dp, Alignment.CenterHorizontally),
+            horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
             verticalAlignment = Alignment.CenterVertically
         ) {
             for (i in 0 until 3) {
                 val active = pagerState.currentPage == i
                 Box(
                     modifier = Modifier
-                        .width(if (active) 18.dp else 6.dp)
-                        .height(6.dp)
-                        .clip(RoundedCornerShape(3.dp))
+                        .width(if (active) 14.dp else 5.dp)
+                        .height(5.dp)
+                        .clip(RoundedCornerShape(2.5.dp))
                         .background(if (active) SelName else SelDot)
                         .clickable { scope.launch { pagerState.animateScrollToPage(i, animationSpec = amChromeSpec()) } }
                         .testTag("pager_dot_$i")
