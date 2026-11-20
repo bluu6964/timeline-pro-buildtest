@@ -527,25 +527,6 @@ fun ExportModalDialog(
                                         )
                                     }
                                 },
-                                fallbackDraw = {
-                                    val stroke = 8.dp.toPx()
-                                    val inset = stroke / 2f
-                                    val arcSize = Size(size.width - stroke, size.height - stroke)
-                                    drawArc(
-                                        color = com.example.ui.theme.AmPanelElevated,
-                                        startAngle = 0f, sweepAngle = 360f, useCenter = false,
-                                        topLeft = Offset(inset, inset), size = arcSize,
-                                        style = Stroke(width = stroke)
-                                    )
-                                    drawArc(
-                                        color = com.example.ui.theme.AmAccent,
-                                        startAngle = -90f,
-                                        sweepAngle = progress.coerceIn(0f, 1f) * 360f,
-                                        useCenter = false,
-                                        topLeft = Offset(inset, inset), size = arcSize,
-                                        style = Stroke(width = stroke)
-                                    )
-                                }
                             )
                             Text(
                                 "${(progress * 100).toInt()}%", color = TextPrimary, fontSize = 30.sp,
@@ -864,31 +845,6 @@ private fun ExportBadge(modifier: Modifier = Modifier) {
                     strokeArgb = com.example.ui.theme.AmHairlineStrong.toArgb()
                 )
             },
-            fallbackDraw = {
-                val cx = size.width / 2f
-                val cy = size.height / 2f
-                val badgeR = minOf(size.width, size.height) * 0.30f
-                val path = Path()
-                val lobes = 12
-                val steps = 360
-                for (i in 0..steps) {
-                    val a = (i / steps.toFloat()) * 2f * Math.PI.toFloat()
-                    val r = badgeR * (1f + 0.075f * kotlin.math.cos(lobes * a))
-                    val x = cx + r * kotlin.math.cos(a)
-                    val y = cy + r * kotlin.math.sin(a)
-                    if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
-                }
-                path.close()
-                drawPath(path, color = com.example.ui.theme.AmPanelElevated)
-                val blobR = badgeR * 0.40f
-                drawCircle(com.example.ui.theme.AmAccent, radius = blobR, center = Offset(cx, cy))
-                drawCircle(
-                    com.example.ui.theme.AmHairlineStrong,
-                    radius = blobR,
-                    center = Offset(cx, cy),
-                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = badgeR * 0.03f)
-                )
-            }
         )
         Canvas(modifier = Modifier.fillMaxSize()) {
             val cx = size.width / 2f
@@ -1256,31 +1212,6 @@ private fun ShapePickerCard(
                         else -> addCircle(w / 2f, h / 2f, minOf(w, h) / 2f, c)
                     }
                 },
-                fallbackDraw = {
-                    val c = Color(0xFFEDEDED)
-                    when (pattern) {
-                        "CIRCLE" -> drawCircle(c)
-                        "SQUARE" -> drawRect(c)
-                        "ROUNDED_SQUARE", "ROUNDED_RECT" ->
-                            drawRoundRect(c, cornerRadius = CornerRadius(size.minDimension * 0.24f))
-                        "WIDE_ROUNDED_RECT" -> {
-                            val h = size.height * 0.62f
-                            drawRoundRect(
-                                c,
-                                topLeft = Offset(0f, (size.height - h) / 2f),
-                                size = Size(size.width, h),
-                                cornerRadius = CornerRadius(h * 0.22f)
-                            )
-                        }
-                        "OVAL" -> {
-                            val h = size.height * 0.68f
-                            drawOval(c, topLeft = Offset(0f, (size.height - h) / 2f), size = Size(size.width, h))
-                        }
-                        "STAR" -> drawRegularPolygon(c, 5, innerRatio = 0.45f)
-                        "PENTAGON" -> drawRegularPolygon(c, 5, innerRatio = 1f)
-                        else -> drawCircle(c)
-                    }
-                }
             )
         }
         Spacer(Modifier.height(4.dp))

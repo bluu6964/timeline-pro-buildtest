@@ -160,14 +160,8 @@ fun ColorPickerDialog(
     onDismiss: () -> Unit
 ) {
     val hsv = remember(initial) {
-        if (UiMathNative.isAvailable) {
-            FloatArray(3).also {
-                UiMathNative.nativeRgbToHsv(initial.red, initial.green, initial.blue, it)
-            }
-        } else {
-            val a = FloatArray(3)
-            android.graphics.Color.colorToHSV(initial.toArgb(), a)
-            a
+        FloatArray(3).also {
+            UiMathNative.nativeRgbToHsv(initial.red, initial.green, initial.blue, it)
         }
     }
     var hue by remember { mutableFloatStateOf(hsv[0]) }
@@ -176,22 +170,14 @@ fun ColorPickerDialog(
     var alpha by remember { mutableFloatStateOf(initial.alpha) }
 
     val current = remember(hue, sat, value, alpha) {
-        if (UiMathNative.isAvailable) {
-            val rgb = FloatArray(3)
-            UiMathNative.nativeHsvToRgb(hue, sat, value, rgb)
-            Color(rgb[0], rgb[1], rgb[2], alpha)
-        } else {
-            Color(android.graphics.Color.HSVToColor((alpha * 255).toInt(), floatArrayOf(hue, sat, value)))
-        }
+        val rgb = FloatArray(3)
+        UiMathNative.nativeHsvToRgb(hue, sat, value, rgb)
+        Color(rgb[0], rgb[1], rgb[2], alpha)
     }
     val hueColor = remember(hue) {
-        if (UiMathNative.isAvailable) {
-            val rgb = FloatArray(3)
-            UiMathNative.nativeHsvToRgb(hue, 1f, 1f, rgb)
-            Color(rgb[0], rgb[1], rgb[2], 1f)
-        } else {
-            Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, 1f, 1f)))
-        }
+        val rgb = FloatArray(3)
+        UiMathNative.nativeHsvToRgb(hue, 1f, 1f, rgb)
+        Color(rgb[0], rgb[1], rgb[2], 1f)
     }
 
     Dialog(onDismissRequest = onDismiss) {
@@ -235,15 +221,6 @@ fun ColorPickerDialog(
                             p0 = hue, p1 = sat, p2 = value, p3 = 1f, p4 = 8f * d
                         )
                     },
-                    fallbackDraw = {
-                        drawRect(Brush.horizontalGradient(listOf(Color.White, hueColor)))
-                        drawRect(Brush.verticalGradient(listOf(Color.Transparent, Color.Black)))
-                        val p = Offset(sat * size.width, (1f - value) * size.height)
-                        drawCircle(Color.White, radius = 8.dp.toPx(), center = p,
-                            style = androidx.compose.ui.graphics.drawscope.Stroke(2.dp.toPx()))
-                        drawCircle(Color.Black.copy(alpha = 0.4f), radius = 10.dp.toPx(), center = p,
-                            style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx()))
-                    }
                 )
             }
             Spacer(Modifier.height(10.dp))
@@ -333,29 +310,6 @@ private fun PickerBar(
             val cx = (fraction * w).coerceIn(r, (w - r).coerceAtLeast(r))
             addCircle(cx, r, r - 1f * d, 0, 3f * d, android.graphics.Color.WHITE)
         },
-        fallbackDraw = {
-            if (checker) {
-                val cell = 8.dp.toPx()
-                var yi = 0
-                var y = 0f
-                while (y < size.height) {
-                    var xi = 0
-                    var x = 0f
-                    while (x < size.width) {
-                        drawRect(
-                            if ((xi + yi) % 2 == 0) Color(0xFF8A8A8A) else Color(0xFFCFCFCF),
-                            topLeft = Offset(x, y), size = Size(cell, cell)
-                        )
-                        x += cell; xi++
-                    }
-                    y += cell; yi++
-                }
-            }
-            drawRect(brush)
-            val cx = fraction * size.width
-            drawCircle(Color.White, radius = size.height / 2f - 1.dp.toPx(), center = Offset(cx.coerceIn(size.height / 2f, size.width - size.height / 2f), size.height / 2f),
-                style = androidx.compose.ui.graphics.drawscope.Stroke(3.dp.toPx()))
-        }
     )
 }
 

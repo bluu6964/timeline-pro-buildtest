@@ -214,39 +214,25 @@ fun CropView(
 
     /** Fractional (of the source) width/height ratio the box must keep, or null for Free. */
     fun lockK(preset: String): Float? {
-        if (UiMathNative.isAvailable) {
-            val kind: Int
-            var num = 0f
-            var den = 0f
-            when (preset) {
-                "Free" -> return null
-                "Original" -> kind = UiMathNative.CROP_PRESET_ORIGINAL
-                "Project" -> kind = UiMathNative.CROP_PRESET_PROJECT
-                else -> {
-                    val parts = preset.split(":")
-                    val x = parts.getOrNull(0)?.toFloatOrNull()
-                    val y = parts.getOrNull(1)?.toFloatOrNull()
-                    if (x == null || y == null || y <= 0f) return null
-                    kind = UiMathNative.CROP_PRESET_CUSTOM
-                    num = x
-                    den = y
-                }
-            }
-            val k = UiMathNative.nativeCropLockK(kind, num, den, srcAspect, aspectRatio.ratioFloat)
-            return if (k > 1e-5f) k else null
-        }
-        val pixelRatio = when (preset) {
+        val kind: Int
+        var num = 0f
+        var den = 0f
+        when (preset) {
             "Free" -> return null
-            "Original" -> srcAspect
-            "Project" -> aspectRatio.ratioFloat
+            "Original" -> kind = UiMathNative.CROP_PRESET_ORIGINAL
+            "Project" -> kind = UiMathNative.CROP_PRESET_PROJECT
             else -> {
                 val parts = preset.split(":")
                 val x = parts.getOrNull(0)?.toFloatOrNull()
                 val y = parts.getOrNull(1)?.toFloatOrNull()
-                if (x != null && y != null && y > 0f) x / y else return null
+                if (x == null || y == null || y <= 0f) return null
+                kind = UiMathNative.CROP_PRESET_CUSTOM
+                num = x
+                den = y
             }
         }
-        return pixelRatio / srcAspect
+        val k = UiMathNative.nativeCropLockK(kind, num, den, srcAspect, aspectRatio.ratioFloat)
+        return if (k > 1e-5f) k else null
     }
 
     fun applyPresetRatio(preset: String) {
@@ -264,102 +250,27 @@ fun CropView(
     /** Resize around the current center (used by the Width / Height sliders). */
     fun resizeAroundCenter(newW: Float?, newH: Float?) {
         val k = lockK(activePreset)
-        if (UiMathNative.isAvailable) {
-            val out = FloatArray(4)
-            UiMathNative.nativeCropResizeCenter(
-                rr() - rl(), rb() - rt(), rl(), rt(), rr(), rb(),
-                newW ?: -1f, newH ?: -1f, k ?: 0f, minSize, out
-            )
-            widthPercent = out[0]
-            heightPercent = out[1]
-            horizontalPercent = out[2]
-            verticalPercent = out[3]
-            emitCrop()
-            return
-        }
-        var w = newW ?: (rr() - rl())
-        var h = newH ?: (rb() - rt())
-        if (k != null) {
-            if (newW != null) h = w / k else w = h * k
-            if (h > 1f) { h = 1f; w = h * k }
-            if (w > 1f) { w = 1f; h = w / k }
-        }
-        w = w.coerceIn(minSize, 1f)
-        h = h.coerceIn(minSize, 1f)
-        val cx = (rl() + rr()) / 2f
-        val cy = (rt() + rb()) / 2f
-        val nl = (cx - w / 2f).coerceIn(0f, 1f - w)
-        val nt = (cy - h / 2f).coerceIn(0f, 1f - h)
-        setRect(nl, nt, nl + w, nt + h)
+        val out = FloatArray(4)
+        UiMathNative.nativeCropResizeCenter(
+            rr() - rl(), rb() - rt(), rl(), rt(), rr(), rb(),
+            newW ?: -1f, newH ?: -1f, k ?: 0f, minSize, out
+        )
+        widthPercent = out[0]
+        heightPercent = out[1]
+        horizontalPercent = out[2]
+        verticalPercent = out[3]
         emitCrop()
     }
 
     // dx/dy are fractions of the source size. mode: 0=move, else bit flags 1=left 2=right 4=top 8=bottom
     fun dragCrop(mode: Int, dx: Float, dy: Float) {
         val k = lockK(activePreset)
-        if (UiMathNative.isAvailable) {
-            val out = FloatArray(4)
-            UiMathNative.nativeCropDrag(mode, dx, dy, rl(), rt(), rr(), rb(), k ?: 0f, minSize, out)
-            widthPercent = out[0]
-            heightPercent = out[1]
-            horizontalPercent = out[2]
-            verticalPercent = out[3]
-            emitCrop()
-            return
-        }
-        var l = rl(); var t = rt(); var r = rr(); var b = rb()
-        if (mode == 0) {
-            val w = r - l; val h = b - t
-            l = (l + dx).coerceIn(0f, 1f - w); r = l + w
-            t = (t + dy).coerceIn(0f, 1f - h); b = t + h
-            setRect(l, t, r, b)
-            emitCrop()
-            return
-        }
-        val mL = mode and 1 != 0
-        val mR = mode and 2 != 0
-        val mT = mode and 4 != 0
-        val mB = mode and 8 != 0
-        if (k == null) {
-            if (mL) l = (l + dx).coerceIn(0f, r - minSize)
-            if (mR) r = (r + dx).coerceIn(l + minSize, 1f)
-            if (mT) t = (t + dy).coerceIn(0f, b - minSize)
-            if (mB) b = (b + dy).coerceIn(t + minSize, 1f)
-            setRect(l, t, r, b)
-        } else {
-            val isCorner = (mL || mR) && (mT || mB)
-            if (isCorner) {
-                val ax = if (mL) r else l
-                val ay = if (mT) b else t
-                val mx = (if (mL) l + dx else r + dx).coerceIn(0f, 1f)
-                val my = (if (mT) t + dy else b + dy).coerceIn(0f, 1f)
-                var w = kotlin.math.abs(mx - ax)
-                val h0 = kotlin.math.abs(my - ay)
-                w = maxOf(w, h0 * k)
-                val maxW = minOf(if (mL) ax else 1f - ax, (if (mT) ay else 1f - ay) * k)
-                w = w.coerceAtMost(maxW).coerceAtLeast(minOf(minSize, maxW))
-                val h = w / k
-                l = if (mL) ax - w else ax; r = l + w
-                t = if (mT) ay - h else ay; b = t + h
-            } else if (mL || mR) {
-                val cy = (t + b) / 2f
-                val rawW = if (mL) r - (l + dx).coerceIn(0f, r - minSize) else (r + dx).coerceIn(l + minSize, 1f) - l
-                val maxH = 2f * minOf(cy, 1f - cy)
-                var h = (rawW / k).coerceAtMost(maxH).coerceAtLeast(minOf(minSize, maxH))
-                val w = h * k
-                if (mL) l = r - w else r = l + w
-                t = cy - h / 2f; b = t + h
-            } else {
-                val cx = (l + r) / 2f
-                val rawH = if (mT) b - (t + dy).coerceIn(0f, b - minSize) else (b + dy).coerceIn(t + minSize, 1f) - t
-                val maxW = 2f * minOf(cx, 1f - cx)
-                var w = (rawH * k).coerceAtMost(maxW).coerceAtLeast(minOf(minSize, maxW))
-                val h = w / k
-                if (mT) t = b - h else b = t + h
-                l = cx - w / 2f; r = l + w
-            }
-            setRect(l, t, r, b)
-        }
+        val out = FloatArray(4)
+        UiMathNative.nativeCropDrag(mode, dx, dy, rl(), rt(), rr(), rb(), k ?: 0f, minSize, out)
+        widthPercent = out[0]
+        heightPercent = out[1]
+        horizontalPercent = out[2]
+        verticalPercent = out[3]
         emitCrop()
     }
 
@@ -551,14 +462,6 @@ fun CropView(
                                     else -> addCircle(w * 0.5f, h * 0.5f, minOf(w, h) * 0.5f, colArgb)
                                 }
                             },
-                            fallbackDraw = {
-                                when (pattern) {
-                                    "CIRCLE" -> drawCircle(brush = fillBrush)
-                                    "SQUARE" -> drawRect(brush = fillBrush)
-                                    "ROUNDED_SQUARE", "ROUNDED_RECT" -> drawRoundRect(brush = fillBrush, cornerRadius = androidx.compose.ui.geometry.CornerRadius(16.dp.toPx(), 16.dp.toPx()))
-                                    else -> drawCircle(brush = fillBrush)
-                                }
-                            }
                         )
                     }
                 } else {
@@ -572,13 +475,6 @@ fun CropView(
                             addLine(w * 0.5f, 0f, w * 0.5f, h, 1f * d, crossArgb, capRound = false)
                             addLine(0f, h * 0.5f, w, h * 0.5f, 1f * d, crossArgb, capRound = false)
                         },
-                        fallbackDraw = {
-                            drawRect(color = AmBase)
-                            val w = size.width
-                            val h = size.height
-                            drawLine(color = Color.White.copy(alpha = 0.08f), start = Offset(w / 2f, 0f), end = Offset(w / 2f, h), strokeWidth = 1.dp.toPx())
-                            drawLine(color = Color.White.copy(alpha = 0.08f), start = Offset(0f, h / 2f), end = Offset(w, h / 2f), strokeWidth = 1.dp.toPx())
-                        }
                     )
                 }
 
@@ -601,27 +497,7 @@ fun CropView(
                                     val r = pad + rr() * cw
                                     val t = pad + rt() * ch
                                     val b = pad + rb() * ch
-                                    mode = if (UiMathNative.isAvailable) {
-                                        UiMathNative.nativeCropHitTest(pos.x, pos.y, l, t, r, b, slop)
-                                    } else {
-                                        fun near(v: Float, target: Float) = kotlin.math.abs(v - target) <= slop
-                                        val nL = near(pos.x, l); val nR = near(pos.x, r)
-                                        val nT = near(pos.y, t); val nB = near(pos.y, b)
-                                        val inX = pos.x in (l - slop)..(r + slop)
-                                        val inY = pos.y in (t - slop)..(b + slop)
-                                        when {
-                                            nL && nT -> 1 or 4
-                                            nR && nT -> 2 or 4
-                                            nL && nB -> 1 or 8
-                                            nR && nB -> 2 or 8
-                                            nL && inY -> 1
-                                            nR && inY -> 2
-                                            nT && inX -> 4
-                                            nB && inX -> 8
-                                            pos.x in l..r && pos.y in t..b -> 0
-                                            else -> -1
-                                        }
-                                    }
+                                    mode = UiMathNative.nativeCropHitTest(pos.x, pos.y, l, t, r, b, slop)
                                 },
                                 onDragEnd = { mode = -1 },
                                 onDragCancel = { mode = -1 },
@@ -642,46 +518,6 @@ fun CropView(
                         drawOnGl = { sid, d ->
                             UiGlRuntime.drawCropOverlayOnGl(sid, rl(), rt(), rr(), rb(), d)
                         },
-                        fallbackDraw = {
-                            val pad = padDp.toPx()
-                            val cw = size.width - 2 * pad
-                            val ch = size.height - 2 * pad
-                            val l = pad + rl() * cw
-                            val r = pad + rr() * cw
-                            val t = pad + rt() * ch
-                            val b = pad + rb() * ch
-                            clipRect(pad, pad, pad + cw, pad + ch) {
-                                clipRect(l, t, r, b, clipOp = androidx.compose.ui.graphics.ClipOp.Difference) {
-                                    drawRect(color = Color.Black.copy(alpha = 0.55f))
-                                }
-                            }
-                            val guide = Color.White.copy(alpha = 0.28f)
-                            for (i in 1..2) {
-                                val x = l + (r - l) * i / 3f
-                                val y = t + (b - t) * i / 3f
-                                drawLine(guide, Offset(x, t), Offset(x, b), strokeWidth = 1.dp.toPx())
-                                drawLine(guide, Offset(l, y), Offset(r, y), strokeWidth = 1.dp.toPx())
-                            }
-                            drawRect(
-                                color = Color.White.copy(alpha = 0.95f),
-                                topLeft = Offset(l, t),
-                                size = androidx.compose.ui.geometry.Size(r - l, b - t),
-                                style = Stroke(
-                                    width = 1.5.dp.toPx(),
-                                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(14f, 9f), 0f)
-                                )
-                            )
-                            val mx = (l + r) / 2f
-                            val my = (t + b) / 2f
-                            val pts = listOf(
-                                Offset(l, t) to 5.5.dp, Offset(r, t) to 5.5.dp, Offset(l, b) to 5.5.dp, Offset(r, b) to 5.5.dp,
-                                Offset(mx, t) to 4.dp, Offset(mx, b) to 4.dp, Offset(l, my) to 4.dp, Offset(r, my) to 4.dp
-                            )
-                            for ((o, rad) in pts) {
-                                drawCircle(AmAccent, radius = rad.toPx(), center = o)
-                                drawCircle(Color.White, radius = rad.toPx(), center = o, style = Stroke(width = 1.5.dp.toPx()))
-                            }
-                        }
                     )
                 }
             }
@@ -848,19 +684,6 @@ fun CropView(
                         )
                     }
                 },
-                fallbackDraw = {
-                    val tickSpacing = 7.dp.toPx()
-                    val count = (size.width / tickSpacing).toInt()
-                    for (i in 0..count) {
-                        val isMajor = (i % 5 == 0)
-                        drawLine(
-                            color = if (isMajor) RulerTickColor else RulerSubTickColor,
-                            start = Offset(i * tickSpacing, 0f),
-                            end = Offset(i * tickSpacing, if (isMajor) size.height else size.height * 0.5f),
-                            strokeWidth = 1.dp.toPx()
-                        )
-                    }
-                }
             )
         }
 

@@ -355,23 +355,6 @@ fun EditShapeView(
                             addLine(w / 2f, 0f, w / 2f, h, 1f * d, lineArgb, capRound = false)
                             addLine(0f, h / 2f, w, h / 2f, 1f * d, lineArgb, capRound = false)
                         },
-                        fallbackDraw = {
-                            drawRect(color = CanvasBackground)
-                            val w = size.width
-                            val h = size.height
-                            drawLine(
-                                color = Color.White.copy(alpha = 0.08f),
-                                start = Offset(w / 2f, 0f),
-                                end = Offset(w / 2f, h),
-                                strokeWidth = 1.dp.toPx()
-                            )
-                            drawLine(
-                                color = Color.White.copy(alpha = 0.08f),
-                                start = Offset(0f, h / 2f),
-                                end = Offset(w, h / 2f),
-                                strokeWidth = 1.dp.toPx()
-                            )
-                        }
                     )
                 }
 
@@ -516,95 +499,6 @@ fun EditShapeView(
                                 }
                             }
                         },
-                        fallbackDraw = {
-                            val colorWithAlpha = fillColor.copy(alpha = fillOpacity / 100f)
-                            var outlinePath: Path? = null
-
-                            when (selectedShapeType) {
-                                ShapeType.CIRCLE -> {
-                                    drawCircle(color = colorWithAlpha)
-                                    outlinePath = Path().apply {
-                                        addOval(androidx.compose.ui.geometry.Rect(0f, 0f, size.width, size.height))
-                                    }
-                                }
-                                ShapeType.SQUARE, ShapeType.WIDE_ROUNDED_RECT -> {
-                                    val cornerRadius = if (selectedShapeType == ShapeType.WIDE_ROUNDED_RECT) {
-                                        cornerRadiusDp.dp.toPx()
-                                    } else 0f
-                                    drawRoundRect(
-                                        color = colorWithAlpha,
-                                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(cornerRadius, cornerRadius)
-                                    )
-                                    outlinePath = Path().apply {
-                                        addRoundRect(
-                                            androidx.compose.ui.geometry.RoundRect(
-                                                androidx.compose.ui.geometry.Rect(0f, 0f, size.width, size.height),
-                                                androidx.compose.ui.geometry.CornerRadius(cornerRadius, cornerRadius)
-                                            )
-                                        )
-                                    }
-                                }
-                                ShapeType.ROUNDED_SQUARE -> {
-                                    val cornerRadius = cornerRadiusDp.dp.toPx()
-                                    drawRoundRect(
-                                        color = colorWithAlpha,
-                                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(cornerRadius, cornerRadius)
-                                    )
-                                    outlinePath = Path().apply {
-                                        addRoundRect(
-                                            androidx.compose.ui.geometry.RoundRect(
-                                                androidx.compose.ui.geometry.Rect(0f, 0f, size.width, size.height),
-                                                androidx.compose.ui.geometry.CornerRadius(cornerRadius, cornerRadius)
-                                            )
-                                        )
-                                    }
-                                }
-                                ShapeType.OVAL -> {
-                                    drawOval(color = colorWithAlpha)
-                                    outlinePath = Path().apply {
-                                        addOval(androidx.compose.ui.geometry.Rect(0f, 0f, size.width, size.height))
-                                    }
-                                }
-                                ShapeType.PENTAGON, ShapeType.STAR -> {
-                                    val path = Path().apply {
-                                        val r = size.minDimension / 2f
-                                        val cX = size.width / 2f
-                                        val cY = size.height / 2f
-                                        val points = 5
-                                        for (i in 0 until points) {
-                                            val angle = Math.toRadians((i * 360.0 / points) - 90.0)
-                                            val px = (cX + r * Math.cos(angle)).toFloat()
-                                            val py = (cY + r * Math.sin(angle)).toFloat()
-                                            if (i == 0) moveTo(px, py) else lineTo(px, py)
-                                        }
-                                        close()
-                                    }
-                                    drawPath(path, color = colorWithAlpha)
-                                    outlinePath = path
-                                }
-                            }
-
-                            val outline = outlinePath
-                            if (strokeWidth > 0f && outline != null) {
-                                val trimStart = (trimStartPercent / 100f).coerceIn(0f, 1f)
-                                val trimEnd = (trimEndPercent / 100f).coerceIn(0f, 1f)
-                                if (trimEnd > trimStart) {
-                                    val strokeStyle = Stroke(width = strokeWidth.dp.toPx())
-                                    if (trimStart <= 0f && trimEnd >= 1f) {
-                                        drawPath(outline, color = strokeColor, style = strokeStyle)
-                                    } else {
-                                        val measure = PathMeasure().apply { setPath(outline, false) }
-                                        val len = measure.length
-                                        if (len > 0f) {
-                                            val segment = Path()
-                                            if (measure.getSegment(len * trimStart, len * trimEnd, segment, true)) {
-                                                drawPath(segment, color = strokeColor, style = strokeStyle)
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
                     )
 
                     // Coral/Pink Bounding Box & 8 Drag Handles (matching screenshot)
@@ -660,19 +554,6 @@ fun EditShapeView(
                                     }
                                 }
                             },
-                            fallbackDraw = {
-                                val dotRadius = 1.2.dp.toPx()
-                                val spacing = 4.dp.toPx()
-                                for (r in 0..2) {
-                                    for (c in 0..2) {
-                                        drawCircle(
-                                            color = pinkHandleColor,
-                                            radius = dotRadius,
-                                            center = Offset(c * spacing + 2.dp.toPx(), r * spacing + 2.dp.toPx())
-                                        )
-                                    }
-                                }
-                            }
                         )
                     }
                 }
@@ -783,19 +664,6 @@ fun EditShapeView(
                             addLine(x, 0f, x, if (isMajor) h else h * 0.5f, 1f * d, if (isMajor) majorArgb else subArgb, capRound = false)
                         }
                     },
-                    fallbackDraw = {
-                        val tickSpacing = 7.dp.toPx()
-                        val count = (size.width / tickSpacing).toInt()
-                        for (i in 0..count) {
-                            val isMajor = (i % 5 == 0)
-                            drawLine(
-                                color = if (isMajor) RulerTickColor else RulerSubTickColor,
-                                start = Offset(i * tickSpacing, 0f),
-                                end = Offset(i * tickSpacing, if (isMajor) size.height else size.height * 0.5f),
-                                strokeWidth = 1.dp.toPx()
-                            )
-                        }
-                    }
                 )
             }
 
@@ -840,14 +708,6 @@ fun EditShapeView(
                     buildCmds = { _, h, d ->
                         addLine(0f, 0f, 0f, h, 1.5f * d, Color.White.toArgb(), capRound = false)
                     },
-                    fallbackDraw = {
-                        drawLine(
-                            color = Color.White,
-                            start = Offset(0f, 0f),
-                            end = Offset(0f, size.height),
-                            strokeWidth = 1.5.dp.toPx()
-                        )
-                    }
                 )
             }
         }
@@ -965,19 +825,6 @@ fun EditShapeView(
                                                     addArc(w / 2f, h / 2f, w / 2f, h / 2f, 0f, 360f, fillArgb = cArgb)
                                             }
                                         },
-                                        fallbackDraw = {
-                                            val c = Color.White
-                                            when (shape) {
-                                                ShapeType.CIRCLE -> drawCircle(color = c)
-                                                ShapeType.SQUARE -> drawRect(color = c)
-                                                ShapeType.WIDE_ROUNDED_RECT -> drawRoundRect(color = c, cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f, 4f))
-                                                ShapeType.ROUNDED_SQUARE -> drawRoundRect(color = c, cornerRadius = androidx.compose.ui.geometry.CornerRadius(8f, 8f))
-                                                ShapeType.OVAL -> drawOval(color = c)
-                                                ShapeType.PENTAGON, ShapeType.STAR -> {
-                                                    drawCircle(color = c)
-                                                }
-                                            }
-                                        }
                                     )
                                 }
                             }

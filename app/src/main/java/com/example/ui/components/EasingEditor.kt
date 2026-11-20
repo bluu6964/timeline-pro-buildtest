@@ -266,22 +266,6 @@ private fun EasingTileCanvas(easing: Easing, modifier: Modifier = Modifier) {
             addCircle(sx(easing.x1), sy(easing.y1), 2.6f * d, handleArgb)
             addCircle(sx(easing.x2), sy(easing.y2), 2.6f * d, handleArgb)
         },
-        fallbackDraw = {
-            val dash = PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 3.dp.toPx()))
-            val pad = 3.dp.toPx()
-            val w = size.width - 2 * pad
-            val h = size.height - 2 * pad
-            fun sx(x: Float) = pad + x * w
-            fun sy(y: Float) = pad + (1f - y) * h
-            drawRect(
-                GridColor, topLeft = Offset(pad, pad), size = androidx.compose.ui.geometry.Size(w, h),
-                style = Stroke(1.5.dp.toPx(), pathEffect = dash)
-            )
-            drawPath(curvePath(easing, 40) { x, y -> Offset(sx(x), sy(y)) }, Color.White,
-                style = Stroke(2.dp.toPx(), cap = StrokeCap.Round))
-            drawCircle(HandleColor, 2.6.dp.toPx(), Offset(sx(easing.x1), sy(easing.y1)))
-            drawCircle(HandleColor, 2.6.dp.toPx(), Offset(sx(easing.x2), sy(easing.y2)))
-        }
     )
 }
 

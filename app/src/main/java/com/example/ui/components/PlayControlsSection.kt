@@ -295,28 +295,6 @@ private fun PlayGlyph(isPlaying: Boolean) {
                 addPolyline(xs, ys, 3, true, 2 * r, cArgb, capRound = true)
             }
         },
-        fallbackDraw = {
-            val u = size.width / 24f
-            val c = RefCtrl
-            if (isPlaying) {
-                val bw = 4.4f * u
-                val bh = 17f * u
-                val top = (size.height - bh) / 2f
-                drawRoundRect(c, Offset(size.width / 2f - 6.4f * u, top), Size(bw, bh), CornerRadius(1.8f * u))
-                drawRoundRect(c, Offset(size.width / 2f + 2.0f * u, top), Size(bw, bh), CornerRadius(1.8f * u))
-            } else {
-                val r = 1.6f * u
-                val w = 14.6f * u - 2 * r
-                val h = 17.2f * u - 2 * r
-                val x0 = size.width / 2f - 14.6f * u / 2f + r + 0.6f * u
-                val y0 = (size.height - h) / 2f
-                val p = Path().apply {
-                    moveTo(x0, y0); lineTo(x0 + w, y0 + h / 2f); lineTo(x0, y0 + h); close()
-                }
-                drawPath(p, c)
-                drawPath(p, c, style = Stroke(width = 2 * r, join = StrokeJoin.Round))
-            }
-        }
     )
 }
 
@@ -336,17 +314,6 @@ private fun SkipGlyph(mirrored: Boolean) {
             addFilledPolygon(xs, ys, 3, cArgb)
             addPolyline(xs, ys, 3, true, 1.6f * u, cArgb, capRound = true)
         },
-        fallbackDraw = {
-            val u = size.width / 24f
-            val c = RefCtrl
-            fun x(v: Float) = (if (mirrored) 24f - v else v) * u
-            drawLine(c, Offset(x(5f), 5.5f * u), Offset(x(5f), 18.5f * u), 2.4f * u, StrokeCap.Round)
-            val p = Path().apply {
-                moveTo(x(9f), 6f * u); lineTo(x(19f), 12f * u); lineTo(x(9f), 18f * u); close()
-            }
-            drawPath(p, c)
-            drawPath(p, c, style = Stroke(width = 1.6f * u, join = StrokeJoin.Round))
-        }
     )
 }
 
@@ -369,20 +336,6 @@ private fun FrameGlyph() {
             addRoundRect((8.7f + 4.2f) * u, (12.5f + 2.45f) * u, 8.4f * u, 4.9f * u, 2.4f * u, Color(0xFFA1A1AA).toArgb())
             addRoundRect((7.0f + 4.0f) * u, (6.9f + 2.5f) * u, 8.0f * u, 5.0f * u, 2.5f * u, cArgb, 1.2f * u, AmBase.toArgb())
         },
-        fallbackDraw = {
-            val u = size.width / 24f
-            val c = RefCtrl
-            val a = 4.7f * u
-            val b = 19.3f * u
-            drawLine(c, Offset(a, a), Offset(b, a), 1.4f * u, StrokeCap.Round)
-            drawLine(c, Offset(a, b), Offset(b, b), 1.4f * u, StrokeCap.Round)
-            drawLine(c, Offset(a, a), Offset(a, b), 1.4f * u, StrokeCap.Round)
-            drawLine(c, Offset(b, a), Offset(b, b), 1.4f * u, StrokeCap.Round)
-            for (cx in listOf(a, b)) for (cy in listOf(a, b)) drawCircle(c, 1.95f * u, Offset(cx, cy))
-            drawRoundRect(Color(0xFFA1A1AA), Offset(8.7f * u, 12.5f * u), Size(8.4f * u, 4.9f * u), CornerRadius(2.4f * u))
-            drawRoundRect(AmBase, Offset(6.4f * u, 6.3f * u), Size(9.1f * u, 6.1f * u), CornerRadius(3f * u), style = Stroke(1.2f * u))
-            drawRoundRect(c, Offset(7.0f * u, 6.9f * u), Size(8.0f * u, 5.0f * u), CornerRadius(2.5f * u))
-        }
     )
 }
 
@@ -409,25 +362,6 @@ private fun MagnetGlyph(on: Boolean) {
             addLine(5.2f * u, 16.4f * u, 5.2f * u, 19.6f * u, sw, tipArgb, capRound = false)
             addLine(18.8f * u, 16.4f * u, 18.8f * u, 19.6f * u, sw, tipArgb, capRound = false)
         },
-        fallbackDraw = {
-            val u = size.width / 24f
-            val c = if (on) RefCtrl else RefCtrlDisabled
-            val w = 3.6f * u
-            drawArc(
-                color = c,
-                startAngle = 180f,
-                sweepAngle = 180f,
-                useCenter = false,
-                topLeft = Offset(5.2f * u, 3.4f * u),
-                size = Size(13.6f * u, 13.6f * u),
-                style = Stroke(width = w, cap = StrokeCap.Butt)
-            )
-            drawLine(c, Offset(5.2f * u, 10.2f * u), Offset(5.2f * u, 19.6f * u), w, StrokeCap.Butt)
-            drawLine(c, Offset(18.8f * u, 10.2f * u), Offset(18.8f * u, 19.6f * u), w, StrokeCap.Butt)
-            val tip = if (on) Color.White else c
-            drawLine(tip, Offset(5.2f * u, 16.4f * u), Offset(5.2f * u, 19.6f * u), w, StrokeCap.Butt)
-            drawLine(tip, Offset(18.8f * u, 16.4f * u), Offset(18.8f * u, 19.6f * u), w, StrokeCap.Butt)
-        }
     )
 }
 
@@ -446,18 +380,6 @@ private fun GridToggleGlyph(on: Boolean) {
             addLine(4f * u, 9f * u, 20f * u, 9f * u, 1.5f * u, cArgb, capRound = false)
             addLine(4f * u, 15f * u, 20f * u, 15f * u, 1.5f * u, cArgb, capRound = false)
         },
-        fallbackDraw = {
-            val u = size.width / 24f
-            val c = if (on) RefLime else RefCtrl
-            drawRoundRect(
-                c, Offset(4f * u, 4f * u), Size(16f * u, 16f * u),
-                CornerRadius(3f * u), style = Stroke(1.8f * u, join = StrokeJoin.Round)
-            )
-            drawLine(c, Offset(9f * u, 4f * u), Offset(9f * u, 20f * u), 1.5f * u)
-            drawLine(c, Offset(15f * u, 4f * u), Offset(15f * u, 20f * u), 1.5f * u)
-            drawLine(c, Offset(4f * u, 9f * u), Offset(20f * u, 9f * u), 1.5f * u)
-            drawLine(c, Offset(4f * u, 15f * u), Offset(20f * u, 15f * u), 1.5f * u)
-        }
     )
 }
 
@@ -492,20 +414,5 @@ private fun KeyframeShieldGlyph() {
             addLine(12f * u, 8f * u, 12f * u, 14f * u, 2f * u, cutArgb, capRound = true)
             addLine(9f * u, 11f * u, 15f * u, 11f * u, 2f * u, cutArgb, capRound = true)
         },
-        fallbackDraw = {
-            val u = size.width / 24f
-            val shield = Path().apply {
-                moveTo(12f * u, 2.5f * u)
-                lineTo(18.5f * u, 6f * u)
-                lineTo(18.5f * u, 14.2f * u)
-                cubicTo(18.5f * u, 17.5f * u, 15.8f * u, 19.9f * u, 12f * u, 21.5f * u)
-                cubicTo(8.2f * u, 19.9f * u, 5.5f * u, 17.5f * u, 5.5f * u, 14.2f * u)
-                lineTo(5.5f * u, 6f * u)
-                close()
-            }
-            drawPath(shield, RefCtrl)
-            drawLine(AmBase, Offset(12f * u, 8f * u), Offset(12f * u, 14f * u), 2f * u, StrokeCap.Round)
-            drawLine(AmBase, Offset(9f * u, 11f * u), Offset(15f * u, 11f * u), 2f * u, StrokeCap.Round)
-        }
     )
 }

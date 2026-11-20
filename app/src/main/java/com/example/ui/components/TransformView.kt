@@ -597,41 +597,6 @@ fun PivotTargetCrosshair(modifier: Modifier = Modifier) {
             addRoundRect(cx - gap - armLength * 0.5f, cy, armLength, armWidth, armWidth * 0.5f, pinkArgb)
             addRoundRect(cx + gap + armLength * 0.5f, cy, armLength, armWidth, armWidth * 0.5f, pinkArgb)
         },
-        fallbackDraw = {
-            val pinkColor = AmMint
-            val cX = size.width / 2f
-            val cY = size.height / 2f
-            val centerRadius = 3.5.dp.toPx()
-            val armLength = 7.dp.toPx()
-            val armWidth = 3.dp.toPx()
-            val gap = 4.dp.toPx()
-            drawCircle(color = pinkColor, radius = centerRadius)
-            drawCircle(color = Color.White, radius = 1.2.dp.toPx())
-            drawRoundRect(
-                color = pinkColor,
-                topLeft = Offset(cX - armWidth / 2f, cY - gap - armLength),
-                size = Size(armWidth, armLength),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(armWidth / 2f, armWidth / 2f)
-            )
-            drawRoundRect(
-                color = pinkColor,
-                topLeft = Offset(cX - armWidth / 2f, cY + gap),
-                size = Size(armWidth, armLength),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(armWidth / 2f, armWidth / 2f)
-            )
-            drawRoundRect(
-                color = pinkColor,
-                topLeft = Offset(cX - gap - armLength, cY - armWidth / 2f),
-                size = Size(armLength, armWidth),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(armWidth / 2f, armWidth / 2f)
-            )
-            drawRoundRect(
-                color = pinkColor,
-                topLeft = Offset(cX + gap, cY - armWidth / 2f),
-                size = Size(armLength, armWidth),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(armWidth / 2f, armWidth / 2f)
-            )
-        }
     )
 }
 
@@ -706,28 +671,6 @@ private fun PositionPad(
                 drawOnGl = { sid, d ->
                     UiGlRuntime.drawPositionPadOnGl(sid, xNorm, yNorm, dotArgb, gridArgb, d)
                 },
-                fallbackDraw = {
-                    val w = size.width
-                    val h = size.height
-                    val grid = 18.dp.toPx()
-                    var gx = w / 2f % grid
-                    while (gx < w) {
-                        drawLine(AmTickMinor, Offset(gx, 0f), Offset(gx, h), strokeWidth = 1.dp.toPx())
-                        gx += grid
-                    }
-                    var gy = h / 2f % grid
-                    while (gy < h) {
-                        drawLine(AmTickMinor, Offset(0f, gy), Offset(w, gy), strokeWidth = 1.dp.toPx())
-                        gy += grid
-                    }
-                    drawLine(AmTickMajor, Offset(w / 2f, 0f), Offset(w / 2f, h), strokeWidth = 1.5.dp.toPx())
-                    drawLine(AmTickMajor, Offset(0f, h / 2f), Offset(w, h / 2f), strokeWidth = 1.5.dp.toPx())
-                    val r = 7.dp.toPx()
-                    val dx = (w / 2f + (x / visualRange) * (w / 2f)).coerceIn(r, w - r)
-                    val dy = (h / 2f + (y / visualRange) * (h / 2f)).coerceIn(r, h - r)
-                    drawCircle(AmMint.copy(alpha = 0.25f), radius = r * 1.9f, center = Offset(dx, dy))
-                    drawCircle(AmMint, radius = r, center = Offset(dx, dy))
-                }
             )
         }
     }
@@ -890,13 +833,6 @@ internal fun TransformValueHeader(
                 drawOnGl = { sid, d ->
                     UiGlRuntime.drawEasingTileOnGl(sid, e.x1, e.y1, e.x2, e.y2, iconColor.toArgb(), d)
                 },
-                fallbackDraw = {
-                    drawEasingIcon(
-                        easing = if (easingEnabled) easing else null,
-                        color = iconColor,
-                        strokeWidth = 1.75.dp.toPx()
-                    )
-                }
             )
         }
     }

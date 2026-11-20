@@ -130,13 +130,6 @@ fun EditorHeader(
                     addLine(m, m, w - m, h - m, sw, cArgb, capRound = true)
                     addLine(w - m, m, m, h - m, sw, cArgb, capRound = true)
                 },
-                fallbackDraw = {
-                    val c = TextPrimary
-                    val w = 2.2.dp.toPx()
-                    val m = w / 2f
-                    drawLine(c, Offset(m, m), Offset(size.width - m, size.height - m), w, StrokeCap.Round)
-                    drawLine(c, Offset(size.width - m, m), Offset(m, size.height - m), w, StrokeCap.Round)
-                }
             )
         }
 
@@ -226,13 +219,6 @@ fun EditorHeader(
                                     3, TextPrimary.toArgb()
                                 )
                             },
-                            fallbackDraw = {
-                                val p = Path().apply {
-                                    val u = size.width / 12f
-                                    moveTo(3f * u, 4.5f * u); lineTo(9f * u, 4.5f * u); lineTo(6f * u, 8.5f * u); close()
-                                }
-                                drawPath(p, TextPrimary)
-                            }
                         )
                     }
                 }
@@ -312,26 +298,6 @@ private fun RatioGlyph() {
             addLine(10.8f * u, 13.2f * u, 15f * u, 8f * u, sw, cArgb, capRound = true)
             addLine(13.2f * u, 13.2f * u, 9f * u, 8f * u, sw, cArgb, capRound = true)
         },
-        fallbackDraw = {
-            val u = size.width / 24f
-            val c = TextPrimary
-            val st = Stroke(1.8f * u, cap = StrokeCap.Round, join = StrokeJoin.Round)
-            fun corner(points: List<Offset>) {
-                val p = Path().apply {
-                    moveTo(points[0].x * u, points[0].y * u)
-                    for (pt in points.drop(1)) lineTo(pt.x * u, pt.y * u)
-                }
-                drawPath(p, c, style = st)
-            }
-            corner(listOf(Offset(7f, 3f), Offset(5f, 3f), Offset(3f, 5f), Offset(3f, 7f)))
-            corner(listOf(Offset(17f, 3f), Offset(19f, 3f), Offset(21f, 5f), Offset(21f, 7f)))
-            corner(listOf(Offset(7f, 21f), Offset(5f, 21f), Offset(3f, 19f), Offset(3f, 17f)))
-            corner(listOf(Offset(17f, 21f), Offset(19f, 21f), Offset(21f, 19f), Offset(21f, 17f)))
-            drawCircle(c, 1.8f * u, Offset(9.5f * u, 14.5f * u), style = st)
-            drawCircle(c, 1.8f * u, Offset(14.5f * u, 14.5f * u), style = st)
-            drawLine(c, Offset(10.8f * u, 13.2f * u), Offset(15f * u, 8f * u), 1.8f * u, StrokeCap.Round)
-            drawLine(c, Offset(13.2f * u, 13.2f * u), Offset(9f * u, 8f * u), 1.8f * u, StrokeCap.Round)
-        }
     )
 }
 
@@ -368,23 +334,6 @@ private fun DownloadGlyph(tint: Color = AmInk) {
             )
             addLine(18.4f * u, 16.2f * u, 18.4f * u, 12.5f * u, sw, cArgb, capRound = true)
         },
-        fallbackDraw = {
-            val u = size.width / 20f
-            val st = Stroke(2.2f * u, cap = StrokeCap.Round, join = StrokeJoin.Round)
-            val arrow = Path().apply {
-                moveTo(10f * u, 1.6f * u); lineTo(10f * u, 11.8f * u)
-                moveTo(5.6f * u, 7.6f * u); lineTo(10f * u, 12f * u); lineTo(14.4f * u, 7.6f * u)
-            }
-            drawPath(arrow, tint, style = st)
-            val tray = Path().apply {
-                moveTo(1.6f * u, 12.5f * u); lineTo(1.6f * u, 16.2f * u)
-                quadraticBezierTo(1.6f * u, 18.4f * u, 3.8f * u, 18.4f * u)
-                lineTo(16.2f * u, 18.4f * u)
-                quadraticBezierTo(18.4f * u, 18.4f * u, 18.4f * u, 16.2f * u)
-                lineTo(18.4f * u, 12.5f * u)
-            }
-            drawPath(tray, tint, style = st)
-        }
     )
 }
 
@@ -463,12 +412,6 @@ fun LayerHeader(
                         addLine(w - m, m, m, h / 2f, sw, cArgb, capRound = true)
                         addLine(m, h / 2f, w - m, h - m, sw, cArgb, capRound = true)
                     },
-                    fallbackDraw = {
-                        val w = 2.2.dp.toPx()
-                        val m = w / 2f
-                        drawLine(TextPrimary, Offset(size.width - m, m), Offset(m, size.height / 2f), w, StrokeCap.Round)
-                        drawLine(TextPrimary, Offset(m, size.height / 2f), Offset(size.width - m, size.height - m), w, StrokeCap.Round)
-                    }
                 )
             }
             Column(

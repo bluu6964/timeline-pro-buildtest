@@ -522,30 +522,6 @@ private fun CarouselPreview(modifier: Modifier = Modifier, params: CarouselParam
                     )
                 }
             },
-            fallbackDraw = {
-                val gridPaint = Color.White.copy(alpha = 0.10f)
-                var gx = CarouselSpec.GRID_OFF_X
-                while (gx < CarouselSpec.SCENE_W) {
-                    drawLine(gridPaint, Offset(gx * sx, 0f), Offset(gx * sx, size.height), strokeWidth = 1.5f * sx)
-                    gx += CarouselSpec.GRID_STEP
-                }
-                var gy = CarouselSpec.GRID_OFF_Y
-                while (gy < CarouselSpec.SCENE_H) {
-                    drawLine(gridPaint, Offset(0f, gy * sy), Offset(size.width, gy * sy), strokeWidth = 1.5f * sx)
-                    gy += CarouselSpec.GRID_STEP
-                }
-                for (i in 0 until params.cardCount) {
-                    val (cx, cy) = CarouselTemplate.centerSceneAt(t, i, params)
-                    val left = cx * sx - cardW / 2f
-                    val top = (cy + CarouselSpec.SHADOW_DY) * sy - cardH / 2f
-                    drawRoundRect(
-                        color = Color.Black.copy(alpha = CarouselSpec.SHADOW_OPACITY / 100f),
-                        topLeft = Offset(left, top),
-                        size = Size(cardW, cardH),
-                        cornerRadius = CornerRadius(corner, corner)
-                    )
-                }
-            }
         )
 
         for (i in 0 until params.cardCount) {
@@ -864,21 +840,6 @@ private fun GeniePreview(modifier: Modifier = Modifier) {
                     )
                 }
             },
-            fallbackDraw = {
-                for (petal in ins.petals) {
-                    val p = petal.at(t)
-                    if (p.opacity <= 1f) continue
-                    drawCircle(
-                        color = Color(0xFF202024),
-                        radius = 5f * unit,
-                        center = Offset(
-                            size.width / 2f + p.transformX * unit,
-                            size.height / 2f + p.transformY * unit
-                        ),
-                        alpha = p.opacity / 100f
-                    )
-                }
-            }
         )
         // Selection rings, then avatars with their names.
         for (ring in ins.rings) {
@@ -1035,24 +996,6 @@ private fun PieCounterPreview(modifier: Modifier = Modifier) {
                     addPolyline(xs, ys, outPts.size, true, 1.5f, Color(0xFFB9C4CE).toArgb(), capRound = false)
                 }
             },
-            fallbackDraw = {
-                val cx = size.width / 2f
-                val cy = size.height / 2f + PieCounterSpec.PIE_CY_FRAC * 1200f * unit
-                val r = PieCounterSpec.RADIUS_FRAC * 720f * unit
-                drawPath(
-                    piePreviewPath(ins.fill.pieSegmentsAt(t), cx, cy, r),
-                    Brush.linearGradient(
-                        listOf(Color(0xFF1E8CFF), Color(0xFFF4F8FF)),
-                        start = Offset(cx - r, cy - r),
-                        end = Offset(cx + r, cy + r)
-                    )
-                )
-                drawPath(
-                    piePreviewPath(ins.outline.pieSegmentsAt(t), cx, cy, r),
-                    Color(0xFFB9C4CE),
-                    style = Stroke(width = 1.5f)
-                )
-            }
         )
         val pct = CounterEval.displayText(ins.percentText.text ?: "0%", ins.percentText, t) ?: "0%"
         Text(
@@ -1121,27 +1064,6 @@ private fun DonutChartPreview(modifier: Modifier = Modifier) {
                 }
                 addCircle(cx, cy, DonutChartSpec.HOLE_FRAC * 720f * unit / 2f, Color.Black.toArgb())
             },
-            fallbackDraw = {
-                val cx = size.width / 2f
-                val cy = size.height / 2f + DonutChartSpec.CY_FRAC * 1280f * unit
-                val r = DonutChartSpec.R_FRAC * 720f * unit
-                for (seg in ins.segments) {
-                    val (g1, g2) = DonutChartSpec.GRADIENTS[ins.segments.indexOf(seg)]
-                    drawPath(
-                        piePreviewPath(seg.wedge.pieSegmentsAt(t), cx, cy, r),
-                        Brush.linearGradient(
-                            listOf(Color(g1.toInt()), Color(g2.toInt())),
-                            start = Offset(cx - r, cy - r),
-                            end = Offset(cx + r, cy + r)
-                        )
-                    )
-                }
-                drawCircle(
-                    color = Color.Black,
-                    radius = DonutChartSpec.HOLE_FRAC * 720f * unit / 2f,
-                    center = Offset(cx, cy)
-                )
-            }
         )
         val title = ins.title.at(t)
         Text(
@@ -1272,21 +1194,6 @@ private fun SocialGrowthPreview(modifier: Modifier = Modifier) {
                         closedPie = false
                     )
                 },
-                fallbackDraw = {
-                    val cx = size.width / 2f
-                    val cy = size.height / 2f + SocialGrowthSpec.RING_Y_FRAC * 1280f * unit
-                    val r = SocialGrowthSpec.RING_D_FRAC * 720f * unit / 2f
-                    drawArc(
-                        color = Color(0xFF2EE66B),
-                        startAngle = -90f + ring.strokeTrimStart * 360f,
-                        sweepAngle = (ring.strokeTrimEnd - ring.strokeTrimStart) * 360f,
-                        useCenter = false,
-                        topLeft = Offset(cx - r, cy - r),
-                        size = Size(r * 2f, r * 2f),
-                        style = Stroke(width = 3f),
-                        alpha = ring.opacity / 100f
-                    )
-                }
             )
         }
         val av = ins.avatar.at(t)

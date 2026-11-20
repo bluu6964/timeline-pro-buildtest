@@ -63,12 +63,6 @@ fun GradientHandleLayer(
                 addLine(ax, ay, bx, by, 4f * d, android.graphics.Color.BLACK)
                 addLine(ax, ay, bx, by, 2f * d, android.graphics.Color.WHITE)
             },
-            fallbackDraw = {
-                val a = Offset(clip.gradX1 * size.width, clip.gradY1 * size.height)
-                val b = Offset(clip.gradX2 * size.width, clip.gradY2 * size.height)
-                drawLine(Color.Black, a, b, strokeWidth = 4.dp.toPx())
-                drawLine(Color.White, a, b, strokeWidth = 2.dp.toPx())
-            }
         )
         listOf(0, 1).forEach { idx ->
             val px = if (idx == 0) clip.gradX1 else clip.gradX2

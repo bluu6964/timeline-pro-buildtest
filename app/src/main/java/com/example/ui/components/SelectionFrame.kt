@@ -91,23 +91,12 @@ internal class FrameGeo(
 
     /** True when the point [p] (canvas pixels) lies inside the layer's (rotated, scaled) box. */
     fun contains(p: Offset): Boolean {
-        if (UiMathNative.isAvailable) {
-            return UiMathNative.nativeFrameGeoContains(
-                p.x, p.y, w, h, frameW, frameH, minScale, pivotRefW, pivotRefH,
-                visW, visH, visOffX, visOffY,
-                clip.effectiveScalePercent, clip.rotationDeg, clip.depthX, clip.depthY,
-                clip.isFlippedH, clip.isFlippedV, clip.pivotX, clip.pivotY
-            )
-        }
-        var pos = false
-        var neg = false
-        for (i in 0..3) {
-            val a = corner(i)
-            val b = corner((i + 1) % 4)
-            val cr = (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x)
-            if (cr > 0f) pos = true else if (cr < 0f) neg = true
-        }
-        return !(pos && neg)
+        return UiMathNative.nativeFrameGeoContains(
+            p.x, p.y, w, h, frameW, frameH, minScale, pivotRefW, pivotRefH,
+            visW, visH, visOffX, visOffY,
+            clip.effectiveScalePercent, clip.rotationDeg, clip.depthX, clip.depthY,
+            clip.isFlippedH, clip.isFlippedV, clip.pivotX, clip.pivotY
+        )
     }
 
     fun corner(i: Int): Offset = when (i) {

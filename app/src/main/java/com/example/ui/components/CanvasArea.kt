@@ -393,12 +393,6 @@ fun CanvasArea(
                                     addLine(w * 0.5f, 0f, w * 0.5f, h, 1f * d, dotColor)
                                     addLine(0f, h * 0.5f, w, h * 0.5f, 1f * d, dotColor)
                                 },
-                                fallbackDraw = {
-                                    val dotColor = Color.White.copy(alpha = 0.25f)
-                                    drawCircle(color = dotColor, radius = 2.dp.toPx())
-                                    drawLine(color = dotColor, start = Offset(size.width / 2f, 0f), end = Offset(size.width / 2f, size.height), strokeWidth = 1.dp.toPx())
-                                    drawLine(color = dotColor, start = Offset(0f, size.height / 2f), end = Offset(size.width, size.height / 2f), strokeWidth = 1.dp.toPx())
-                                }
                             )
                             if (projectEmpty) {
                                 Spacer(Modifier.height(14.dp))
@@ -527,22 +521,6 @@ fun CanvasArea(
                                     addLine(cx, cy - arm, cx, cy + arm, sw * 1.4f, markArgb)
                                     addCircle(cx, cy, 3f * d, markArgb)
                                 },
-                                fallbackDraw = {
-                                    val c = Color(markArgb)
-                                    val sw = 1.5.dp.toPx()
-                                    drawRect(
-                                        color = c, style = androidx.compose.ui.graphics.drawscope.Stroke(
-                                            width = sw,
-                                            pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(14f, 10f))
-                                        )
-                                    )
-                                    val cx = size.width / 2f
-                                    val cy = size.height / 2f
-                                    val arm = 14.dp.toPx()
-                                    drawLine(c, Offset(cx - arm, cy), Offset(cx + arm, cy), strokeWidth = sw * 1.4f)
-                                    drawLine(c, Offset(cx, cy - arm), Offset(cx, cy + arm), strokeWidth = sw * 1.4f)
-                                    drawCircle(c, radius = 3.dp.toPx(), center = Offset(cx, cy))
-                                }
                             )
                         }
 
@@ -624,20 +602,6 @@ fun CanvasArea(
                             corner(m, m, 1f, 1f); corner(w - m, m, -1f, 1f); corner(m, h - m, 1f, -1f); corner(w - m, h - m, -1f, -1f)
                             addCircle(w * 0.5f, h * 0.5f, 3f * d, col)
                         },
-                        fallbackDraw = {
-                            val col = Color(0xFF8E6BF2)
-                            val sw = 2.5.dp.toPx()
-                            val m = 10.dp.toPx()
-                            val a = 26.dp.toPx()
-                            val w = size.width
-                            val h = size.height
-                            fun corner(x: Float, y: Float, dx: Float, dy: Float) {
-                                drawLine(col, Offset(x, y), Offset(x + dx * a, y), strokeWidth = sw)
-                                drawLine(col, Offset(x, y), Offset(x, y + dy * a), strokeWidth = sw)
-                            }
-                            corner(m, m, 1f, 1f); corner(w - m, m, -1f, 1f); corner(m, h - m, 1f, -1f); corner(w - m, h - m, -1f, -1f)
-                            drawCircle(col, radius = 3.dp.toPx(), center = Offset(w / 2f, h / 2f))
-                        }
                     )
                 }
 
@@ -665,17 +629,6 @@ fun CanvasArea(
                                 addLine(0f, cY, arm, cY, sw, greenNeon)
                                 addLine(w - arm, cY, w, cY, sw, greenNeon)
                             },
-                            fallbackDraw = {
-                                val greenNeon = Color(0xFF00E676)
-                                val strokeW = 2.dp.toPx()
-                                val cX = size.width / 2f
-                                val cY = size.height / 2f
-                                drawCircle(color = greenNeon, radius = 2.dp.toPx())
-                                drawLine(color = greenNeon, start = Offset(cX, 0f), end = Offset(cX, 7.dp.toPx()), strokeWidth = strokeW)
-                                drawLine(color = greenNeon, start = Offset(cX, size.height - 7.dp.toPx()), end = Offset(cX, size.height), strokeWidth = strokeW)
-                                drawLine(color = greenNeon, start = Offset(0f, cY), end = Offset(7.dp.toPx(), cY), strokeWidth = strokeW)
-                                drawLine(color = greenNeon, start = Offset(size.width - 7.dp.toPx(), cY), end = Offset(size.width, cY), strokeWidth = strokeW)
-                            }
                         )
                     }
                 }
@@ -696,14 +649,6 @@ fun CanvasArea(
                             externalSnapGuideX?.let { x -> addLine(x, 0f, x, h, sw, col) }
                             externalSnapGuideY?.let { y -> addLine(0f, y, w, y, sw, col) }
                         },
-                        fallbackDraw = {
-                            val col = Color.White.copy(alpha = 0.85f)
-                            val sw = 1.dp.toPx()
-                            snapGuideX?.let { x -> drawLine(col, Offset(x, 0f), Offset(x, size.height), strokeWidth = sw) }
-                            snapGuideY?.let { y -> drawLine(col, Offset(0f, y), Offset(size.width, y), strokeWidth = sw) }
-                            externalSnapGuideX?.let { x -> drawLine(col, Offset(x, 0f), Offset(x, size.height), strokeWidth = sw) }
-                            externalSnapGuideY?.let { y -> drawLine(col, Offset(0f, y), Offset(size.width, y), strokeWidth = sw) }
-                        }
                     )
                 }
 
@@ -725,16 +670,6 @@ fun CanvasArea(
                         addLine(0f, ty, w, ty, lw, col)
                         addLine(0f, ty * 2f, w, ty * 2f, lw, col)
                     },
-                    fallbackDraw = {
-                        val col = Color.White.copy(alpha = 0.24f)
-                        val lw = 1.dp.toPx()
-                        val tx = size.width / 3f
-                        val ty = size.height / 3f
-                        drawLine(col, Offset(tx, 0f), Offset(tx, size.height), lw)
-                        drawLine(col, Offset(tx * 2, 0f), Offset(tx * 2, size.height), lw)
-                        drawLine(col, Offset(0f, ty), Offset(size.width, ty), lw)
-                        drawLine(col, Offset(0f, ty * 2), Offset(size.width, ty * 2), lw)
-                    }
                 )
             }
 

@@ -411,30 +411,6 @@ private fun BlendOpacitySlider(
                 addCircle(x, y, r, inkColorArgb)
                 addCircle(x, y, r - 2f * d, thumbColorArgb)
             },
-            fallbackDraw = {
-                val thumbR = 7.5.dp.toPx()
-                val y = size.height / 2f
-                val x = thumbR + (size.width - 2f * thumbR) * (value / 100f).coerceIn(0f, 1f)
-                drawLine(
-                    color = BlendTrack,
-                    start = Offset(thumbR, y), end = Offset(size.width - thumbR, y),
-                    strokeWidth = 4.dp.toPx(), cap = StrokeCap.Round
-                )
-                drawLine(
-                    color = BlendGreen,
-                    start = Offset(thumbR, y), end = Offset(x, y),
-                    strokeWidth = 4.dp.toPx(), cap = StrokeCap.Round
-                )
-                val r = thumbR * if (dragging) 1.15f else 1f
-                drawCircle(
-                    color = BlendGreen.copy(alpha = 0.45f),
-                    radius = r + 0.5.dp.toPx(),
-                    center = Offset(x, y),
-                    style = Stroke(width = 1.dp.toPx())
-                )
-                drawCircle(color = BlendInk, radius = r, center = Offset(x, y))
-                drawCircle(color = BlendGreen, radius = r - 2.dp.toPx(), center = Offset(x, y))
-            }
         )
     }
 }
@@ -481,30 +457,6 @@ private fun KeyframeButton221(
                     }
                 }
             },
-            fallbackDraw = {
-                val c = center
-                val r = 6.8.dp.toPx()
-                val corners = listOf(
-                    Offset(c.x, c.y - r), Offset(c.x + r, c.y),
-                    Offset(c.x, c.y + r), Offset(c.x - r, c.y)
-                )
-                val path = androidx.compose.ui.graphics.Path().apply {
-                    moveTo(corners[0].x, corners[0].y)
-                    for (i in 1..3) lineTo(corners[i].x, corners[i].y)
-                    close()
-                }
-                when {
-                    onKeyframeNow -> drawPath(path, BlendGreen)
-                    hasKeyframes -> {
-                        drawPath(path, BlendGreen, style = Stroke(width = 1.5.dp.toPx()))
-                        drawPlus(c, BlendGreen)
-                    }
-                    else -> {
-                        drawPath(path, BlendTrack)
-                        drawPlus(c, BlendMuted)
-                    }
-                }
-            }
         )
     }
 }
@@ -547,13 +499,6 @@ private fun GraphButton221(
             drawOnGl = { sid, d ->
                 UiGlRuntime.drawEasingTileOnGl(sid, e.x1, e.y1, e.x2, e.y2, iconColor.toArgb(), d)
             },
-            fallbackDraw = {
-                drawEasingIcon(
-                    easing = easing,
-                    color = iconColor,
-                    strokeWidth = 1.75.dp.toPx()
-                )
-            }
         )
     }
 }

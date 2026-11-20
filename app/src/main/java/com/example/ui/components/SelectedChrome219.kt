@@ -174,33 +174,6 @@ private fun LayersGlyph219(modifier: Modifier = Modifier) {
             addCircle(19.5f * u, 6.5f * u, 3.6f * u, 0, 1.3f * u, accentArgb)
             addCircle(19.5f * u, 6.5f * u, 1.15f * u, accentArgb)
         },
-        fallbackDraw = {
-            val u = size.width / 24f
-            val strokeW = 1.7f * u
-            drawRoundRect(
-                color = Color.White,
-                topLeft = Offset(1.5f * u, 3.5f * u),
-                size = Size(13f * u, 13f * u),
-                cornerRadius = CornerRadius(3f * u),
-                style = Stroke(width = strokeW, pathEffect = PathEffect.dashPathEffect(floatArrayOf(3.2f * u, 2.4f * u)))
-            )
-            drawRoundRect(
-                color = SelBg,
-                topLeft = Offset(6.5f * u, 8.5f * u),
-                size = Size(13f * u, 13f * u),
-                cornerRadius = CornerRadius(3f * u)
-            )
-            drawRoundRect(
-                color = Color.White,
-                topLeft = Offset(6.5f * u, 8.5f * u),
-                size = Size(13f * u, 13f * u),
-                cornerRadius = CornerRadius(3f * u),
-                style = Stroke(width = strokeW)
-            )
-            val c = Offset(19.5f * u, 6.5f * u)
-            drawCircle(SelAccent, radius = 3.6f * u, center = c, style = Stroke(width = 1.3f * u))
-            drawCircle(SelAccent, radius = 1.15f * u, center = c)
-        }
     )
 }
 
@@ -218,18 +191,6 @@ private fun MoreGlyph219(modifier: Modifier = Modifier) {
                 addCircle(dx * u, 12f * u, 1.55f * u, whiteArgb)
             }
         },
-        fallbackDraw = {
-            val u = size.width / 24f
-            drawCircle(
-                color = SelName,
-                radius = 9.5f * u,
-                center = Offset(12f * u, 12f * u),
-                style = Stroke(width = 1.7f * u)
-            )
-            for (dx in listOf(7f, 12f, 17f)) {
-                drawCircle(Color.White, radius = 1.55f * u, center = Offset(dx * u, 12f * u))
-            }
-        }
     )
 }
 

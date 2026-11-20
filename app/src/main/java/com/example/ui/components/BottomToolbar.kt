@@ -217,23 +217,6 @@ private fun DockMediaGlyph() {
                 3, cArgb
             )
         },
-        fallbackDraw = {
-            val u = size.width / 24f
-            drawRoundRect(
-                Color(0xFFD4D4D8),
-                topLeft = Offset(3f * u, 5f * u),
-                size = Size(18f * u, 14f * u),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f * u),
-                style = Stroke(2f * u)
-            )
-            val tri = Path().apply {
-                moveTo(10.2f * u, 9.3f * u)
-                lineTo(15.2f * u, 12f * u)
-                lineTo(10.2f * u, 14.7f * u)
-                close()
-            }
-            drawPath(tri, Color(0xFFD4D4D8))
-        }
     )
 }
 
@@ -259,19 +242,6 @@ private fun DockFxGlyph() {
             addStar(8.5f * u, 8.5f * u, 5.5f * u, Color(0xFF71717A).toArgb())
             addStar(16f * u, 16f * u, 7.5f * u, Color(0xFFF4F4F5).toArgb())
         },
-        fallbackDraw = {
-            val u = size.width / 25f
-            fun star(cx: Float, cy: Float, r: Float, col: Color) {
-                val path = Path()
-                pts.forEachIndexed { i, pt ->
-                    val x = cx + pt.first * r; val y = cy + pt.second * r
-                    if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
-                }
-                path.close(); drawPath(path, col)
-            }
-            star(8.5f * u, 8.5f * u, 5.5f * u, Color(0xFF71717A))
-            star(16f * u, 16f * u, 7.5f * u, Color(0xFFF4F4F5))
-        }
     )
 }
 
@@ -289,14 +259,6 @@ private fun DockTextGlyph() {
             addLine(12f * u, 6f * u, 12f * u, 18f * u, sw, cArgb, capRound = true)
             addLine(9.5f * u, 18f * u, 14.5f * u, 18f * u, sw, cArgb, capRound = true)
         },
-        fallbackDraw = {
-            val u = size.width / 24f
-            val c = Color(0xFFD4D4D8)
-            val w = 2.3f * u
-            drawLine(c, Offset(6f * u, 6f * u), Offset(18f * u, 6f * u), w, StrokeCap.Round)
-            drawLine(c, Offset(12f * u, 6f * u), Offset(12f * u, 18f * u), w, StrokeCap.Round)
-            drawLine(c, Offset(9.5f * u, 18f * u), Offset(14.5f * u, 18f * u), w, StrokeCap.Round)
-        }
     )
 }
 
@@ -316,16 +278,6 @@ private fun DockShapesGlyph() {
                 fillArgb = Color(0xFFF4F4F5).toArgb()
             )
         },
-        fallbackDraw = {
-            val u = size.width / 25f
-            drawCircle(Color(0xFF71717A), radius = 5.2f * u, center = Offset(9.8f * u, 9.8f * u))
-            drawRoundRect(
-                Color(0xFFF4F4F5),
-                topLeft = Offset(9.8f * u, 9.8f * u),
-                size = Size(10.8f * u, 10.8f * u),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.6f * u)
-            )
-        }
     )
 }
 
@@ -348,31 +300,6 @@ private fun DockNullGlyph() {
                 )
             }
         },
-        fallbackDraw = {
-            val u = size.width / 25f
-            val c = Color(0xFFE4E4E7)
-            drawRoundRect(
-                c,
-                topLeft = Offset(6.5f * u, 6.5f * u),
-                size = Size(12f * u, 12f * u),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(1.5f * u)
-            )
-            listOf(4f to 4f, 17f to 4f, 4f to 17f, 17f to 17f).forEach { pt ->
-                drawRoundRect(
-                    com.example.ui.theme.RefSurface,
-                    topLeft = Offset(pt.first * u, pt.second * u),
-                    size = Size(4f * u, 4f * u),
-                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(1f * u)
-                )
-                drawRoundRect(
-                    c,
-                    topLeft = Offset(pt.first * u, pt.second * u),
-                    size = Size(4f * u, 4f * u),
-                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(1f * u),
-                    style = Stroke(1.5f * u)
-                )
-            }
-        }
     )
 }
 
@@ -391,18 +318,6 @@ private fun DockVectorGlyph() {
             addPolyline(xs, ys, pts.size, false, 1.8f * u, cArgb, capRound = true)
             for (i in pts.indices) addCircle(xs[i], ys[i], 2f * u, cArgb)
         },
-        fallbackDraw = {
-            val u = size.width / 25f
-            val c = Color(0xFFE4E4E7)
-            for (i in 0 until pts.size - 1) {
-                drawLine(
-                    c, Offset(pts[i].first * u, pts[i].second * u),
-                    Offset(pts[i + 1].first * u, pts[i + 1].second * u),
-                    1.8f * u, StrokeCap.Round
-                )
-            }
-            pts.forEach { pt -> drawCircle(c, radius = 2f * u, center = Offset(pt.first * u, pt.second * u)) }
-        }
     )
 }
 
@@ -419,16 +334,6 @@ private fun DockDrawingGlyph() {
             addCubic(4f * u, 16f * u, 7f * u, 6f * u, 10.5f * u, 20f * u, 13.5f * u, 10.5f * u, sw, cArgb, capRound = true)
             addCubic(13.5f * u, 10.5f * u, 15.5f * u, 5.5f * u, 18f * u, 13f * u, 21f * u, 9.5f * u, sw, cArgb, capRound = true)
         },
-        fallbackDraw = {
-            val u = size.width / 25f
-            val c = Color(0xFFE4E4E7)
-            val p = Path().apply {
-                moveTo(4f * u, 16f * u)
-                cubicTo(7f * u, 6f * u, 10.5f * u, 20f * u, 13.5f * u, 10.5f * u)
-                cubicTo(15.5f * u, 5.5f * u, 18f * u, 13f * u, 21f * u, 9.5f * u)
-            }
-            drawPath(p, c, style = Stroke(2f * u, cap = StrokeCap.Round))
-        }
     )
 }
 
@@ -453,24 +358,6 @@ private fun DockGroupGlyph() {
                 cornerRadius = 3f * u, fillArgb = 0, strokeWidth = sw, strokeArgb = c.toArgb()
             )
         },
-        fallbackDraw = {
-            val u = size.width / 25f
-            val c = Color(0xFFE4E4E7)
-            drawRoundRect(
-                c.copy(alpha = 0.55f),
-                topLeft = Offset(4f * u, 4f * u),
-                size = Size(13.5f * u, 13.5f * u),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(3f * u),
-                style = Stroke(1.9f * u)
-            )
-            drawRoundRect(
-                c,
-                topLeft = Offset(8.5f * u, 8.5f * u),
-                size = Size(12.5f * u, 12.5f * u),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(3f * u),
-                style = Stroke(1.9f * u)
-            )
-        }
     )
 }
 
@@ -487,24 +374,6 @@ private fun DockChainGlyph() {
             addRoundRect((3f + 5.25f) * u, (9.5f + 3.25f) * u, 10.5f * u, 6.5f * u, 3.25f * u, 0, sw, cArgb)
             addRoundRect((11.5f + 5.25f) * u, (9.5f + 3.25f) * u, 10.5f * u, 6.5f * u, 3.25f * u, 0, sw, cArgb)
         },
-        fallbackDraw = {
-            val u = size.width / 25f
-            val c = Color(0xFFE4E4E7)
-            drawRoundRect(
-                c,
-                topLeft = Offset(3f * u, 9.5f * u),
-                size = Size(10.5f * u, 6.5f * u),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(3.25f * u),
-                style = Stroke(2f * u)
-            )
-            drawRoundRect(
-                c,
-                topLeft = Offset(11.5f * u, 9.5f * u),
-                size = Size(10.5f * u, 6.5f * u),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(3.25f * u),
-                style = Stroke(2f * u)
-            )
-        }
     )
 }
 

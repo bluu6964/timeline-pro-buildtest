@@ -414,20 +414,6 @@ private fun GradientOverview(
                                 c1Argb = clip.gradColor2.toInt()
                             )
                         },
-                        fallbackDraw = {
-                            drawRoundRect(
-                                brush = LayerFillBrush { w, h ->
-                                    com.example.engine.buildGradientShader(
-                                        clip.copy(
-                                            gradType = type,
-                                            gradX1 = if (type == GRAD_LINEAR) 0f else 0.5f, gradY1 = 0.5f,
-                                            gradX2 = 1f, gradY2 = 0.5f
-                                        ), w, h
-                                    )
-                                },
-                                cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
-                            )
-                        }
                     )
                 }
             }
@@ -458,10 +444,6 @@ private fun GradientOverview(
                     )
                     addGradRect(0f, 0f, w, h, vertical = false, c0Argb = clip.gradColor1.toInt(), c1Argb = clip.gradColor2.toInt())
                 },
-                fallbackDraw = {
-                    drawChecker(Size(size.width, size.height))
-                    drawRect(Brush.horizontalGradient(listOf(c1, c2)))
-                }
             )
             StopHandle(c1, "color_stop_start", Modifier.align(Alignment.CenterStart)) { onEditStop(0) }
             StopHandle(c2, "color_stop_end", Modifier.align(Alignment.CenterEnd)) { onEditStop(1) }
@@ -609,7 +591,6 @@ private fun SwatchGrid(color: Long, onColor: (Long) -> Unit, modifier: Modifier 
                         p0 = 7f * d, c0Argb = 0xFF8A8A8A.toInt(), c1Argb = 0xFFCFCFCF.toInt()
                     )
                 },
-                fallbackDraw = { drawChecker(size) }
             )
             Box(
                 Modifier
@@ -738,26 +719,6 @@ private fun WheelPicker(color: Long, onColor: (Long) -> Unit, modifier: Modifier
                                 p3 = 1f
                             )
                         },
-                        fallbackDraw = {
-                            val ringW = 14.dp.toPx()
-                            val r = size.minDimension / 2f - ringW / 2f
-                            drawCircle(
-                                brush = Brush.sweepGradient(
-                                    (0..6).map {
-                                        Color(android.graphics.Color.HSVToColor(floatArrayOf((it * 60f).coerceAtMost(359.9f), 1f, 1f)))
-                                    }
-                                ),
-                                radius = r,
-                                style = Stroke(ringW)
-                            )
-                            val rad = Math.toRadians(hue.toDouble())
-                            val p = Offset(
-                                size.width / 2f + r * cos(rad).toFloat(),
-                                size.height / 2f + r * sin(rad).toFloat()
-                            )
-                            drawCircle(hueColor, radius = ringW / 2f + 1.5.dp.toPx(), center = p)
-                            drawCircle(Color.White, radius = ringW / 2f + 1.5.dp.toPx(), center = p, style = Stroke(2.dp.toPx()))
-                        }
                     )
                     Box(
                         modifier = Modifier
@@ -773,7 +734,6 @@ private fun WheelPicker(color: Long, onColor: (Long) -> Unit, modifier: Modifier
                                     p0 = 7f * d, c0Argb = 0xFF8A8A8A.toInt(), c1Argb = 0xFFCFCFCF.toInt()
                                 )
                             },
-                            fallbackDraw = { drawChecker(size) }
                         )
                         Box(
                             Modifier
@@ -820,13 +780,6 @@ private fun WheelPicker(color: Long, onColor: (Long) -> Unit, modifier: Modifier
                             p0 = hue, p1 = sat, p2 = value, p3 = 1f, p4 = 7f * d
                         )
                     },
-                    fallbackDraw = {
-                        drawRect(Brush.horizontalGradient(listOf(Color.White, hueColor)))
-                        drawRect(Brush.verticalGradient(listOf(Color.Transparent, Color.Black)))
-                        val p = Offset(sat * size.width, (1f - value) * size.height)
-                        drawCircle(Color.White, radius = 7.dp.toPx(), center = p, style = Stroke(1.75.dp.toPx()))
-                        drawCircle(Color.Black.copy(alpha = 0.4f), radius = 9.dp.toPx(), center = p, style = Stroke(1.dp.toPx()))
-                    }
                 )
             }
 
@@ -864,41 +817,27 @@ private fun WheelPicker(color: Long, onColor: (Long) -> Unit, modifier: Modifier
                     val cx = (alpha * w).coerceIn(r, (w - r).coerceAtLeast(r))
                     addCircle(cx, r, r - 1f * d, 0, 3f * d, android.graphics.Color.WHITE)
                 },
-                fallbackDraw = {
-                    drawChecker(size)
-                    val solid = current.copy(alpha = 1f)
-                    drawRect(Brush.horizontalGradient(listOf(solid.copy(alpha = 0f), solid)))
-                    val r = size.height / 2f
-                    val cx = (alpha * size.width).coerceIn(r, size.width - r)
-                    drawCircle(Color.White, radius = r - 1.dp.toPx(), center = Offset(cx, r), style = Stroke(3.dp.toPx()))
-                }
             )
         }
     }
 }
 
 private fun colorToHsvNative(argb: Int): FloatArray {
-    if (UiMathNative.isAvailable) {
-        val out = FloatArray(3)
-        val r = ((argb shr 16) and 0xFF) / 255f
-        val g = ((argb shr 8) and 0xFF) / 255f
-        val b = (argb and 0xFF) / 255f
-        UiMathNative.nativeRgbToHsv(r, g, b, out)
-        return out
-    }
-    return FloatArray(3).also { android.graphics.Color.colorToHSV(argb, it) }
+    val out = FloatArray(3)
+    val r = ((argb shr 16) and 0xFF) / 255f
+    val g = ((argb shr 8) and 0xFF) / 255f
+    val b = (argb and 0xFF) / 255f
+    UiMathNative.nativeRgbToHsv(r, g, b, out)
+    return out
 }
 
 private fun hsvToColorNative(alpha255: Int, h: Float, s: Float, v: Float): Int {
-    if (UiMathNative.isAvailable) {
-        val rgb = FloatArray(3)
-        UiMathNative.nativeHsvToRgb(h, s, v, rgb)
-        val r = (rgb[0] * 255f).roundToInt().coerceIn(0, 255)
-        val g = (rgb[1] * 255f).roundToInt().coerceIn(0, 255)
-        val b = (rgb[2] * 255f).roundToInt().coerceIn(0, 255)
-        return (alpha255.coerceIn(0, 255) shl 24) or (r shl 16) or (g shl 8) or b
-    }
-    return android.graphics.Color.HSVToColor(alpha255, floatArrayOf(h, s, v))
+    val rgb = FloatArray(3)
+    UiMathNative.nativeHsvToRgb(h, s, v, rgb)
+    val r = (rgb[0] * 255f).roundToInt().coerceIn(0, 255)
+    val g = (rgb[1] * 255f).roundToInt().coerceIn(0, 255)
+    val b = (rgb[2] * 255f).roundToInt().coerceIn(0, 255)
+    return (alpha255.coerceIn(0, 255) shl 24) or (r shl 16) or (g shl 8) or b
 }
 
 // =====================================================================================
@@ -965,17 +904,6 @@ private fun androidx.compose.foundation.layout.ColumnScope.RailWheelButton(selec
                 )
                 if (selected) addCircle(w * 0.5f, h * 0.5f, 2.5f * d, CeAccent.toArgb())
             },
-            fallbackDraw = {
-                val w = 5.dp.toPx()
-                drawCircle(
-                    brush = Brush.sweepGradient(
-                        (0..6).map { Color(android.graphics.Color.HSVToColor(floatArrayOf((it * 60f).coerceAtMost(359.9f), 1f, 1f))) }
-                    ),
-                    radius = size.minDimension / 2f - w / 2f,
-                    style = Stroke(w)
-                )
-                if (selected) drawCircle(CeAccent, radius = 2.5.dp.toPx())
-            }
         )
     }
 }

@@ -113,26 +113,6 @@ fun DrawVectorOverlay(
                     }
                 }
             },
-            fallbackDraw = {
-                if (points.isNotEmpty()) {
-                    val path = Path()
-                    points.forEachIndexed { i, (fx, fy) ->
-                        val o = Offset(fx * size.width, fy * size.height)
-                        if (i == 0) path.moveTo(o.x, o.y) else path.lineTo(o.x, o.y)
-                    }
-                    if (closed && points.size >= 3) path.close()
-                    if (closed && points.size >= 3) {
-                        drawPath(path, Color.White.copy(alpha = 0.25f))
-                    }
-                    drawPath(
-                        path, Color.White,
-                        style = Stroke(
-                            width = (strokeWidthDp * density).coerceAtLeast(1f),
-                            cap = StrokeCap.Round, join = StrokeJoin.Round
-                        )
-                    )
-                }
-            }
         )
     }
 }

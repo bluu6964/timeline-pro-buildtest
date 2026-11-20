@@ -319,22 +319,6 @@ fun AppliedEffectsView(
                             addCircle(x, y, dotR, argb)
                         }
                     },
-                    fallbackDraw = {
-                        val cX = size.width / 2f
-                        val cY = size.height / 2f
-                        val dotsCount = 7
-                        val radius = size.minDimension * 0.32f
-                        for (i in 0 until dotsCount) {
-                            val angle = Math.toRadians((i * 360.0 / dotsCount) - 90.0)
-                            val x = (cX + radius * Math.cos(angle)).toFloat()
-                            val y = (cY + radius * Math.sin(angle)).toFloat()
-                            drawCircle(
-                                color = AmAccent.copy(alpha = 0.85f),
-                                radius = 9.dp.toPx(),
-                                center = Offset(x, y)
-                            )
-                        }
-                    }
                 )
             }
         }
@@ -443,19 +427,6 @@ fun AppliedEffectsView(
                             addLine(x, 0f, x, if (isMajor) h else h * 0.5f, 1f * d, if (isMajor) majorArgb else subArgb, capRound = false)
                         }
                     },
-                    fallbackDraw = {
-                        val tickSpacing = 7.dp.toPx()
-                        val count = (size.width / tickSpacing).toInt()
-                        for (i in 0..count) {
-                            val isMajor = (i % 5 == 0)
-                            drawLine(
-                                color = if (isMajor) RulerTickColor else RulerSubTickColor,
-                                start = Offset(i * tickSpacing, 0f),
-                                end = Offset(i * tickSpacing, if (isMajor) size.height else size.height * 0.5f),
-                                strokeWidth = 1.dp.toPx()
-                            )
-                        }
-                    }
                 )
             }
 
@@ -517,14 +488,6 @@ fun AppliedEffectsView(
                     buildCmds = { _, h, d ->
                         addLine(0f, 0f, 0f, h, 2f * d, Color.White.toArgb(), capRound = false)
                     },
-                    fallbackDraw = {
-                        drawLine(
-                            color = Color.White, // build 223: white playhead on the dark strip
-                            start = Offset(0f, 0f),
-                            end = Offset(0f, size.height),
-                            strokeWidth = 2.dp.toPx()
-                        )
-                    }
                 )
             }
         }
@@ -691,20 +654,6 @@ fun AppliedEffectsView(
                                                                 }
                                                             }
                                                         },
-                                                        fallbackDraw = {
-                                                            val dotR = 1.1.dp.toPx()
-                                                            val spacingX = 4.dp.toPx()
-                                                            val spacingY = 3.8.dp.toPx()
-                                                            for (row in 0..2) {
-                                                                for (col in 0..1) {
-                                                                    drawCircle(
-                                                                        color = AmTextDim,
-                                                                        radius = dotR,
-                                                                        center = Offset(col * spacingX + 1.5.dp.toPx(), row * spacingY + 1.5.dp.toPx())
-                                                                    )
-                                                                }
-                                                            }
-                                                        }
                                                     )
                                                 }
                                             }
@@ -796,20 +745,6 @@ fun AppliedEffectsView(
                                                         addCircle(cX, cY, 10f * d, Color(0xFFFF5252).toArgb())
                                                         addCircle(cX, cY, 5f * d, Color(0xFFABE41D).toArgb())
                                                     },
-                                                    fallbackDraw = {
-                                                        val cX = size.width / 2f
-                                                        val cY = size.height / 2f
-                                                        drawCircle(
-                                                            color = Color(0xFFFF5252),
-                                                            radius = 10.dp.toPx(),
-                                                            center = Offset(cX, cY)
-                                                        )
-                                                        drawCircle(
-                                                            color = Color(0xFFABE41D),
-                                                            radius = 5.dp.toPx(),
-                                                            center = Offset(cX, cY)
-                                                        )
-                                                    }
                                                 )
 
                                                 // Top-right Star badge if pro

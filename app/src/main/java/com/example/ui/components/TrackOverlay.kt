@@ -128,10 +128,6 @@ fun BoxScope.TrackSetupOverlay(
             buildCmds = { w, h, d ->
                 addTrackCircleCmds(circle.cx * w, circle.cy * h, circle.r * w, d)
             },
-            fallbackDraw = {
-                val centre = Offset(circle.cx * size.width, circle.cy * size.height)
-                drawTrackCircle(centre, circle.r * size.width)
-            }
         )
     }
 
@@ -232,18 +228,6 @@ fun BoxScope.TrackRunOverlay(live: TrackLive?) {
                 i += 2
             }
         },
-        fallbackDraw = {
-            val l = live ?: return@NativeVectorCanvas
-            drawTrackCircle(Offset(l.cx * size.width, l.cy * size.height), l.r * size.width)
-            var i = 0
-            while (i + 1 < l.pts.size) {
-                drawCircle(
-                    Color(0xFF39FF14), radius = 2.dp.toPx(),
-                    center = Offset(l.pts[i] * size.width, l.pts[i + 1] * size.height)
-                )
-                i += 2
-            }
-        }
     )
 }
 
@@ -411,35 +395,20 @@ data class PlanarQuad(
     }
 
     fun moved(d: Offset): PlanarQuad {
-        if (UiMathNative.isAvailable && c.size >= 4) {
+        if (c.size >= 4) {
             val out = FloatArray(8)
             UiMathNative.nativePlanarMove(toFloatArray(), d.x, d.y, out)
             return PlanarQuad(List(4) { i -> Offset(out[i * 2], out[i * 2 + 1]) })
         }
-        val minX = c.minOf { it.x }
-        val maxX = c.maxOf { it.x }
-        val minY = c.minOf { it.y }
-        val maxY = c.maxOf { it.y }
-        val dx = d.x.coerceIn(-minX, 1f - maxX)
-        val dy = d.y.coerceIn(-minY, 1f - maxY)
-        return PlanarQuad(c.map { Offset(it.x + dx, it.y + dy) })
+        return this
     }
 
     /** Is the point inside (convex quad test)? */
     fun contains(p: Offset): Boolean {
-        if (UiMathNative.isAvailable && c.size >= 4) {
+        if (c.size >= 4) {
             return UiMathNative.nativePlanarHitTest(p.x, p.y, toFloatArray(), 0f) == 4
         }
-        var sign = 0
-        for (i in 0 until 4) {
-            val a = c[i]
-            val b = c[(i + 1) % 4]
-            val cr = (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x)
-            val sg = if (cr > 0f) 1 else if (cr < 0f) -1 else 0
-            if (sg == 0) continue
-            if (sign == 0) sign = sg else if (sg != sign) return false
-        }
-        return true
+        return false
     }
 }
 
@@ -529,20 +498,10 @@ fun BoxScope.PlanarSetupOverlay(
                         val h = boxSize.height.toFloat()
                         grab = -1
                         if (w > 0f && h > 0f) {
-                            if (UiMathNative.isAvailable && quadNow.c.size >= 4) {
+                            if (quadNow.c.size >= 4) {
                                 grab = UiMathNative.nativePlanarHitTest(
                                     pos.x / w, pos.y / h, quadNow.toFloatArray(), grabRadius / minOf(w, h)
                                 )
-                            } else {
-                                var best = grabRadius
-                                quadNow.c.forEachIndexed { i, o ->
-                                    val d = Offset(o.x * w - pos.x, o.y * h - pos.y).getDistance()
-                                    if (d < best) {
-                                        best = d
-                                        grab = i
-                                    }
-                                }
-                                if (grab < 0 && quadNow.contains(Offset(pos.x / w, pos.y / h))) grab = 4
                             }
                         }
                     },
@@ -568,7 +527,6 @@ fun BoxScope.PlanarSetupOverlay(
             modifier = Modifier.matchParentSize(),
             drawKey = quad,
             buildCmds = { w, h, d -> addPlanarQuadCmds(quad.c, w, h, d, handles = true) },
-            fallbackDraw = { drawPlanarQuad(quad.c, handles = true) }
         )
     }
 
@@ -623,20 +581,6 @@ fun BoxScope.PlanarRunOverlay(live: PlanarLive?) {
                 i += 2
             }
         },
-        fallbackDraw = {
-            val l = live ?: return@NativeVectorCanvas
-            if (l.quad.size >= 8) {
-                drawPlanarQuad(List(4) { Offset(l.quad[2 * it], l.quad[2 * it + 1]) }, handles = false, dim = true)
-            }
-            var i = 0
-            while (i + 1 < l.pts.size) {
-                drawCircle(
-                    Color(0xFF39FF14), radius = 2.dp.toPx(),
-                    center = Offset(l.pts[i] * size.width, l.pts[i + 1] * size.height)
-                )
-                i += 2
-            }
-        }
     )
 }
 
@@ -735,23 +679,6 @@ fun BoxScope.RemoveMaskOverlay(
                     }
                 }
             },
-            fallbackDraw = {
-                drawPlanarQuad(quad.c, handles = false, dim = true)
-                val col = Color(0x99FF3B5C)
-                val r = paint.brush * size.width
-                paint.strokes.forEach { s ->
-                    if (s.isEmpty()) return@forEach
-                    if (s.size == 1) {
-                        drawCircle(col, radius = r, center = Offset(s[0].x * size.width, s[0].y * size.height))
-                    } else {
-                        val path = androidx.compose.ui.graphics.Path().apply {
-                            moveTo(s[0].x * size.width, s[0].y * size.height)
-                            for (i in 1 until s.size) lineTo(s[i].x * size.width, s[i].y * size.height)
-                        }
-                        drawPath(path, col, style = Stroke(width = 2f * r, cap = StrokeCap.Round, join = StrokeJoin.Round))
-                    }
-                }
-            }
         )
     }
 

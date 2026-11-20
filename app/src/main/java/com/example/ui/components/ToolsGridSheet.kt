@@ -432,25 +432,6 @@ private fun GridGlyph() {
                 addRoundRect(cx0 + k * 3.85f * u, cy0 + r * 4.4f * u, sq, sq, 0.5f * u, cArgb)
             }
         },
-        fallbackDraw = {
-            val u = size.width / 24f
-            val c = AmTextPrimary
-            val w = 20.7f * u - 2.2f * u
-            val h = 19f * u - 2.2f * u
-            val left = (size.width - 20.7f * u) / 2f + 1.1f * u
-            val top = (size.height - 19f * u) / 2f + 1.1f * u
-            drawRoundRect(c, Offset(left, top), androidx.compose.ui.geometry.Size(w, h), androidx.compose.ui.geometry.CornerRadius(4.6f * u), style = Stroke(2.2f * u))
-            val sq = 2.3f * u
-            val cx0 = size.width / 2f - 1.5f * 3.85f * u
-            val cy0 = size.height / 2f - 4.4f * u
-            for (r in 0..2) for (k in 0..3) {
-                drawRoundRect(
-                    c,
-                    Offset(cx0 + k * 3.85f * u - sq / 2f, cy0 + r * 4.4f * u - sq / 2f),
-                    androidx.compose.ui.geometry.Size(sq, sq), androidx.compose.ui.geometry.CornerRadius(0.5f * u)
-                )
-            }
-        }
     )
 }
 
@@ -473,15 +454,6 @@ private fun FrameGlyph(on: Boolean) {
                 addRoundRect(hx * u, hy * u, sq, sq, 0.8f * u, cArgb)
             }
         },
-        fallbackDraw = {
-            val u = size.width / 24f
-            val c = if (on) AmTextPrimary else IconDisabled
-            drawRoundRect(c, Offset(5f * u, 5f * u), androidx.compose.ui.geometry.Size(14f * u, 14f * u), androidx.compose.ui.geometry.CornerRadius(1.6f * u), style = Stroke(1.7f * u))
-            val sq = 3.4f * u
-            for ((hx, hy) in listOf(5f to 5f, 19f to 5f, 5f to 19f, 19f to 19f)) {
-                drawRoundRect(c, Offset(hx * u - sq / 2f, hy * u - sq / 2f), androidx.compose.ui.geometry.Size(sq, sq), androidx.compose.ui.geometry.CornerRadius(0.8f * u))
-            }
-        }
     )
 }
 
@@ -504,16 +476,6 @@ private fun NativeTimelineGlyph(on: Boolean) {
             addRoundRect((3f + 6.5f) * u, (11f + 2.2f) * u, 13f * u, 4.4f * u, 2.2f * u, cArgb)
             addRoundRect((8f + 6.5f) * u, (17.6f + 2.2f) * u, 13f * u, 4.4f * u, 2.2f * u, cArgb)
         },
-        fallbackDraw = {
-            val u = size.width / 24f
-            val c = if (on) AmTextPrimary else IconDisabled
-            drawLine(c, Offset(3f * u, 6f * u), Offset(21f * u, 6f * u), strokeWidth = 1.6f * u)
-            for (tx in listOf(6f, 12f, 18f)) {
-                drawLine(c, Offset(tx * u, 4f * u), Offset(tx * u, 8f * u), strokeWidth = 1.6f * u)
-            }
-            drawRoundRect(c, Offset(3f * u, 11f * u), androidx.compose.ui.geometry.Size(13f * u, 4.4f * u), androidx.compose.ui.geometry.CornerRadius(2.2f * u))
-            drawRoundRect(c, Offset(8f * u, 17.6f * u), androidx.compose.ui.geometry.Size(13f * u, 4.4f * u), androidx.compose.ui.geometry.CornerRadius(2.2f * u))
-        }
     )
 }
 
@@ -537,13 +499,6 @@ private fun OnionGlyph(on: Boolean) {
                 addRoundRect((3.4f + 6f) * u, (8.6f + 6f) * u, 12f * u, 12f * u, 2.6f * u, 0, 1.8f * u, cArgb)
             }
         },
-        fallbackDraw = {
-            val u = size.width / 24f
-            val c = if (on) AmTextPrimary else IconDisabled
-            drawRoundRect(c, Offset(8.6f * u, 3.4f * u), androidx.compose.ui.geometry.Size(12f * u, 12f * u), androidx.compose.ui.geometry.CornerRadius(2.6f * u), style = Stroke(1.8f * u))
-            if (on) drawRoundRect(c, Offset(3.4f * u, 8.6f * u), androidx.compose.ui.geometry.Size(12f * u, 12f * u), androidx.compose.ui.geometry.CornerRadius(2.6f * u))
-            else drawRoundRect(c, Offset(3.4f * u, 8.6f * u), androidx.compose.ui.geometry.Size(12f * u, 12f * u), androidx.compose.ui.geometry.CornerRadius(2.6f * u), style = Stroke(1.8f * u))
-        }
     )
 }
 
@@ -566,16 +521,6 @@ private fun ScopesGlyph(on: Boolean) {
                 addLine(x * u, base, x * u, (24f - top) * u, 2.6f * u, cArgb, capRound = true)
             }
         },
-        fallbackDraw = {
-            val u = size.width / 24f
-            val c = if (on) AmTextPrimary else IconDisabled
-            val base = 19.4f * u
-            drawLine(c, Offset(3.4f * u, base), Offset(20.6f * u, base), 1.8f * u, StrokeCap.Round)
-            val bars = listOf(6.5f to 8f, 10.6f to 13.5f, 14.7f to 10.5f, 18.8f to 15.5f)
-            for ((x, top) in bars) {
-                drawLine(c, Offset(x * u, base), Offset(x * u, (24f - top) * u), 2.6f * u, StrokeCap.Round)
-            }
-        }
     )
 }
 
@@ -596,21 +541,6 @@ private fun MagnetGlyph(on: Boolean) {
             addLine(4.6f * u, 4.5f * u, 8.6f * u, 4.5f * u, sw, cArgb, capRound = true)
             addLine(15.4f * u, 4.5f * u, 19.4f * u, 4.5f * u, sw, cArgb, capRound = true)
         },
-        fallbackDraw = {
-            val u = size.width / 24f
-            val c = if (on) AmTextPrimary else IconDisabled
-            val body = Path().apply {
-                moveTo(6.6f * u, 4.5f * u)
-                lineTo(6.6f * u, 12.5f * u)
-                cubicTo(6.6f * u, 17.2f * u, 9.4f * u, 19.6f * u, 12f * u, 19.6f * u)
-                cubicTo(14.6f * u, 19.6f * u, 17.4f * u, 17.2f * u, 17.4f * u, 12.5f * u)
-                lineTo(17.4f * u, 4.5f * u)
-            }
-            drawPath(body, c, style = Stroke(width = 2.6f * u, cap = StrokeCap.Round, join = StrokeJoin.Round))
-            // Pole caps: the two short bars across the magnet's feet.
-            drawLine(c, Offset(4.6f * u, 4.5f * u), Offset(8.6f * u, 4.5f * u), 2.6f * u, StrokeCap.Round)
-            drawLine(c, Offset(15.4f * u, 4.5f * u), Offset(19.4f * u, 4.5f * u), 2.6f * u, StrokeCap.Round)
-        }
     )
 }
 
@@ -633,20 +563,5 @@ private fun BeatMarkGlyph() {
             addLine(px - arm, py, px + arm, py, 2.1f * u, cArgb, capRound = true)
             addLine(px, py - arm, px, py + arm, 2.1f * u, cArgb, capRound = true)
         },
-        fallbackDraw = {
-            val u = size.width / 24f
-            val cyan = AmTextPrimary // build 217: light glyph on the dark panel
-            val d = Path().apply {
-                moveTo(10f * u, 3.2f * u); lineTo(16.6f * u, 10f * u); lineTo(10f * u, 16.8f * u); lineTo(3.4f * u, 10f * u); close()
-            }
-            drawPath(d, cyan)
-            drawPath(d, cyan, style = Stroke(1.6f * u, join = StrokeJoin.Round))
-            // plus, lower right
-            val px = 17.4f * u
-            val py = 17.4f * u
-            val arm = 3.6f * u
-            drawLine(AmTextPrimary, Offset(px - arm, py), Offset(px + arm, py), 2.1f * u, StrokeCap.Round)
-            drawLine(AmTextPrimary, Offset(px, py - arm), Offset(px, py + arm), 2.1f * u, StrokeCap.Round)
-        }
     )
 }

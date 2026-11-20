@@ -2,7 +2,12 @@ package com.example.engine
 
 /**
  * JNI bridge for C++ UI widget math, gestures, and hit-testing (ui_widgets.cpp).
- * Falls back gracefully when native library isn't loaded (e.g. host JVM unit tests).
+ * Native is the only path: the Kotlin fallbacks his tracket__6 tree shipped were
+ * removed at Sarowar's order (same direction as build 234) — call sites invoke
+ * these functions directly, so a genuinely missing libam_engine.so fails loudly
+ * at the first call instead of silently running a second implementation.
+ * [isAvailable] stays as a read-only probe (a host unit test asserts it is
+ * false on a JVM with no native library loaded).
  */
 object UiMathNative {
     const val NODE_HIT_NONE = 0
