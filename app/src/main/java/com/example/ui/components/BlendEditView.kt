@@ -44,6 +44,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
@@ -52,6 +53,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.engine.UiGlRuntime
 import com.example.model.AnimProp
 import com.example.model.BlendModes
 import com.example.model.BlendSpec
@@ -367,7 +369,12 @@ private fun BlendOpacitySlider(
 ) {
     val latestChange by rememberUpdatedState(onValueChange)
     var dragging by remember { mutableStateOf(false) }
-    Canvas(
+    val thumbColorArgb = BlendGreen.toArgb()
+    val trackColorArgb = BlendTrack.toArgb()
+    val glowColorArgb = BlendGreen.copy(alpha = 0.45f).toArgb()
+    val inkColorArgb = BlendInk.toArgb()
+
+    Box(
         modifier = modifier.pointerInput(Unit) {
             awaitEachGesture {
                 val thumbR = 7.5.dp.toPx()
@@ -390,36 +397,47 @@ private fun BlendOpacitySlider(
             }
         }
     ) {
-        val thumbR = 7.5.dp.toPx()
-        val y = size.height / 2f
-        val x = thumbR + (size.width - 2f * thumbR) * (value / 100f).coerceIn(0f, 1f)
-        drawLine(
-            color = BlendTrack,
-            start = Offset(thumbR, y), end = Offset(size.width - thumbR, y),
-            strokeWidth = 4.dp.toPx(), cap = StrokeCap.Round
+        NativeVectorCanvas(
+            modifier = Modifier.fillMaxSize(),
+            drawKey = value to dragging,
+            buildCmds = { w, h, d ->
+                val thumbR = 7.5f * d
+                val y = h * 0.5f
+                val x = thumbR + (w - 2f * thumbR) * (value / 100f).coerceIn(0f, 1f)
+                addLine(thumbR, y, w - thumbR, y, 4f * d, trackColorArgb, capRound = true)
+                addLine(thumbR, y, x, y, 4f * d, thumbColorArgb, capRound = true)
+                val r = thumbR * if (dragging) 1.15f else 1f
+                addCircle(x, y, r + 0.5f * d, 0, 1f * d, glowColorArgb)
+                addCircle(x, y, r, inkColorArgb)
+                addCircle(x, y, r - 2f * d, thumbColorArgb)
+            },
+            fallbackDraw = {
+                val thumbR = 7.5.dp.toPx()
+                val y = size.height / 2f
+                val x = thumbR + (size.width - 2f * thumbR) * (value / 100f).coerceIn(0f, 1f)
+                drawLine(
+                    color = BlendTrack,
+                    start = Offset(thumbR, y), end = Offset(size.width - thumbR, y),
+                    strokeWidth = 4.dp.toPx(), cap = StrokeCap.Round
+                )
+                drawLine(
+                    color = BlendGreen,
+                    start = Offset(thumbR, y), end = Offset(x, y),
+                    strokeWidth = 4.dp.toPx(), cap = StrokeCap.Round
+                )
+                val r = thumbR * if (dragging) 1.15f else 1f
+                drawCircle(
+                    color = BlendGreen.copy(alpha = 0.45f),
+                    radius = r + 0.5.dp.toPx(),
+                    center = Offset(x, y),
+                    style = Stroke(width = 1.dp.toPx())
+                )
+                drawCircle(color = BlendInk, radius = r, center = Offset(x, y))
+                drawCircle(color = BlendGreen, radius = r - 2.dp.toPx(), center = Offset(x, y))
+            }
         )
-        drawLine(
-            color = BlendGreen,
-            start = Offset(thumbR, y), end = Offset(x, y),
-            strokeWidth = 4.dp.toPx(), cap = StrokeCap.Round
-        )
-        val r = thumbR * if (dragging) 1.15f else 1f
-        // soft outer ring (the reference's 1 px green glow line)
-        drawCircle(
-            color = BlendGreen.copy(alpha = 0.45f),
-            radius = r + 0.5.dp.toPx(),
-            center = Offset(x, y),
-            style = Stroke(width = 1.dp.toPx())
-        )
-        drawCircle(color = BlendInk, radius = r, center = Offset(x, y))
-        drawCircle(color = BlendGreen, radius = r - 2.dp.toPx(), center = Offset(x, y))
     }
 }
-
-// =====================================================================================
-// Slider-row end buttons (Sarowar's addition): keyframe diamond on the left,
-// easing graph on the right — the app's standard keyframe / easing behaviour.
-// =====================================================================================
 
 @Composable
 private fun KeyframeButton221(
@@ -428,6 +446,9 @@ private fun KeyframeButton221(
     onKeyframeNow: Boolean,
     onClick: () -> Unit
 ) {
+    val greenArgb = BlendGreen.toArgb()
+    val trackArgb = BlendTrack.toArgb()
+    val mutedArgb = BlendMuted.toArgb()
     Box(
         modifier = Modifier
             .size(26.dp)
@@ -436,30 +457,55 @@ private fun KeyframeButton221(
             .testTag("blend_keyframe_button"),
         contentAlignment = Alignment.Center
     ) {
-        Canvas(modifier = Modifier.size(26.dp)) {
-            val c = center
-            val r = 6.8.dp.toPx()
-            val corners = listOf(
-                Offset(c.x, c.y - r), Offset(c.x + r, c.y),
-                Offset(c.x, c.y + r), Offset(c.x - r, c.y)
-            )
-            val path = androidx.compose.ui.graphics.Path().apply {
-                moveTo(corners[0].x, corners[0].y)
-                for (i in 1..3) lineTo(corners[i].x, corners[i].y)
-                close()
-            }
-            when {
-                onKeyframeNow -> drawPath(path, BlendGreen)
-                hasKeyframes -> {
-                    drawPath(path, BlendGreen, style = Stroke(width = 1.5.dp.toPx()))
-                    drawPlus(c, BlendGreen)
+        NativeVectorCanvas(
+            modifier = Modifier.size(26.dp),
+            drawKey = onKeyframeNow to hasKeyframes,
+            buildCmds = { w, h, d ->
+                val cx = w * 0.5f
+                val cy = h * 0.5f
+                val r = 6.8f * d
+                val xs = floatArrayOf(cx, cx + r, cx, cx - r)
+                val ys = floatArrayOf(cy - r, cy, cy + r, cy)
+                val arm = 2.8f * d
+                when {
+                    onKeyframeNow -> addFilledPolygon(xs, ys, 4, greenArgb)
+                    hasKeyframes -> {
+                        addPolyline(xs, ys, 4, true, 1.5f * d, greenArgb)
+                        addLine(cx - arm, cy, cx + arm, cy, 1.4f * d, greenArgb)
+                        addLine(cx, cy - arm, cx, cy + arm, 1.4f * d, greenArgb)
+                    }
+                    else -> {
+                        addFilledPolygon(xs, ys, 4, trackArgb)
+                        addLine(cx - arm, cy, cx + arm, cy, 1.4f * d, mutedArgb)
+                        addLine(cx, cy - arm, cx, cy + arm, 1.4f * d, mutedArgb)
+                    }
                 }
-                else -> {
-                    drawPath(path, BlendTrack)
-                    drawPlus(c, BlendMuted)
+            },
+            fallbackDraw = {
+                val c = center
+                val r = 6.8.dp.toPx()
+                val corners = listOf(
+                    Offset(c.x, c.y - r), Offset(c.x + r, c.y),
+                    Offset(c.x, c.y + r), Offset(c.x - r, c.y)
+                )
+                val path = androidx.compose.ui.graphics.Path().apply {
+                    moveTo(corners[0].x, corners[0].y)
+                    for (i in 1..3) lineTo(corners[i].x, corners[i].y)
+                    close()
+                }
+                when {
+                    onKeyframeNow -> drawPath(path, BlendGreen)
+                    hasKeyframes -> {
+                        drawPath(path, BlendGreen, style = Stroke(width = 1.5.dp.toPx()))
+                        drawPlus(c, BlendGreen)
+                    }
+                    else -> {
+                        drawPath(path, BlendTrack)
+                        drawPlus(c, BlendMuted)
+                    }
                 }
             }
-        }
+        )
     }
 }
 
@@ -479,6 +525,12 @@ private fun GraphButton221(
     easing: Easing?,
     onClick: () -> Unit
 ) {
+    val iconColor = when {
+        !enabled -> BlendMuted
+        open -> BlendGreen
+        else -> Color.White
+    }
+    val e = easing ?: Easing(0.4f, 0f, 0.6f, 1f)
     Box(
         modifier = Modifier
             .size(26.dp)
@@ -489,16 +541,19 @@ private fun GraphButton221(
             .testTag("blend_graph_button"),
         contentAlignment = Alignment.Center
     ) {
-        Canvas(modifier = Modifier.size(16.dp)) {
-            drawEasingIcon(
-                easing = easing,
-                color = when {
-                    !enabled -> BlendMuted
-                    open -> BlendGreen
-                    else -> Color.White
-                },
-                strokeWidth = 1.75.dp.toPx()
-            )
-        }
+        NativeGlDirectCanvas(
+            modifier = Modifier.size(16.dp),
+            drawKey = listOf(enabled, open, e.x1, e.y1, e.x2, e.y2),
+            drawOnGl = { sid, d ->
+                UiGlRuntime.drawEasingTileOnGl(sid, e.x1, e.y1, e.x2, e.y2, iconColor.toArgb(), d)
+            },
+            fallbackDraw = {
+                drawEasingIcon(
+                    easing = easing,
+                    color = iconColor,
+                    strokeWidth = 1.75.dp.toPx()
+                )
+            }
+        )
     }
 }

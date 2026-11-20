@@ -65,7 +65,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.viewinterop.AndroidView
+import com.example.engine.UiGlRuntime
+import com.example.engine.UiMathNative
 import com.example.model.AnimProp
 import com.example.model.AspectRatio
 import com.example.model.Easing
@@ -211,6 +214,27 @@ fun CropView(
 
     /** Fractional (of the source) width/height ratio the box must keep, or null for Free. */
     fun lockK(preset: String): Float? {
+        if (UiMathNative.isAvailable) {
+            val kind: Int
+            var num = 0f
+            var den = 0f
+            when (preset) {
+                "Free" -> return null
+                "Original" -> kind = UiMathNative.CROP_PRESET_ORIGINAL
+                "Project" -> kind = UiMathNative.CROP_PRESET_PROJECT
+                else -> {
+                    val parts = preset.split(":")
+                    val x = parts.getOrNull(0)?.toFloatOrNull()
+                    val y = parts.getOrNull(1)?.toFloatOrNull()
+                    if (x == null || y == null || y <= 0f) return null
+                    kind = UiMathNative.CROP_PRESET_CUSTOM
+                    num = x
+                    den = y
+                }
+            }
+            val k = UiMathNative.nativeCropLockK(kind, num, den, srcAspect, aspectRatio.ratioFloat)
+            return if (k > 1e-5f) k else null
+        }
         val pixelRatio = when (preset) {
             "Free" -> return null
             "Original" -> srcAspect
@@ -229,7 +253,6 @@ fun CropView(
         activePreset = preset
         val k = lockK(preset)
         if (k != null) {
-            // Largest centered box with that ratio.
             val w: Float
             val h: Float
             if (k >= 1f) { w = 1f; h = 1f / k } else { h = 1f; w = k }
@@ -241,6 +264,19 @@ fun CropView(
     /** Resize around the current center (used by the Width / Height sliders). */
     fun resizeAroundCenter(newW: Float?, newH: Float?) {
         val k = lockK(activePreset)
+        if (UiMathNative.isAvailable) {
+            val out = FloatArray(4)
+            UiMathNative.nativeCropResizeCenter(
+                rr() - rl(), rb() - rt(), rl(), rt(), rr(), rb(),
+                newW ?: -1f, newH ?: -1f, k ?: 0f, minSize, out
+            )
+            widthPercent = out[0]
+            heightPercent = out[1]
+            horizontalPercent = out[2]
+            verticalPercent = out[3]
+            emitCrop()
+            return
+        }
         var w = newW ?: (rr() - rl())
         var h = newH ?: (rb() - rt())
         if (k != null) {
@@ -260,6 +296,17 @@ fun CropView(
 
     // dx/dy are fractions of the source size. mode: 0=move, else bit flags 1=left 2=right 4=top 8=bottom
     fun dragCrop(mode: Int, dx: Float, dy: Float) {
+        val k = lockK(activePreset)
+        if (UiMathNative.isAvailable) {
+            val out = FloatArray(4)
+            UiMathNative.nativeCropDrag(mode, dx, dy, rl(), rt(), rr(), rb(), k ?: 0f, minSize, out)
+            widthPercent = out[0]
+            heightPercent = out[1]
+            horizontalPercent = out[2]
+            verticalPercent = out[3]
+            emitCrop()
+            return
+        }
         var l = rl(); var t = rt(); var r = rr(); var b = rb()
         if (mode == 0) {
             val w = r - l; val h = b - t
@@ -273,7 +320,6 @@ fun CropView(
         val mR = mode and 2 != 0
         val mT = mode and 4 != 0
         val mB = mode and 8 != 0
-        val k = lockK(activePreset)
         if (k == null) {
             if (mL) l = (l + dx).coerceIn(0f, r - minSize)
             if (mR) r = (r + dx).coerceIn(l + minSize, 1f)
@@ -493,31 +539,52 @@ fun CropView(
                             .size(140.dp)
                             .align(Alignment.Center)
                     ) {
-                        Canvas(modifier = Modifier.fillMaxSize()) {
-                            when (pattern) {
-                                "CIRCLE" -> drawCircle(brush = fillBrush)
-                                "SQUARE" -> drawRect(brush = fillBrush)
-                                "ROUNDED_SQUARE", "ROUNDED_RECT" -> drawRoundRect(brush = fillBrush, cornerRadius = androidx.compose.ui.geometry.CornerRadius(16.dp.toPx(), 16.dp.toPx()))
-                                else -> drawCircle(brush = fillBrush)
+                        NativeVectorCanvas(
+                            modifier = Modifier.fillMaxSize(),
+                            drawKey = pattern to shapeColor.toArgb(),
+                            buildCmds = { w, h, d ->
+                                val colArgb = shapeColor.toArgb()
+                                when (pattern) {
+                                    "SQUARE" -> addRect(0f, 0f, w, h, colArgb)
+                                    "ROUNDED_SQUARE", "ROUNDED_RECT" ->
+                                        addRoundRect(w * 0.5f, h * 0.5f, w, h, 16f * d, colArgb)
+                                    else -> addCircle(w * 0.5f, h * 0.5f, minOf(w, h) * 0.5f, colArgb)
+                                }
+                            },
+                            fallbackDraw = {
+                                when (pattern) {
+                                    "CIRCLE" -> drawCircle(brush = fillBrush)
+                                    "SQUARE" -> drawRect(brush = fillBrush)
+                                    "ROUNDED_SQUARE", "ROUNDED_RECT" -> drawRoundRect(brush = fillBrush, cornerRadius = androidx.compose.ui.geometry.CornerRadius(16.dp.toPx(), 16.dp.toPx()))
+                                    else -> drawCircle(brush = fillBrush)
+                                }
                             }
-                        }
+                        )
                     }
                 } else {
-                    Canvas(modifier = Modifier.fillMaxSize()) {
-                        drawRect(color = AmBase)
-                        val w = size.width
-                        val h = size.height
-                        drawLine(color = Color.White.copy(alpha = 0.08f), start = Offset(w / 2f, 0f), end = Offset(w / 2f, h), strokeWidth = 1.dp.toPx())
-                        drawLine(color = Color.White.copy(alpha = 0.08f), start = Offset(0f, h / 2f), end = Offset(w, h / 2f), strokeWidth = 1.dp.toPx())
-                    }
+                    val baseArgb = AmBase.toArgb()
+                    val crossArgb = Color.White.copy(alpha = 0.08f).toArgb()
+                    NativeVectorCanvas(
+                        modifier = Modifier.fillMaxSize(),
+                        drawKey = baseArgb,
+                        buildCmds = { w, h, d ->
+                            addRect(0f, 0f, w, h, baseArgb)
+                            addLine(w * 0.5f, 0f, w * 0.5f, h, 1f * d, crossArgb, capRound = false)
+                            addLine(0f, h * 0.5f, w, h * 0.5f, 1f * d, crossArgb, capRound = false)
+                        },
+                        fallbackDraw = {
+                            drawRect(color = AmBase)
+                            val w = size.width
+                            val h = size.height
+                            drawLine(color = Color.White.copy(alpha = 0.08f), start = Offset(w / 2f, 0f), end = Offset(w / 2f, h), strokeWidth = 1.dp.toPx())
+                            drawLine(color = Color.White.copy(alpha = 0.08f), start = Offset(0f, h / 2f), end = Offset(w, h / 2f), strokeWidth = 1.dp.toPx())
+                        }
+                    )
                 }
 
                 }
 
                 // Gesture + drawing layer (bigger than the media so edge handles stay touchable).
-                // requiredSize (not size): when the media fills the frame in one direction, plain size()
-                // would be clamped to the frame, the padding would eat into the media area and the
-                // crop box could never reach the outer ~24dp of the media.
                 Box(
                     modifier = Modifier
                         .requiredSize(width = contentW + padDp * 2, height = contentH + padDp * 2)
@@ -534,22 +601,26 @@ fun CropView(
                                     val r = pad + rr() * cw
                                     val t = pad + rt() * ch
                                     val b = pad + rb() * ch
-                                    fun near(v: Float, target: Float) = kotlin.math.abs(v - target) <= slop
-                                    val nL = near(pos.x, l); val nR = near(pos.x, r)
-                                    val nT = near(pos.y, t); val nB = near(pos.y, b)
-                                    val inX = pos.x in (l - slop)..(r + slop)
-                                    val inY = pos.y in (t - slop)..(b + slop)
-                                    mode = when {
-                                        nL && nT -> 1 or 4
-                                        nR && nT -> 2 or 4
-                                        nL && nB -> 1 or 8
-                                        nR && nB -> 2 or 8
-                                        nL && inY -> 1
-                                        nR && inY -> 2
-                                        nT && inX -> 4
-                                        nB && inX -> 8
-                                        pos.x in l..r && pos.y in t..b -> 0
-                                        else -> -1
+                                    mode = if (UiMathNative.isAvailable) {
+                                        UiMathNative.nativeCropHitTest(pos.x, pos.y, l, t, r, b, slop)
+                                    } else {
+                                        fun near(v: Float, target: Float) = kotlin.math.abs(v - target) <= slop
+                                        val nL = near(pos.x, l); val nR = near(pos.x, r)
+                                        val nT = near(pos.y, t); val nB = near(pos.y, b)
+                                        val inX = pos.x in (l - slop)..(r + slop)
+                                        val inY = pos.y in (t - slop)..(b + slop)
+                                        when {
+                                            nL && nT -> 1 or 4
+                                            nR && nT -> 2 or 4
+                                            nL && nB -> 1 or 8
+                                            nR && nB -> 2 or 8
+                                            nL && inY -> 1
+                                            nR && inY -> 2
+                                            nT && inX -> 4
+                                            nB && inX -> 8
+                                            pos.x in l..r && pos.y in t..b -> 0
+                                            else -> -1
+                                        }
                                     }
                                 },
                                 onDragEnd = { mode = -1 },
@@ -565,54 +636,53 @@ fun CropView(
                             )
                         }
                 ) {
-                    Canvas(modifier = Modifier.fillMaxSize()) {
-                        val pad = padDp.toPx()
-                        val cw = size.width - 2 * pad
-                        val ch = size.height - 2 * pad
-                        val l = pad + rl() * cw
-                        val r = pad + rr() * cw
-                        val t = pad + rt() * ch
-                        val b = pad + rb() * ch
-
-                        // Dim everything on the media outside the crop box.
-                        clipRect(pad, pad, pad + cw, pad + ch) {
-                            clipRect(l, t, r, b, clipOp = androidx.compose.ui.graphics.ClipOp.Difference) {
-                                drawRect(color = Color.Black.copy(alpha = 0.55f))
+                    NativeGlDirectCanvas(
+                        modifier = Modifier.fillMaxSize(),
+                        drawKey = listOf(widthPercent, heightPercent, horizontalPercent, verticalPercent),
+                        drawOnGl = { sid, d ->
+                            UiGlRuntime.drawCropOverlayOnGl(sid, rl(), rt(), rr(), rb(), d)
+                        },
+                        fallbackDraw = {
+                            val pad = padDp.toPx()
+                            val cw = size.width - 2 * pad
+                            val ch = size.height - 2 * pad
+                            val l = pad + rl() * cw
+                            val r = pad + rr() * cw
+                            val t = pad + rt() * ch
+                            val b = pad + rb() * ch
+                            clipRect(pad, pad, pad + cw, pad + ch) {
+                                clipRect(l, t, r, b, clipOp = androidx.compose.ui.graphics.ClipOp.Difference) {
+                                    drawRect(color = Color.Black.copy(alpha = 0.55f))
+                                }
+                            }
+                            val guide = Color.White.copy(alpha = 0.28f)
+                            for (i in 1..2) {
+                                val x = l + (r - l) * i / 3f
+                                val y = t + (b - t) * i / 3f
+                                drawLine(guide, Offset(x, t), Offset(x, b), strokeWidth = 1.dp.toPx())
+                                drawLine(guide, Offset(l, y), Offset(r, y), strokeWidth = 1.dp.toPx())
+                            }
+                            drawRect(
+                                color = Color.White.copy(alpha = 0.95f),
+                                topLeft = Offset(l, t),
+                                size = androidx.compose.ui.geometry.Size(r - l, b - t),
+                                style = Stroke(
+                                    width = 1.5.dp.toPx(),
+                                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(14f, 9f), 0f)
+                                )
+                            )
+                            val mx = (l + r) / 2f
+                            val my = (t + b) / 2f
+                            val pts = listOf(
+                                Offset(l, t) to 5.5.dp, Offset(r, t) to 5.5.dp, Offset(l, b) to 5.5.dp, Offset(r, b) to 5.5.dp,
+                                Offset(mx, t) to 4.dp, Offset(mx, b) to 4.dp, Offset(l, my) to 4.dp, Offset(r, my) to 4.dp
+                            )
+                            for ((o, rad) in pts) {
+                                drawCircle(AmAccent, radius = rad.toPx(), center = o)
+                                drawCircle(Color.White, radius = rad.toPx(), center = o, style = Stroke(width = 1.5.dp.toPx()))
                             }
                         }
-
-                        // Rule-of-thirds guides
-                        val guide = Color.White.copy(alpha = 0.28f)
-                        for (i in 1..2) {
-                            val x = l + (r - l) * i / 3f
-                            val y = t + (b - t) * i / 3f
-                            drawLine(guide, Offset(x, t), Offset(x, b), strokeWidth = 1.dp.toPx())
-                            drawLine(guide, Offset(l, y), Offset(r, y), strokeWidth = 1.dp.toPx())
-                        }
-
-                        // Dashed border
-                        drawRect(
-                            color = Color.White.copy(alpha = 0.95f),
-                            topLeft = Offset(l, t),
-                            size = androidx.compose.ui.geometry.Size(r - l, b - t),
-                            style = Stroke(
-                                width = 1.5.dp.toPx(),
-                                pathEffect = PathEffect.dashPathEffect(floatArrayOf(14f, 9f), 0f)
-                            )
-                        )
-
-                        // Handles: 4 corners + 4 edge midpoints
-                        val mx = (l + r) / 2f
-                        val my = (t + b) / 2f
-                        val pts = listOf(
-                            Offset(l, t) to 5.5.dp, Offset(r, t) to 5.5.dp, Offset(l, b) to 5.5.dp, Offset(r, b) to 5.5.dp,
-                            Offset(mx, t) to 4.dp, Offset(mx, b) to 4.dp, Offset(l, my) to 4.dp, Offset(r, my) to 4.dp
-                        )
-                        for ((o, rad) in pts) {
-                            drawCircle(AmAccent, radius = rad.toPx(), center = o)
-                            drawCircle(Color.White, radius = rad.toPx(), center = o, style = Stroke(width = 1.5.dp.toPx()))
-                        }
-                    }
+                    )
                 }
             }
         }
@@ -759,23 +829,39 @@ fun CropView(
             )
             Spacer(modifier = Modifier.width(6.dp))
 
-            Canvas(
+            val majorTickArgb = RulerTickColor.toArgb()
+            val subTickArgb = RulerSubTickColor.toArgb()
+            NativeVectorCanvas(
                 modifier = Modifier
                     .weight(0.48f)
-                    .height(11.dp)
-            ) {
-                val tickSpacing = 7.dp.toPx()
-                val count = (size.width / tickSpacing).toInt()
-                for (i in 0..count) {
-                    val isMajor = (i % 5 == 0)
-                    drawLine(
-                        color = if (isMajor) RulerTickColor else RulerSubTickColor,
-                        start = Offset(i * tickSpacing, 0f),
-                        end = Offset(i * tickSpacing, if (isMajor) size.height else size.height * 0.5f),
-                        strokeWidth = 1.dp.toPx()
-                    )
+                    .height(11.dp),
+                drawKey = majorTickArgb,
+                buildCmds = { w, h, d ->
+                    val tickSpacing = 7f * d
+                    val count = (w / tickSpacing).toInt()
+                    for (i in 0..count) {
+                        val isMajor = (i % 5 == 0)
+                        val tx = i * tickSpacing
+                        addLine(
+                            tx, 0f, tx, if (isMajor) h else h * 0.5f,
+                            1f * d, if (isMajor) majorTickArgb else subTickArgb, capRound = false
+                        )
+                    }
+                },
+                fallbackDraw = {
+                    val tickSpacing = 7.dp.toPx()
+                    val count = (size.width / tickSpacing).toInt()
+                    for (i in 0..count) {
+                        val isMajor = (i % 5 == 0)
+                        drawLine(
+                            color = if (isMajor) RulerTickColor else RulerSubTickColor,
+                            start = Offset(i * tickSpacing, 0f),
+                            end = Offset(i * tickSpacing, if (isMajor) size.height else size.height * 0.5f),
+                            strokeWidth = 1.dp.toPx()
+                        )
+                    }
                 }
-            }
+            )
         }
 
         // 5. Mini Layer Strip: Reset Button on Left, Timeline Strip on Right

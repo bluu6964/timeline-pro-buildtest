@@ -23,6 +23,7 @@ add_library(am_engine SHARED
     remove_plate.cpp remove_jni.cpp stabilize_jni.cpp face_swap_jni.cpp
     timeline_render.cpp timeline_gesture.cpp timeline_jni.cpp
     ui_gl_renderer.cpp ui_gl_jni.cpp
+    ui_widgets.cpp ui_widgets_jni.cpp
     crash_handler.cpp)
 target_compile_features(am_engine PRIVATE cxx_std_17)
 target_compile_options(am_engine PRIVATE -O2 -Wall -Wextra)

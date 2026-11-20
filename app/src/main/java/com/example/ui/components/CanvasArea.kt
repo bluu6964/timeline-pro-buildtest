@@ -19,7 +19,6 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -385,12 +384,22 @@ fun CanvasArea(
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Canvas(modifier = Modifier.size(24.dp)) {
-                                val dotColor = Color.White.copy(alpha = 0.25f)
-                                drawCircle(color = dotColor, radius = 2.dp.toPx())
-                                drawLine(color = dotColor, start = Offset(size.width / 2f, 0f), end = Offset(size.width / 2f, size.height), strokeWidth = 1.dp.toPx())
-                                drawLine(color = dotColor, start = Offset(0f, size.height / 2f), end = Offset(size.width, size.height / 2f), strokeWidth = 1.dp.toPx())
-                            }
+                            NativeVectorCanvas(
+                                modifier = Modifier.size(24.dp),
+                                drawKey = 0,
+                                buildCmds = { w, h, d ->
+                                    val dotColor = 0x40FFFFFF
+                                    addCircle(w * 0.5f, h * 0.5f, 2f * d, dotColor)
+                                    addLine(w * 0.5f, 0f, w * 0.5f, h, 1f * d, dotColor)
+                                    addLine(0f, h * 0.5f, w, h * 0.5f, 1f * d, dotColor)
+                                },
+                                fallbackDraw = {
+                                    val dotColor = Color.White.copy(alpha = 0.25f)
+                                    drawCircle(color = dotColor, radius = 2.dp.toPx())
+                                    drawLine(color = dotColor, start = Offset(size.width / 2f, 0f), end = Offset(size.width / 2f, size.height), strokeWidth = 1.dp.toPx())
+                                    drawLine(color = dotColor, start = Offset(0f, size.height / 2f), end = Offset(size.width, size.height / 2f), strokeWidth = 1.dp.toPx())
+                                }
+                            )
                             if (projectEmpty) {
                                 Spacer(Modifier.height(14.dp))
                                 Text(
@@ -498,26 +507,43 @@ fun CanvasArea(
                         // Sarowar's display correction, CanvasMarkRule); selected, the white bounding box
                         // below (SelectionFrameOverlay) is all that appears, like for any other layer.
                         if (com.example.model.CanvasMarkRule.markFor(clip.type, clip.id == selectedClipId) == com.example.model.CanvasMark.MARKER) {
-                            Canvas(modifier = Modifier.matchParentSize()) {
-                                val c = when (clip.type) {
-                                    LayerType.GROUP -> Color(0xFF5BB85D)
-                                    LayerType.CONTROLLER -> Color(0xFF00B8A9)
-                                    else -> Color(0xFFE8A33D)
-                                }
-                                val sw = 1.5.dp.toPx()
-                                drawRect(
-                                    color = c, style = androidx.compose.ui.graphics.drawscope.Stroke(
-                                        width = sw,
-                                        pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(14f, 10f))
-                                    )
-                                )
-                                val cx = size.width / 2f
-                                val cy = size.height / 2f
-                                val arm = 14.dp.toPx()
-                                drawLine(c, Offset(cx - arm, cy), Offset(cx + arm, cy), strokeWidth = sw * 1.4f)
-                                drawLine(c, Offset(cx, cy - arm), Offset(cx, cy + arm), strokeWidth = sw * 1.4f)
-                                drawCircle(c, radius = 3.dp.toPx(), center = Offset(cx, cy))
+                            val markArgb = when (clip.type) {
+                                LayerType.GROUP -> 0xFF5BB85D.toInt()
+                                LayerType.CONTROLLER -> 0xFF00B8A9.toInt()
+                                else -> 0xFFE8A33D.toInt()
                             }
+                            NativeVectorCanvas(
+                                modifier = Modifier.matchParentSize(),
+                                drawKey = clip.type,
+                                buildCmds = { w, h, d ->
+                                    val sw = 1.5f * d
+                                    val xs = floatArrayOf(0f, w, w, 0f)
+                                    val ys = floatArrayOf(0f, 0f, h, h)
+                                    addPolyline(xs, ys, 4, closed = true, width = sw, argb = markArgb, dashOn = 14f, dashOff = 10f)
+                                    val cx = w * 0.5f
+                                    val cy = h * 0.5f
+                                    val arm = 14f * d
+                                    addLine(cx - arm, cy, cx + arm, cy, sw * 1.4f, markArgb)
+                                    addLine(cx, cy - arm, cx, cy + arm, sw * 1.4f, markArgb)
+                                    addCircle(cx, cy, 3f * d, markArgb)
+                                },
+                                fallbackDraw = {
+                                    val c = Color(markArgb)
+                                    val sw = 1.5.dp.toPx()
+                                    drawRect(
+                                        color = c, style = androidx.compose.ui.graphics.drawscope.Stroke(
+                                            width = sw,
+                                            pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(14f, 10f))
+                                        )
+                                    )
+                                    val cx = size.width / 2f
+                                    val cy = size.height / 2f
+                                    val arm = 14.dp.toPx()
+                                    drawLine(c, Offset(cx - arm, cy), Offset(cx + arm, cy), strokeWidth = sw * 1.4f)
+                                    drawLine(c, Offset(cx, cy - arm), Offset(cx, cy + arm), strokeWidth = sw * 1.4f)
+                                    drawCircle(c, radius = 3.dp.toPx(), center = Offset(cx, cy))
+                                }
+                            )
                         }
 
                         if (clip.id == gradientEditId && clip.fillMode == com.example.model.FILL_GRADIENT) {
@@ -583,20 +609,36 @@ fun CanvasArea(
 
                 // 3D camera selected: viewfinder corners on the canvas (the camera itself has no picture, see CameraRig).
                 if (tracks.any { it.clips.any { c -> c.id == selectedClipId && c.type == LayerType.CAMERA } }) {
-                    Canvas(modifier = Modifier.fillMaxSize()) {
-                        val col = Color(0xFF8E6BF2)
-                        val sw = 2.5.dp.toPx()
-                        val m = 10.dp.toPx()
-                        val a = 26.dp.toPx()
-                        val w = size.width
-                        val h = size.height
-                        fun corner(x: Float, y: Float, dx: Float, dy: Float) {
-                            drawLine(col, Offset(x, y), Offset(x + dx * a, y), strokeWidth = sw)
-                            drawLine(col, Offset(x, y), Offset(x, y + dy * a), strokeWidth = sw)
+                    NativeVectorCanvas(
+                        modifier = Modifier.fillMaxSize(),
+                        drawKey = 0,
+                        buildCmds = { w, h, d ->
+                            val col = 0xFF8E6BF2.toInt()
+                            val sw = 2.5f * d
+                            val m = 10f * d
+                            val a = 26f * d
+                            fun corner(x: Float, y: Float, dx: Float, dy: Float) {
+                                addLine(x, y, x + dx * a, y, sw, col)
+                                addLine(x, y, x, y + dy * a, sw, col)
+                            }
+                            corner(m, m, 1f, 1f); corner(w - m, m, -1f, 1f); corner(m, h - m, 1f, -1f); corner(w - m, h - m, -1f, -1f)
+                            addCircle(w * 0.5f, h * 0.5f, 3f * d, col)
+                        },
+                        fallbackDraw = {
+                            val col = Color(0xFF8E6BF2)
+                            val sw = 2.5.dp.toPx()
+                            val m = 10.dp.toPx()
+                            val a = 26.dp.toPx()
+                            val w = size.width
+                            val h = size.height
+                            fun corner(x: Float, y: Float, dx: Float, dy: Float) {
+                                drawLine(col, Offset(x, y), Offset(x + dx * a, y), strokeWidth = sw)
+                                drawLine(col, Offset(x, y), Offset(x, y + dy * a), strokeWidth = sw)
+                            }
+                            corner(m, m, 1f, 1f); corner(w - m, m, -1f, 1f); corner(m, h - m, 1f, -1f); corner(w - m, h - m, -1f, -1f)
+                            drawCircle(col, radius = 3.dp.toPx(), center = Offset(w / 2f, h / 2f))
                         }
-                        corner(m, m, 1f, 1f); corner(w - m, m, -1f, 1f); corner(m, h - m, 1f, -1f); corner(w - m, h - m, -1f, -1f)
-                        drawCircle(col, radius = 3.dp.toPx(), center = Offset(w / 2f, h / 2f))
-                    }
+                    )
                 }
 
                 // Main Track Framing Box & Center Crosshair Target
@@ -608,21 +650,33 @@ fun CanvasArea(
                             .fillMaxSize(),
                         contentAlignment = Alignment.Center
                     ) {
-                        Canvas(modifier = Modifier.size(26.dp)) {
-                            val greenNeon = Color(0xFF00E676)
-                            val strokeW = 2.dp.toPx()
-                            val cX = size.width / 2f
-                            val cY = size.height / 2f
-
-                            // Center dot
-                            drawCircle(color = greenNeon, radius = 2.dp.toPx())
-
-                            // 4 Crosshair lines
-                            drawLine(color = greenNeon, start = Offset(cX, 0f), end = Offset(cX, 7.dp.toPx()), strokeWidth = strokeW)
-                            drawLine(color = greenNeon, start = Offset(cX, size.height - 7.dp.toPx()), end = Offset(cX, size.height), strokeWidth = strokeW)
-                            drawLine(color = greenNeon, start = Offset(0f, cY), end = Offset(7.dp.toPx(), cY), strokeWidth = strokeW)
-                            drawLine(color = greenNeon, start = Offset(size.width - 7.dp.toPx(), cY), end = Offset(size.width, cY), strokeWidth = strokeW)
-                        }
+                        NativeVectorCanvas(
+                            modifier = Modifier.size(26.dp),
+                            drawKey = 0,
+                            buildCmds = { w, h, d ->
+                                val greenNeon = 0xFF00E676.toInt()
+                                val sw = 2f * d
+                                val cX = w * 0.5f
+                                val cY = h * 0.5f
+                                val arm = 7f * d
+                                addCircle(cX, cY, 2f * d, greenNeon)
+                                addLine(cX, 0f, cX, arm, sw, greenNeon)
+                                addLine(cX, h - arm, cX, h, sw, greenNeon)
+                                addLine(0f, cY, arm, cY, sw, greenNeon)
+                                addLine(w - arm, cY, w, cY, sw, greenNeon)
+                            },
+                            fallbackDraw = {
+                                val greenNeon = Color(0xFF00E676)
+                                val strokeW = 2.dp.toPx()
+                                val cX = size.width / 2f
+                                val cY = size.height / 2f
+                                drawCircle(color = greenNeon, radius = 2.dp.toPx())
+                                drawLine(color = greenNeon, start = Offset(cX, 0f), end = Offset(cX, 7.dp.toPx()), strokeWidth = strokeW)
+                                drawLine(color = greenNeon, start = Offset(cX, size.height - 7.dp.toPx()), end = Offset(cX, size.height), strokeWidth = strokeW)
+                                drawLine(color = greenNeon, start = Offset(0f, cY), end = Offset(7.dp.toPx(), cY), strokeWidth = strokeW)
+                                drawLine(color = greenNeon, start = Offset(size.width - 7.dp.toPx(), cY), end = Offset(size.width, cY), strokeWidth = strokeW)
+                            }
+                        )
                     }
                 }
 
@@ -631,14 +685,26 @@ fun CanvasArea(
                 // Transform panel's PositionPad snap draws its guides through the same lines
                 // (externalSnapGuideX/Y, owned by the screen).
                 if (snapGuideX != null || snapGuideY != null || externalSnapGuideX != null || externalSnapGuideY != null) {
-                    Canvas(modifier = Modifier.fillMaxSize()) {
-                        val col = Color.White.copy(alpha = 0.85f)
-                        val sw = 1.dp.toPx()
-                        snapGuideX?.let { x -> drawLine(col, Offset(x, 0f), Offset(x, size.height), strokeWidth = sw) }
-                        snapGuideY?.let { y -> drawLine(col, Offset(0f, y), Offset(size.width, y), strokeWidth = sw) }
-                        externalSnapGuideX?.let { x -> drawLine(col, Offset(x, 0f), Offset(x, size.height), strokeWidth = sw) }
-                        externalSnapGuideY?.let { y -> drawLine(col, Offset(0f, y), Offset(size.width, y), strokeWidth = sw) }
-                    }
+                    NativeVectorCanvas(
+                        modifier = Modifier.fillMaxSize(),
+                        drawKey = listOf(snapGuideX, snapGuideY, externalSnapGuideX, externalSnapGuideY),
+                        buildCmds = { w, h, d ->
+                            val col = 0xD9FFFFFF.toInt()
+                            val sw = 1f * d
+                            snapGuideX?.let { x -> addLine(x, 0f, x, h, sw, col) }
+                            snapGuideY?.let { y -> addLine(0f, y, w, y, sw, col) }
+                            externalSnapGuideX?.let { x -> addLine(x, 0f, x, h, sw, col) }
+                            externalSnapGuideY?.let { y -> addLine(0f, y, w, y, sw, col) }
+                        },
+                        fallbackDraw = {
+                            val col = Color.White.copy(alpha = 0.85f)
+                            val sw = 1.dp.toPx()
+                            snapGuideX?.let { x -> drawLine(col, Offset(x, 0f), Offset(x, size.height), strokeWidth = sw) }
+                            snapGuideY?.let { y -> drawLine(col, Offset(0f, y), Offset(size.width, y), strokeWidth = sw) }
+                            externalSnapGuideX?.let { x -> drawLine(col, Offset(x, 0f), Offset(x, size.height), strokeWidth = sw) }
+                            externalSnapGuideY?.let { y -> drawLine(col, Offset(0f, y), Offset(size.width, y), strokeWidth = sw) }
+                        }
+                    )
                 }
 
             }
@@ -646,16 +712,30 @@ fun CanvasArea(
             // Build 216: the thirds grid (workspace toggle) — white 24%
             // 1 px lines over the stage, under every selection overlay.
             if (showGrid) {
-                androidx.compose.foundation.Canvas(Modifier.size(width = frameW, height = frameH)) {
-                    val col = Color.White.copy(alpha = 0.24f)
-                    val lw = 1.dp.toPx()
-                    val tx = size.width / 3f
-                    val ty = size.height / 3f
-                    drawLine(col, Offset(tx, 0f), Offset(tx, size.height), lw)
-                    drawLine(col, Offset(tx * 2, 0f), Offset(tx * 2, size.height), lw)
-                    drawLine(col, Offset(0f, ty), Offset(size.width, ty), lw)
-                    drawLine(col, Offset(0f, ty * 2), Offset(size.width, ty * 2), lw)
-                }
+                NativeVectorCanvas(
+                    modifier = Modifier.size(width = frameW, height = frameH),
+                    drawKey = 0,
+                    buildCmds = { w, h, d ->
+                        val col = 0x3DFFFFFF
+                        val lw = 1f * d
+                        val tx = w / 3f
+                        val ty = h / 3f
+                        addLine(tx, 0f, tx, h, lw, col)
+                        addLine(tx * 2f, 0f, tx * 2f, h, lw, col)
+                        addLine(0f, ty, w, ty, lw, col)
+                        addLine(0f, ty * 2f, w, ty * 2f, lw, col)
+                    },
+                    fallbackDraw = {
+                        val col = Color.White.copy(alpha = 0.24f)
+                        val lw = 1.dp.toPx()
+                        val tx = size.width / 3f
+                        val ty = size.height / 3f
+                        drawLine(col, Offset(tx, 0f), Offset(tx, size.height), lw)
+                        drawLine(col, Offset(tx * 2, 0f), Offset(tx * 2, size.height), lw)
+                        drawLine(col, Offset(0f, ty), Offset(size.width, ty), lw)
+                        drawLine(col, Offset(0f, ty * 2), Offset(size.width, ty * 2), lw)
+                    }
+                )
             }
 
             // Bounding box + corner / rotate handles of the selected picture / video layer.

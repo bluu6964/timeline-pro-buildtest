@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -270,124 +271,241 @@ private fun CtrlButton(
 /** Soft rounded play triangle, or two bars while playing (19 dp, controls colour). */
 @Composable
 private fun PlayGlyph(isPlaying: Boolean) {
-    Canvas(Modifier.size(19.dp)) {
-        val u = size.width / 24f
-        val c = RefCtrl
-        if (isPlaying) {
-            val bw = 4.4f * u
-            val bh = 17f * u
-            val top = (size.height - bh) / 2f
-            drawRoundRect(c, Offset(size.width / 2f - 6.4f * u, top), Size(bw, bh), CornerRadius(1.8f * u))
-            drawRoundRect(c, Offset(size.width / 2f + 2.0f * u, top), Size(bw, bh), CornerRadius(1.8f * u))
-        } else {
-            val r = 1.6f * u
-            val w = 14.6f * u - 2 * r
-            val h = 17.2f * u - 2 * r
-            val x0 = size.width / 2f - 14.6f * u / 2f + r + 0.6f * u
-            val y0 = (size.height - h) / 2f
-            val p = Path().apply {
-                moveTo(x0, y0); lineTo(x0 + w, y0 + h / 2f); lineTo(x0, y0 + h); close()
+    NativeVectorCanvas(
+        modifier = Modifier.size(19.dp),
+        drawKey = isPlaying,
+        buildCmds = { w, h, _ ->
+            val u = w / 24f
+            val cArgb = RefCtrl.toArgb()
+            if (isPlaying) {
+                val bw = 4.4f * u
+                val bh = 17f * u
+                val cy = h / 2f
+                addRoundRect(w / 2f - 6.4f * u + bw / 2f, cy, bw, bh, 1.8f * u, cArgb)
+                addRoundRect(w / 2f + 2.0f * u + bw / 2f, cy, bw, bh, 1.8f * u, cArgb)
+            } else {
+                val r = 1.6f * u
+                val tw = 14.6f * u - 2 * r
+                val th = 17.2f * u - 2 * r
+                val x0 = w / 2f - 14.6f * u / 2f + r + 0.6f * u
+                val y0 = (h - th) / 2f
+                val xs = floatArrayOf(x0, x0 + tw, x0)
+                val ys = floatArrayOf(y0, y0 + th / 2f, y0 + th)
+                addFilledPolygon(xs, ys, 3, cArgb)
+                addPolyline(xs, ys, 3, true, 2 * r, cArgb, capRound = true)
             }
-            drawPath(p, c)
-            drawPath(p, c, style = Stroke(width = 2 * r, join = StrokeJoin.Round))
+        },
+        fallbackDraw = {
+            val u = size.width / 24f
+            val c = RefCtrl
+            if (isPlaying) {
+                val bw = 4.4f * u
+                val bh = 17f * u
+                val top = (size.height - bh) / 2f
+                drawRoundRect(c, Offset(size.width / 2f - 6.4f * u, top), Size(bw, bh), CornerRadius(1.8f * u))
+                drawRoundRect(c, Offset(size.width / 2f + 2.0f * u, top), Size(bw, bh), CornerRadius(1.8f * u))
+            } else {
+                val r = 1.6f * u
+                val w = 14.6f * u - 2 * r
+                val h = 17.2f * u - 2 * r
+                val x0 = size.width / 2f - 14.6f * u / 2f + r + 0.6f * u
+                val y0 = (size.height - h) / 2f
+                val p = Path().apply {
+                    moveTo(x0, y0); lineTo(x0 + w, y0 + h / 2f); lineTo(x0, y0 + h); close()
+                }
+                drawPath(p, c)
+                drawPath(p, c, style = Stroke(width = 2 * r, join = StrokeJoin.Round))
+            }
         }
-    }
+    )
 }
 
 /** Skip triangle + bar (previous / next) — chrome hosts only. */
 @Composable
 private fun SkipGlyph(mirrored: Boolean) {
-    Canvas(Modifier.size(17.dp)) {
-        val u = size.width / 24f
-        val c = RefCtrl
-        fun x(v: Float) = (if (mirrored) 24f - v else v) * u
-        drawLine(c, Offset(x(5f), 5.5f * u), Offset(x(5f), 18.5f * u), 2.4f * u, StrokeCap.Round)
-        val p = Path().apply {
-            moveTo(x(9f), 6f * u); lineTo(x(19f), 12f * u); lineTo(x(9f), 18f * u); close()
+    NativeVectorCanvas(
+        modifier = Modifier.size(17.dp),
+        drawKey = mirrored,
+        buildCmds = { w, _, _ ->
+            val u = w / 24f
+            val cArgb = RefCtrl.toArgb()
+            fun x(v: Float) = (if (mirrored) 24f - v else v) * u
+            addLine(x(5f), 5.5f * u, x(5f), 18.5f * u, 2.4f * u, cArgb, capRound = true)
+            val xs = floatArrayOf(x(9f), x(19f), x(9f))
+            val ys = floatArrayOf(6f * u, 12f * u, 18f * u)
+            addFilledPolygon(xs, ys, 3, cArgb)
+            addPolyline(xs, ys, 3, true, 1.6f * u, cArgb, capRound = true)
+        },
+        fallbackDraw = {
+            val u = size.width / 24f
+            val c = RefCtrl
+            fun x(v: Float) = (if (mirrored) 24f - v else v) * u
+            drawLine(c, Offset(x(5f), 5.5f * u), Offset(x(5f), 18.5f * u), 2.4f * u, StrokeCap.Round)
+            val p = Path().apply {
+                moveTo(x(9f), 6f * u); lineTo(x(19f), 12f * u); lineTo(x(9f), 18f * u); close()
+            }
+            drawPath(p, c)
+            drawPath(p, c, style = Stroke(width = 1.6f * u, join = StrokeJoin.Round))
         }
-        drawPath(p, c)
-        drawPath(p, c, style = Stroke(width = 1.6f * u, join = StrokeJoin.Round))
-    }
+    )
 }
 
 /** Four corners + two overlapping layers — the fullscreen glyph (chrome hosts). */
 @Composable
 private fun FrameGlyph() {
-    Canvas(Modifier.size(17.dp)) {
-        val u = size.width / 24f
-        val c = RefCtrl
-        val a = 4.7f * u
-        val b = 19.3f * u
-        drawLine(c, Offset(a, a), Offset(b, a), 1.4f * u, StrokeCap.Round)
-        drawLine(c, Offset(a, b), Offset(b, b), 1.4f * u, StrokeCap.Round)
-        drawLine(c, Offset(a, a), Offset(a, b), 1.4f * u, StrokeCap.Round)
-        drawLine(c, Offset(b, a), Offset(b, b), 1.4f * u, StrokeCap.Round)
-        for (cx in listOf(a, b)) for (cy in listOf(a, b)) drawCircle(c, 1.95f * u, Offset(cx, cy))
-        drawRoundRect(Color(0xFFA1A1AA), Offset(8.7f * u, 12.5f * u), Size(8.4f * u, 4.9f * u), CornerRadius(2.4f * u))
-        drawRoundRect(AmBase, Offset(6.4f * u, 6.3f * u), Size(9.1f * u, 6.1f * u), CornerRadius(3f * u), style = Stroke(1.2f * u))
-        drawRoundRect(c, Offset(7.0f * u, 6.9f * u), Size(8.0f * u, 5.0f * u), CornerRadius(2.5f * u))
-    }
+    NativeVectorCanvas(
+        modifier = Modifier.size(17.dp),
+        drawKey = "ctrl_frame_glyph",
+        buildCmds = { w, _, _ ->
+            val u = w / 24f
+            val cArgb = RefCtrl.toArgb()
+            val a = 4.7f * u
+            val b = 19.3f * u
+            addLine(a, a, b, a, 1.4f * u, cArgb, capRound = true)
+            addLine(a, b, b, b, 1.4f * u, cArgb, capRound = true)
+            addLine(a, a, a, b, 1.4f * u, cArgb, capRound = true)
+            addLine(b, a, b, b, 1.4f * u, cArgb, capRound = true)
+            for (cx in listOf(a, b)) for (cy in listOf(a, b)) addCircle(cx, cy, 1.95f * u, cArgb)
+            addRoundRect((8.7f + 4.2f) * u, (12.5f + 2.45f) * u, 8.4f * u, 4.9f * u, 2.4f * u, Color(0xFFA1A1AA).toArgb())
+            addRoundRect((7.0f + 4.0f) * u, (6.9f + 2.5f) * u, 8.0f * u, 5.0f * u, 2.5f * u, cArgb, 1.2f * u, AmBase.toArgb())
+        },
+        fallbackDraw = {
+            val u = size.width / 24f
+            val c = RefCtrl
+            val a = 4.7f * u
+            val b = 19.3f * u
+            drawLine(c, Offset(a, a), Offset(b, a), 1.4f * u, StrokeCap.Round)
+            drawLine(c, Offset(a, b), Offset(b, b), 1.4f * u, StrokeCap.Round)
+            drawLine(c, Offset(a, a), Offset(a, b), 1.4f * u, StrokeCap.Round)
+            drawLine(c, Offset(b, a), Offset(b, b), 1.4f * u, StrokeCap.Round)
+            for (cx in listOf(a, b)) for (cy in listOf(a, b)) drawCircle(c, 1.95f * u, Offset(cx, cy))
+            drawRoundRect(Color(0xFFA1A1AA), Offset(8.7f * u, 12.5f * u), Size(8.4f * u, 4.9f * u), CornerRadius(2.4f * u))
+            drawRoundRect(AmBase, Offset(6.4f * u, 6.3f * u), Size(9.1f * u, 6.1f * u), CornerRadius(3f * u), style = Stroke(1.2f * u))
+            drawRoundRect(c, Offset(7.0f * u, 6.9f * u), Size(8.0f * u, 5.0f * u), CornerRadius(2.5f * u))
+        }
+    )
 }
 
 /** The snap magnet (build 222): a horseshoe magnet, WHITE while on, GREY while off (21 dp). */
 @Composable
 private fun MagnetGlyph(on: Boolean) {
-    Canvas(Modifier.size(17.dp)) {
-        val u = size.width / 24f
-        val c = if (on) RefCtrl else RefCtrlDisabled
-        val w = 3.6f * u
-        // The U: a top semicircle joining two legs.
-        drawArc(
-            color = c,
-            startAngle = 180f,
-            sweepAngle = 180f,
-            useCenter = false,
-            topLeft = Offset(5.2f * u, 3.4f * u),
-            size = Size(13.6f * u, 13.6f * u),
-            style = Stroke(width = w, cap = StrokeCap.Butt)
-        )
-        drawLine(c, Offset(5.2f * u, 10.2f * u), Offset(5.2f * u, 19.6f * u), w, StrokeCap.Butt)
-        drawLine(c, Offset(18.8f * u, 10.2f * u), Offset(18.8f * u, 19.6f * u), w, StrokeCap.Butt)
-        // Pole tips: the legs' last stretch reads brighter while on.
-        val tip = if (on) Color.White else c
-        drawLine(tip, Offset(5.2f * u, 16.4f * u), Offset(5.2f * u, 19.6f * u), w, StrokeCap.Butt)
-        drawLine(tip, Offset(18.8f * u, 16.4f * u), Offset(18.8f * u, 19.6f * u), w, StrokeCap.Butt)
-    }
+    NativeVectorCanvas(
+        modifier = Modifier.size(17.dp),
+        drawKey = on,
+        buildCmds = { width, _, _ ->
+            val u = width / 24f
+            val c = if (on) RefCtrl else RefCtrlDisabled
+            val cArgb = c.toArgb()
+            val sw = 3.6f * u
+            addArc(
+                cx = 12f * u, cy = 10.2f * u,
+                rx = 6.8f * u, ry = 6.8f * u,
+                startDeg = 180f, sweepDeg = 180f,
+                width = sw, strokeArgb = cArgb, capRound = false, closedPie = false
+            )
+            addLine(5.2f * u, 10.2f * u, 5.2f * u, 19.6f * u, sw, cArgb, capRound = false)
+            addLine(18.8f * u, 10.2f * u, 18.8f * u, 19.6f * u, sw, cArgb, capRound = false)
+            val tipArgb = (if (on) Color.White else c).toArgb()
+            addLine(5.2f * u, 16.4f * u, 5.2f * u, 19.6f * u, sw, tipArgb, capRound = false)
+            addLine(18.8f * u, 16.4f * u, 18.8f * u, 19.6f * u, sw, tipArgb, capRound = false)
+        },
+        fallbackDraw = {
+            val u = size.width / 24f
+            val c = if (on) RefCtrl else RefCtrlDisabled
+            val w = 3.6f * u
+            drawArc(
+                color = c,
+                startAngle = 180f,
+                sweepAngle = 180f,
+                useCenter = false,
+                topLeft = Offset(5.2f * u, 3.4f * u),
+                size = Size(13.6f * u, 13.6f * u),
+                style = Stroke(width = w, cap = StrokeCap.Butt)
+            )
+            drawLine(c, Offset(5.2f * u, 10.2f * u), Offset(5.2f * u, 19.6f * u), w, StrokeCap.Butt)
+            drawLine(c, Offset(18.8f * u, 10.2f * u), Offset(18.8f * u, 19.6f * u), w, StrokeCap.Butt)
+            val tip = if (on) Color.White else c
+            drawLine(tip, Offset(5.2f * u, 16.4f * u), Offset(5.2f * u, 19.6f * u), w, StrokeCap.Butt)
+            drawLine(tip, Offset(18.8f * u, 16.4f * u), Offset(18.8f * u, 19.6f * u), w, StrokeCap.Butt)
+        }
+    )
 }
 
 /** The reference's grid glyph: a rounded square divided in thirds both ways (21 dp). Lime while on. */
 @Composable
 private fun GridToggleGlyph(on: Boolean) {
-    Canvas(Modifier.size(17.dp)) {
-        val u = size.width / 24f
-        val c = if (on) RefLime else RefCtrl
-        drawRoundRect(
-            c, Offset(4f * u, 4f * u), Size(16f * u, 16f * u),
-            CornerRadius(3f * u), style = Stroke(1.8f * u, join = StrokeJoin.Round)
-        )
-        drawLine(c, Offset(9f * u, 4f * u), Offset(9f * u, 20f * u), 1.5f * u)
-        drawLine(c, Offset(15f * u, 4f * u), Offset(15f * u, 20f * u), 1.5f * u)
-        drawLine(c, Offset(4f * u, 9f * u), Offset(20f * u, 9f * u), 1.5f * u)
-        drawLine(c, Offset(4f * u, 15f * u), Offset(20f * u, 15f * u), 1.5f * u)
-    }
+    NativeVectorCanvas(
+        modifier = Modifier.size(17.dp),
+        drawKey = on,
+        buildCmds = { w, _, _ ->
+            val u = w / 24f
+            val cArgb = (if (on) RefLime else RefCtrl).toArgb()
+            addRoundRect(12f * u, 12f * u, 16f * u, 16f * u, 3f * u, 0, 1.8f * u, cArgb)
+            addLine(9f * u, 4f * u, 9f * u, 20f * u, 1.5f * u, cArgb, capRound = false)
+            addLine(15f * u, 4f * u, 15f * u, 20f * u, 1.5f * u, cArgb, capRound = false)
+            addLine(4f * u, 9f * u, 20f * u, 9f * u, 1.5f * u, cArgb, capRound = false)
+            addLine(4f * u, 15f * u, 20f * u, 15f * u, 1.5f * u, cArgb, capRound = false)
+        },
+        fallbackDraw = {
+            val u = size.width / 24f
+            val c = if (on) RefLime else RefCtrl
+            drawRoundRect(
+                c, Offset(4f * u, 4f * u), Size(16f * u, 16f * u),
+                CornerRadius(3f * u), style = Stroke(1.8f * u, join = StrokeJoin.Round)
+            )
+            drawLine(c, Offset(9f * u, 4f * u), Offset(9f * u, 20f * u), 1.5f * u)
+            drawLine(c, Offset(15f * u, 4f * u), Offset(15f * u, 20f * u), 1.5f * u)
+            drawLine(c, Offset(4f * u, 9f * u), Offset(20f * u, 9f * u), 1.5f * u)
+            drawLine(c, Offset(4f * u, 15f * u), Offset(20f * u, 15f * u), 1.5f * u)
+        }
+    )
 }
 
 /** The reference's Add-Keyframe glyph: a filled shield with a plus cut out of it (21 dp). */
 @Composable
 private fun KeyframeShieldGlyph() {
-    Canvas(Modifier.size(17.dp)) {
-        val u = size.width / 24f
-        val shield = Path().apply {
-            moveTo(12f * u, 2.5f * u)
-            lineTo(18.5f * u, 6f * u)
-            lineTo(18.5f * u, 14.2f * u)
-            cubicTo(18.5f * u, 17.5f * u, 15.8f * u, 19.9f * u, 12f * u, 21.5f * u)
-            cubicTo(8.2f * u, 19.9f * u, 5.5f * u, 17.5f * u, 5.5f * u, 14.2f * u)
-            lineTo(5.5f * u, 6f * u)
-            close()
+    NativeVectorCanvas(
+        modifier = Modifier.size(17.dp),
+        drawKey = "keyframe_shield_glyph",
+        buildCmds = { w, _, _ ->
+            val u = w / 24f
+            val pts = mutableListOf<Pair<Float, Float>>()
+            pts.add(12f * u to 2.5f * u)
+            pts.add(18.5f * u to 6f * u)
+            pts.add(18.5f * u to 14.2f * u)
+            fun addCubicPts(x0: Float, y0: Float, c1x: Float, c1y: Float, c2x: Float, c2y: Float, x1: Float, y1: Float) {
+                for (i in 1..10) {
+                    val t = i / 10f
+                    val m = 1f - t
+                    val px = m * m * m * x0 + 3f * m * m * t * c1x + 3f * m * t * t * c2x + t * t * t * x1
+                    val py = m * m * m * y0 + 3f * m * m * t * c1y + 3f * m * t * t * c2y + t * t * t * y1
+                    pts.add(px to py)
+                }
+            }
+            addCubicPts(18.5f * u, 14.2f * u, 18.5f * u, 17.5f * u, 15.8f * u, 19.9f * u, 12f * u, 21.5f * u)
+            addCubicPts(12f * u, 21.5f * u, 8.2f * u, 19.9f * u, 5.5f * u, 17.5f * u, 5.5f * u, 14.2f * u)
+            pts.add(5.5f * u to 6f * u)
+            val xs = FloatArray(pts.size) { pts[it].first }
+            val ys = FloatArray(pts.size) { pts[it].second }
+            addFilledPolygon(xs, ys, pts.size, RefCtrl.toArgb())
+            val cutArgb = AmBase.toArgb()
+            addLine(12f * u, 8f * u, 12f * u, 14f * u, 2f * u, cutArgb, capRound = true)
+            addLine(9f * u, 11f * u, 15f * u, 11f * u, 2f * u, cutArgb, capRound = true)
+        },
+        fallbackDraw = {
+            val u = size.width / 24f
+            val shield = Path().apply {
+                moveTo(12f * u, 2.5f * u)
+                lineTo(18.5f * u, 6f * u)
+                lineTo(18.5f * u, 14.2f * u)
+                cubicTo(18.5f * u, 17.5f * u, 15.8f * u, 19.9f * u, 12f * u, 21.5f * u)
+                cubicTo(8.2f * u, 19.9f * u, 5.5f * u, 17.5f * u, 5.5f * u, 14.2f * u)
+                lineTo(5.5f * u, 6f * u)
+                close()
+            }
+            drawPath(shield, RefCtrl)
+            drawLine(AmBase, Offset(12f * u, 8f * u), Offset(12f * u, 14f * u), 2f * u, StrokeCap.Round)
+            drawLine(AmBase, Offset(9f * u, 11f * u), Offset(15f * u, 11f * u), 2f * u, StrokeCap.Round)
         }
-        drawPath(shield, RefCtrl)
-        drawLine(AmBase, Offset(12f * u, 8f * u), Offset(12f * u, 14f * u), 2f * u, StrokeCap.Round)
-        drawLine(AmBase, Offset(9f * u, 11f * u), Offset(15f * u, 11f * u), 2f * u, StrokeCap.Round)
-    }
+    )
 }

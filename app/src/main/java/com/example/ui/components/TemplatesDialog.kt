@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -52,11 +53,15 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.roundToInt
 import com.example.engine.CounterEval
 import com.example.engine.TemplateAssets
 import com.example.model.CarouselParams
@@ -469,61 +474,93 @@ private fun CarouselPreview(modifier: Modifier = Modifier, params: CarouselParam
     }
     val bgTop = Color(CarouselSpec.BG_TOP.toInt())
     val bgBottom = Color(CarouselSpec.BG_BOTTOM.toInt())
-    Canvas(
+    val t = ((frameMs % params.durationMs) + params.durationMs) % params.durationMs
+    BoxWithConstraints(
         modifier = modifier
             .aspectRatio(CarouselSpec.SCENE_W / CarouselSpec.SCENE_H)
             .clip(RoundedCornerShape(10.dp))
             .background(Brush.verticalGradient(listOf(bgTop, bgBottom)))
     ) {
-        val sx = size.width / CarouselSpec.SCENE_W
-        val sy = size.height / CarouselSpec.SCENE_H
-        // Grid (34 scene px, +8 luminance over the fill, like the generated background).
-        val gridPaint = Color.White.copy(alpha = 0.10f)
-        var gx = CarouselSpec.GRID_OFF_X
-        while (gx < CarouselSpec.SCENE_W) {
-            drawLine(gridPaint, Offset(gx * sx, 0f), Offset(gx * sx, size.height), strokeWidth = 1.5f * sx)
-            gx += CarouselSpec.GRID_STEP
-        }
-        var gy = CarouselSpec.GRID_OFF_Y
-        while (gy < CarouselSpec.SCENE_H) {
-            drawLine(gridPaint, Offset(0f, gy * sy), Offset(size.width, gy * sy), strokeWidth = 1.5f * sx)
-            gy += CarouselSpec.GRID_STEP
-        }
-        val t = ((frameMs % params.durationMs) + params.durationMs) % params.durationMs
+        val density = LocalDensity.current
+        val sx = with(density) { maxWidth.toPx() } / CarouselSpec.SCENE_W
+        val sy = with(density) { maxHeight.toPx() } / CarouselSpec.SCENE_H
         val cardW = CarouselSpec.CARD_SIZE * sx
         val cardH = CarouselSpec.CARD_SIZE * sy
         val corner = CarouselSpec.CARD_CORNER * sx
-        // Shadows first (below every card), then the cards.
-        for (pass in 0..1) {
-            for (i in 0 until params.cardCount) {
-                val (cx, cy) = CarouselTemplate.centerSceneAt(t, i, params)
-                val left = cx * sx - cardW / 2f
-                val top = (cy + if (pass == 0) CarouselSpec.SHADOW_DY else 0f) * sy - cardH / 2f
-                if (pass == 0) {
+        val cardWDp = with(density) { cardW.toDp() }
+        val cardHDp = with(density) { cardH.toDp() }
+        val cardShape = RoundedCornerShape(with(density) { corner.toDp() })
+
+        NativeVectorCanvas(
+            modifier = Modifier.fillMaxSize(),
+            drawKey = Triple(t, params.cardCount, params.clockwise),
+            buildCmds = { w, h, _ ->
+                addGradRect(0f, 0f, w, h, true, bgTop.toArgb(), bgBottom.toArgb())
+                val gridArgb = Color.White.copy(alpha = 0.10f).toArgb()
+                var gx = CarouselSpec.GRID_OFF_X
+                while (gx < CarouselSpec.SCENE_W) {
+                    val x = gx * sx
+                    addLine(x, 0f, x, h, 1.5f * sx, gridArgb, capRound = false)
+                    gx += CarouselSpec.GRID_STEP
+                }
+                var gy = CarouselSpec.GRID_OFF_Y
+                while (gy < CarouselSpec.SCENE_H) {
+                    val y = gy * sy
+                    addLine(0f, y, w, y, 1.5f * sx, gridArgb, capRound = false)
+                    gy += CarouselSpec.GRID_STEP
+                }
+                val shadowArgb = Color.Black.copy(alpha = CarouselSpec.SHADOW_OPACITY / 100f).toArgb()
+                for (i in 0 until params.cardCount) {
+                    val (cx, cy) = CarouselTemplate.centerSceneAt(t, i, params)
+                    addRoundRect(
+                        cx * sx,
+                        (cy + CarouselSpec.SHADOW_DY) * sy,
+                        cardW,
+                        cardH,
+                        corner,
+                        shadowArgb
+                    )
+                }
+            },
+            fallbackDraw = {
+                val gridPaint = Color.White.copy(alpha = 0.10f)
+                var gx = CarouselSpec.GRID_OFF_X
+                while (gx < CarouselSpec.SCENE_W) {
+                    drawLine(gridPaint, Offset(gx * sx, 0f), Offset(gx * sx, size.height), strokeWidth = 1.5f * sx)
+                    gx += CarouselSpec.GRID_STEP
+                }
+                var gy = CarouselSpec.GRID_OFF_Y
+                while (gy < CarouselSpec.SCENE_H) {
+                    drawLine(gridPaint, Offset(0f, gy * sy), Offset(size.width, gy * sy), strokeWidth = 1.5f * sx)
+                    gy += CarouselSpec.GRID_STEP
+                }
+                for (i in 0 until params.cardCount) {
+                    val (cx, cy) = CarouselTemplate.centerSceneAt(t, i, params)
+                    val left = cx * sx - cardW / 2f
+                    val top = (cy + CarouselSpec.SHADOW_DY) * sy - cardH / 2f
                     drawRoundRect(
                         color = Color.Black.copy(alpha = CarouselSpec.SHADOW_OPACITY / 100f),
                         topLeft = Offset(left, top),
                         size = Size(cardW, cardH),
                         cornerRadius = CornerRadius(corner, corner)
                     )
-                } else {
-                    val path = Path().apply {
-                        addRoundRect(
-                            RoundRect(
-                                Rect(Offset(left, top), Size(cardW, cardH)),
-                                CornerRadius(corner, corner)
-                            )
-                        )
-                    }
-                    clipPath(path) {
-                        drawImage(
-                            image = placeholders[i],
-                            dstOffset = androidx.compose.ui.unit.IntOffset(left.toInt(), top.toInt()),
-                            dstSize = androidx.compose.ui.unit.IntSize(cardW.toInt(), cardH.toInt())
-                        )
-                    }
                 }
             }
+        )
+
+        for (i in 0 until params.cardCount) {
+            val (cx, cy) = CarouselTemplate.centerSceneAt(t, i, params)
+            val leftPx = cx * sx - cardW / 2f
+            val topPx = cy * sy - cardH / 2f
+            Image(
+                bitmap = placeholders[i],
+                contentDescription = null,
+                contentScale = ContentScale.FillBounds,
+                modifier = Modifier
+                    .offset { IntOffset(leftPx.roundToInt(), topPx.roundToInt()) }
+                    .size(cardWDp, cardHDp)
+                    .clip(cardShape)
+            )
         }
     }
 }
@@ -812,21 +849,37 @@ private fun GeniePreview(modifier: Modifier = Modifier) {
                 .background(Color.White, RoundedCornerShape(50))
         )
         // The flower: eight small dark dots riding the bar.
-        Canvas(modifier = Modifier.matchParentSize()) {
-            for (petal in ins.petals) {
-                val p = petal.at(t)
-                if (p.opacity <= 1f) continue
-                drawCircle(
-                    color = Color(0xFF202024),
-                    radius = 5f * unit,
-                    center = Offset(
-                        size.width / 2f + p.transformX * unit,
-                        size.height / 2f + p.transformY * unit
-                    ),
-                    alpha = p.opacity / 100f
-                )
+        NativeVectorCanvas(
+            modifier = Modifier.matchParentSize(),
+            drawKey = t,
+            buildCmds = { w, h, _ ->
+                for (petal in ins.petals) {
+                    val p = petal.at(t)
+                    if (p.opacity <= 1f) continue
+                    addCircle(
+                        w / 2f + p.transformX * unit,
+                        h / 2f + p.transformY * unit,
+                        5f * unit,
+                        Color(0xFF202024).copy(alpha = p.opacity / 100f).toArgb()
+                    )
+                }
+            },
+            fallbackDraw = {
+                for (petal in ins.petals) {
+                    val p = petal.at(t)
+                    if (p.opacity <= 1f) continue
+                    drawCircle(
+                        color = Color(0xFF202024),
+                        radius = 5f * unit,
+                        center = Offset(
+                            size.width / 2f + p.transformX * unit,
+                            size.height / 2f + p.transformY * unit
+                        ),
+                        alpha = p.opacity / 100f
+                    )
+                }
             }
-        }
+        )
         // Selection rings, then avatars with their names.
         for (ring in ins.rings) {
             val r = ring.at(t)
@@ -959,24 +1012,48 @@ private fun PieCounterPreview(modifier: Modifier = Modifier) {
     ) {
         val density = LocalDensity.current
         val unit = with(density) { maxWidth.toPx() } / 720f
-        Canvas(modifier = Modifier.matchParentSize()) {
-            val cx = size.width / 2f
-            val cy = size.height / 2f + PieCounterSpec.PIE_CY_FRAC * 1200f * unit
-            val r = PieCounterSpec.RADIUS_FRAC * 720f * unit
-            drawPath(
-                piePreviewPath(ins.fill.pieSegmentsAt(t), cx, cy, r),
-                Brush.linearGradient(
-                    listOf(Color(0xFF1E8CFF), Color(0xFFF4F8FF)),
-                    start = Offset(cx - r, cy - r),
-                    end = Offset(cx + r, cy + r)
+        NativeVectorCanvas(
+            modifier = Modifier.matchParentSize(),
+            drawKey = t,
+            buildCmds = { w, h, _ ->
+                val cx = w / 2f
+                val cy = h / 2f + PieCounterSpec.PIE_CY_FRAC * 1200f * unit
+                val r = PieCounterSpec.RADIUS_FRAC * 720f * unit
+                val fillPts = flattenPathSegments(ins.fill.pieSegmentsAt(t))
+                if (fillPts.size >= 3) {
+                    val xs = FloatArray(fillPts.size) { cx + fillPts[it].first * r }
+                    val ys = FloatArray(fillPts.size) { cy + fillPts[it].second * r }
+                    addFilledPolygon(
+                        xs, ys, fillPts.size,
+                        lerp(Color(0xFF1E8CFF), Color(0xFFF4F8FF), 0.42f).toArgb()
+                    )
+                }
+                val outPts = flattenPathSegments(ins.outline.pieSegmentsAt(t))
+                if (outPts.size >= 2) {
+                    val xs = FloatArray(outPts.size) { cx + outPts[it].first * r }
+                    val ys = FloatArray(outPts.size) { cy + outPts[it].second * r }
+                    addPolyline(xs, ys, outPts.size, true, 1.5f, Color(0xFFB9C4CE).toArgb(), capRound = false)
+                }
+            },
+            fallbackDraw = {
+                val cx = size.width / 2f
+                val cy = size.height / 2f + PieCounterSpec.PIE_CY_FRAC * 1200f * unit
+                val r = PieCounterSpec.RADIUS_FRAC * 720f * unit
+                drawPath(
+                    piePreviewPath(ins.fill.pieSegmentsAt(t), cx, cy, r),
+                    Brush.linearGradient(
+                        listOf(Color(0xFF1E8CFF), Color(0xFFF4F8FF)),
+                        start = Offset(cx - r, cy - r),
+                        end = Offset(cx + r, cy + r)
+                    )
                 )
-            )
-            drawPath(
-                piePreviewPath(ins.outline.pieSegmentsAt(t), cx, cy, r),
-                Color(0xFFB9C4CE),
-                style = Stroke(width = 1.5f)
-            )
-        }
+                drawPath(
+                    piePreviewPath(ins.outline.pieSegmentsAt(t), cx, cy, r),
+                    Color(0xFFB9C4CE),
+                    style = Stroke(width = 1.5f)
+                )
+            }
+        )
         val pct = CounterEval.displayText(ins.percentText.text ?: "0%", ins.percentText, t) ?: "0%"
         Text(
             text = pct,
@@ -1014,27 +1091,58 @@ private fun DonutChartPreview(modifier: Modifier = Modifier) {
     ) {
         val density = LocalDensity.current
         val unit = with(density) { maxWidth.toPx() } / 720f
-        Canvas(modifier = Modifier.matchParentSize()) {
-            val cx = size.width / 2f
-            val cy = size.height / 2f + DonutChartSpec.CY_FRAC * 1280f * unit
-            val r = DonutChartSpec.R_FRAC * 720f * unit
-            for (seg in ins.segments) {
-                val (g1, g2) = DonutChartSpec.GRADIENTS[ins.segments.indexOf(seg)]
-                drawPath(
-                    piePreviewPath(seg.wedge.pieSegmentsAt(t), cx, cy, r),
-                    Brush.linearGradient(
-                        listOf(Color(g1.toInt()), Color(g2.toInt())),
-                        start = Offset(cx - r, cy - r),
-                        end = Offset(cx + r, cy + r)
+        NativeVectorCanvas(
+            modifier = Modifier.matchParentSize(),
+            drawKey = t,
+            buildCmds = { w, h, _ ->
+                val cx = w / 2f
+                val cy = h / 2f + DonutChartSpec.CY_FRAC * 1280f * unit
+                val r = DonutChartSpec.R_FRAC * 720f * unit
+                for ((idx, seg) in ins.segments.withIndex()) {
+                    val (g1, g2) = DonutChartSpec.GRADIENTS[idx]
+                    val pts = flattenPathSegments(seg.wedge.pieSegmentsAt(t))
+                    if (pts.size >= 3) {
+                        var sumX = 0f
+                        var sumY = 0f
+                        val xs = FloatArray(pts.size) { i ->
+                            sumX += pts[i].first
+                            cx + pts[i].first * r
+                        }
+                        val ys = FloatArray(pts.size) { i ->
+                            sumY += pts[i].second
+                            cy + pts[i].second * r
+                        }
+                        val gradT = ((sumX + sumY) / pts.size * 0.5f + 0.5f).coerceIn(0f, 1f)
+                        addFilledPolygon(
+                            xs, ys, pts.size,
+                            lerp(Color(g1.toInt()), Color(g2.toInt()), gradT).toArgb()
+                        )
+                    }
+                }
+                addCircle(cx, cy, DonutChartSpec.HOLE_FRAC * 720f * unit / 2f, Color.Black.toArgb())
+            },
+            fallbackDraw = {
+                val cx = size.width / 2f
+                val cy = size.height / 2f + DonutChartSpec.CY_FRAC * 1280f * unit
+                val r = DonutChartSpec.R_FRAC * 720f * unit
+                for (seg in ins.segments) {
+                    val (g1, g2) = DonutChartSpec.GRADIENTS[ins.segments.indexOf(seg)]
+                    drawPath(
+                        piePreviewPath(seg.wedge.pieSegmentsAt(t), cx, cy, r),
+                        Brush.linearGradient(
+                            listOf(Color(g1.toInt()), Color(g2.toInt())),
+                            start = Offset(cx - r, cy - r),
+                            end = Offset(cx + r, cy + r)
+                        )
                     )
+                }
+                drawCircle(
+                    color = Color.Black,
+                    radius = DonutChartSpec.HOLE_FRAC * 720f * unit / 2f,
+                    center = Offset(cx, cy)
                 )
             }
-            drawCircle(
-                color = Color.Black,
-                radius = DonutChartSpec.HOLE_FRAC * 720f * unit / 2f,
-                center = Offset(cx, cy)
-            )
-        }
+        )
         val title = ins.title.at(t)
         Text(
             text = ins.title.text ?: "",
@@ -1147,21 +1255,39 @@ private fun SocialGrowthPreview(modifier: Modifier = Modifier) {
         }
         val ring = ins.ring.at(t)
         if (ring.opacity > 1f) {
-            Canvas(modifier = Modifier.matchParentSize()) {
-                val cx = size.width / 2f
-                val cy = size.height / 2f + SocialGrowthSpec.RING_Y_FRAC * 1280f * unit
-                val r = SocialGrowthSpec.RING_D_FRAC * 720f * unit / 2f
-                drawArc(
-                    color = Color(0xFF2EE66B),
-                    startAngle = -90f + ring.strokeTrimStart * 360f,
-                    sweepAngle = (ring.strokeTrimEnd - ring.strokeTrimStart) * 360f,
-                    useCenter = false,
-                    topLeft = Offset(cx - r, cy - r),
-                    size = Size(r * 2f, r * 2f),
-                    style = Stroke(width = 3f),
-                    alpha = ring.opacity / 100f
-                )
-            }
+            NativeVectorCanvas(
+                modifier = Modifier.matchParentSize(),
+                drawKey = Triple(ring.opacity, ring.strokeTrimStart, ring.strokeTrimEnd),
+                buildCmds = { w, h, _ ->
+                    val cx = w / 2f
+                    val cy = h / 2f + SocialGrowthSpec.RING_Y_FRAC * 1280f * unit
+                    val r = SocialGrowthSpec.RING_D_FRAC * 720f * unit / 2f
+                    addArc(
+                        cx = cx, cy = cy, rx = r, ry = r,
+                        startDeg = -90f + ring.strokeTrimStart * 360f,
+                        sweepDeg = (ring.strokeTrimEnd - ring.strokeTrimStart) * 360f,
+                        width = 3f,
+                        strokeArgb = Color(0xFF2EE66B).copy(alpha = ring.opacity / 100f).toArgb(),
+                        capRound = false,
+                        closedPie = false
+                    )
+                },
+                fallbackDraw = {
+                    val cx = size.width / 2f
+                    val cy = size.height / 2f + SocialGrowthSpec.RING_Y_FRAC * 1280f * unit
+                    val r = SocialGrowthSpec.RING_D_FRAC * 720f * unit / 2f
+                    drawArc(
+                        color = Color(0xFF2EE66B),
+                        startAngle = -90f + ring.strokeTrimStart * 360f,
+                        sweepAngle = (ring.strokeTrimEnd - ring.strokeTrimStart) * 360f,
+                        useCenter = false,
+                        topLeft = Offset(cx - r, cy - r),
+                        size = Size(r * 2f, r * 2f),
+                        style = Stroke(width = 3f),
+                        alpha = ring.opacity / 100f
+                    )
+                }
+            )
         }
         val av = ins.avatar.at(t)
         if (av.opacity > 1f) {

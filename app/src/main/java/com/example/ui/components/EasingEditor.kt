@@ -239,22 +239,50 @@ private fun EasingAxisLabels(valueLabel: String, modifier: Modifier = Modifier) 
 /** Small picture of a curve (dashed box + curve + its two control points). */
 @Composable
 private fun EasingTileCanvas(easing: Easing, modifier: Modifier = Modifier) {
-    Canvas(modifier) {
-        val dash = PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 3.dp.toPx()))
-        val pad = 3.dp.toPx()
-        val w = size.width - 2 * pad
-        val h = size.height - 2 * pad
-        fun sx(x: Float) = pad + x * w
-        fun sy(y: Float) = pad + (1f - y) * h
-        drawRect(
-            GridColor, topLeft = Offset(pad, pad), size = androidx.compose.ui.geometry.Size(w, h),
-            style = Stroke(1.5.dp.toPx(), pathEffect = dash)
-        )
-        drawPath(curvePath(easing, 40) { x, y -> Offset(sx(x), sy(y)) }, Color.White,
-            style = Stroke(2.dp.toPx(), cap = StrokeCap.Round))
-        drawCircle(HandleColor, 2.6.dp.toPx(), Offset(sx(easing.x1), sy(easing.y1)))
-        drawCircle(HandleColor, 2.6.dp.toPx(), Offset(sx(easing.x2), sy(easing.y2)))
-    }
+    val gridArgb = 0xFF3E4045.toInt()
+    val handleArgb = 0xFFEA1252.toInt()
+    NativeVectorCanvas(
+        modifier = modifier,
+        drawKey = listOf(easing.x1, easing.y1, easing.x2, easing.y2),
+        buildCmds = { width, height, d ->
+            val pad = 3f * d
+            val w = width - 2f * pad
+            val h = height - 2f * pad
+            fun sx(x: Float) = pad + x * w
+            fun sy(y: Float) = pad + (1f - y) * h
+            val dashOn = 3f * d
+            addPolyline(
+                floatArrayOf(pad, pad + w, pad + w, pad),
+                floatArrayOf(pad, pad, pad + h, pad + h),
+                4, closed = true, width = 1.5f * d, argb = gridArgb, dashOn = dashOn, dashOff = dashOn, capRound = false
+            )
+            addCubic(
+                sx(0f), sy(0f),
+                sx(easing.x1), sy(easing.y1),
+                sx(easing.x2), sy(easing.y2),
+                sx(1f), sy(1f),
+                width = 2f * d, argb = android.graphics.Color.WHITE, capRound = true
+            )
+            addCircle(sx(easing.x1), sy(easing.y1), 2.6f * d, handleArgb)
+            addCircle(sx(easing.x2), sy(easing.y2), 2.6f * d, handleArgb)
+        },
+        fallbackDraw = {
+            val dash = PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 3.dp.toPx()))
+            val pad = 3.dp.toPx()
+            val w = size.width - 2 * pad
+            val h = size.height - 2 * pad
+            fun sx(x: Float) = pad + x * w
+            fun sy(y: Float) = pad + (1f - y) * h
+            drawRect(
+                GridColor, topLeft = Offset(pad, pad), size = androidx.compose.ui.geometry.Size(w, h),
+                style = Stroke(1.5.dp.toPx(), pathEffect = dash)
+            )
+            drawPath(curvePath(easing, 40) { x, y -> Offset(sx(x), sy(y)) }, Color.White,
+                style = Stroke(2.dp.toPx(), cap = StrokeCap.Round))
+            drawCircle(HandleColor, 2.6.dp.toPx(), Offset(sx(easing.x1), sy(easing.y1)))
+            drawCircle(HandleColor, 2.6.dp.toPx(), Offset(sx(easing.x2), sy(easing.y2)))
+        }
+    )
 }
 
 /** The easing curve as a path; [map] turns a (time, progress) point into a pixel. */

@@ -179,6 +179,66 @@ Java_com_example_engine_UiGlNative_nativeDrawVectorCmds(
 }
 
 JNIEXPORT jboolean JNICALL
+Java_com_example_engine_UiGlNative_nativeDrawRulerDial(
+    JNIEnv*, jclass, jlong handle, jint surfaceId,
+    jfloat value, jfloat minVal, jfloat maxVal, jfloat step,
+    jfloat tickSpacingPx, jboolean accentNeedle, jfloat density) {
+    auto* r = asUiGl(handle);
+    if (!r) return JNI_FALSE;
+    return r->drawRulerDial(
+        static_cast<int>(surfaceId), value, minVal, maxVal, step,
+        tickSpacingPx, accentNeedle != JNI_FALSE, density) ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_example_engine_UiGlNative_nativeDrawPositionPad(
+    JNIEnv*, jclass, jlong handle, jint surfaceId,
+    jfloat xNorm, jfloat yNorm, jint dotArgb, jint gridArgb, jfloat density) {
+    auto* r = asUiGl(handle);
+    if (!r) return JNI_FALSE;
+    return r->drawPositionPad(
+        static_cast<int>(surfaceId), xNorm, yNorm,
+        static_cast<int32_t>(dotArgb), static_cast<int32_t>(gridArgb), density) ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_example_engine_UiGlNative_nativeDrawCropOverlay(
+    JNIEnv*, jclass, jlong handle, jint surfaceId,
+    jfloat lNorm, jfloat tNorm, jfloat rNorm, jfloat bNorm, jfloat density) {
+    auto* r = asUiGl(handle);
+    if (!r) return JNI_FALSE;
+    return r->drawCropOverlay(
+        static_cast<int>(surfaceId), lNorm, tNorm, rNorm, bNorm, density) ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_example_engine_UiGlNative_nativeDrawWaveformStrip(
+    JNIEnv* env, jclass, jlong handle, jint surfaceId,
+    jfloatArray jPeaks, jint bgTopArgb, jint bgBotArgb, jint barArgb, jfloat density) {
+    auto* r = asUiGl(handle);
+    if (!r) return JNI_FALSE;
+    const jsize n = jPeaks ? env->GetArrayLength(jPeaks) : 0;
+    jfloat* pPeaks = (n > 0 && jPeaks) ? env->GetFloatArrayElements(jPeaks, nullptr) : nullptr;
+    const bool ok = r->drawWaveformStrip(
+        static_cast<int>(surfaceId), pPeaks, static_cast<int>(n),
+        static_cast<int32_t>(bgTopArgb), static_cast<int32_t>(bgBotArgb),
+        static_cast<int32_t>(barArgb), density);
+    if (pPeaks) env->ReleaseFloatArrayElements(jPeaks, pPeaks, JNI_ABORT);
+    return ok ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_example_engine_UiGlNative_nativeDrawEasingTile(
+    JNIEnv*, jclass, jlong handle, jint surfaceId,
+    jfloat x1, jfloat y1, jfloat x2, jfloat y2, jint strokeArgb, jfloat density) {
+    auto* r = asUiGl(handle);
+    if (!r) return JNI_FALSE;
+    return r->drawEasingTile(
+        static_cast<int>(surfaceId), x1, y1, x2, y2,
+        static_cast<int32_t>(strokeArgb), density) ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT jboolean JNICALL
 Java_com_example_engine_UiGlNative_nativeSelfTestOffscreen(
     JNIEnv* env, jclass, jlong handle, jint w, jint h, jintArray jOutCounts) {
     auto* r = asUiGl(handle);

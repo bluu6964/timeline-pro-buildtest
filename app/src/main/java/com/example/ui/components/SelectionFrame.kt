@@ -21,6 +21,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.example.engine.UiGlRuntime
+import com.example.engine.UiMathNative
 import com.example.engine.VectorCmdBuilder
 import com.example.engine.VectorCmdSnapshot
 import com.example.model.TimelineClip
@@ -43,10 +44,10 @@ internal class FrameGeo(
     val h: Float,
     val frameW: Float,
     val frameH: Float,
-    minScale: Float,
+    private val minScale: Float,
     /** Size the layer's pivot is measured against (media layers pivot on the whole canvas); 0 = the box itself. */
-    pivotRefW: Float = 0f,
-    pivotRefH: Float = 0f,
+    private val pivotRefW: Float = 0f,
+    private val pivotRefH: Float = 0f,
     /**
      * Visible part of the box after Crop (shape / text layers — the painters clip the box in
      * place, see [com.example.model.cropVisibleBox]): the corners / edges / hit test hug this
@@ -90,6 +91,14 @@ internal class FrameGeo(
 
     /** True when the point [p] (canvas pixels) lies inside the layer's (rotated, scaled) box. */
     fun contains(p: Offset): Boolean {
+        if (UiMathNative.isAvailable) {
+            return UiMathNative.nativeFrameGeoContains(
+                p.x, p.y, w, h, frameW, frameH, minScale, pivotRefW, pivotRefH,
+                visW, visH, visOffX, visOffY,
+                clip.effectiveScalePercent, clip.rotationDeg, clip.depthX, clip.depthY,
+                clip.isFlippedH, clip.isFlippedV, clip.pivotX, clip.pivotY
+            )
+        }
         var pos = false
         var neg = false
         for (i in 0..3) {

@@ -6,13 +6,20 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.example.engine.AudioWaveform
+import com.example.engine.UiGlRuntime
 import com.example.model.TimelineClip
 
 /**
@@ -30,40 +37,77 @@ fun VideoWaveformStrip(
     modifier: Modifier = Modifier
 ) {
     if (waveform == null || waveform.isEmpty() || clip.isMuted) return
+    val density = LocalDensity.current.density
+    var widthPx by remember { mutableFloatStateOf(0f) }
+
     Box(
         modifier = modifier
             .fillMaxWidth()
             .fillMaxHeight(0.5f)
-            .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.55f))))
+            .onSizeChanged { widthPx = it.width.toFloat() }
     ) {
-        Canvas(modifier = Modifier.matchParentSize()) {
-            val barStep = 3.dp.toPx()
-            val barWidth = 1.5.dp.toPx()
-            val pxPerMsPx = pxPerMs.dp.toPx()
-            val fromPx = ((visibleFromMs - clip.startMs) * pxPerMsPx).coerceIn(0f, size.width)
-            val toPx = ((visibleToMs - clip.startMs) * pxPerMsPx).coerceIn(0f, size.width)
-            if (toPx <= fromPx) return@Canvas
-
-            val baseY = size.height - 2.dp.toPx()
-            val maxH = size.height - 4.dp.toPx()
-            val msPerBar = barStep / pxPerMsPx * clip.speed
-
-            var x = (fromPx / barStep).toInt() * barStep
-            while (x < toPx) {
-                val srcMs = clip.trimStartMs + (x / pxPerMsPx) * clip.speed
-                val b0 = (srcMs / AudioWaveform.BUCKET_MS).toInt().coerceIn(0, waveform.size - 1)
-                val b1 = ((srcMs + msPerBar) / AudioWaveform.BUCKET_MS).toInt().coerceIn(b0, waveform.size - 1)
-                var peak = 0f
-                for (b in b0..b1) if (waveform[b] > peak) peak = waveform[b]
-                val h = (maxH * peak * clip.volume.coerceIn(0f, 1f)).coerceAtLeast(1.dp.toPx())
-                drawLine(
-                    color = Color.White.copy(alpha = 0.9f),
-                    start = Offset(x, baseY),
-                    end = Offset(x, baseY - h),
-                    strokeWidth = barWidth
-                )
-                x += barStep
+        if (!UiGlRuntime.isSupported) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.55f))))
+            ) {
+                Canvas(modifier = Modifier.matchParentSize()) {
+                    val barStep = 3.dp.toPx()
+                    val barWidth = 1.5.dp.toPx()
+                    val pxPerMsPx = pxPerMs.dp.toPx()
+                    val fromPx = ((visibleFromMs - clip.startMs) * pxPerMsPx).coerceIn(0f, size.width)
+                    val toPx = ((visibleToMs - clip.startMs) * pxPerMsPx).coerceIn(0f, size.width)
+                    if (toPx <= fromPx) return@Canvas
+                    val baseY = size.height - 2.dp.toPx()
+                    val maxH = size.height - 4.dp.toPx()
+                    val msPerBar = barStep / pxPerMsPx * clip.speed
+                    var x = (fromPx / barStep).toInt() * barStep
+                    while (x < toPx) {
+                        val srcMs = clip.trimStartMs + (x / pxPerMsPx) * clip.speed
+                        val b0 = (srcMs / AudioWaveform.BUCKET_MS).toInt().coerceIn(0, waveform.size - 1)
+                        val b1 = ((srcMs + msPerBar) / AudioWaveform.BUCKET_MS).toInt().coerceIn(b0, waveform.size - 1)
+                        var peak = 0f
+                        for (b in b0..b1) if (waveform[b] > peak) peak = waveform[b]
+                        val h = (maxH * peak * clip.volume.coerceIn(0f, 1f)).coerceAtLeast(1.dp.toPx())
+                        drawLine(Color.White.copy(alpha = 0.9f), Offset(x, baseY), Offset(x, baseY - h), barWidth)
+                        x += barStep
+                    }
+                }
             }
+        } else if (widthPx > 0f) {
+            val barStep = 3f * density
+            val pxPerMsPx = pxPerMs * density
+            val fromPx = ((visibleFromMs - clip.startMs) * pxPerMsPx).coerceIn(0f, widthPx)
+            val toPx = ((visibleToMs - clip.startMs) * pxPerMsPx).coerceIn(0f, widthPx)
+            val barCount = ((widthPx / barStep).toInt()).coerceIn(1, 512)
+            val peaks = FloatArray(barCount)
+            if (toPx > fromPx) {
+                val msPerBar = barStep / pxPerMsPx * clip.speed
+                val vol = clip.volume.coerceIn(0f, 1f)
+                for (i in 0 until barCount) {
+                    val x = i * barStep
+                    if (x < fromPx || x >= toPx) continue
+                    val srcMs = clip.trimStartMs + (x / pxPerMsPx) * clip.speed
+                    val b0 = (srcMs / AudioWaveform.BUCKET_MS).toInt().coerceIn(0, waveform.size - 1)
+                    val b1 = ((srcMs + msPerBar) / AudioWaveform.BUCKET_MS).toInt().coerceIn(b0, waveform.size - 1)
+                    var peak = 0f
+                    for (b in b0..b1) if (waveform[b] > peak) peak = waveform[b]
+                    peaks[i] = peak * vol
+                }
+            }
+            NativeGlTextureHost(
+                isOpaque = false,
+                drawKey = listOf(clip.id, visibleFromMs, visibleToMs, pxPerMs, clip.volume, widthPx),
+                drawOnGl = { sid ->
+                    UiGlRuntime.drawWaveformStripOnGl(
+                        sid, peaks,
+                        0x00000000, Color.Black.copy(alpha = 0.55f).toArgb(),
+                        Color.White.copy(alpha = 0.9f).toArgb(), density
+                    )
+                },
+                modifier = Modifier.matchParentSize()
+            )
         }
     }
 }

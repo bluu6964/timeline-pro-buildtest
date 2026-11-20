@@ -52,12 +52,24 @@ fun GradientHandleLayer(
             .fillMaxSize()
             .onSizeChanged { wPx = it.width.toFloat().coerceAtLeast(1f); hPx = it.height.toFloat().coerceAtLeast(1f) }
     ) {
-        Canvas(Modifier.fillMaxSize()) {
-            val a = Offset(clip.gradX1 * size.width, clip.gradY1 * size.height)
-            val b = Offset(clip.gradX2 * size.width, clip.gradY2 * size.height)
-            drawLine(Color.Black, a, b, strokeWidth = 4.dp.toPx())
-            drawLine(Color.White, a, b, strokeWidth = 2.dp.toPx())
-        }
+        NativeVectorCanvas(
+            modifier = Modifier.fillMaxSize(),
+            drawKey = listOf(clip.gradX1, clip.gradY1, clip.gradX2, clip.gradY2),
+            buildCmds = { w, h, d ->
+                val ax = clip.gradX1 * w
+                val ay = clip.gradY1 * h
+                val bx = clip.gradX2 * w
+                val by = clip.gradY2 * h
+                addLine(ax, ay, bx, by, 4f * d, android.graphics.Color.BLACK)
+                addLine(ax, ay, bx, by, 2f * d, android.graphics.Color.WHITE)
+            },
+            fallbackDraw = {
+                val a = Offset(clip.gradX1 * size.width, clip.gradY1 * size.height)
+                val b = Offset(clip.gradX2 * size.width, clip.gradY2 * size.height)
+                drawLine(Color.Black, a, b, strokeWidth = 4.dp.toPx())
+                drawLine(Color.White, a, b, strokeWidth = 2.dp.toPx())
+            }
+        )
         listOf(0, 1).forEach { idx ->
             val px = if (idx == 0) clip.gradX1 else clip.gradX2
             val py = if (idx == 0) clip.gradY1 else clip.gradY2

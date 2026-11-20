@@ -176,6 +176,191 @@ void main() {
 }
 )";
 
+static const char* kQuadVs = R"(#version 300 es
+precision highp float;
+layout(location = 0) in vec2 aPos;
+layout(location = 1) in vec2 aLocal;
+layout(location = 2) in vec4 aBox;
+layout(location = 3) in vec4 aP03;
+layout(location = 4) in vec2 aP45;
+layout(location = 5) in vec4 aC0;
+layout(location = 6) in vec4 aC1;
+uniform vec2 uViewport;
+out vec2 vLocal;
+out vec4 vBox;
+out vec4 vP03;
+out vec2 vP45;
+out vec4 vC0;
+out vec4 vC1;
+void main() {
+    vec2 ndc = vec2((aPos.x / uViewport.x) * 2.0 - 1.0, 1.0 - (aPos.y / uViewport.y) * 2.0);
+    gl_Position = vec4(ndc, 0.0, 1.0);
+    vLocal = aLocal;
+    vBox = aBox;
+    vP03 = aP03;
+    vP45 = aP45;
+    vC0 = aC0;
+    vC1 = aC1;
+}
+)";
+
+static const char* kQuadFs = R"(#version 300 es
+precision highp float;
+in vec2 vLocal;
+in vec4 vBox;
+in vec4 vP03;
+in vec2 vP45;
+in vec4 vC0;
+in vec4 vC1;
+out vec4 fragColor;
+
+vec3 hsvToRgb(float hDeg, float s, float v) {
+    float h = mod(hDeg, 360.0);
+    if (h < 0.0) h += 360.0;
+    float c = v * clamp(s, 0.0, 1.0);
+    float x = c * (1.0 - abs(mod(h / 60.0, 2.0) - 1.0));
+    float m = v - c;
+    vec3 rgb;
+    if (h < 60.0) rgb = vec3(c, x, 0.0);
+    else if (h < 120.0) rgb = vec3(x, c, 0.0);
+    else if (h < 180.0) rgb = vec3(0.0, c, x);
+    else if (h < 240.0) rgb = vec3(0.0, x, c);
+    else if (h < 300.0) rgb = vec3(x, 0.0, c);
+    else rgb = vec3(c, 0.0, x);
+    return clamp(rgb + vec3(m), 0.0, 1.0);
+}
+
+float roundBoxMask(vec2 p, vec2 size, float r) {
+    if (r <= 0.001) {
+        vec2 e = min(p, size - p);
+        return clamp(min(e.x, e.y) + 0.6, 0.0, 1.0);
+    }
+    vec2 hs = size * 0.5;
+    float cr = min(r, min(hs.x, hs.y));
+    vec2 q = abs(p - hs) - (hs - vec2(cr));
+    float d = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - cr;
+    return smoothstep(0.6, -0.6, d);
+}
+
+vec4 checkerSample(vec2 p, float cell, vec4 c0, vec4 c1) {
+    float cs = max(2.0, cell);
+    vec2 idx = floor(p / cs);
+    float odd = mod(idx.x + idx.y, 2.0);
+    return mix(c0, c1, odd);
+}
+
+void main() {
+    vec2 size = vBox.xy;
+    float cr = vBox.z;
+    float mode = vBox.w;
+    float clipA = roundBoxMask(vLocal, size, cr);
+    if (clipA < 0.001) discard;
+
+    if (mode < 0.5) {
+        // mode 0: Checkerboard (p0 = cellPx)
+        vec4 c = checkerSample(vLocal, vP03.x, vC0, vC1);
+        float a = c.a * clipA;
+        fragColor = vec4(c.rgb * a, a);
+    } else if (mode < 1.5) {
+        // mode 1: HSV Hue Wheel Ring (p0=innerR, p1=outerR, p2=selHueDeg, p3=showReticle)
+        vec2 c = size * 0.5;
+        vec2 dp = vLocal - c;
+        float dist = length(dp);
+        float innerR = vP03.x;
+        float outerR = vP03.y;
+        float ringA = smoothstep(innerR - 0.8, innerR + 0.8, dist) *
+                      smoothstep(outerR + 0.8, outerR - 0.8, dist);
+        float angDeg = degrees(atan(dp.y, dp.x));
+        if (angDeg < 0.0) angDeg += 360.0;
+        vec3 col = hsvToRgb(angDeg, 1.0, 1.0);
+        vec4 outC = vec4(col * ringA, ringA);
+        if (vP03.w > 0.5) {
+            float rad = radians(vP03.z);
+            float midR = (innerR + outerR) * 0.5;
+            vec2 rp = c + vec2(cos(rad), sin(rad)) * midR;
+            float rd = length(vLocal - rp);
+            float retR = max(3.5, (outerR - innerR) * 0.36);
+            float rimA = smoothstep(1.2, 0.0, abs(rd - retR) - 1.5);
+            float darkA = smoothstep(1.2, 0.0, abs(rd - retR) - 2.6) * 0.45;
+            vec4 dCol = vec4(0.0, 0.0, 0.0, darkA);
+            vec4 wCol = vec4(vec3(rimA), rimA);
+            outC = dCol + outC * (1.0 - dCol.a);
+            outC = wCol + outC * (1.0 - wCol.a);
+        }
+        if (outC.a < 0.001) discard;
+        fragColor = outC;
+    } else if (mode < 2.5) {
+        // mode 2: HSV SV Box (p0=hueDeg, p1=selSat, p2=selVal, p3=showReticle)
+        float s = clamp(vLocal.x / max(1.0, size.x), 0.0, 1.0);
+        float v = 1.0 - clamp(vLocal.y / max(1.0, size.y), 0.0, 1.0);
+        vec3 col = hsvToRgb(vP03.x, s, v);
+        vec4 outC = vec4(col * clipA, clipA);
+        if (vP03.w > 0.5) {
+            vec2 rp = vec2(clamp(vP03.y, 0.0, 1.0) * size.x, (1.0 - clamp(vP03.z, 0.0, 1.0)) * size.y);
+            float rd = length(vLocal - rp);
+            float retR = max(4.0, vP45.x);
+            float darkRim = smoothstep(1.0, 0.0, abs(rd - retR) - 2.1) * 0.55;
+            float whiteRim = smoothstep(1.0, 0.0, abs(rd - retR) - 1.1);
+            vec4 dCol = vec4(0.0, 0.0, 0.0, darkRim);
+            vec4 wCol = vec4(vec3(whiteRim), whiteRim);
+            outC = dCol + outC * (1.0 - dCol.a);
+            outC = wCol + outC * (1.0 - wCol.a);
+        }
+        fragColor = outC;
+    } else if (mode < 3.5) {
+        // mode 3: Horizontal Bar (p0=subMode: 0=2-stop, 1=rainbow, 2=checker+alpha, 3=sat, 4=val)
+        float sub = vP03.x;
+        float frac = clamp(vLocal.x / max(1.0, size.x), 0.0, 1.0);
+        vec4 c;
+        if (sub < 0.5) {
+            c = mix(vC0, vC1, frac);
+        } else if (sub < 1.5) {
+            c = vec4(hsvToRgb(frac * 360.0, 1.0, 1.0), 1.0);
+        } else if (sub < 2.5) {
+            vec4 chk = checkerSample(vLocal, 7.0, vec4(0.32, 0.32, 0.34, 1.0), vec4(0.18, 0.18, 0.20, 1.0));
+            vec4 fg = mix(vec4(vC0.rgb, 0.0), vec4(vC1.rgb, 1.0), frac);
+            c = vec4(mix(chk.rgb, fg.rgb, fg.a), 1.0);
+        } else if (sub < 3.5) {
+            c = vec4(hsvToRgb(vP03.y, frac, vP03.z), 1.0);
+        } else {
+            c = vec4(hsvToRgb(vP03.y, vP03.z, frac), 1.0);
+        }
+        float a = c.a * clipA;
+        vec4 outC = vec4(c.rgb * a, a);
+        float thumbFrac = vP45.x;
+        if (thumbFrac >= 0.0) {
+            float tx = clamp(thumbFrac, 0.0, 1.0) * size.x;
+            float ty = size.y * 0.5;
+            float r = max(3.5, size.y * 0.38);
+            float d = length(vLocal - vec2(tx, ty)) - r;
+            float fillA = smoothstep(0.8, -0.8, d);
+            float borderA = smoothstep(0.8, -0.8, abs(d) - 1.5) * 0.65;
+            vec4 fillCol = vec4(vec3(fillA), fillA);
+            vec4 bdCol = vec4(0.0, 0.0, 0.0, borderA);
+            outC = fillCol + outC * (1.0 - fillCol.a);
+            outC = bdCol + outC * (1.0 - bdCol.a);
+        }
+        fragColor = outC;
+    } else {
+        // mode 4: Gradient Type Tile (p0=0:linear, 1:radial, 2:sweep)
+        float gt = vP03.x;
+        vec2 uv = vLocal / max(vec2(1.0), size);
+        float t;
+        if (gt < 0.5) {
+            t = clamp((uv.x + uv.y) * 0.5, 0.0, 1.0);
+        } else if (gt < 1.5) {
+            t = clamp(length(uv - vec2(0.5)) * 1.45, 0.0, 1.0);
+        } else {
+            float ang = atan(uv.y - 0.5, uv.x - 0.5) + 3.14159265;
+            t = abs(mod(ang / 3.14159265, 2.0) - 1.0);
+        }
+        vec4 c = mix(vC0, vC1, t);
+        float a = c.a * clipA;
+        fragColor = vec4(c.rgb * a, a);
+    }
+}
+)";
+
 static GLuint compileShader(GLenum type, const char* src) {
     GLuint sh = glCreateShader(type);
     if (!sh) return 0;
@@ -333,6 +518,33 @@ bool UiGlRenderer::init() {
     glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, sizeof(PointVertex),
                           reinterpret_cast<const void*>(offsetof(PointVertex, size)));
 
+    // Quad VAO/VBO
+    glGenVertexArrays(1, &vaoQuad_);
+    glGenBuffers(1, &vboQuad_);
+    glBindVertexArray(vaoQuad_);
+    glBindBuffer(GL_ARRAY_BUFFER, vboQuad_);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(QuadVertex),
+                          reinterpret_cast<const void*>(offsetof(QuadVertex, x)));
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(QuadVertex),
+                          reinterpret_cast<const void*>(offsetof(QuadVertex, lx)));
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(QuadVertex),
+                          reinterpret_cast<const void*>(offsetof(QuadVertex, w)));
+    glEnableVertexAttribArray(3);
+    glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, sizeof(QuadVertex),
+                          reinterpret_cast<const void*>(offsetof(QuadVertex, p0)));
+    glEnableVertexAttribArray(4);
+    glVertexAttribPointer(4, 2, GL_FLOAT, GL_FALSE, sizeof(QuadVertex),
+                          reinterpret_cast<const void*>(offsetof(QuadVertex, p4)));
+    glEnableVertexAttribArray(5);
+    glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, sizeof(QuadVertex),
+                          reinterpret_cast<const void*>(offsetof(QuadVertex, c0r)));
+    glEnableVertexAttribArray(6);
+    glVertexAttribPointer(6, 4, GL_FLOAT, GL_FALSE, sizeof(QuadVertex),
+                          reinterpret_cast<const void*>(offsetof(QuadVertex, c1r)));
+
     glBindVertexArray(0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
@@ -345,10 +557,12 @@ bool UiGlRenderer::compileShaders() {
     progFlat_ = linkProgram(kFlatVs, kFlatFs);
     progSdf_ = linkProgram(kSdfVs, kSdfFs);
     progPoint_ = linkProgram(kPointVs, kPointFs);
-    if (!progFlat_ || !progSdf_ || !progPoint_) return false;
+    progQuad_ = linkProgram(kQuadVs, kQuadFs);
+    if (!progFlat_ || !progSdf_ || !progPoint_ || !progQuad_) return false;
     uFlatViewport_ = glGetUniformLocation(progFlat_, "uViewport");
     uSdfViewport_ = glGetUniformLocation(progSdf_, "uViewport");
     uPointViewport_ = glGetUniformLocation(progPoint_, "uViewport");
+    uQuadViewport_ = glGetUniformLocation(progQuad_, "uViewport");
     return true;
 }
 
@@ -371,11 +585,14 @@ void UiGlRenderer::release() {
         if (vaoSdf_) glDeleteVertexArrays(1, &vaoSdf_);
         if (vboPoint_) glDeleteBuffers(1, &vboPoint_);
         if (vaoPoint_) glDeleteVertexArrays(1, &vaoPoint_);
+        if (vboQuad_) glDeleteBuffers(1, &vboQuad_);
+        if (vaoQuad_) glDeleteVertexArrays(1, &vaoQuad_);
         if (progFlat_) glDeleteProgram(progFlat_);
         if (progSdf_) glDeleteProgram(progSdf_);
         if (progPoint_) glDeleteProgram(progPoint_);
-        vboFlat_ = vaoFlat_ = vboSdf_ = vaoSdf_ = vboPoint_ = vaoPoint_ = 0;
-        progFlat_ = progSdf_ = progPoint_ = 0;
+        if (progQuad_) glDeleteProgram(progQuad_);
+        vboFlat_ = vaoFlat_ = vboSdf_ = vaoSdf_ = vboPoint_ = vaoPoint_ = vboQuad_ = vaoQuad_ = 0;
+        progFlat_ = progSdf_ = progPoint_ = progQuad_ = 0;
         initialized_ = false;
     }
     egl_.release();
@@ -457,11 +674,26 @@ void UiGlRenderer::resetBatches() {
     flatVerts_.clear();
     sdfVerts_.clear();
     pointVerts_.clear();
+    quadVerts_.clear();
 }
 
 void UiGlRenderer::flushBatches(int w, int h) {
     const float fw = static_cast<float>(w);
     const float fh = static_cast<float>(h);
+
+    // Draw procedural shader quads first so vector overlays/reticles composite cleanly on top.
+    if (!quadVerts_.empty()) {
+        glUseProgram(progQuad_);
+        glUniform2f(uQuadViewport_, fw, fh);
+        glBindVertexArray(vaoQuad_);
+        glBindBuffer(GL_ARRAY_BUFFER, vboQuad_);
+        glBufferData(
+            GL_ARRAY_BUFFER,
+            static_cast<GLsizeiptr>(quadVerts_.size() * sizeof(QuadVertex)),
+            quadVerts_.data(),
+            GL_STREAM_DRAW);
+        glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(quadVerts_.size()));
+    }
 
     if (!flatVerts_.empty()) {
         glUseProgram(progFlat_);
@@ -755,6 +987,181 @@ void UiGlRenderer::addPoint(float x, float y, float size, Rgba c) {
     pointVerts_.push_back({x, y, c.r, c.g, c.b, c.a, size});
 }
 
+void UiGlRenderer::addGradRect(float x, float y, float w, float h, bool vertical, Rgba c0, Rgba c1) {
+    if (w <= 0.0f || h <= 0.0f) return;
+    const float x1 = x + w;
+    const float y1 = y + h;
+    const Rgba tr = vertical ? c0 : c1;
+    const Rgba br = c1;
+    const Rgba bl = vertical ? c1 : c0;
+    flatVerts_.push_back({x,  y,  c0.r, c0.g, c0.b, c0.a, 1.0f});
+    flatVerts_.push_back({x1, y,  tr.r, tr.g, tr.b, tr.a, 1.0f});
+    flatVerts_.push_back({x1, y1, br.r, br.g, br.b, br.a, 1.0f});
+    flatVerts_.push_back({x,  y,  c0.r, c0.g, c0.b, c0.a, 1.0f});
+    flatVerts_.push_back({x1, y1, br.r, br.g, br.b, br.a, 1.0f});
+    flatVerts_.push_back({x,  y1, bl.r, bl.g, bl.b, bl.a, 1.0f});
+}
+
+void UiGlRenderer::addCubic(
+    float x0, float y0, float c1x, float c1y,
+    float c2x, float c2y, float x1, float y1,
+    float width, bool capRound, Rgba stroke) {
+    constexpr int kSteps = 20;
+    float pts[(kSteps + 1) * 2];
+    for (int i = 0; i <= kSteps; ++i) {
+        const float t = static_cast<float>(i) / static_cast<float>(kSteps);
+        const float u = 1.0f - t;
+        const float u2 = u * u;
+        const float t2 = t * t;
+        const float w0 = u2 * u;
+        const float w1 = 3.0f * u2 * t;
+        const float w2 = 3.0f * u * t2;
+        const float w3 = t2 * t;
+        pts[i * 2]     = w0 * x0 + w1 * c1x + w2 * c2x + w3 * x1;
+        pts[i * 2 + 1] = w0 * y0 + w1 * c1y + w2 * c2y + w3 * y1;
+    }
+    addPolyline(pts, kSteps + 1, false, width, 0.0f, 0.0f, capRound, stroke);
+}
+
+void UiGlRenderer::addArc(
+    float cx, float cy, float rx, float ry,
+    float startDeg, float sweepDeg, float width,
+    bool capRound, bool closedPie, Rgba fill, Rgba stroke) {
+    if (rx <= 0.0f || ry <= 0.0f || std::fabs(sweepDeg) <= 0.01f) return;
+    const float clampedSweep = std::max(-360.0f, std::min(360.0f, sweepDeg));
+    const int steps = std::max(8, std::min(72, static_cast<int>(std::ceil(std::fabs(clampedSweep) / 6.0f))));
+    std::vector<float> pts(static_cast<size_t>(steps + 1) * 2u);
+    for (int i = 0; i <= steps; ++i) {
+        const float a = (startDeg + clampedSweep * (static_cast<float>(i) / static_cast<float>(steps))) *
+                        0.017453292519943295f;
+        pts[static_cast<size_t>(i) * 2u]     = cx + std::cos(a) * rx;
+        pts[static_cast<size_t>(i) * 2u + 1u] = cy + std::sin(a) * ry;
+    }
+    if (fill.a > 0.001f) {
+        if (closedPie) {
+            for (int i = 0; i < steps; ++i) {
+                addTri(cx, cy,
+                       pts[static_cast<size_t>(i) * 2u], pts[static_cast<size_t>(i) * 2u + 1u],
+                       pts[static_cast<size_t>(i + 1) * 2u], pts[static_cast<size_t>(i + 1) * 2u + 1u],
+                       fill);
+            }
+        } else {
+            addFilledPolygon(pts.data(), steps + 1, fill);
+        }
+    }
+    if (width > 0.0f && stroke.a > 0.001f) {
+        addPolyline(pts.data(), steps + 1, false, width, 0.0f, 0.0f, capRound, stroke);
+    }
+}
+
+void UiGlRenderer::addFilledPolygon(const float* xy, int count, Rgba fill) {
+    if (!xy || count < 3 || fill.a <= 0.001f) return;
+    struct Pt2 { float x, y; };
+    std::vector<Pt2> poly;
+    poly.reserve(static_cast<size_t>(count));
+    for (int i = 0; i < count; ++i) {
+        const float x = xy[i * 2];
+        const float y = xy[i * 2 + 1];
+        if (poly.empty() || std::hypot(x - poly.back().x, y - poly.back().y) > 1e-3f) {
+            poly.push_back({x, y});
+        }
+    }
+    if (poly.size() >= 3 && std::hypot(poly.front().x - poly.back().x, poly.front().y - poly.back().y) <= 1e-3f) {
+        poly.pop_back();
+    }
+    const int n = static_cast<int>(poly.size());
+    if (n < 3) return;
+
+    // Signed area determines winding (ensure CCW > 0)
+    float area2 = 0.0f;
+    for (int i = 0; i < n; ++i) {
+        const int j = (i + 1) % n;
+        area2 += poly[static_cast<size_t>(i)].x * poly[static_cast<size_t>(j)].y -
+                 poly[static_cast<size_t>(j)].x * poly[static_cast<size_t>(i)].y;
+    }
+    if (std::fabs(area2) < 1e-4f) return;
+
+    std::vector<int> idx(static_cast<size_t>(n));
+    for (int i = 0; i < n; ++i) idx[static_cast<size_t>(i)] = (area2 > 0.0f) ? i : (n - 1 - i);
+
+    auto cross = [](const Pt2& a, const Pt2& b, const Pt2& c) -> float {
+        return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+    };
+    auto pointInTri = [](const Pt2& p, const Pt2& a, const Pt2& b, const Pt2& c) -> bool {
+        const float c1 = (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x);
+        const float c2 = (c.x - b.x) * (p.y - b.y) - (c.y - b.y) * (p.x - b.x);
+        const float c3 = (a.x - c.x) * (p.y - c.y) - (a.y - c.y) * (p.x - c.x);
+        return c1 >= -1e-4f && c2 >= -1e-4f && c3 >= -1e-4f;
+    };
+
+    int guard = n * 3;
+    while (idx.size() > 3 && guard-- > 0) {
+        bool clipped = false;
+        const int m = static_cast<int>(idx.size());
+        for (int i = 0; i < m; ++i) {
+            const int i0 = idx[static_cast<size_t>((i + m - 1) % m)];
+            const int i1 = idx[static_cast<size_t>(i)];
+            const int i2 = idx[static_cast<size_t>((i + 1) % m)];
+            const Pt2& a = poly[static_cast<size_t>(i0)];
+            const Pt2& b = poly[static_cast<size_t>(i1)];
+            const Pt2& c = poly[static_cast<size_t>(i2)];
+            if (cross(a, b, c) <= 1e-5f) continue;
+            bool inside = false;
+            for (int k = 0; k < m; ++k) {
+                const int ik = idx[static_cast<size_t>(k)];
+                if (ik == i0 || ik == i1 || ik == i2) continue;
+                if (pointInTri(poly[static_cast<size_t>(ik)], a, b, c)) {
+                    inside = true;
+                    break;
+                }
+            }
+            if (!inside) {
+                addTri(a.x, a.y, b.x, b.y, c.x, c.y, fill);
+                idx.erase(idx.begin() + i);
+                clipped = true;
+                break;
+            }
+        }
+        if (!clipped) break;
+    }
+    if (idx.size() == 3) {
+        const Pt2& a = poly[static_cast<size_t>(idx[0])];
+        const Pt2& b = poly[static_cast<size_t>(idx[1])];
+        const Pt2& c = poly[static_cast<size_t>(idx[2])];
+        addTri(a.x, a.y, b.x, b.y, c.x, c.y, fill);
+    }
+}
+
+void UiGlRenderer::addDimmerHole(float w, float h, float l, float t, float r, float b, Rgba dim) {
+    if (dim.a <= 0.001f || w <= 0.0f || h <= 0.0f) return;
+    const float cl = std::max(0.0f, std::min(w, l));
+    const float cr = std::max(cl, std::min(w, r));
+    const float ct = std::max(0.0f, std::min(h, t));
+    const float cb = std::max(ct, std::min(h, b));
+    if (ct > 0.0f) addRect(0.0f, 0.0f, w, ct, dim);
+    if (cb < h) addRect(0.0f, cb, w, h - cb, dim);
+    if (cl > 0.0f && cb > ct) addRect(0.0f, ct, cl, cb - ct, dim);
+    if (cr < w && cb > ct) addRect(cr, ct, w - cr, cb - ct, dim);
+}
+
+void UiGlRenderer::addShaderQuad(
+    float x, float y, float w, float h, float cornerR, float mode,
+    float p0, float p1, float p2, float p3, float p4, float p5,
+    Rgba c0, Rgba c1) {
+    if (w <= 0.0f || h <= 0.0f) return;
+    auto push = [&](float dx, float dy) {
+        quadVerts_.push_back({
+            x + dx, y + dy, dx, dy,
+            w, h, cornerR, mode,
+            p0, p1, p2, p3, p4, p5,
+            c0.r, c0.g, c0.b, c0.a,
+            c1.r, c1.g, c1.b, c1.a
+        });
+    };
+    push(0.0f, 0.0f); push(w, 0.0f); push(w, h);
+    push(0.0f, 0.0f); push(w, h);    push(0.0f, h);
+}
+
 // ---- Domain plot builders ----
 
 void UiGlRenderer::buildQuarterGraticule(int w, int h) {
@@ -999,6 +1406,166 @@ void UiGlRenderer::buildEasingGeometry(
     }
 }
 
+void UiGlRenderer::buildRulerDialGeometry(
+    int w, int h,
+    float value, float minVal, float maxVal, float step,
+    float tickSpacingPx, bool accentNeedle, float density) {
+    if (w <= 0 || h <= 0) return;
+    const float fw = static_cast<float>(w);
+    const float fh = static_cast<float>(h);
+    const float d = std::max(0.5f, density);
+    const float spacing = std::max(2.0f, tickSpacingPx);
+    const float st = std::max(1e-4f, step);
+    const float cx = fw * 0.5f;
+    const int maxIdx = static_cast<int>(std::round((maxVal - minVal) / st));
+    const float clamped = std::max(minVal, std::min(maxVal, value));
+    const float idx = (clamped - minVal) / st;
+    const int half = static_cast<int>(fw * 0.5f / spacing) + 2;
+    const int base = static_cast<int>(std::floor(idx));
+
+    const Rgba majorC = argbToRgba(static_cast<int32_t>(0xFF9A9AA0));
+    const Rgba minorC = argbToRgba(static_cast<int32_t>(0xFFC9C9CE));
+
+    for (int k = base - half; k <= base + half; ++k) {
+        if (k < 0 || k > maxIdx) continue;
+        const float x = cx + (idx - static_cast<float>(k)) * spacing;
+        if (x < 0.0f || x > fw) continue;
+        const float tickVal = minVal + static_cast<float>(k) * st;
+        const bool isMajor = (static_cast<int>(std::round(tickVal / st)) % 5) == 0;
+        const float th = isMajor ? fh * 0.75f : fh * 0.42f;
+        const float y0 = (fh - th) * 0.5f;
+        addSegmentSdf(x, y0, x, y0 + th, 1.5f * d, 0.0f, 0.0f, 0.0f, false, isMajor ? majorC : minorC);
+    }
+
+    const Rgba needleC = argbToRgba(static_cast<int32_t>(0xFF18181A));
+    const Rgba needleHalo = {needleC.r, needleC.g, needleC.b, 0.20f};
+    const float nh = fh * 0.82f;
+    const float ns = (fh - nh) * 0.5f;
+    addSegmentSdf(cx, ns, cx, ns + nh, 5.5f * d, 0.0f, 0.0f, 0.0f, true, needleHalo);
+    addSegmentSdf(cx, ns, cx, ns + nh, 2.0f * d, 0.0f, 0.0f, 0.0f, true, needleC);
+
+    const float cy = fh * 0.5f;
+    const float r = 6.0f * d;
+    if (accentNeedle) {
+        addCircle(cx, cy, r, 1.0f * d,
+                  argbToRgba(static_cast<int32_t>(0xFFD2FC32)),
+                  argbToRgba(static_cast<int32_t>(0x59000000)));
+    } else {
+        addCircle(cx, cy, r, 1.2f * d,
+                  argbToRgba(static_cast<int32_t>(0xFFFFFFFF)),
+                  argbToRgba(static_cast<int32_t>(0x66000000)));
+    }
+}
+
+void UiGlRenderer::buildPositionPadGeometry(
+    int w, int h, float xNorm, float yNorm,
+    int32_t dotArgb, int32_t gridArgb, float density) {
+    if (w <= 0 || h <= 0) return;
+    const float fw = static_cast<float>(w);
+    const float fh = static_cast<float>(h);
+    const float d = std::max(0.5f, density);
+    const Rgba gridC = argbToRgba(gridArgb);
+    const Rgba subtle = {gridC.r, gridC.g, gridC.b, gridC.a * 0.45f};
+    addSegmentSdf(fw * 0.5f, 0.0f, fw * 0.5f, fh, 1.0f * d, 0.0f, 0.0f, 0.0f, false, gridC);
+    addSegmentSdf(0.0f, fh * 0.5f, fw, fh * 0.5f, 1.0f * d, 0.0f, 0.0f, 0.0f, false, gridC);
+    for (int i = 1; i <= 3; ++i) {
+        if (i == 2) continue;
+        const float f = static_cast<float>(i) / 4.0f;
+        addSegmentSdf(fw * f, 0.0f, fw * f, fh, 0.75f * d, 0.0f, 0.0f, 0.0f, false, subtle);
+        addSegmentSdf(0.0f, fh * f, fw, fh * f, 0.75f * d, 0.0f, 0.0f, 0.0f, false, subtle);
+    }
+    const float px = std::max(0.0f, std::min(1.0f, xNorm)) * fw;
+    const float py = std::max(0.0f, std::min(1.0f, yNorm)) * fh;
+    const Rgba dotC = argbToRgba(dotArgb);
+    addCircle(px, py, 10.0f * d, 0.0f, {dotC.r, dotC.g, dotC.b, 0.25f}, {0, 0, 0, 0});
+    addCircle(px, py, 5.5f * d, 1.5f * d, dotC, argbToRgba(static_cast<int32_t>(0xFFFFFFFF)));
+}
+
+void UiGlRenderer::buildCropOverlayGeometry(
+    int w, int h, float lNorm, float tNorm, float rNorm, float bNorm, float density) {
+    if (w <= 0 || h <= 0) return;
+    const float fw = static_cast<float>(w);
+    const float fh = static_cast<float>(h);
+    const float d = std::max(0.5f, density);
+    const float pad = 24.0f * d;
+    const float cw = std::max(1.0f, fw - pad * 2.0f);
+    const float ch = std::max(1.0f, fh - pad * 2.0f);
+    const float l = pad + lNorm * cw;
+    const float t = pad + tNorm * ch;
+    const float r = pad + rNorm * cw;
+    const float b = pad + bNorm * ch;
+
+    // Dimmer outside crop rect (matching crop overlay hole)
+    addDimmerHole(fw, fh, l, t, r, b, argbToRgba(static_cast<int32_t>(0x99000000)));
+
+    // Rule-of-thirds guides
+    const Rgba thirdC = argbToRgba(static_cast<int32_t>(0x55FFFFFF));
+    const float bw = r - l;
+    const float bh = b - t;
+    for (int k = 1; k <= 2; ++k) {
+        const float f = static_cast<float>(k) / 3.0f;
+        addSegmentSdf(l + bw * f, t, l + bw * f, b, 1.0f * d, 0.0f, 0.0f, 0.0f, false, thirdC);
+        addSegmentSdf(l, t + bh * f, r, t + bh * f, 1.0f * d, 0.0f, 0.0f, 0.0f, false, thirdC);
+    }
+
+    // Crisp white border + 8 circle handles
+    const float boxPts[8] = {l, t, r, t, r, b, l, b};
+    addPolyline(boxPts, 4, true, 1.75f * d, 0.0f, 0.0f, false, argbToRgba(static_cast<int32_t>(0xFFFFFFFF)));
+    const float mx = (l + r) * 0.5f;
+    const float my = (t + b) * 0.5f;
+    const float hx[8] = {l, mx, r, r, r, mx, l, l};
+    const float hy[8] = {t, t, t, my, b, b, b, my};
+    const Rgba handleFill = argbToRgba(static_cast<int32_t>(0xFFFFFFFF));
+    const Rgba handleStroke = argbToRgba(static_cast<int32_t>(0xFF141418));
+    for (int i = 0; i < 8; ++i) {
+        addCircle(hx[i], hy[i], 5.5f * d, 1.5f * d, handleFill, handleStroke);
+    }
+}
+
+void UiGlRenderer::buildWaveformStripGeometry(
+    int w, int h, const float* peaks, int peakCount,
+    int32_t bgTopArgb, int32_t bgBotArgb, int32_t barArgb, float density) {
+    if (w <= 0 || h <= 0) return;
+    const float fw = static_cast<float>(w);
+    const float fh = static_cast<float>(h);
+    const float d = std::max(0.5f, density);
+    addGradRect(0.0f, 0.0f, fw, fh, true, argbToRgba(bgTopArgb), argbToRgba(bgBotArgb));
+    if (!peaks || peakCount <= 0) return;
+    const float step = std::max(2.0f * d, fw / static_cast<float>(peakCount));
+    const float barW = std::max(1.0f * d, step * 0.62f);
+    const float cy = fh * 0.5f;
+    const Rgba barC = argbToRgba(barArgb);
+    for (int i = 0; i < peakCount; ++i) {
+        const float x = (static_cast<float>(i) + 0.5f) * (fw / static_cast<float>(peakCount));
+        const float amp = std::max(0.05f, std::min(1.0f, peaks[i]));
+        const float bh = std::max(2.0f * d, amp * (fh * 0.78f));
+        addRect(x - barW * 0.5f, cy - bh * 0.5f, barW, bh, barC);
+    }
+}
+
+void UiGlRenderer::buildEasingTileGeometry(
+    int w, int h, float x1, float y1, float x2, float y2,
+    int32_t strokeArgb, float density) {
+    if (w <= 0 || h <= 0) return;
+    const float fw = static_cast<float>(w);
+    const float fh = static_cast<float>(h);
+    const float d = std::max(0.5f, density);
+    const float pad = 4.0f * d;
+    const float pw = std::max(2.0f, fw - pad * 2.0f);
+    const float ph = std::max(2.0f, fh - pad * 2.0f);
+    constexpr int kSteps = 24;
+    float pts[(kSteps + 1) * 2];
+    for (int i = 0; i <= kSteps; ++i) {
+        const float t = static_cast<float>(i) / static_cast<float>(kSteps);
+        const float u = 1.0f - t;
+        const float bx = 3.0f * u * u * t * x1 + 3.0f * u * t * t * x2 + t * t * t;
+        const float by = 3.0f * u * u * t * y1 + 3.0f * u * t * t * y2 + t * t * t;
+        pts[i * 2]     = pad + bx * pw;
+        pts[i * 2 + 1] = pad + (1.0f - by) * ph;
+    }
+    addPolyline(pts, kSteps + 1, false, 1.8f * d, 0.0f, 0.0f, true, argbToRgba(strokeArgb));
+}
+
 void UiGlRenderer::buildVectorCmdGeometry(
     const float* cmds, int cmdFloatCount,
     const int32_t* colors, int colorCount) {
@@ -1072,6 +1639,92 @@ void UiGlRenderer::buildVectorCmdGeometry(
                 addRect(x, y, rw, rh, fill);
                 break;
             }
+            case UI_CMD_CUBIC: {
+                if (p + 10 > cmdFloatCount || cp + 1 > colorCount) return;
+                const float x0 = cmds[p++];
+                const float y0 = cmds[p++];
+                const float c1x = cmds[p++];
+                const float c1y = cmds[p++];
+                const float c2x = cmds[p++];
+                const float c2y = cmds[p++];
+                const float x1 = cmds[p++];
+                const float y1 = cmds[p++];
+                const float width = cmds[p++];
+                const bool capRound = cmds[p++] > 0.5f;
+                const Rgba stroke = argbToRgba(colors[cp++]);
+                addCubic(x0, y0, c1x, c1y, c2x, c2y, x1, y1, width, capRound, stroke);
+                break;
+            }
+            case UI_CMD_ARC: {
+                if (p + 9 > cmdFloatCount || cp + 2 > colorCount) return;
+                const float cx = cmds[p++];
+                const float cy = cmds[p++];
+                const float rx = cmds[p++];
+                const float ry = cmds[p++];
+                const float startDeg = cmds[p++];
+                const float sweepDeg = cmds[p++];
+                const float width = cmds[p++];
+                const bool capRound = cmds[p++] > 0.5f;
+                const bool closedPie = cmds[p++] > 0.5f;
+                const Rgba fill = argbToRgba(colors[cp++]);
+                const Rgba stroke = argbToRgba(colors[cp++]);
+                addArc(cx, cy, rx, ry, startDeg, sweepDeg, width, capRound, closedPie, fill, stroke);
+                break;
+            }
+            case UI_CMD_FILL_POLY: {
+                if (p + 1 > cmdFloatCount || cp + 1 > colorCount) return;
+                const int n = static_cast<int>(cmds[p++]);
+                if (n < 0 || p + n * 2 > cmdFloatCount) return;
+                const Rgba fill = argbToRgba(colors[cp++]);
+                if (n >= 3) {
+                    addFilledPolygon(cmds + p, n, fill);
+                }
+                p += n * 2;
+                break;
+            }
+            case UI_CMD_DIMMER_HOLE: {
+                if (p + 6 > cmdFloatCount || cp + 1 > colorCount) return;
+                const float dw = cmds[p++];
+                const float dh = cmds[p++];
+                const float l = cmds[p++];
+                const float t = cmds[p++];
+                const float r = cmds[p++];
+                const float b = cmds[p++];
+                const Rgba dim = argbToRgba(colors[cp++]);
+                addDimmerHole(dw, dh, l, t, r, b, dim);
+                break;
+            }
+            case UI_CMD_SHADER_QUAD: {
+                if (p + 12 > cmdFloatCount || cp + 2 > colorCount) return;
+                const float qx = cmds[p++];
+                const float qy = cmds[p++];
+                const float qw = cmds[p++];
+                const float qh = cmds[p++];
+                const float cr = cmds[p++];
+                const float mode = cmds[p++];
+                const float p0 = cmds[p++];
+                const float p1 = cmds[p++];
+                const float p2 = cmds[p++];
+                const float p3 = cmds[p++];
+                const float p4 = cmds[p++];
+                const float p5 = cmds[p++];
+                const Rgba c0 = argbToRgba(colors[cp++]);
+                const Rgba c1 = argbToRgba(colors[cp++]);
+                addShaderQuad(qx, qy, qw, qh, cr, mode, p0, p1, p2, p3, p4, p5, c0, c1);
+                break;
+            }
+            case UI_CMD_GRAD_RECT: {
+                if (p + 5 > cmdFloatCount || cp + 2 > colorCount) return;
+                const float gx = cmds[p++];
+                const float gy = cmds[p++];
+                const float gw = cmds[p++];
+                const float gh = cmds[p++];
+                const bool vertical = cmds[p++] > 0.5f;
+                const Rgba c0 = argbToRgba(colors[cp++]);
+                const Rgba c1 = argbToRgba(colors[cp++]);
+                addGradRect(gx, gy, gw, gh, vertical, c0, c1);
+                break;
+            }
             default:
                 return;
         }
@@ -1129,6 +1782,76 @@ bool UiGlRenderer::drawEasingGraph(
     clearColor(0x00000000);
     resetBatches();
     buildEasingGeometry(w, h, x1, y1, x2, y2, progress, density, padL, padT, padR, padB);
+    flushBatches(w, h);
+    return egl_.swap(surf, -1);
+}
+
+bool UiGlRenderer::drawRulerDial(
+    int surfaceId,
+    float value, float minVal, float maxVal, float step,
+    float tickSpacingPx, bool accentNeedle, float density) {
+    int w = 0, h = 0;
+    EGLSurface surf = EGL_NO_SURFACE;
+    if (!beginSurface(surfaceId, w, h, surf)) return false;
+    clearColor(0x00000000);
+    resetBatches();
+    buildRulerDialGeometry(w, h, value, minVal, maxVal, step, tickSpacingPx, accentNeedle, density);
+    flushBatches(w, h);
+    return egl_.swap(surf, -1);
+}
+
+bool UiGlRenderer::drawPositionPad(
+    int surfaceId,
+    float xNorm, float yNorm,
+    int32_t dotArgb, int32_t gridArgb, float density) {
+    int w = 0, h = 0;
+    EGLSurface surf = EGL_NO_SURFACE;
+    if (!beginSurface(surfaceId, w, h, surf)) return false;
+    clearColor(0x00000000);
+    resetBatches();
+    buildPositionPadGeometry(w, h, xNorm, yNorm, dotArgb, gridArgb, density);
+    flushBatches(w, h);
+    return egl_.swap(surf, -1);
+}
+
+bool UiGlRenderer::drawCropOverlay(
+    int surfaceId,
+    float lNorm, float tNorm, float rNorm, float bNorm,
+    float density) {
+    int w = 0, h = 0;
+    EGLSurface surf = EGL_NO_SURFACE;
+    if (!beginSurface(surfaceId, w, h, surf)) return false;
+    clearColor(0x00000000);
+    resetBatches();
+    buildCropOverlayGeometry(w, h, lNorm, tNorm, rNorm, bNorm, density);
+    flushBatches(w, h);
+    return egl_.swap(surf, -1);
+}
+
+bool UiGlRenderer::drawWaveformStrip(
+    int surfaceId,
+    const float* peaks, int peakCount,
+    int32_t bgTopArgb, int32_t bgBotArgb, int32_t barArgb, float density) {
+    int w = 0, h = 0;
+    EGLSurface surf = EGL_NO_SURFACE;
+    if (!beginSurface(surfaceId, w, h, surf)) return false;
+    clearColor(0x00000000);
+    resetBatches();
+    buildWaveformStripGeometry(w, h, peaks, peakCount, bgTopArgb, bgBotArgb, barArgb, density);
+    flushBatches(w, h);
+    return egl_.swap(surf, -1);
+}
+
+bool UiGlRenderer::drawEasingTile(
+    int surfaceId,
+    float x1, float y1, float x2, float y2,
+    int32_t strokeArgb, float density) {
+    int w = 0, h = 0;
+    EGLSurface surf = EGL_NO_SURFACE;
+    if (!beginSurface(surfaceId, w, h, surf)) return false;
+    clearColor(0x00000000);
+    resetBatches();
+    buildEasingTileGeometry(w, h, x1, y1, x2, y2, strokeArgb, density);
     flushBatches(w, h);
     return egl_.swap(surf, -1);
 }

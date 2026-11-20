@@ -60,6 +60,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -136,53 +137,100 @@ private fun SelIconBtn(
 /** The reference's Layers glyph: a dashed back rect, a filled front rect, and the cyan target badge. */
 @Composable
 private fun LayersGlyph219(modifier: Modifier = Modifier) {
-    Canvas(modifier = modifier.size(19.dp)) {
-        val u = size.width / 24f
-        val strokeW = 1.7f * u
-        // Back rect (dashed), offset up-left.
-        drawRoundRect(
-            color = Color.White,
-            topLeft = Offset(1.5f * u, 3.5f * u),
-            size = Size(13f * u, 13f * u),
-            cornerRadius = CornerRadius(3f * u),
-            style = Stroke(width = strokeW, pathEffect = PathEffect.dashPathEffect(floatArrayOf(3.2f * u, 2.4f * u)))
-        )
-        // Front rect (filled with the bar colour, solid stroke), offset down-right.
-        drawRoundRect(
-            color = SelBg,
-            topLeft = Offset(6.5f * u, 8.5f * u),
-            size = Size(13f * u, 13f * u),
-            cornerRadius = CornerRadius(3f * u)
-        )
-        drawRoundRect(
-            color = Color.White,
-            topLeft = Offset(6.5f * u, 8.5f * u),
-            size = Size(13f * u, 13f * u),
-            cornerRadius = CornerRadius(3f * u),
-            style = Stroke(width = strokeW)
-        )
-        // Cyan concentric target badge at the front rect's top-right.
-        val c = Offset(19.5f * u, 6.5f * u)
-        drawCircle(SelAccent, radius = 3.6f * u, center = c, style = Stroke(width = 1.3f * u))
-        drawCircle(SelAccent, radius = 1.15f * u, center = c)
-    }
+    NativeVectorCanvas(
+        modifier = modifier.size(19.dp),
+        drawKey = "layers_glyph_219",
+        buildCmds = { w, _, _ ->
+            val u = w / 24f
+            val strokeW = 1.7f * u
+            val whiteArgb = Color.White.toArgb()
+            // Back dashed rounded rect
+            val l = 1.5f * u
+            val t = 3.5f * u
+            val s = 13f * u
+            val r = 3f * u
+            val pts = mutableListOf<Pair<Float, Float>>()
+            fun addArcPts(cx: Float, cy: Float, startDeg: Float) {
+                for (i in 0..4) {
+                    val a = Math.toRadians((startDeg + i * 22.5))
+                    pts.add((cx + r * kotlin.math.cos(a).toFloat()) to (cy + r * kotlin.math.sin(a).toFloat()))
+                }
+            }
+            addArcPts(l + s - r, t + r, -90f)
+            addArcPts(l + s - r, t + s - r, 0f)
+            addArcPts(l + r, t + s - r, 90f)
+            addArcPts(l + r, t + r, 180f)
+            val xs = FloatArray(pts.size) { pts[it].first }
+            val ys = FloatArray(pts.size) { pts[it].second }
+            addPolyline(xs, ys, pts.size, true, strokeW, whiteArgb, dashOn = 3.2f * u, dashOff = 2.4f * u, capRound = false)
+            // Front rect
+            addRoundRect(
+                (6.5f + 6.5f) * u, (8.5f + 6.5f) * u,
+                13f * u, 13f * u, 3f * u,
+                fillArgb = SelBg.toArgb(), strokeWidth = strokeW, strokeArgb = whiteArgb
+            )
+            // Target badge
+            val accentArgb = SelAccent.toArgb()
+            addCircle(19.5f * u, 6.5f * u, 3.6f * u, 0, 1.3f * u, accentArgb)
+            addCircle(19.5f * u, 6.5f * u, 1.15f * u, accentArgb)
+        },
+        fallbackDraw = {
+            val u = size.width / 24f
+            val strokeW = 1.7f * u
+            drawRoundRect(
+                color = Color.White,
+                topLeft = Offset(1.5f * u, 3.5f * u),
+                size = Size(13f * u, 13f * u),
+                cornerRadius = CornerRadius(3f * u),
+                style = Stroke(width = strokeW, pathEffect = PathEffect.dashPathEffect(floatArrayOf(3.2f * u, 2.4f * u)))
+            )
+            drawRoundRect(
+                color = SelBg,
+                topLeft = Offset(6.5f * u, 8.5f * u),
+                size = Size(13f * u, 13f * u),
+                cornerRadius = CornerRadius(3f * u)
+            )
+            drawRoundRect(
+                color = Color.White,
+                topLeft = Offset(6.5f * u, 8.5f * u),
+                size = Size(13f * u, 13f * u),
+                cornerRadius = CornerRadius(3f * u),
+                style = Stroke(width = strokeW)
+            )
+            val c = Offset(19.5f * u, 6.5f * u)
+            drawCircle(SelAccent, radius = 3.6f * u, center = c, style = Stroke(width = 1.3f * u))
+            drawCircle(SelAccent, radius = 1.15f * u, center = c)
+        }
+    )
 }
 
 /** The reference's More glyph: a circle outline with three dots inside. */
 @Composable
 private fun MoreGlyph219(modifier: Modifier = Modifier) {
-    Canvas(modifier = modifier.size(19.dp)) {
-        val u = size.width / 24f
-        drawCircle(
-            color = SelName,
-            radius = 9.5f * u,
-            center = Offset(12f * u, 12f * u),
-            style = Stroke(width = 1.7f * u)
-        )
-        for (dx in listOf(7f, 12f, 17f)) {
-            drawCircle(Color.White, radius = 1.55f * u, center = Offset(dx * u, 12f * u))
+    NativeVectorCanvas(
+        modifier = modifier.size(19.dp),
+        drawKey = "more_glyph_219",
+        buildCmds = { w, _, _ ->
+            val u = w / 24f
+            addCircle(12f * u, 12f * u, 9.5f * u, 0, 1.7f * u, SelName.toArgb())
+            val whiteArgb = Color.White.toArgb()
+            for (dx in listOf(7f, 12f, 17f)) {
+                addCircle(dx * u, 12f * u, 1.55f * u, whiteArgb)
+            }
+        },
+        fallbackDraw = {
+            val u = size.width / 24f
+            drawCircle(
+                color = SelName,
+                radius = 9.5f * u,
+                center = Offset(12f * u, 12f * u),
+                style = Stroke(width = 1.7f * u)
+            )
+            for (dx in listOf(7f, 12f, 17f)) {
+                drawCircle(Color.White, radius = 1.55f * u, center = Offset(dx * u, 12f * u))
+            }
         }
-    }
+    )
 }
 
 /**

@@ -59,5 +59,29 @@ class UiGlVectorCmdTest {
     @Test
     fun runtimeFallsBackCleanlyOnHostJvmWithoutNativeLib() {
         assertFalse(UiGlRuntime.isSupported)
+        assertFalse(com.example.engine.UiMathNative.isAvailable)
+    }
+
+    @Test
+    fun packsExtendedVectorCommandsAccurately() {
+        val b = VectorCmdBuilder(initialFloats = 16, initialColors = 4)
+        b.addCubic(0f, 1f, 2f, 3f, 4f, 5f, 6f, 7f, 2f, 0xFF112233.toInt(), capRound = true)
+        b.addArc(10f, 20f, 8f, 8f, -90f, 180f, width = 3f, fillArgb = 0, strokeArgb = 0xFF445566.toInt(), capRound = true, closedPie = false)
+        b.addFilledPolygon(floatArrayOf(0f, 5f, 10f), floatArrayOf(0f, 10f, 0f), 3, 0xFF778899.toInt())
+        b.addDimmerHole(100f, 200f, 10f, 20f, 90f, 180f, 0x80000000.toInt())
+        b.addShaderQuad(5f, 6f, 40f, 20f, 4f, UiGlNative.QUAD_SV_BOX, p0 = 0.5f, c0Argb = 0xFFFF0000.toInt(), c1Argb = 0xFF00FF00.toInt())
+        b.addGradRect(0f, 0f, 50f, 80f, vertical = true, c0Argb = 0xFF101010.toInt(), c1Argb = 0xFF202020.toInt())
+
+        val snap = b.build()
+        // 11 (cubic) + 10 (arc) + (2 + 6) (fillPoly) + 7 (dimmerHole) + 13 (shaderQuad) + 6 (gradRect) = 55
+        assertEquals(55, snap.floatCount)
+        // 1 (cubic) + 2 (arc) + 1 (fillPoly) + 1 (dimmerHole) + 2 (shaderQuad) + 2 (gradRect) = 9
+        assertEquals(9, snap.colorCount)
+        assertEquals(UiGlNative.CMD_CUBIC.toFloat(), snap.floats[0], 0f)
+        assertEquals(UiGlNative.CMD_ARC.toFloat(), snap.floats[11], 0f)
+        assertEquals(UiGlNative.CMD_FILL_POLY.toFloat(), snap.floats[21], 0f)
+        assertEquals(UiGlNative.CMD_DIMMER_HOLE.toFloat(), snap.floats[29], 0f)
+        assertEquals(UiGlNative.CMD_SHADER_QUAD.toFloat(), snap.floats[36], 0f)
+        assertEquals(UiGlNative.CMD_GRAD_RECT.toFloat(), snap.floats[49], 0f)
     }
 }

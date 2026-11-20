@@ -36,6 +36,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.engine.UiGlRuntime
+import com.example.engine.UiMathNative
 import com.example.ui.theme.AmFxAccent
 import com.example.ui.theme.TextPrimary
 import java.util.Locale
@@ -87,6 +89,7 @@ fun RulerDial(
             .pointerInput(Unit) {
                 val velocityTracker = VelocityTracker()
                 val tickPx = RULER_TICK_SPACING.toPx()
+                val outFling = FloatArray(2)
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
                     flingJob[0]?.cancel() // touching the ruler stops any glide
@@ -97,9 +100,12 @@ fun RulerDial(
                     var lastEmitted = pos
 
                     fun emit(p: Float) {
-                        val st = currentStep
-                        val q = (((p - currentMin) / st).roundToInt() * st + currentMin)
-                            .coerceIn(currentMin, currentMax)
+                        val q = if (UiMathNative.isAvailable) {
+                            UiMathNative.nativeRulerQuantize(p, currentMin, currentMax, currentStep)
+                        } else {
+                            val st = currentStep
+                            (((p - currentMin) / st).roundToInt() * st + currentMin).coerceIn(currentMin, currentMax)
+                        }
                         if (q != lastEmitted) {
                             lastEmitted = q
                             currentOnValueChange(q)
@@ -126,7 +132,11 @@ fun RulerDial(
                         velocityTracker.addPosition(change.uptimeMillis, change.position)
                         val dx = change.position.x - lastX
                         lastX = change.position.x
-                        pos = (pos + dx / tickPx * currentStep).coerceIn(currentMin, currentMax)
+                        pos = if (UiMathNative.isAvailable) {
+                            UiMathNative.nativeRulerDragDelta(pos, dx, tickPx, currentMin, currentMax, currentStep)
+                        } else {
+                            (pos + dx / tickPx * currentStep).coerceIn(currentMin, currentMax)
+                        }
                         emit(pos)
                     }
 
@@ -134,93 +144,109 @@ fun RulerDial(
                     if (abs(vx) > RULER_MIN_FLING_VELOCITY) {
                         val start = pos
                         val velocity = vx / tickPx * currentStep // value units per second
-                        flingJob[0] = scope.launch {
-                            AnimationState(initialValue = start, initialVelocity = velocity)
-                                .animateDecay(
-                                    exponentialDecay(
-                                        frictionMultiplier = RULER_FLING_FRICTION,
-                                        absVelocityThreshold = currentStep * 2f
+                        if (UiMathNative.isAvailable) {
+                            flingJob[0] = scope.launch {
+                                val t0Ns = System.nanoTime()
+                                while (true) {
+                                    val elapsedSec = androidx.compose.runtime.withFrameNanos { nowNs ->
+                                        (nowNs - t0Ns) / 1_000_000_000f
+                                    }
+                                    UiMathNative.nativeRulerFlingEval(
+                                        start, velocity, elapsedSec,
+                                        RULER_FLING_FRICTION, currentStep, currentMin, currentMax,
+                                        outFling
                                     )
-                                ) {
-                                    // `this.value` = the animated value (not the slider's `value`).
-                                    val v = this.value.coerceIn(currentMin, currentMax)
-                                    emit(v)
-                                    if (v <= currentMin || v >= currentMax) cancelAnimation()
+                                    val q = outFling[0]
+                                    if (q != lastEmitted) {
+                                        lastEmitted = q
+                                        currentOnValueChange(q)
+                                    }
+                                    if (outFling[1] > 0.5f) break
                                 }
+                            }
+                        } else {
+                            flingJob[0] = scope.launch {
+                                AnimationState(initialValue = start, initialVelocity = velocity)
+                                    .animateDecay(
+                                        exponentialDecay(
+                                            frictionMultiplier = RULER_FLING_FRICTION,
+                                            absVelocityThreshold = currentStep * 2f
+                                        )
+                                    ) {
+                                        val v = this.value.coerceIn(currentMin, currentMax)
+                                        emit(v)
+                                        if (v <= currentMin || v >= currentMax) cancelAnimation()
+                                    }
+                            }
                         }
                     }
                 }
             }
     ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val w = size.width
-            val h = size.height
-            val centerX = w / 2f
-            val spacing = RULER_TICK_SPACING.toPx()
-            val st = step
-            val maxIndex = ((max - min) / st).roundToInt()
-            // Position of the current value on the ruler, in ticks from `min`.
-            val idx = (value.coerceIn(min, max) - min) / st
-            val half = (w / 2f / spacing).toInt() + 2
-            val base = floor(idx).toInt()
+        NativeGlDirectCanvas(
+            modifier = Modifier.fillMaxSize(),
+            drawKey = listOf(value, min, max, step, accentNeedle),
+            drawOnGl = { sid, density ->
+                UiGlRuntime.drawRulerDialOnGl(
+                    sid, value, min, max, step, RULER_TICK_SPACING.value * density, accentNeedle, density
+                )
+            },
+            fallbackDraw = {
+                val w = size.width
+                val h = size.height
+                val centerX = w / 2f
+                val spacing = RULER_TICK_SPACING.toPx()
+                val st = step
+                val maxIndex = ((max - min) / st).roundToInt()
+                val idx = (value.coerceIn(min, max) - min) / st
+                val half = (w / 2f / spacing).toInt() + 2
+                val base = floor(idx).toInt()
 
-            for (k in (base - half)..(base + half)) {
-                if (k < 0 || k > maxIndex) continue // the ruler ends at min / max
-                // Tick k stays attached to its value; the ruler slides with the finger.
-                val x = centerX + (idx - k) * spacing
-                if (x < 0f || x > w) continue
-
-                val tickValue = min + k * st
-                val isMajorTick = (tickValue / st).roundToInt() % 5 == 0
-                val tickHeight = if (isMajorTick) h * 0.75f else h * 0.42f
-                val yStart = (h - tickHeight) / 2f
+                for (k in (base - half)..(base + half)) {
+                    if (k < 0 || k > maxIndex) continue
+                    val x = centerX + (idx - k) * spacing
+                    if (x < 0f || x > w) continue
+                    val tickValue = min + k * st
+                    val isMajorTick = (tickValue / st).roundToInt() % 5 == 0
+                    val tickHeight = if (isMajorTick) h * 0.75f else h * 0.42f
+                    val yStart = (h - tickHeight) / 2f
+                    drawLine(
+                        color = if (isMajorTick) Color(0xFF9A9AA0) else Color(0xFFC9C9CE),
+                        start = Offset(x, yStart),
+                        end = Offset(x, yStart + tickHeight),
+                        strokeWidth = 1.5.dp.toPx()
+                    )
+                }
+                val needleColor = com.example.ui.theme.AmTextPrimary
+                val needleHeight = h * 0.82f
+                val needleStart = (h - needleHeight) / 2f
                 drawLine(
-                    // Build 216: the dial's own tick greys — the shared
-                    // AmTick* tokens now hold the TIMELINE ruler's reference
-                    // greys (#D0D0D4 / #B8B8BE), too faint to read a value
-                    // against on the white panels this dial lives on.
-                    color = if (isMajorTick) Color(0xFF9A9AA0) else Color(0xFFC9C9CE),
-                    start = Offset(x, yStart),
-                    end = Offset(x, yStart + tickHeight),
-                    strokeWidth = 1.5.dp.toPx()
+                    color = needleColor.copy(alpha = 0.20f),
+                    start = Offset(centerX, needleStart),
+                    end = Offset(centerX, needleStart + needleHeight),
+                    strokeWidth = 5.5.dp.toPx(),
+                    cap = StrokeCap.Round
                 )
-            }
-
-            // Center indicator (needle): geometry and drag law unchanged.
-            // In the Effects parameter editor (accentNeedle) the centre disc
-            // is lime; every other host gets the flat white thumb disc.
-            // Build 216: the needle is INK in both modes — it was white,
-            // which vanished on the light panels. The Effects dial keeps
-            // its distinction through the lime centre disc below.
-            val needleColor = com.example.ui.theme.AmTextPrimary
-            val needleHeight = h * 0.82f
-            val needleStart = (h - needleHeight) / 2f
-            drawLine(
-                color = needleColor.copy(alpha = 0.20f),
-                start = Offset(centerX, needleStart),
-                end = Offset(centerX, needleStart + needleHeight),
-                strokeWidth = 5.5.dp.toPx(),
-                cap = StrokeCap.Round
-            )
-            drawLine(
-                color = needleColor,
-                start = Offset(centerX, needleStart),
-                end = Offset(centerX, needleStart + needleHeight),
-                strokeWidth = 2.dp.toPx(),
-                cap = StrokeCap.Round
-            )
-            if (accentNeedle) {
-                drawCircle(AmFxAccent, radius = 6.dp.toPx(), center = Offset(centerX, h / 2f))
-                drawCircle(
-                    Color.Black.copy(alpha = 0.35f),
-                    radius = 6.dp.toPx(),
-                    center = Offset(centerX, h / 2f),
-                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.dp.toPx())
+                drawLine(
+                    color = needleColor,
+                    start = Offset(centerX, needleStart),
+                    end = Offset(centerX, needleStart + needleHeight),
+                    strokeWidth = 2.dp.toPx(),
+                    cap = StrokeCap.Round
                 )
-            } else {
-                drawFlatThumb(Offset(centerX, h / 2f), 6.dp.toPx())
+                if (accentNeedle) {
+                    drawCircle(AmFxAccent, radius = 6.dp.toPx(), center = Offset(centerX, h / 2f))
+                    drawCircle(
+                        Color.Black.copy(alpha = 0.35f),
+                        radius = 6.dp.toPx(),
+                        center = Offset(centerX, h / 2f),
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.dp.toPx())
+                    )
+                } else {
+                    drawFlatThumb(Offset(centerX, h / 2f), 6.dp.toPx())
+                }
             }
-        }
+        )
     }
 }
 

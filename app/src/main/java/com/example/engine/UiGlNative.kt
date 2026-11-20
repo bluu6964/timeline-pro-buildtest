@@ -16,6 +16,18 @@ object UiGlNative {
     const val CMD_CIRCLE = 3
     const val CMD_ROUND_RECT = 4
     const val CMD_RECT = 5
+    const val CMD_CUBIC = 6
+    const val CMD_ARC = 7
+    const val CMD_FILL_POLY = 8
+    const val CMD_DIMMER_HOLE = 9
+    const val CMD_SHADER_QUAD = 10
+    const val CMD_GRAD_RECT = 11
+
+    const val QUAD_CHECKER = 0f
+    const val QUAD_HUE_WHEEL = 1f
+    const val QUAD_SV_BOX = 2f
+    const val QUAD_COLOR_BAR = 3f
+    const val QUAD_GRAD_TILE = 4f
 
     val isAvailable: Boolean get() = DecoderPool.isAvailable
 
@@ -52,6 +64,32 @@ object UiGlNative {
         clearArgb: Int,
         cmds: FloatArray, cmdFloatCount: Int,
         colors: IntArray, colorCount: Int
+    ): Boolean
+
+    @JvmStatic external fun nativeDrawRulerDial(
+        handle: Long, surfaceId: Int,
+        value: Float, minVal: Float, maxVal: Float, step: Float,
+        tickSpacingPx: Float, accentNeedle: Boolean, density: Float
+    ): Boolean
+
+    @JvmStatic external fun nativeDrawPositionPad(
+        handle: Long, surfaceId: Int,
+        xNorm: Float, yNorm: Float, dotArgb: Int, gridArgb: Int, density: Float
+    ): Boolean
+
+    @JvmStatic external fun nativeDrawCropOverlay(
+        handle: Long, surfaceId: Int,
+        lNorm: Float, tNorm: Float, rNorm: Float, bNorm: Float, density: Float
+    ): Boolean
+
+    @JvmStatic external fun nativeDrawWaveformStrip(
+        handle: Long, surfaceId: Int,
+        peaks: FloatArray, bgTopArgb: Int, bgBotArgb: Int, barArgb: Int, density: Float
+    ): Boolean
+
+    @JvmStatic external fun nativeDrawEasingTile(
+        handle: Long, surfaceId: Int,
+        x1: Float, y1: Float, x2: Float, y2: Float, strokeArgb: Int, density: Float
     ): Boolean
 
     @JvmStatic external fun nativeSelfTestOffscreen(
@@ -178,6 +216,119 @@ class VectorCmdBuilder(initialFloats: Int = 256, initialColors: Int = 64) {
         cBuf[cLen++] = fillArgb
     }
 
+    fun addCubic(
+        x0: Float, y0: Float, c1x: Float, c1y: Float,
+        c2x: Float, c2y: Float, x1: Float, y1: Float,
+        width: Float, argb: Int, capRound: Boolean = true
+    ) {
+        ensureFloats(11)
+        ensureColors(1)
+        fBuf[fLen++] = UiGlNative.CMD_CUBIC.toFloat()
+        fBuf[fLen++] = x0
+        fBuf[fLen++] = y0
+        fBuf[fLen++] = c1x
+        fBuf[fLen++] = c1y
+        fBuf[fLen++] = c2x
+        fBuf[fLen++] = c2y
+        fBuf[fLen++] = x1
+        fBuf[fLen++] = y1
+        fBuf[fLen++] = width
+        fBuf[fLen++] = if (capRound) 1f else 0f
+        cBuf[cLen++] = argb
+    }
+
+    fun addArc(
+        cx: Float, cy: Float, rx: Float, ry: Float,
+        startDeg: Float, sweepDeg: Float,
+        width: Float = 0f, fillArgb: Int = 0, strokeArgb: Int = 0,
+        capRound: Boolean = true, closedPie: Boolean = false
+    ) {
+        ensureFloats(10)
+        ensureColors(2)
+        fBuf[fLen++] = UiGlNative.CMD_ARC.toFloat()
+        fBuf[fLen++] = cx
+        fBuf[fLen++] = cy
+        fBuf[fLen++] = rx
+        fBuf[fLen++] = ry
+        fBuf[fLen++] = startDeg
+        fBuf[fLen++] = sweepDeg
+        fBuf[fLen++] = width
+        fBuf[fLen++] = if (capRound) 1f else 0f
+        fBuf[fLen++] = if (closedPie) 1f else 0f
+        cBuf[cLen++] = fillArgb
+        cBuf[cLen++] = strokeArgb
+    }
+
+    fun addFilledPolygon(xs: FloatArray, ys: FloatArray, count: Int, fillArgb: Int) {
+        if (count < 3) return
+        ensureFloats(2 + count * 2)
+        ensureColors(1)
+        fBuf[fLen++] = UiGlNative.CMD_FILL_POLY.toFloat()
+        fBuf[fLen++] = count.toFloat()
+        for (i in 0 until count) {
+            fBuf[fLen++] = xs[i]
+            fBuf[fLen++] = ys[i]
+        }
+        cBuf[cLen++] = fillArgb
+    }
+
+    fun addDimmerHole(
+        width: Float, height: Float,
+        holeL: Float, holeT: Float, holeR: Float, holeB: Float,
+        dimArgb: Int
+    ) {
+        ensureFloats(7)
+        ensureColors(1)
+        fBuf[fLen++] = UiGlNative.CMD_DIMMER_HOLE.toFloat()
+        fBuf[fLen++] = width
+        fBuf[fLen++] = height
+        fBuf[fLen++] = holeL
+        fBuf[fLen++] = holeT
+        fBuf[fLen++] = holeR
+        fBuf[fLen++] = holeB
+        cBuf[cLen++] = dimArgb
+    }
+
+    fun addShaderQuad(
+        x: Float, y: Float, width: Float, height: Float, cornerRadius: Float, mode: Float,
+        p0: Float = 0f, p1: Float = 0f, p2: Float = 0f, p3: Float = 0f, p4: Float = 0f, p5: Float = 0f,
+        c0Argb: Int = 0, c1Argb: Int = 0
+    ) {
+        ensureFloats(13)
+        ensureColors(2)
+        fBuf[fLen++] = UiGlNative.CMD_SHADER_QUAD.toFloat()
+        fBuf[fLen++] = x
+        fBuf[fLen++] = y
+        fBuf[fLen++] = width
+        fBuf[fLen++] = height
+        fBuf[fLen++] = cornerRadius
+        fBuf[fLen++] = mode
+        fBuf[fLen++] = p0
+        fBuf[fLen++] = p1
+        fBuf[fLen++] = p2
+        fBuf[fLen++] = p3
+        fBuf[fLen++] = p4
+        fBuf[fLen++] = p5
+        cBuf[cLen++] = c0Argb
+        cBuf[cLen++] = c1Argb
+    }
+
+    fun addGradRect(
+        x: Float, y: Float, width: Float, height: Float,
+        vertical: Boolean, c0Argb: Int, c1Argb: Int
+    ) {
+        ensureFloats(6)
+        ensureColors(2)
+        fBuf[fLen++] = UiGlNative.CMD_GRAD_RECT.toFloat()
+        fBuf[fLen++] = x
+        fBuf[fLen++] = y
+        fBuf[fLen++] = width
+        fBuf[fLen++] = height
+        fBuf[fLen++] = if (vertical) 1f else 0f
+        cBuf[cLen++] = c0Argb
+        cBuf[cLen++] = c1Argb
+    }
+
     fun build(): VectorCmdSnapshot = VectorCmdSnapshot(
         floats = if (fLen == 0) FloatArray(0) else Arrays.copyOf(fBuf, fLen),
         floatCount = fLen,
@@ -237,6 +388,7 @@ object UiGlRuntime {
     }
 
     fun post(block: () -> Unit) {
+        if (state == STATE_UNINIT) ensureReady()
         val t = glThread ?: return
         if (state != STATE_READY) return
         t.post {
@@ -249,6 +401,7 @@ object UiGlRuntime {
     }
 
     fun callBlocking(block: () -> Unit) {
+        if (state == STATE_UNINIT) ensureReady()
         val t = glThread ?: return
         if (state != STATE_READY) return
         try {
@@ -327,5 +480,54 @@ object UiGlRuntime {
             snapshot.floats, snapshot.floatCount,
             snapshot.colors, snapshot.colorCount
         )
+    }
+
+    fun drawRulerDialOnGl(
+        surfaceId: Int,
+        value: Float, minVal: Float, maxVal: Float, step: Float,
+        tickSpacingPx: Float, accentNeedle: Boolean, density: Float
+    ): Boolean {
+        val hdl = handle
+        if (hdl == 0L || surfaceId <= 0) return false
+        return UiGlNative.nativeDrawRulerDial(
+            hdl, surfaceId, value, minVal, maxVal, step, tickSpacingPx, accentNeedle, density
+        )
+    }
+
+    fun drawPositionPadOnGl(
+        surfaceId: Int,
+        xNorm: Float, yNorm: Float,
+        dotArgb: Int, gridArgb: Int, density: Float
+    ): Boolean {
+        val hdl = handle
+        if (hdl == 0L || surfaceId <= 0) return false
+        return UiGlNative.nativeDrawPositionPad(hdl, surfaceId, xNorm, yNorm, dotArgb, gridArgb, density)
+    }
+
+    fun drawCropOverlayOnGl(
+        surfaceId: Int,
+        lNorm: Float, tNorm: Float, rNorm: Float, bNorm: Float, density: Float
+    ): Boolean {
+        val hdl = handle
+        if (hdl == 0L || surfaceId <= 0) return false
+        return UiGlNative.nativeDrawCropOverlay(hdl, surfaceId, lNorm, tNorm, rNorm, bNorm, density)
+    }
+
+    fun drawWaveformStripOnGl(
+        surfaceId: Int,
+        peaks: FloatArray, bgTopArgb: Int, bgBotArgb: Int, barArgb: Int, density: Float
+    ): Boolean {
+        val hdl = handle
+        if (hdl == 0L || surfaceId <= 0) return false
+        return UiGlNative.nativeDrawWaveformStrip(hdl, surfaceId, peaks, bgTopArgb, bgBotArgb, barArgb, density)
+    }
+
+    fun drawEasingTileOnGl(
+        surfaceId: Int,
+        x1: Float, y1: Float, x2: Float, y2: Float, strokeArgb: Int, density: Float
+    ): Boolean {
+        val hdl = handle
+        if (hdl == 0L || surfaceId <= 0) return false
+        return UiGlNative.nativeDrawEasingTile(hdl, surfaceId, x1, y1, x2, y2, strokeArgb, density)
     }
 }

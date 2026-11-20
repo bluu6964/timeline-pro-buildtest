@@ -66,6 +66,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -301,22 +302,40 @@ fun AppliedEffectsView(
                 )
 
                 // Central glowing particles matching screenshot
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    val cX = size.width / 2f
-                    val cY = size.height / 2f
-                    val dotsCount = 7
-                    val radius = size.minDimension * 0.32f
-                    for (i in 0 until dotsCount) {
-                        val angle = Math.toRadians((i * 360.0 / dotsCount) - 90.0)
-                        val x = (cX + radius * Math.cos(angle)).toFloat()
-                        val y = (cY + radius * Math.sin(angle)).toFloat()
-                        drawCircle(
-                            color = AmAccent.copy(alpha = 0.85f),
-                            radius = 9.dp.toPx(),
-                            center = Offset(x, y)
-                        )
+                NativeVectorCanvas(
+                    modifier = Modifier.fillMaxSize(),
+                    drawKey = "applied_fx_particles",
+                    buildCmds = { w, h, d ->
+                        val cX = w / 2f
+                        val cY = h / 2f
+                        val dotsCount = 7
+                        val radius = minOf(w, h) * 0.32f
+                        val argb = AmAccent.copy(alpha = 0.85f).toArgb()
+                        val dotR = 9f * d
+                        for (i in 0 until dotsCount) {
+                            val angle = Math.toRadians((i * 360.0 / dotsCount) - 90.0)
+                            val x = (cX + radius * Math.cos(angle)).toFloat()
+                            val y = (cY + radius * Math.sin(angle)).toFloat()
+                            addCircle(x, y, dotR, argb)
+                        }
+                    },
+                    fallbackDraw = {
+                        val cX = size.width / 2f
+                        val cY = size.height / 2f
+                        val dotsCount = 7
+                        val radius = size.minDimension * 0.32f
+                        for (i in 0 until dotsCount) {
+                            val angle = Math.toRadians((i * 360.0 / dotsCount) - 90.0)
+                            val x = (cX + radius * Math.cos(angle)).toFloat()
+                            val y = (cY + radius * Math.sin(angle)).toFloat()
+                            drawCircle(
+                                color = AmAccent.copy(alpha = 0.85f),
+                                radius = 9.dp.toPx(),
+                                center = Offset(x, y)
+                            )
+                        }
                     }
-                }
+                )
             }
         }
 
@@ -408,23 +427,36 @@ fun AppliedEffectsView(
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 // Ruler ticks
-                Canvas(
+                NativeVectorCanvas(
                     modifier = Modifier
                         .weight(0.45f)
-                        .height(11.dp)
-                ) {
-                    val tickSpacing = 7.dp.toPx()
-                    val count = (size.width / tickSpacing).toInt()
-                    for (i in 0..count) {
-                        val isMajor = (i % 5 == 0)
-                        drawLine(
-                            color = if (isMajor) RulerTickColor else RulerSubTickColor,
-                            start = Offset(i * tickSpacing, 0f),
-                            end = Offset(i * tickSpacing, if (isMajor) size.height else size.height * 0.5f),
-                            strokeWidth = 1.dp.toPx()
-                        )
+                        .height(11.dp),
+                    drawKey = "applied_fx_ruler",
+                    buildCmds = { w, h, d ->
+                        val tickSpacing = 7f * d
+                        val count = (w / tickSpacing).toInt()
+                        val majorArgb = RulerTickColor.toArgb()
+                        val subArgb = RulerSubTickColor.toArgb()
+                        for (i in 0..count) {
+                            val isMajor = (i % 5 == 0)
+                            val x = i * tickSpacing
+                            addLine(x, 0f, x, if (isMajor) h else h * 0.5f, 1f * d, if (isMajor) majorArgb else subArgb, capRound = false)
+                        }
+                    },
+                    fallbackDraw = {
+                        val tickSpacing = 7.dp.toPx()
+                        val count = (size.width / tickSpacing).toInt()
+                        for (i in 0..count) {
+                            val isMajor = (i % 5 == 0)
+                            drawLine(
+                                color = if (isMajor) RulerTickColor else RulerSubTickColor,
+                                start = Offset(i * tickSpacing, 0f),
+                                end = Offset(i * tickSpacing, if (isMajor) size.height else size.height * 0.5f),
+                                strokeWidth = 1.dp.toPx()
+                            )
+                        }
                     }
-                }
+                )
             }
 
             // Mini Layer Strip with video thumbnail and keyframe diamond button
@@ -476,19 +508,24 @@ fun AppliedEffectsView(
                 }
 
                 // Vertical center playhead line
-                Canvas(
+                NativeVectorCanvas(
                     modifier = Modifier
                         .width(2.dp)
                         .fillMaxHeight()
-                        .align(Alignment.Center)
-                ) {
-                    drawLine(
-                        color = Color.White, // build 223: white playhead on the dark strip
-                        start = Offset(0f, 0f),
-                        end = Offset(0f, size.height),
-                        strokeWidth = 2.dp.toPx()
-                    )
-                }
+                        .align(Alignment.Center),
+                    drawKey = "applied_fx_playhead",
+                    buildCmds = { _, h, d ->
+                        addLine(0f, 0f, 0f, h, 2f * d, Color.White.toArgb(), capRound = false)
+                    },
+                    fallbackDraw = {
+                        drawLine(
+                            color = Color.White, // build 223: white playhead on the dark strip
+                            start = Offset(0f, 0f),
+                            end = Offset(0f, size.height),
+                            strokeWidth = 2.dp.toPx()
+                        )
+                    }
+                )
             }
         }
 
@@ -639,20 +676,36 @@ fun AppliedEffectsView(
                                                     modifier = Modifier.size(26.dp),
                                                     contentAlignment = Alignment.Center
                                                 ) {
-                                                    Canvas(modifier = Modifier.size(12.dp)) {
-                                                        val dotR = 1.1.dp.toPx()
-                                                        val spacingX = 4.dp.toPx()
-                                                        val spacingY = 3.8.dp.toPx()
-                                                        for (row in 0..2) {
-                                                            for (col in 0..1) {
-                                                                drawCircle(
-                                                                    color = AmTextDim,
-                                                                    radius = dotR,
-                                                                    center = Offset(col * spacingX + 1.5.dp.toPx(), row * spacingY + 1.5.dp.toPx())
-                                                                )
+                                                    NativeVectorCanvas(
+                                                        modifier = Modifier.size(12.dp),
+                                                        drawKey = "applied_fx_drag_dots",
+                                                        buildCmds = { _, _, d ->
+                                                            val dotR = 1.1f * d
+                                                            val spacingX = 4f * d
+                                                            val spacingY = 3.8f * d
+                                                            val pad = 1.5f * d
+                                                            val argb = AmTextDim.toArgb()
+                                                            for (row in 0..2) {
+                                                                for (col in 0..1) {
+                                                                    addCircle(col * spacingX + pad, row * spacingY + pad, dotR, argb)
+                                                                }
+                                                            }
+                                                        },
+                                                        fallbackDraw = {
+                                                            val dotR = 1.1.dp.toPx()
+                                                            val spacingX = 4.dp.toPx()
+                                                            val spacingY = 3.8.dp.toPx()
+                                                            for (row in 0..2) {
+                                                                for (col in 0..1) {
+                                                                    drawCircle(
+                                                                        color = AmTextDim,
+                                                                        radius = dotR,
+                                                                        center = Offset(col * spacingX + 1.5.dp.toPx(), row * spacingY + 1.5.dp.toPx())
+                                                                    )
+                                                                }
                                                             }
                                                         }
-                                                    }
+                                                    )
                                                 }
                                             }
                                         }
@@ -734,21 +787,30 @@ fun AppliedEffectsView(
                                                 contentAlignment = Alignment.Center
                                             ) {
                                                 // Stylized Rocket / Graphic Canvas
-                                                Canvas(modifier = Modifier.size(30.dp)) {
-                                                    // Draw rocket body
-                                                    val cX = size.width / 2f
-                                                    val cY = size.height / 2f
-                                                    drawCircle(
-                                                        color = Color(0xFFFF5252),
-                                                        radius = 10.dp.toPx(),
-                                                        center = Offset(cX, cY)
-                                                    )
-                                                    drawCircle(
-                                                        color = Color(0xFFABE41D),
-                                                        radius = 5.dp.toPx(),
-                                                        center = Offset(cX, cY)
-                                                    )
-                                                }
+                                                NativeVectorCanvas(
+                                                    modifier = Modifier.size(30.dp),
+                                                    drawKey = "applied_fx_card_graphic",
+                                                    buildCmds = { w, h, d ->
+                                                        val cX = w / 2f
+                                                        val cY = h / 2f
+                                                        addCircle(cX, cY, 10f * d, Color(0xFFFF5252).toArgb())
+                                                        addCircle(cX, cY, 5f * d, Color(0xFFABE41D).toArgb())
+                                                    },
+                                                    fallbackDraw = {
+                                                        val cX = size.width / 2f
+                                                        val cY = size.height / 2f
+                                                        drawCircle(
+                                                            color = Color(0xFFFF5252),
+                                                            radius = 10.dp.toPx(),
+                                                            center = Offset(cX, cY)
+                                                        )
+                                                        drawCircle(
+                                                            color = Color(0xFFABE41D),
+                                                            radius = 5.dp.toPx(),
+                                                            center = Offset(cX, cY)
+                                                        )
+                                                    }
+                                                )
 
                                                 // Top-right Star badge if pro
                                                 if (preset.isPro) {

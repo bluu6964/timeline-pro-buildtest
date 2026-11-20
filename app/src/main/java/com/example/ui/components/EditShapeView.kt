@@ -61,8 +61,10 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathMeasure
+import androidx.compose.ui.graphics.asAndroidPath
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.viewinterop.AndroidView
 import com.example.model.AspectRatio
 import com.example.model.ShapeEditValues
@@ -344,23 +346,33 @@ fun EditShapeView(
                     )
                 } else {
                     // Studio canvas with subtle alignment grid
-                    Canvas(modifier = Modifier.fillMaxSize()) {
-                        drawRect(color = CanvasBackground)
-                        val w = size.width
-                        val h = size.height
-                        drawLine(
-                            color = Color.White.copy(alpha = 0.08f),
-                            start = Offset(w / 2f, 0f),
-                            end = Offset(w / 2f, h),
-                            strokeWidth = 1.dp.toPx()
-                        )
-                        drawLine(
-                            color = Color.White.copy(alpha = 0.08f),
-                            start = Offset(0f, h / 2f),
-                            end = Offset(w, h / 2f),
-                            strokeWidth = 1.dp.toPx()
-                        )
-                    }
+                    NativeVectorCanvas(
+                        modifier = Modifier.fillMaxSize(),
+                        drawKey = "edit_shape_grid",
+                        buildCmds = { w, h, d ->
+                            addRect(0f, 0f, w, h, CanvasBackground.toArgb())
+                            val lineArgb = Color.White.copy(alpha = 0.08f).toArgb()
+                            addLine(w / 2f, 0f, w / 2f, h, 1f * d, lineArgb, capRound = false)
+                            addLine(0f, h / 2f, w, h / 2f, 1f * d, lineArgb, capRound = false)
+                        },
+                        fallbackDraw = {
+                            drawRect(color = CanvasBackground)
+                            val w = size.width
+                            val h = size.height
+                            drawLine(
+                                color = Color.White.copy(alpha = 0.08f),
+                                start = Offset(w / 2f, 0f),
+                                end = Offset(w / 2f, h),
+                                strokeWidth = 1.dp.toPx()
+                            )
+                            drawLine(
+                                color = Color.White.copy(alpha = 0.08f),
+                                start = Offset(0f, h / 2f),
+                                end = Offset(w, h / 2f),
+                                strokeWidth = 1.dp.toPx()
+                            )
+                        }
+                    )
                 }
 
                 // Interactive Shape with Coral Bounding Box
@@ -387,106 +399,213 @@ fun EditShapeView(
                         Modifier.blur((featherPercent / 8f).dp)
                     } else Modifier
 
-                    Canvas(
+                    NativeVectorCanvas(
                         modifier = Modifier
                             .fillMaxSize()
-                            .then(blurModifier)
-                    ) {
-                        val colorWithAlpha = fillColor.copy(alpha = fillOpacity / 100f)
-                        // The outline the stroke follows; the fill is drawn per shape below, the stroke
-                        // once afterwards so the trim window (PathMeasure segment) applies to every shape.
-                        var outlinePath: Path? = null
-
-                        when (selectedShapeType) {
-                            ShapeType.CIRCLE -> {
-                                drawCircle(color = colorWithAlpha)
-                                outlinePath = Path().apply {
-                                    addOval(androidx.compose.ui.geometry.Rect(0f, 0f, size.width, size.height))
-                                }
-                            }
-                            ShapeType.SQUARE, ShapeType.WIDE_ROUNDED_RECT -> {
-                                // Only the rounded rect shapes read the corner-radius slider (the renderers
-                                // ignore it for SQUARE); a plain square keeps square corners here too.
-                                val cornerRadius = if (selectedShapeType == ShapeType.WIDE_ROUNDED_RECT) {
-                                    cornerRadiusDp.dp.toPx()
-                                } else 0f
-                                drawRoundRect(
-                                    color = colorWithAlpha,
-                                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(cornerRadius, cornerRadius)
-                                )
-                                outlinePath = Path().apply {
-                                    addRoundRect(
-                                        androidx.compose.ui.geometry.RoundRect(
-                                            androidx.compose.ui.geometry.Rect(0f, 0f, size.width, size.height),
-                                            androidx.compose.ui.geometry.CornerRadius(cornerRadius, cornerRadius)
-                                        )
-                                    )
-                                }
-                            }
-                            ShapeType.ROUNDED_SQUARE -> {
-                                val cornerRadius = cornerRadiusDp.dp.toPx()
-                                drawRoundRect(
-                                    color = colorWithAlpha,
-                                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(cornerRadius, cornerRadius)
-                                )
-                                outlinePath = Path().apply {
-                                    addRoundRect(
-                                        androidx.compose.ui.geometry.RoundRect(
-                                            androidx.compose.ui.geometry.Rect(0f, 0f, size.width, size.height),
-                                            androidx.compose.ui.geometry.CornerRadius(cornerRadius, cornerRadius)
-                                        )
-                                    )
-                                }
-                            }
-                            ShapeType.OVAL -> {
-                                drawOval(color = colorWithAlpha)
-                                outlinePath = Path().apply {
-                                    addOval(androidx.compose.ui.geometry.Rect(0f, 0f, size.width, size.height))
-                                }
-                            }
-                            ShapeType.PENTAGON, ShapeType.STAR -> {
-                                val path = Path().apply {
-                                    val r = size.minDimension / 2f
-                                    val cX = size.width / 2f
-                                    val cY = size.height / 2f
-                                    val points = 5
-                                    for (i in 0 until points) {
-                                        val angle = Math.toRadians((i * 360.0 / points) - 90.0)
-                                        val px = (cX + r * Math.cos(angle)).toFloat()
-                                        val py = (cY + r * Math.sin(angle)).toFloat()
-                                        if (i == 0) moveTo(px, py) else lineTo(px, py)
-                                    }
-                                    close()
-                                }
-                                drawPath(path, color = colorWithAlpha)
-                                outlinePath = path
-                            }
-                        }
-
-                        // Trimmed stroke: the visible window of the outline, same PathMeasure segment
-                        // the timeline renderers draw (LayerPainter.drawStrokePath). An empty window
-                        // (start == end) draws no stroke at all.
-                        val outline = outlinePath
-                        if (strokeWidth > 0f && outline != null) {
+                            .then(blurModifier),
+                        drawKey = listOf(
+                            selectedShapeType, fillColor, fillOpacity,
+                            strokeWidth, strokeColor, cornerRadiusDp,
+                            trimStartPercent, trimEndPercent
+                        ),
+                        buildCmds = { w, h, d ->
+                            val fillArgb = fillColor.copy(alpha = fillOpacity / 100f).toArgb()
+                            val swPx = strokeWidth * d
                             val trimStart = (trimStartPercent / 100f).coerceIn(0f, 1f)
                             val trimEnd = (trimEndPercent / 100f).coerceIn(0f, 1f)
-                            if (trimEnd > trimStart) {
-                                val strokeStyle = Stroke(width = strokeWidth.dp.toPx())
-                                if (trimStart <= 0f && trimEnd >= 1f) {
-                                    drawPath(outline, color = strokeColor, style = strokeStyle)
-                                } else {
-                                    val measure = PathMeasure().apply { setPath(outline, false) }
-                                    val len = measure.length
-                                    if (len > 0f) {
-                                        val segment = Path()
-                                        if (measure.getSegment(len * trimStart, len * trimEnd, segment, true)) {
-                                            drawPath(segment, color = strokeColor, style = strokeStyle)
+                            val hasFullStroke = strokeWidth > 0f && trimStart <= 0f && trimEnd >= 1f
+                            val hasTrimmedStroke = strokeWidth > 0f && trimEnd > trimStart && !hasFullStroke
+                            val strokeArgb = if (hasFullStroke) strokeColor.toArgb() else 0
+                            val fullSw = if (hasFullStroke) swPx else 0f
+
+                            var outlinePath: Path? = null
+                            when (selectedShapeType) {
+                                ShapeType.CIRCLE -> {
+                                    addCircle(w / 2f, h / 2f, minOf(w, h) / 2f, fillArgb, fullSw, strokeArgb)
+                                    if (hasTrimmedStroke) {
+                                        outlinePath = Path().apply {
+                                            addOval(androidx.compose.ui.geometry.Rect(0f, 0f, w, h))
+                                        }
+                                    }
+                                }
+                                ShapeType.SQUARE, ShapeType.WIDE_ROUNDED_RECT -> {
+                                    val cr = if (selectedShapeType == ShapeType.WIDE_ROUNDED_RECT) cornerRadiusDp * d else 0f
+                                    addRoundRect(w / 2f, h / 2f, w, h, cr, fillArgb, fullSw, strokeArgb)
+                                    if (hasTrimmedStroke) {
+                                        outlinePath = Path().apply {
+                                            addRoundRect(
+                                                androidx.compose.ui.geometry.RoundRect(
+                                                    androidx.compose.ui.geometry.Rect(0f, 0f, w, h),
+                                                    androidx.compose.ui.geometry.CornerRadius(cr, cr)
+                                                )
+                                            )
+                                        }
+                                    }
+                                }
+                                ShapeType.ROUNDED_SQUARE -> {
+                                    val cr = cornerRadiusDp * d
+                                    addRoundRect(w / 2f, h / 2f, w, h, cr, fillArgb, fullSw, strokeArgb)
+                                    if (hasTrimmedStroke) {
+                                        outlinePath = Path().apply {
+                                            addRoundRect(
+                                                androidx.compose.ui.geometry.RoundRect(
+                                                    androidx.compose.ui.geometry.Rect(0f, 0f, w, h),
+                                                    androidx.compose.ui.geometry.CornerRadius(cr, cr)
+                                                )
+                                            )
+                                        }
+                                    }
+                                }
+                                ShapeType.OVAL -> {
+                                    addArc(
+                                        cx = w / 2f, cy = h / 2f, rx = w / 2f, ry = h / 2f,
+                                        startDeg = 0f, sweepDeg = 360f,
+                                        width = fullSw, fillArgb = fillArgb, strokeArgb = strokeArgb,
+                                        capRound = true, closedPie = false
+                                    )
+                                    if (hasTrimmedStroke) {
+                                        outlinePath = Path().apply {
+                                            addOval(androidx.compose.ui.geometry.Rect(0f, 0f, w, h))
+                                        }
+                                    }
+                                }
+                                ShapeType.PENTAGON, ShapeType.STAR -> {
+                                    val r = minOf(w, h) / 2f
+                                    val cX = w / 2f
+                                    val cY = h / 2f
+                                    val points = 5
+                                    val xs = FloatArray(points)
+                                    val ys = FloatArray(points)
+                                    for (i in 0 until points) {
+                                        val angle = Math.toRadians((i * 360.0 / points) - 90.0)
+                                        xs[i] = (cX + r * Math.cos(angle)).toFloat()
+                                        ys[i] = (cY + r * Math.sin(angle)).toFloat()
+                                    }
+                                    addFilledPolygon(xs, ys, points, fillArgb)
+                                    if (hasFullStroke) {
+                                        addPolyline(xs, ys, points, true, fullSw, strokeArgb, capRound = true)
+                                    } else if (hasTrimmedStroke) {
+                                        outlinePath = Path().apply {
+                                            for (i in 0 until points) {
+                                                if (i == 0) moveTo(xs[i], ys[i]) else lineTo(xs[i], ys[i])
+                                            }
+                                            close()
+                                        }
+                                    }
+                                }
+                            }
+
+                            val outline = outlinePath
+                            if (hasTrimmedStroke && outline != null) {
+                                val pm = android.graphics.PathMeasure(outline.asAndroidPath(), false)
+                                val totalLen = pm.length
+                                if (totalLen > 0f) {
+                                    val startD = totalLen * trimStart
+                                    val endD = totalLen * trimEnd
+                                    val samples = 72
+                                    val xs = FloatArray(samples + 1)
+                                    val ys = FloatArray(samples + 1)
+                                    val pos = FloatArray(2)
+                                    for (i in 0..samples) {
+                                        val dist = startD + (endD - startD) * (i / samples.toFloat())
+                                        pm.getPosTan(dist, pos, null)
+                                        xs[i] = pos[0]
+                                        ys[i] = pos[1]
+                                    }
+                                    addPolyline(xs, ys, samples + 1, false, swPx, strokeColor.toArgb(), capRound = false)
+                                }
+                            }
+                        },
+                        fallbackDraw = {
+                            val colorWithAlpha = fillColor.copy(alpha = fillOpacity / 100f)
+                            var outlinePath: Path? = null
+
+                            when (selectedShapeType) {
+                                ShapeType.CIRCLE -> {
+                                    drawCircle(color = colorWithAlpha)
+                                    outlinePath = Path().apply {
+                                        addOval(androidx.compose.ui.geometry.Rect(0f, 0f, size.width, size.height))
+                                    }
+                                }
+                                ShapeType.SQUARE, ShapeType.WIDE_ROUNDED_RECT -> {
+                                    val cornerRadius = if (selectedShapeType == ShapeType.WIDE_ROUNDED_RECT) {
+                                        cornerRadiusDp.dp.toPx()
+                                    } else 0f
+                                    drawRoundRect(
+                                        color = colorWithAlpha,
+                                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(cornerRadius, cornerRadius)
+                                    )
+                                    outlinePath = Path().apply {
+                                        addRoundRect(
+                                            androidx.compose.ui.geometry.RoundRect(
+                                                androidx.compose.ui.geometry.Rect(0f, 0f, size.width, size.height),
+                                                androidx.compose.ui.geometry.CornerRadius(cornerRadius, cornerRadius)
+                                            )
+                                        )
+                                    }
+                                }
+                                ShapeType.ROUNDED_SQUARE -> {
+                                    val cornerRadius = cornerRadiusDp.dp.toPx()
+                                    drawRoundRect(
+                                        color = colorWithAlpha,
+                                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(cornerRadius, cornerRadius)
+                                    )
+                                    outlinePath = Path().apply {
+                                        addRoundRect(
+                                            androidx.compose.ui.geometry.RoundRect(
+                                                androidx.compose.ui.geometry.Rect(0f, 0f, size.width, size.height),
+                                                androidx.compose.ui.geometry.CornerRadius(cornerRadius, cornerRadius)
+                                            )
+                                        )
+                                    }
+                                }
+                                ShapeType.OVAL -> {
+                                    drawOval(color = colorWithAlpha)
+                                    outlinePath = Path().apply {
+                                        addOval(androidx.compose.ui.geometry.Rect(0f, 0f, size.width, size.height))
+                                    }
+                                }
+                                ShapeType.PENTAGON, ShapeType.STAR -> {
+                                    val path = Path().apply {
+                                        val r = size.minDimension / 2f
+                                        val cX = size.width / 2f
+                                        val cY = size.height / 2f
+                                        val points = 5
+                                        for (i in 0 until points) {
+                                            val angle = Math.toRadians((i * 360.0 / points) - 90.0)
+                                            val px = (cX + r * Math.cos(angle)).toFloat()
+                                            val py = (cY + r * Math.sin(angle)).toFloat()
+                                            if (i == 0) moveTo(px, py) else lineTo(px, py)
+                                        }
+                                        close()
+                                    }
+                                    drawPath(path, color = colorWithAlpha)
+                                    outlinePath = path
+                                }
+                            }
+
+                            val outline = outlinePath
+                            if (strokeWidth > 0f && outline != null) {
+                                val trimStart = (trimStartPercent / 100f).coerceIn(0f, 1f)
+                                val trimEnd = (trimEndPercent / 100f).coerceIn(0f, 1f)
+                                if (trimEnd > trimStart) {
+                                    val strokeStyle = Stroke(width = strokeWidth.dp.toPx())
+                                    if (trimStart <= 0f && trimEnd >= 1f) {
+                                        drawPath(outline, color = strokeColor, style = strokeStyle)
+                                    } else {
+                                        val measure = PathMeasure().apply { setPath(outline, false) }
+                                        val len = measure.length
+                                        if (len > 0f) {
+                                            val segment = Path()
+                                            if (measure.getSegment(len * trimStart, len * trimEnd, segment, true)) {
+                                                drawPath(segment, color = strokeColor, style = strokeStyle)
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
-                    }
+                    )
 
                     // Coral/Pink Bounding Box & 8 Drag Handles (matching screenshot)
                     Box(
@@ -527,19 +646,34 @@ fun EditShapeView(
                             .padding(3.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Canvas(modifier = Modifier.fillMaxSize()) {
-                            val dotRadius = 1.2.dp.toPx()
-                            val spacing = 4.dp.toPx()
-                            for (r in 0..2) {
-                                for (c in 0..2) {
-                                    drawCircle(
-                                        color = pinkHandleColor,
-                                        radius = dotRadius,
-                                        center = Offset(c * spacing + 2.dp.toPx(), r * spacing + 2.dp.toPx())
-                                    )
+                        NativeVectorCanvas(
+                            modifier = Modifier.fillMaxSize(),
+                            drawKey = pinkHandleColor,
+                            buildCmds = { _, _, d ->
+                                val dotRadius = 1.2f * d
+                                val spacing = 4f * d
+                                val pad = 2f * d
+                                val argb = pinkHandleColor.toArgb()
+                                for (r in 0..2) {
+                                    for (c in 0..2) {
+                                        addCircle(c * spacing + pad, r * spacing + pad, dotRadius, argb)
+                                    }
+                                }
+                            },
+                            fallbackDraw = {
+                                val dotRadius = 1.2.dp.toPx()
+                                val spacing = 4.dp.toPx()
+                                for (r in 0..2) {
+                                    for (c in 0..2) {
+                                        drawCircle(
+                                            color = pinkHandleColor,
+                                            radius = dotRadius,
+                                            center = Offset(c * spacing + 2.dp.toPx(), r * spacing + 2.dp.toPx())
+                                        )
+                                    }
                                 }
                             }
-                        }
+                        )
                     }
                 }
             }
@@ -633,23 +767,36 @@ fun EditShapeView(
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 // Ruler ticks
-                Canvas(
+                NativeVectorCanvas(
                     modifier = Modifier
                         .weight(0.45f)
-                        .height(11.dp)
-                ) {
-                    val tickSpacing = 7.dp.toPx()
-                    val count = (size.width / tickSpacing).toInt()
-                    for (i in 0..count) {
-                        val isMajor = (i % 5 == 0)
-                        drawLine(
-                            color = if (isMajor) RulerTickColor else RulerSubTickColor,
-                            start = Offset(i * tickSpacing, 0f),
-                            end = Offset(i * tickSpacing, if (isMajor) size.height else size.height * 0.5f),
-                            strokeWidth = 1.dp.toPx()
-                        )
+                        .height(11.dp),
+                    drawKey = "edit_shape_ruler",
+                    buildCmds = { w, h, d ->
+                        val tickSpacing = 7f * d
+                        val count = (w / tickSpacing).toInt()
+                        val majorArgb = RulerTickColor.toArgb()
+                        val subArgb = RulerSubTickColor.toArgb()
+                        for (i in 0..count) {
+                            val isMajor = (i % 5 == 0)
+                            val x = i * tickSpacing
+                            addLine(x, 0f, x, if (isMajor) h else h * 0.5f, 1f * d, if (isMajor) majorArgb else subArgb, capRound = false)
+                        }
+                    },
+                    fallbackDraw = {
+                        val tickSpacing = 7.dp.toPx()
+                        val count = (size.width / tickSpacing).toInt()
+                        for (i in 0..count) {
+                            val isMajor = (i % 5 == 0)
+                            drawLine(
+                                color = if (isMajor) RulerTickColor else RulerSubTickColor,
+                                start = Offset(i * tickSpacing, 0f),
+                                end = Offset(i * tickSpacing, if (isMajor) size.height else size.height * 0.5f),
+                                strokeWidth = 1.dp.toPx()
+                            )
+                        }
                     }
-                }
+                )
             }
 
             // Real-time Mini Layer Strip
@@ -684,19 +831,24 @@ fun EditShapeView(
                 }
 
                 // Vertical center playhead line
-                Canvas(
+                NativeVectorCanvas(
                     modifier = Modifier
                         .width(2.dp)
                         .fillMaxHeight()
-                        .align(Alignment.Center)
-                ) {
-                    drawLine(
-                        color = Color.White,
-                        start = Offset(0f, 0f),
-                        end = Offset(0f, size.height),
-                        strokeWidth = 1.5.dp.toPx()
-                    )
-                }
+                        .align(Alignment.Center),
+                    drawKey = "edit_shape_playhead",
+                    buildCmds = { _, h, d ->
+                        addLine(0f, 0f, 0f, h, 1.5f * d, Color.White.toArgb(), capRound = false)
+                    },
+                    fallbackDraw = {
+                        drawLine(
+                            color = Color.White,
+                            start = Offset(0f, 0f),
+                            end = Offset(0f, size.height),
+                            strokeWidth = 1.5.dp.toPx()
+                        )
+                    }
+                )
             }
         }
 
@@ -795,19 +947,38 @@ fun EditShapeView(
                                     contentAlignment = Alignment.Center
                                 ) {
                                     // Shape mini icon representation
-                                    Canvas(modifier = Modifier.size(18.dp)) {
-                                        val c = Color.White
-                                        when (shape) {
-                                            ShapeType.CIRCLE -> drawCircle(color = c)
-                                            ShapeType.SQUARE -> drawRect(color = c)
-                                            ShapeType.WIDE_ROUNDED_RECT -> drawRoundRect(color = c, cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f, 4f))
-                                            ShapeType.ROUNDED_SQUARE -> drawRoundRect(color = c, cornerRadius = androidx.compose.ui.geometry.CornerRadius(8f, 8f))
-                                            ShapeType.OVAL -> drawOval(color = c)
-                                            ShapeType.PENTAGON, ShapeType.STAR -> {
-                                                drawCircle(color = c)
+                                    NativeVectorCanvas(
+                                        modifier = Modifier.size(18.dp),
+                                        drawKey = shape,
+                                        buildCmds = { w, h, _ ->
+                                            val cArgb = Color.White.toArgb()
+                                            when (shape) {
+                                                ShapeType.CIRCLE, ShapeType.PENTAGON, ShapeType.STAR ->
+                                                    addCircle(w / 2f, h / 2f, minOf(w, h) / 2f, cArgb)
+                                                ShapeType.SQUARE ->
+                                                    addRect(0f, 0f, w, h, cArgb)
+                                                ShapeType.WIDE_ROUNDED_RECT ->
+                                                    addRoundRect(w / 2f, h / 2f, w, h, 4f, cArgb)
+                                                ShapeType.ROUNDED_SQUARE ->
+                                                    addRoundRect(w / 2f, h / 2f, w, h, 8f, cArgb)
+                                                ShapeType.OVAL ->
+                                                    addArc(w / 2f, h / 2f, w / 2f, h / 2f, 0f, 360f, fillArgb = cArgb)
+                                            }
+                                        },
+                                        fallbackDraw = {
+                                            val c = Color.White
+                                            when (shape) {
+                                                ShapeType.CIRCLE -> drawCircle(color = c)
+                                                ShapeType.SQUARE -> drawRect(color = c)
+                                                ShapeType.WIDE_ROUNDED_RECT -> drawRoundRect(color = c, cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f, 4f))
+                                                ShapeType.ROUNDED_SQUARE -> drawRoundRect(color = c, cornerRadius = androidx.compose.ui.geometry.CornerRadius(8f, 8f))
+                                                ShapeType.OVAL -> drawOval(color = c)
+                                                ShapeType.PENTAGON, ShapeType.STAR -> {
+                                                    drawCircle(color = c)
+                                                }
                                             }
                                         }
-                                    }
+                                    )
                                 }
                             }
                         }

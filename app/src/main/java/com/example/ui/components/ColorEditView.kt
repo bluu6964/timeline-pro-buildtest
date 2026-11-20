@@ -1,8 +1,9 @@
 package com.example.ui.components
 import androidx.compose.ui.graphics.RectangleShape
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import com.example.engine.UiGlNative
+import com.example.engine.UiMathNative
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -390,7 +391,7 @@ private fun GradientOverview(
                         .testTag("gradient_type_$name"),
                     contentAlignment = Alignment.Center
                 ) {
-                    Canvas(
+                    NativeVectorCanvas(
                         modifier = Modifier
                             .size(26.dp)
                             .border(
@@ -398,21 +399,36 @@ private fun GradientOverview(
                                 if (selected) CeAccent else Color.White,
                                 RoundedCornerShape(5.dp)
                             )
-                            .padding(2.dp)
-                    ) {
-                        drawRoundRect(
-                            brush = LayerFillBrush { w, h ->
-                                com.example.engine.buildGradientShader(
-                                    clip.copy(
-                                        gradType = type,
-                                        gradX1 = if (type == GRAD_LINEAR) 0f else 0.5f, gradY1 = 0.5f,
-                                        gradX2 = 1f, gradY2 = 0.5f
-                                    ), w, h
-                                )
-                            },
-                            cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
-                        )
-                    }
+                            .padding(2.dp),
+                        drawKey = Triple(type, clip.gradColor1, clip.gradColor2),
+                        buildCmds = { w, h, d ->
+                            val qMode = when (type) {
+                                GRAD_RADIAL -> 1f
+                                GRAD_SWEEP -> 2f
+                                else -> 0f
+                            }
+                            addShaderQuad(
+                                0f, 0f, w, h, 4f * d, UiGlNative.QUAD_GRAD_TILE,
+                                p0 = qMode,
+                                c0Argb = clip.gradColor1.toInt(),
+                                c1Argb = clip.gradColor2.toInt()
+                            )
+                        },
+                        fallbackDraw = {
+                            drawRoundRect(
+                                brush = LayerFillBrush { w, h ->
+                                    com.example.engine.buildGradientShader(
+                                        clip.copy(
+                                            gradType = type,
+                                            gradX1 = if (type == GRAD_LINEAR) 0f else 0.5f, gradY1 = 0.5f,
+                                            gradX2 = 1f, gradY2 = 0.5f
+                                        ), w, h
+                                    )
+                                },
+                                cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
+                            )
+                        }
+                    )
                 }
             }
         }
@@ -425,17 +441,28 @@ private fun GradientOverview(
                 .fillMaxWidth()
                 .height(44.dp)
         ) {
-            Canvas(
+            NativeVectorCanvas(
                 modifier = Modifier
                     .align(Alignment.Center)
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp)
                     .height(18.dp)
-                    .clip(RoundedCornerShape(3.dp))
-            ) {
-                drawChecker(Size(size.width, size.height))
-                drawRect(Brush.horizontalGradient(listOf(c1, c2)))
-            }
+                    .clip(RoundedCornerShape(3.dp)),
+                drawKey = Pair(clip.gradColor1, clip.gradColor2),
+                buildCmds = { w, h, d ->
+                    addShaderQuad(
+                        0f, 0f, w, h, 0f, UiGlNative.QUAD_CHECKER,
+                        p0 = 7f * d,
+                        c0Argb = 0xFF8A8A8A.toInt(),
+                        c1Argb = 0xFFCFCFCF.toInt()
+                    )
+                    addGradRect(0f, 0f, w, h, vertical = false, c0Argb = clip.gradColor1.toInt(), c1Argb = clip.gradColor2.toInt())
+                },
+                fallbackDraw = {
+                    drawChecker(Size(size.width, size.height))
+                    drawRect(Brush.horizontalGradient(listOf(c1, c2)))
+                }
+            )
             StopHandle(c1, "color_stop_start", Modifier.align(Alignment.CenterStart)) { onEditStop(0) }
             StopHandle(c2, "color_stop_end", Modifier.align(Alignment.CenterEnd)) { onEditStop(1) }
         }
@@ -573,7 +600,17 @@ private fun SwatchGrid(color: Long, onColor: (Long) -> Unit, modifier: Modifier 
                 .height(34.dp)
                 .clip(RectangleShape)
         ) {
-            Canvas(Modifier.fillMaxSize()) { drawChecker(size) }
+            NativeVectorCanvas(
+                modifier = Modifier.fillMaxSize(),
+                drawKey = 0,
+                buildCmds = { w, h, d ->
+                    addShaderQuad(
+                        0f, 0f, w, h, 0f, UiGlNative.QUAD_CHECKER,
+                        p0 = 7f * d, c0Argb = 0xFF8A8A8A.toInt(), c1Argb = 0xFFCFCFCF.toInt()
+                    )
+                },
+                fallbackDraw = { drawChecker(size) }
+            )
             Box(
                 Modifier
                     .fillMaxSize()
@@ -619,7 +656,7 @@ private fun SwatchGrid(color: Long, onColor: (Long) -> Unit, modifier: Modifier 
 @Composable
 private fun WheelPicker(color: Long, onColor: (Long) -> Unit, modifier: Modifier = Modifier) {
     val init = remember {
-        FloatArray(3).also { android.graphics.Color.colorToHSV(color.toInt(), it) }
+        colorToHsvNative(color.toInt())
     }
     var hue by remember { mutableFloatStateOf(init[0]) }
     var sat by remember { mutableFloatStateOf(init[1]) }
@@ -631,17 +668,16 @@ private fun WheelPicker(color: Long, onColor: (Long) -> Unit, modifier: Modifier
     // The colour was changed from outside (swatch, eyedropper): follow it.
     LaunchedEffect(color) {
         if (color != lastEmitted) {
-            val a = FloatArray(3)
-            android.graphics.Color.colorToHSV(color.toInt(), a)
+            val a = colorToHsvNative(color.toInt())
             hue = a[0]; sat = a[1]; value = a[2]
             alpha = ((color shr 24) and 0xFF).toInt() / 255f
         }
     }
 
     fun emit() {
-        val argb = android.graphics.Color.HSVToColor(
+        val argb = hsvToColorNative(
             (alpha * 255f).roundToInt().coerceIn(0, 255),
-            floatArrayOf(hue.coerceIn(0f, 359.99f), sat.coerceIn(0f, 1f), value.coerceIn(0f, 1f))
+            hue.coerceIn(0f, 359.99f), sat.coerceIn(0f, 1f), value.coerceIn(0f, 1f)
         )
         val c = argb.toLong() and 0xFFFFFFFFL
         lastEmitted = c
@@ -649,12 +685,12 @@ private fun WheelPicker(color: Long, onColor: (Long) -> Unit, modifier: Modifier
     }
 
     val current = Color(
-        android.graphics.Color.HSVToColor(
+        hsvToColorNative(
             (alpha * 255f).roundToInt().coerceIn(0, 255),
-            floatArrayOf(hue.coerceIn(0f, 359.99f), sat.coerceIn(0f, 1f), value.coerceIn(0f, 1f))
+            hue.coerceIn(0f, 359.99f), sat.coerceIn(0f, 1f), value.coerceIn(0f, 1f)
         )
     )
-    val hueColor = Color(android.graphics.Color.HSVToColor(floatArrayOf(hue.coerceIn(0f, 359.99f), 1f, 1f)))
+    val hueColor = Color(hsvToColorNative(255, hue.coerceIn(0f, 359.99f), 1f, 1f))
 
     BoxWithConstraints(modifier = modifier.padding(6.dp)) {
         // Two squares side by side (wheel + saturation/value) with the opacity bar underneath.
@@ -670,7 +706,7 @@ private fun WheelPicker(color: Long, onColor: (Long) -> Unit, modifier: Modifier
             Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
                 // ---- Hue ring with the hex code in the middle ----
                 Box(modifier = Modifier.size(s), contentAlignment = Alignment.Center) {
-                    Canvas(
+                    NativeVectorCanvas(
                         modifier = Modifier
                             .fillMaxSize()
                             .testTag("color_hue_ring")
@@ -689,33 +725,56 @@ private fun WheelPicker(color: Long, onColor: (Long) -> Unit, modifier: Modifier
                                     hue = ((Math.toDegrees(ang.toDouble()) + 360.0) % 360.0).toFloat()
                                     emit()
                                 }
-                            }
-                    ) {
-                        val ringW = 14.dp.toPx()
-                        val r = size.minDimension / 2f - ringW / 2f
-                        drawCircle(
-                            brush = Brush.sweepGradient(
-                                (0..6).map {
-                                    Color(android.graphics.Color.HSVToColor(floatArrayOf((it * 60f).coerceAtMost(359.9f), 1f, 1f)))
-                                }
-                            ),
-                            radius = r,
-                            style = Stroke(ringW)
-                        )
-                        val rad = Math.toRadians(hue.toDouble())
-                        val p = Offset(
-                            size.width / 2f + r * cos(rad).toFloat(),
-                            size.height / 2f + r * sin(rad).toFloat()
-                        )
-                        drawCircle(hueColor, radius = ringW / 2f + 1.5.dp.toPx(), center = p)
-                        drawCircle(Color.White, radius = ringW / 2f + 1.5.dp.toPx(), center = p, style = Stroke(2.dp.toPx()))
-                    }
+                            },
+                        drawKey = hue,
+                        buildCmds = { w, h, d ->
+                            val ringW = 14f * d
+                            val r = minOf(w, h) * 0.5f - ringW * 0.5f
+                            addShaderQuad(
+                                0f, 0f, w, h, 0f, UiGlNative.QUAD_HUE_WHEEL,
+                                p0 = r - ringW * 0.5f,
+                                p1 = r + ringW * 0.5f,
+                                p2 = hue,
+                                p3 = 1f
+                            )
+                        },
+                        fallbackDraw = {
+                            val ringW = 14.dp.toPx()
+                            val r = size.minDimension / 2f - ringW / 2f
+                            drawCircle(
+                                brush = Brush.sweepGradient(
+                                    (0..6).map {
+                                        Color(android.graphics.Color.HSVToColor(floatArrayOf((it * 60f).coerceAtMost(359.9f), 1f, 1f)))
+                                    }
+                                ),
+                                radius = r,
+                                style = Stroke(ringW)
+                            )
+                            val rad = Math.toRadians(hue.toDouble())
+                            val p = Offset(
+                                size.width / 2f + r * cos(rad).toFloat(),
+                                size.height / 2f + r * sin(rad).toFloat()
+                            )
+                            drawCircle(hueColor, radius = ringW / 2f + 1.5.dp.toPx(), center = p)
+                            drawCircle(Color.White, radius = ringW / 2f + 1.5.dp.toPx(), center = p, style = Stroke(2.dp.toPx()))
+                        }
+                    )
                     Box(
                         modifier = Modifier
                             .size(s - 34.dp)
                             .clip(CircleShape)
                     ) {
-                        Canvas(Modifier.fillMaxSize()) { drawChecker(size) }
+                        NativeVectorCanvas(
+                            modifier = Modifier.fillMaxSize(),
+                            drawKey = 0,
+                            buildCmds = { w, h, d ->
+                                addShaderQuad(
+                                    0f, 0f, w, h, 0f, UiGlNative.QUAD_CHECKER,
+                                    p0 = 7f * d, c0Argb = 0xFF8A8A8A.toInt(), c1Argb = 0xFFCFCFCF.toInt()
+                                )
+                            },
+                            fallbackDraw = { drawChecker(size) }
+                        )
                         Box(
                             Modifier
                                 .fillMaxSize()
@@ -734,7 +793,7 @@ private fun WheelPicker(color: Long, onColor: (Long) -> Unit, modifier: Modifier
                 }
 
                 // ---- Saturation (x) / value (y) square ----
-                Canvas(
+                NativeVectorCanvas(
                     modifier = Modifier
                         .size(s)
                         .clip(RoundedCornerShape(8.dp))
@@ -753,20 +812,28 @@ private fun WheelPicker(color: Long, onColor: (Long) -> Unit, modifier: Modifier
                                 value = 1f - (change.position.y / size.height).coerceIn(0f, 1f)
                                 emit()
                             }
-                        }
-                ) {
-                    drawRect(Brush.horizontalGradient(listOf(Color.White, hueColor)))
-                    drawRect(Brush.verticalGradient(listOf(Color.Transparent, Color.Black)))
-                    val p = Offset(sat * size.width, (1f - value) * size.height)
-                    drawCircle(Color.White, radius = 7.dp.toPx(), center = p, style = Stroke(1.75.dp.toPx()))
-                    drawCircle(Color.Black.copy(alpha = 0.4f), radius = 9.dp.toPx(), center = p, style = Stroke(1.dp.toPx()))
-                }
+                        },
+                    drawKey = Triple(hue, sat, value),
+                    buildCmds = { w, h, d ->
+                        addShaderQuad(
+                            0f, 0f, w, h, 0f, UiGlNative.QUAD_SV_BOX,
+                            p0 = hue, p1 = sat, p2 = value, p3 = 1f, p4 = 7f * d
+                        )
+                    },
+                    fallbackDraw = {
+                        drawRect(Brush.horizontalGradient(listOf(Color.White, hueColor)))
+                        drawRect(Brush.verticalGradient(listOf(Color.Transparent, Color.Black)))
+                        val p = Offset(sat * size.width, (1f - value) * size.height)
+                        drawCircle(Color.White, radius = 7.dp.toPx(), center = p, style = Stroke(1.75.dp.toPx()))
+                        drawCircle(Color.Black.copy(alpha = 0.4f), radius = 9.dp.toPx(), center = p, style = Stroke(1.dp.toPx()))
+                    }
+                )
             }
 
             Spacer(Modifier.height(gap))
 
             // ---- Opacity bar ----
-            Canvas(
+            NativeVectorCanvas(
                 modifier = Modifier
                     .width(s * 2 + gap)
                     .height(barH)
@@ -784,17 +851,54 @@ private fun WheelPicker(color: Long, onColor: (Long) -> Unit, modifier: Modifier
                             alpha = (change.position.x / size.width).coerceIn(0f, 1f)
                             emit()
                         }
-                    }
-            ) {
-                drawChecker(size)
-                val solid = current.copy(alpha = 1f)
-                drawRect(Brush.horizontalGradient(listOf(solid.copy(alpha = 0f), solid)))
-                val r = size.height / 2f
-                val cx = (alpha * size.width).coerceIn(r, size.width - r)
-                drawCircle(Color.White, radius = r - 1.dp.toPx(), center = Offset(cx, r), style = Stroke(3.dp.toPx()))
-            }
+                    },
+                drawKey = Pair(current.copy(alpha = 1f).toArgb(), alpha),
+                buildCmds = { w, h, d ->
+                    val solidArgb = current.copy(alpha = 1f).toArgb()
+                    addShaderQuad(
+                        0f, 0f, w, h, 0f, UiGlNative.QUAD_CHECKER,
+                        p0 = 7f * d, c0Argb = 0xFF8A8A8A.toInt(), c1Argb = 0xFFCFCFCF.toInt()
+                    )
+                    addGradRect(0f, 0f, w, h, vertical = false, c0Argb = solidArgb and 0x00FFFFFF, c1Argb = solidArgb)
+                    val r = h * 0.5f
+                    val cx = (alpha * w).coerceIn(r, (w - r).coerceAtLeast(r))
+                    addCircle(cx, r, r - 1f * d, 0, 3f * d, android.graphics.Color.WHITE)
+                },
+                fallbackDraw = {
+                    drawChecker(size)
+                    val solid = current.copy(alpha = 1f)
+                    drawRect(Brush.horizontalGradient(listOf(solid.copy(alpha = 0f), solid)))
+                    val r = size.height / 2f
+                    val cx = (alpha * size.width).coerceIn(r, size.width - r)
+                    drawCircle(Color.White, radius = r - 1.dp.toPx(), center = Offset(cx, r), style = Stroke(3.dp.toPx()))
+                }
+            )
         }
     }
+}
+
+private fun colorToHsvNative(argb: Int): FloatArray {
+    if (UiMathNative.isAvailable) {
+        val out = FloatArray(3)
+        val r = ((argb shr 16) and 0xFF) / 255f
+        val g = ((argb shr 8) and 0xFF) / 255f
+        val b = (argb and 0xFF) / 255f
+        UiMathNative.nativeRgbToHsv(r, g, b, out)
+        return out
+    }
+    return FloatArray(3).also { android.graphics.Color.colorToHSV(argb, it) }
+}
+
+private fun hsvToColorNative(alpha255: Int, h: Float, s: Float, v: Float): Int {
+    if (UiMathNative.isAvailable) {
+        val rgb = FloatArray(3)
+        UiMathNative.nativeHsvToRgb(h, s, v, rgb)
+        val r = (rgb[0] * 255f).roundToInt().coerceIn(0, 255)
+        val g = (rgb[1] * 255f).roundToInt().coerceIn(0, 255)
+        val b = (rgb[2] * 255f).roundToInt().coerceIn(0, 255)
+        return (alpha255.coerceIn(0, 255) shl 24) or (r shl 16) or (g shl 8) or b
+    }
+    return android.graphics.Color.HSVToColor(alpha255, floatArrayOf(h, s, v))
 }
 
 // =====================================================================================
@@ -849,17 +953,30 @@ private fun androidx.compose.foundation.layout.ColumnScope.RailWheelButton(selec
             .testTag("color_view_wheel"),
         contentAlignment = Alignment.Center
     ) {
-        Canvas(Modifier.size(22.dp)) {
-            val w = 5.dp.toPx()
-            drawCircle(
-                brush = Brush.sweepGradient(
-                    (0..6).map { Color(android.graphics.Color.HSVToColor(floatArrayOf((it * 60f).coerceAtMost(359.9f), 1f, 1f))) }
-                ),
-                radius = size.minDimension / 2f - w / 2f,
-                style = Stroke(w)
-            )
-            if (selected) drawCircle(CeAccent, radius = 2.5.dp.toPx())
-        }
+        NativeVectorCanvas(
+            modifier = Modifier.size(22.dp),
+            drawKey = selected,
+            buildCmds = { w, h, d ->
+                val ringW = 5f * d
+                val r = minOf(w, h) * 0.5f - ringW * 0.5f
+                addShaderQuad(
+                    0f, 0f, w, h, 0f, UiGlNative.QUAD_HUE_WHEEL,
+                    p0 = r - ringW * 0.5f, p1 = r + ringW * 0.5f, p2 = 0f, p3 = 0f
+                )
+                if (selected) addCircle(w * 0.5f, h * 0.5f, 2.5f * d, CeAccent.toArgb())
+            },
+            fallbackDraw = {
+                val w = 5.dp.toPx()
+                drawCircle(
+                    brush = Brush.sweepGradient(
+                        (0..6).map { Color(android.graphics.Color.HSVToColor(floatArrayOf((it * 60f).coerceAtMost(359.9f), 1f, 1f))) }
+                    ),
+                    radius = size.minDimension / 2f - w / 2f,
+                    style = Stroke(w)
+                )
+                if (selected) drawCircle(CeAccent, radius = 2.5.dp.toPx())
+            }
+        )
     }
 }
 

@@ -19,6 +19,8 @@ private class GlTextureHostState {
     var androidSurface: Surface? = null
     /** Latest GL-thread draw callback (immutable state captured by caller). */
     @Volatile var latestDraw: ((Int) -> Unit)? = null
+    /** Last drawKey posted from UI thread to skip duplicate GL swaps when static chrome recomposes. */
+    var lastDrawKey: Any? = null
     /** Coalesces bursts of 120Hz drags / playback ticks so stale frames are skipped. */
     val drawGen = AtomicInteger(0)
 }
@@ -34,12 +36,17 @@ private class GlTextureHostState {
 fun NativeGlTextureHost(
     isOpaque: Boolean,
     drawOnGl: (surfaceId: Int) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    drawKey: Any? = null
 ) {
     val state = remember { GlTextureHostState() }
 
     SideEffect {
         state.latestDraw = drawOnGl
+        if (drawKey != null && state.lastDrawKey == drawKey) {
+            return@SideEffect
+        }
+        state.lastDrawKey = drawKey
         val gen = state.drawGen.incrementAndGet()
         UiGlRuntime.post {
             if (state.drawGen.get() != gen) return@post

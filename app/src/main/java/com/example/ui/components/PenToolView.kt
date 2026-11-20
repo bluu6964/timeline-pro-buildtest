@@ -32,6 +32,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.engine.UiMathNative
 import com.example.model.EditablePath
 import com.example.model.PATH_OP_CLOSE
 import com.example.model.PATH_OP_CUBIC
@@ -98,7 +99,7 @@ fun PenToolOverlay(
     val releaseNow by rememberUpdatedState(onRelease)
     val closeTapNow by rememberUpdatedState(onCloseTap)
     var cursor by remember { mutableStateOf<Offset?>(null) }
-    Canvas(
+    Box(
         modifier = modifier
             .fillMaxSize()
             .testTag("pen_tool_overlay")
@@ -122,7 +123,6 @@ fun PenToolOverlay(
                             ) <= closeRadiusPx
                         if (closeHit) {
                             closeTapNow()
-                            // Swallow the rest of this touch: closing places no anchor.
                             while (true) {
                                 val ev = awaitPointerEvent()
                                 val ch = ev.changes.first()
@@ -162,68 +162,134 @@ fun PenToolOverlay(
                 }
             }
     ) {
-        val w = size.width
-        val h = size.height
-        fun pt(x: Float, y: Float) = Offset(x * w, y * h)
-        if (anchors.isNotEmpty()) {
-            val segs = PathEdit.toSegments(EditablePath(listOf(PathSubpath(anchors, closed))))
-            val path = Path()
-            for (seg in segs) {
-                val q = seg.pts
-                when (seg.op) {
-                    PATH_OP_MOVE -> if (q.size >= 2) path.moveTo(q[0] * w, q[1] * h)
-                    PATH_OP_LINE -> if (q.size >= 2) path.lineTo(q[0] * w, q[1] * h)
-                    PATH_OP_CUBIC -> if (q.size >= 6) path.cubicTo(
-                        q[0] * w, q[1] * h, q[2] * w, q[3] * h, q[4] * w, q[5] * h
+        NativeVectorCanvas(
+            modifier = Modifier.fillMaxSize(),
+            drawKey = listOf(anchors, closed, strokeWidthDp, cursor),
+            buildCmds = { w, h, d ->
+                fun ptx(x: Float) = x * w
+                fun pty(y: Float) = y * h
+                if (anchors.isNotEmpty()) {
+                    val segs = PathEdit.toSegments(EditablePath(listOf(PathSubpath(anchors, closed))))
+                    val sw = (strokeWidthDp * d).coerceAtLeast(1f)
+                    if (closed && anchors.size >= 3) {
+                        val poly = flattenPathSegments(segs, 16)
+                        if (poly.size >= 3) {
+                            val xs = FloatArray(poly.size) { poly[it].first * w }
+                            val ys = FloatArray(poly.size) { poly[it].second * h }
+                            addFilledPolygon(xs, ys, poly.size, 0x40FFFFFF)
+                        }
+                    }
+                    var cx = 0f
+                    var cy = 0f
+                    var mx = 0f
+                    var my = 0f
+                    for (seg in segs) {
+                        val q = seg.pts
+                        when (seg.op) {
+                            PATH_OP_MOVE -> if (q.size >= 2) {
+                                cx = ptx(q[0]); cy = pty(q[1])
+                                mx = cx; my = cy
+                            }
+                            PATH_OP_LINE -> if (q.size >= 2) {
+                                val nx = ptx(q[0]); val ny = pty(q[1])
+                                addLine(cx, cy, nx, ny, sw, android.graphics.Color.WHITE, capRound = true)
+                                cx = nx; cy = ny
+                            }
+                            PATH_OP_CUBIC -> if (q.size >= 6) {
+                                val nx = ptx(q[4]); val ny = pty(q[5])
+                                addCubic(
+                                    cx, cy, ptx(q[0]), pty(q[1]), ptx(q[2]), pty(q[3]), nx, ny,
+                                    sw, android.graphics.Color.WHITE, capRound = true
+                                )
+                                cx = nx; cy = ny
+                            }
+                            PATH_OP_CLOSE -> {
+                                addLine(cx, cy, mx, my, sw, android.graphics.Color.WHITE, capRound = true)
+                                cx = mx; cy = my
+                            }
+                        }
+                    }
+                    val cur = cursor
+                    if (!closed && cur != null) {
+                        val last = anchors.last()
+                        addLine(ptx(last.x), pty(last.y), cur.x, cur.y, 1.5f * d, 0x8CFFFFFF.toInt())
+                    }
+                    val lastA = anchors.last()
+                    if (lastA.hasIn || lastA.hasOut) {
+                        val ax = ptx(lastA.x); val ay = pty(lastA.y)
+                        val ix = if (lastA.hasIn) ptx(lastA.inX!!) else ax
+                        val iy = if (lastA.hasIn) pty(lastA.inY!!) else ay
+                        val ox = if (lastA.hasOut) ptx(lastA.outX!!) else ax
+                        val oy = if (lastA.hasOut) pty(lastA.outY!!) else ay
+                        addLine(ix, iy, ox, oy, 1f * d, 0xFF9A9A9A.toInt())
+                        if (lastA.hasIn) addCircle(ix, iy, 4f * d, android.graphics.Color.WHITE)
+                        if (lastA.hasOut) addCircle(ox, oy, 4f * d, android.graphics.Color.WHITE)
+                    }
+                    val half = 4f * d
+                    anchors.forEachIndexed { i, a ->
+                        val ax = ptx(a.x); val ay = pty(a.y)
+                        addRect(ax - half, ay - half, half * 2f, half * 2f, android.graphics.Color.WHITE)
+                        if (i == 0 && !closed && anchors.size >= 3) {
+                            addCircle(ax, ay, 10f * d, 0, 1.5f * d, android.graphics.Color.WHITE)
+                        }
+                    }
+                }
+            },
+            fallbackDraw = {
+                val w = size.width
+                val h = size.height
+                fun pt(x: Float, y: Float) = Offset(x * w, y * h)
+                if (anchors.isNotEmpty()) {
+                    val segs = PathEdit.toSegments(EditablePath(listOf(PathSubpath(anchors, closed))))
+                    val path = Path()
+                    for (seg in segs) {
+                        val q = seg.pts
+                        when (seg.op) {
+                            PATH_OP_MOVE -> if (q.size >= 2) path.moveTo(q[0] * w, q[1] * h)
+                            PATH_OP_LINE -> if (q.size >= 2) path.lineTo(q[0] * w, q[1] * h)
+                            PATH_OP_CUBIC -> if (q.size >= 6) path.cubicTo(
+                                q[0] * w, q[1] * h, q[2] * w, q[3] * h, q[4] * w, q[5] * h
+                            )
+                            PATH_OP_CLOSE -> path.close()
+                        }
+                    }
+                    if (closed && anchors.size >= 3) drawPath(path, Color.White.copy(alpha = 0.25f))
+                    drawPath(
+                        path, Color.White,
+                        style = Stroke(
+                            width = (strokeWidthDp * density).coerceAtLeast(1f),
+                            cap = StrokeCap.Round, join = StrokeJoin.Round
+                        )
                     )
-                    PATH_OP_CLOSE -> path.close()
+                    val cur = cursor
+                    if (!closed && cur != null) {
+                        val last = anchors.last()
+                        drawLine(Color.White.copy(alpha = 0.55f), pt(last.x, last.y), cur, strokeWidth = 1.5f * density)
+                    }
+                    val lastA = anchors.last()
+                    if (lastA.hasIn || lastA.hasOut) {
+                        val c = pt(lastA.x, lastA.y)
+                        val inP = if (lastA.hasIn) pt(lastA.inX!!, lastA.inY!!) else c
+                        val outP = if (lastA.hasOut) pt(lastA.outX!!, lastA.outY!!) else c
+                        drawLine(Color(0xFF9A9A9A), inP, outP, strokeWidth = 1f * density)
+                        if (lastA.hasIn) drawCircle(Color.White, radius = 4f * density, center = inP)
+                        if (lastA.hasOut) drawCircle(Color.White, radius = 4f * density, center = outP)
+                    }
+                    val half = 4f * density
+                    anchors.forEachIndexed { i, a ->
+                        val c = pt(a.x, a.y)
+                        drawRect(
+                            Color.White,
+                            topLeft = Offset(c.x - half, c.y - half),
+                            size = androidx.compose.ui.geometry.Size(half * 2f, half * 2f)
+                        )
+                        if (i == 0 && !closed && anchors.size >= 3) {
+                            drawCircle(Color.White, radius = 10f * density, center = c, style = Stroke(width = 1.5f * density))
+                        }
+                    }
                 }
             }
-            if (closed && anchors.size >= 3) drawPath(path, Color.White.copy(alpha = 0.25f))
-            drawPath(
-                path, Color.White,
-                style = Stroke(
-                    width = (strokeWidthDp * density).coerceAtLeast(1f),
-                    cap = StrokeCap.Round, join = StrokeJoin.Round
-                )
-            )
-            // Live preview: a thin line from the last anchor to the finger.
-            val cur = cursor
-            if (!closed && cur != null) {
-                val last = anchors.last()
-                drawLine(
-                    Color.White.copy(alpha = 0.55f),
-                    pt(last.x, last.y), cur,
-                    strokeWidth = 1.5f * density
-                )
-            }
-            // The last anchor's handles while they are being pulled out.
-            val lastA = anchors.last()
-            if (lastA.hasIn || lastA.hasOut) {
-                val c = pt(lastA.x, lastA.y)
-                val inP = if (lastA.hasIn) pt(lastA.inX!!, lastA.inY!!) else c
-                val outP = if (lastA.hasOut) pt(lastA.outX!!, lastA.outY!!) else c
-                drawLine(Color(0xFF9A9A9A), inP, outP, strokeWidth = 1f * density)
-                if (lastA.hasIn) drawCircle(Color.White, radius = 4f * density, center = inP)
-                if (lastA.hasOut) drawCircle(Color.White, radius = 4f * density, center = outP)
-            }
-            // Anchors: small squares; the first one gets a ring when it can close the path.
-            val half = 4f * density
-            anchors.forEachIndexed { i, a ->
-                val c = pt(a.x, a.y)
-                drawRect(
-                    Color.White,
-                    topLeft = Offset(c.x - half, c.y - half),
-                    size = androidx.compose.ui.geometry.Size(half * 2f, half * 2f)
-                )
-                if (i == 0 && !closed && anchors.size >= 3) {
-                    drawCircle(
-                        Color.White, radius = 10f * density, center = c,
-                        style = Stroke(width = 1.5f * density)
-                    )
-                }
-            }
-        }
+        )
     }
 }
 
@@ -293,7 +359,12 @@ fun PenToolPanel(
  * (A layer's pivot / 3D tilt does not move a shape's painted outline — the painters
  * rotate about the centre — so it does not enter this map either.)
  */
-private class PathFrameMap(clip: TimelineClip, frameW: Float, frameH: Float, density: Float) {
+private class PathFrameMap(
+    private val clip: TimelineClip,
+    private val frameW: Float,
+    private val frameH: Float,
+    private val density: Float
+) {
     private val base = 65f * density
     private val cx = frameW / 2f + clip.depthX
     private val cy = frameH / 2f + clip.depthY
@@ -302,14 +373,33 @@ private class PathFrameMap(clip: TimelineClip, frameW: Float, frameH: Float, den
     private val rad = Math.toRadians(clip.rotationDeg.toDouble())
     private val cs = cos(rad).toFloat()
     private val sn = sin(rad).toFloat()
+    private val outTmp = FloatArray(2)
 
     fun toCanvas(x: Float, y: Float): Offset {
+        if (UiMathNative.isAvailable) {
+            UiMathNative.nativePathFrameTransform(
+                0f, 0f, base, base, frameW, frameH,
+                100f, clip.rotationDeg,
+                clip.depthX, clip.depthY, false, false,
+                0.5f, 0.5f, x * base * sx, y * base * sy,
+                false, outTmp
+            )
+            return Offset(outTmp[0], outTmp[1])
+        }
         val lx = x * base * sx
         val ly = y * base * sy
         return Offset(cx + lx * cs - ly * sn, cy + lx * sn + ly * cs)
     }
 
     fun toStored(p: Offset): Pair<Float, Float> {
+        if (UiMathNative.isAvailable) {
+            UiMathNative.nativePathFrameTransform(
+                0f, 0f, base, base, frameW, frameH,
+                100f, clip.rotationDeg, clip.depthX, clip.depthY,
+                false, false, 0.5f, 0.5f, p.x, p.y, true, outTmp
+            )
+            return (outTmp[0] / (base * sx)) to (outTmp[1] / (base * sy))
+        }
         val dx = p.x - cx
         val dy = p.y - cy
         val x = dx * cs + dy * sn
@@ -328,7 +418,69 @@ private fun nodeHitTest(
     pos: Offset,
     anchorR: Float, handleR: Float, segR: Float
 ): NodeHit? {
-    // 1) The selected anchor's handles (only it shows handles).
+    if (UiMathNative.isAvailable) {
+        // Test handles & anchors on selected subpath, plus C++ cubic segment projection across all subpaths.
+        path.subpaths.forEachIndexed { s, sp ->
+            val n = sp.anchors.size
+            if (n == 0) return@forEachIndexed
+            val aXy = FloatArray(n * 2)
+            val inXy = FloatArray(n * 2)
+            val outXy = FloatArray(n * 2)
+            val hIn = BooleanArray(n)
+            val hOut = BooleanArray(n)
+            for (i in 0 until n) {
+                val a = sp.anchors[i]
+                val c = map.toCanvas(a.x, a.y)
+                aXy[i * 2] = c.x; aXy[i * 2 + 1] = c.y
+                if (a.hasIn) {
+                    hIn[i] = true
+                    val hp = map.toCanvas(a.inX!!, a.inY!!)
+                    inXy[i * 2] = hp.x; inXy[i * 2 + 1] = hp.y
+                }
+                if (a.hasOut) {
+                    hOut[i] = true
+                    val hp = map.toCanvas(a.outX!!, a.outY!!)
+                    outXy[i * 2] = hp.x; outXy[i * 2 + 1] = hp.y
+                }
+            }
+            val segs = PathEdit.toSegments(EditablePath(listOf(sp)))
+            val segTypes = IntArray(segs.size)
+            val flatPts = ArrayList<Float>(segs.size * 6)
+            for (i in segs.indices) {
+                val seg = segs[i]
+                segTypes[i] = when (seg.op) {
+                    PATH_OP_MOVE -> 0
+                    PATH_OP_LINE -> 1
+                    PATH_OP_CUBIC -> 2
+                    else -> 3
+                }
+                var k = 0
+                while (k + 1 < seg.pts.size) {
+                    val cp = map.toCanvas(seg.pts[k], seg.pts[k + 1])
+                    flatPts.add(cp.x)
+                    flatPts.add(cp.y)
+                    k += 2
+                }
+            }
+            val outRes = FloatArray(4)
+            UiMathNative.nativeNodeHitTest(
+                pos.x, pos.y,
+                aXy, inXy, hIn, outXy, hOut,
+                n, if (s == selSub) selIdx else -1, maxOf(anchorR, handleR),
+                segTypes, flatPts.toFloatArray(), segs.size,
+                outRes
+            )
+            when (outRes[0].toInt()) {
+                UiMathNative.NODE_HIT_IN_HANDLE -> return NodeHit(1, s, outRes[1].toInt(), false, 0f)
+                UiMathNative.NODE_HIT_OUT_HANDLE -> return NodeHit(1, s, outRes[1].toInt(), true, 0f)
+                UiMathNative.NODE_HIT_ANCHOR -> return NodeHit(0, s, outRes[1].toInt(), false, 0f)
+                UiMathNative.NODE_HIT_EDGE -> return NodeHit(2, s, outRes[2].toInt(), false, outRes[3])
+            }
+        }
+        return null
+    }
+
+    // Fallback path for host JVM unit tests without libam_engine.so
     if (selSub in path.subpaths.indices) {
         val sp = path.subpaths[selSub]
         if (selIdx in sp.anchors.indices) {
@@ -343,7 +495,6 @@ private fun nodeHitTest(
             }
         }
     }
-    // 2) Any anchor (nearest first).
     var bestAnchor: NodeHit? = null
     var bestDist = anchorR
     path.subpaths.forEachIndexed { s, sp ->
@@ -356,8 +507,6 @@ private fun nodeHitTest(
         }
     }
     if (bestAnchor != null) return bestAnchor
-    // 3) A segment: walk each segment's flattened samples (stored units) in canvas
-    // pixels; the closest projection gives both the hit and the split fraction.
     var best: NodeHit? = null
     var bestSegDist = segR
     path.subpaths.forEachIndexed { s, sp ->
@@ -368,23 +517,15 @@ private fun nodeHitTest(
             val a = sp.anchors[segIdx]
             val b = sp.anchors[(segIdx + 1) % n]
             val startSeg = com.example.model.PathSeg(PATH_OP_MOVE, listOf(a.x, a.y))
-            val drawSeg = PathEdit.toSegments(
-                EditablePath(listOf(PathSubpath(listOf(a, b))))
-            ).getOrNull(1) ?: continue
-            val samples = flattenPathSegments(listOf(startSeg, drawSeg), 32)
-                .map { map.toCanvas(it.first, it.second) }
+            val drawSeg = PathEdit.toSegments(EditablePath(listOf(PathSubpath(listOf(a, b))))).getOrNull(1) ?: continue
+            val samples = flattenPathSegments(listOf(startSeg, drawSeg), 32).map { map.toCanvas(it.first, it.second) }
             if (samples.size < 2) continue
             for (i in 0 until samples.size - 1) {
-                val p0 = samples[i]
-                val p1 = samples[i + 1]
-                val dx = p1.x - p0.x
-                val dy = p1.y - p0.y
+                val p0 = samples[i]; val p1 = samples[i + 1]
+                val dx = p1.x - p0.x; val dy = p1.y - p0.y
                 val len2 = dx * dx + dy * dy
-                val tt = if (len2 < 1e-9f) 0f
-                else (((pos.x - p0.x) * dx + (pos.y - p0.y) * dy) / len2).coerceIn(0f, 1f)
-                val ex = p0.x + dx * tt - pos.x
-                val ey = p0.y + dy * tt - pos.y
-                val d = hypot(ex, ey)
+                val tt = if (len2 < 1e-9f) 0f else (((pos.x - p0.x) * dx + (pos.y - p0.y) * dy) / len2).coerceIn(0f, 1f)
+                val d = hypot(p0.x + dx * tt - pos.x, p0.y + dy * tt - pos.y)
                 if (d <= bestSegDist) {
                     bestSegDist = d
                     best = NodeHit(2, s, segIdx, false, (i + tt) / (samples.size - 1))
@@ -428,7 +569,7 @@ fun NodeEditOverlay(
     val moveAnchorNow by rememberUpdatedState(onMoveAnchor)
     val moveHandleNow by rememberUpdatedState(onMoveHandle)
     val addPointNow by rememberUpdatedState(onAddPoint)
-    Canvas(
+    Box(
         modifier = modifier
             .fillMaxSize()
             .testTag("node_edit_overlay")
@@ -504,67 +645,136 @@ fun NodeEditOverlay(
                 }
             }
     ) {
-        val map = PathFrameMap(clip, size.width, size.height, density)
-        // The outline, replayed from the anchors through the one segment rule.
-        val segs = PathEdit.toSegments(path)
-        val outline = Path()
-        for (seg in segs) {
-            val q = seg.pts
-            when (seg.op) {
-                PATH_OP_MOVE -> if (q.size >= 2) map.toCanvas(q[0], q[1]).let { outline.moveTo(it.x, it.y) }
-                PATH_OP_LINE -> if (q.size >= 2) map.toCanvas(q[0], q[1]).let { outline.lineTo(it.x, it.y) }
-                PATH_OP_CUBIC -> if (q.size >= 6) {
-                    val c1 = map.toCanvas(q[0], q[1])
-                    val c2 = map.toCanvas(q[2], q[3])
-                    val e = map.toCanvas(q[4], q[5])
-                    outline.cubicTo(c1.x, c1.y, c2.x, c2.y, e.x, e.y)
+        NativeVectorCanvas(
+            modifier = Modifier.fillMaxSize(),
+            drawKey = listOf(clip, path, selectedSub, selectedIdx),
+            buildCmds = { w, h, d ->
+                val map = PathFrameMap(clip, w, h, d)
+                val segs = PathEdit.toSegments(path)
+                val sw = 1.5f * d
+                if (path.subpaths.any { it.closed }) {
+                    val poly = flattenPathSegments(segs, 16)
+                    if (poly.size >= 3) {
+                        val xs = FloatArray(poly.size)
+                        val ys = FloatArray(poly.size)
+                        for (i in poly.indices) {
+                            val cp = map.toCanvas(poly[i].first, poly[i].second)
+                            xs[i] = cp.x; ys[i] = cp.y
+                        }
+                        addFilledPolygon(xs, ys, poly.size, 0x1AFFFFFF)
+                    }
                 }
-                PATH_OP_CLOSE -> outline.close()
+                var cx = 0f; var cy = 0f
+                var mx = 0f; var my = 0f
+                for (seg in segs) {
+                    val q = seg.pts
+                    when (seg.op) {
+                        PATH_OP_MOVE -> if (q.size >= 2) {
+                            val p = map.toCanvas(q[0], q[1])
+                            cx = p.x; cy = p.y; mx = cx; my = cy
+                        }
+                        PATH_OP_LINE -> if (q.size >= 2) {
+                            val p = map.toCanvas(q[0], q[1])
+                            addLine(cx, cy, p.x, p.y, sw, android.graphics.Color.WHITE, capRound = true)
+                            cx = p.x; cy = p.y
+                        }
+                        PATH_OP_CUBIC -> if (q.size >= 6) {
+                            val c1 = map.toCanvas(q[0], q[1])
+                            val c2 = map.toCanvas(q[2], q[3])
+                            val e = map.toCanvas(q[4], q[5])
+                            addCubic(cx, cy, c1.x, c1.y, c2.x, c2.y, e.x, e.y, sw, android.graphics.Color.WHITE, capRound = true)
+                            cx = e.x; cy = e.y
+                        }
+                        PATH_OP_CLOSE -> {
+                            addLine(cx, cy, mx, my, sw, android.graphics.Color.WHITE, capRound = true)
+                            cx = mx; cy = my
+                        }
+                    }
+                }
+                if (selectedSub in path.subpaths.indices) {
+                    val sp = path.subpaths[selectedSub]
+                    if (selectedIdx in sp.anchors.indices) {
+                        val a = sp.anchors[selectedIdx]
+                        val c = map.toCanvas(a.x, a.y)
+                        if (a.hasIn) {
+                            val hp = map.toCanvas(a.inX!!, a.inY!!)
+                            addLine(c.x, c.y, hp.x, hp.y, 1f * d, 0xFF9A9A9A.toInt())
+                            addCircle(hp.x, hp.y, 4f * d, android.graphics.Color.WHITE, 1f * d, 0x99000000.toInt())
+                        }
+                        if (a.hasOut) {
+                            val hp = map.toCanvas(a.outX!!, a.outY!!)
+                            addLine(c.x, c.y, hp.x, hp.y, 1f * d, 0xFF9A9A9A.toInt())
+                            addCircle(hp.x, hp.y, 4f * d, android.graphics.Color.WHITE, 1f * d, 0x99000000.toInt())
+                        }
+                    }
+                }
+                val half = 4f * d
+                path.subpaths.forEachIndexed { s, sp ->
+                    sp.anchors.forEachIndexed { i, a ->
+                        val c = map.toCanvas(a.x, a.y)
+                        if (s == selectedSub && i == selectedIdx) {
+                            addRect(c.x - half, c.y - half, half * 2f, half * 2f, android.graphics.Color.WHITE)
+                        } else {
+                            addRoundRect(c.x, c.y, half * 2f, half * 2f, 0f, 0xFF1C1C1C.toInt(), 1.3f * d, android.graphics.Color.WHITE)
+                        }
+                    }
+                }
+            },
+            fallbackDraw = {
+                val map = PathFrameMap(clip, size.width, size.height, density)
+                val segs = PathEdit.toSegments(path)
+                val outline = Path()
+                for (seg in segs) {
+                    val q = seg.pts
+                    when (seg.op) {
+                        PATH_OP_MOVE -> if (q.size >= 2) map.toCanvas(q[0], q[1]).let { outline.moveTo(it.x, it.y) }
+                        PATH_OP_LINE -> if (q.size >= 2) map.toCanvas(q[0], q[1]).let { outline.lineTo(it.x, it.y) }
+                        PATH_OP_CUBIC -> if (q.size >= 6) {
+                            val c1 = map.toCanvas(q[0], q[1])
+                            val c2 = map.toCanvas(q[2], q[3])
+                            val e = map.toCanvas(q[4], q[5])
+                            outline.cubicTo(c1.x, c1.y, c2.x, c2.y, e.x, e.y)
+                        }
+                        PATH_OP_CLOSE -> outline.close()
+                    }
+                }
+                if (path.subpaths.any { it.closed }) drawPath(outline, Color.White.copy(alpha = 0.10f))
+                drawPath(outline, Color.White, style = Stroke(width = 1.5f * density, join = StrokeJoin.Round))
+                if (selectedSub in path.subpaths.indices) {
+                    val sp = path.subpaths[selectedSub]
+                    if (selectedIdx in sp.anchors.indices) {
+                        val a = sp.anchors[selectedIdx]
+                        val c = map.toCanvas(a.x, a.y)
+                        if (a.hasIn) {
+                            val hp = map.toCanvas(a.inX!!, a.inY!!)
+                            drawLine(Color(0xFF9A9A9A), c, hp, strokeWidth = 1f * density)
+                            drawCircle(Color.White, radius = 4f * density, center = hp)
+                            drawCircle(Color.Black.copy(alpha = 0.6f), radius = 4f * density, center = hp, style = Stroke(width = 1f * density))
+                        }
+                        if (a.hasOut) {
+                            val hp = map.toCanvas(a.outX!!, a.outY!!)
+                            drawLine(Color(0xFF9A9A9A), c, hp, strokeWidth = 1f * density)
+                            drawCircle(Color.White, radius = 4f * density, center = hp)
+                            drawCircle(Color.Black.copy(alpha = 0.6f), radius = 4f * density, center = hp, style = Stroke(width = 1f * density))
+                        }
+                    }
+                }
+                val half = 4f * density
+                path.subpaths.forEachIndexed { s, sp ->
+                    sp.anchors.forEachIndexed { i, a ->
+                        val c = map.toCanvas(a.x, a.y)
+                        val topLeft = Offset(c.x - half, c.y - half)
+                        val sz = androidx.compose.ui.geometry.Size(half * 2f, half * 2f)
+                        if (s == selectedSub && i == selectedIdx) {
+                            drawRect(Color.White, topLeft = topLeft, size = sz)
+                        } else {
+                            drawRect(Color(0xFF1C1C1C), topLeft = topLeft, size = sz)
+                            drawRect(Color.White, topLeft = topLeft, size = sz, style = Stroke(width = 1.3f * density))
+                        }
+                    }
+                }
             }
-        }
-        if (path.subpaths.any { it.closed }) drawPath(outline, Color.White.copy(alpha = 0.10f))
-        drawPath(outline, Color.White, style = Stroke(width = 1.5f * density, join = StrokeJoin.Round))
-        // The selected anchor's handles: grey lines, small white circles.
-        if (selectedSub in path.subpaths.indices) {
-            val sp = path.subpaths[selectedSub]
-            if (selectedIdx in sp.anchors.indices) {
-                val a = sp.anchors[selectedIdx]
-                val c = map.toCanvas(a.x, a.y)
-                if (a.hasIn) {
-                    val hp = map.toCanvas(a.inX!!, a.inY!!)
-                    drawLine(Color(0xFF9A9A9A), c, hp, strokeWidth = 1f * density)
-                    drawCircle(Color.White, radius = 4f * density, center = hp)
-                    drawCircle(
-                        Color.Black.copy(alpha = 0.6f), radius = 4f * density, center = hp,
-                        style = Stroke(width = 1f * density)
-                    )
-                }
-                if (a.hasOut) {
-                    val hp = map.toCanvas(a.outX!!, a.outY!!)
-                    drawLine(Color(0xFF9A9A9A), c, hp, strokeWidth = 1f * density)
-                    drawCircle(Color.White, radius = 4f * density, center = hp)
-                    drawCircle(
-                        Color.Black.copy(alpha = 0.6f), radius = 4f * density, center = hp,
-                        style = Stroke(width = 1f * density)
-                    )
-                }
-            }
-        }
-        // Anchors: small squares — the selected one filled white, the rest dark with a white edge.
-        val half = 4f * density
-        path.subpaths.forEachIndexed { s, sp ->
-            sp.anchors.forEachIndexed { i, a ->
-                val c = map.toCanvas(a.x, a.y)
-                val topLeft = Offset(c.x - half, c.y - half)
-                val sz = androidx.compose.ui.geometry.Size(half * 2f, half * 2f)
-                if (s == selectedSub && i == selectedIdx) {
-                    drawRect(Color.White, topLeft = topLeft, size = sz)
-                } else {
-                    drawRect(Color(0xFF1C1C1C), topLeft = topLeft, size = sz)
-                    drawRect(Color.White, topLeft = topLeft, size = sz, style = Stroke(width = 1.3f * density))
-                }
-            }
-        }
+        )
     }
 }
 

@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.ViewStream
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -46,6 +47,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
@@ -195,182 +197,315 @@ private fun DockTile(
 /** The reference's media glyph: a rounded rect with a play triangle. */
 @Composable
 private fun DockMediaGlyph() {
-    Canvas(Modifier.size(15.dp)) {
-        val u = size.width / 24f
-        drawRoundRect(
-            Color(0xFFD4D4D8),
-            topLeft = Offset(3f * u, 5f * u),
-            size = Size(18f * u, 14f * u),
-            cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f * u),
-            style = Stroke(2f * u)
-        )
-        val tri = Path().apply {
-            moveTo(10.2f * u, 9.3f * u)
-            lineTo(15.2f * u, 12f * u)
-            lineTo(10.2f * u, 14.7f * u)
-            close()
+    NativeVectorCanvas(
+        modifier = Modifier.size(15.dp),
+        drawKey = "dock_media",
+        buildCmds = { w, _, _ ->
+            val u = w / 24f
+            val cArgb = Color(0xFFD4D4D8).toArgb()
+            addRoundRect(
+                cx = 12f * u, cy = 12f * u,
+                width = 18f * u, height = 14f * u,
+                cornerRadius = 4f * u,
+                fillArgb = 0,
+                strokeWidth = 2f * u,
+                strokeArgb = cArgb
+            )
+            addFilledPolygon(
+                floatArrayOf(10.2f * u, 15.2f * u, 10.2f * u),
+                floatArrayOf(9.3f * u, 12f * u, 14.7f * u),
+                3, cArgb
+            )
+        },
+        fallbackDraw = {
+            val u = size.width / 24f
+            drawRoundRect(
+                Color(0xFFD4D4D8),
+                topLeft = Offset(3f * u, 5f * u),
+                size = Size(18f * u, 14f * u),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f * u),
+                style = Stroke(2f * u)
+            )
+            val tri = Path().apply {
+                moveTo(10.2f * u, 9.3f * u)
+                lineTo(15.2f * u, 12f * u)
+                lineTo(10.2f * u, 14.7f * u)
+                close()
+            }
+            drawPath(tri, Color(0xFFD4D4D8))
         }
-        drawPath(tri, Color(0xFFD4D4D8))
-    }
+    )
 }
 
 /** The reference's fx glyph: a small grey sparkle and a big white one. */
 @Composable
 private fun DockFxGlyph() {
-    Canvas(Modifier.size(16.dp)) {
-        val u = size.width / 25f
-        fun star(cx: Float, cy: Float, r: Float, col: Color) {
-            val path = Path()
-            val pts = listOf(
-                0f to -1f, 0.24f to -0.24f, 1f to 0f, 0.24f to 0.24f,
-                0f to 1f, -0.24f to 0.24f, -1f to 0f, -0.24f to -0.24f
-            )
-            pts.forEachIndexed { i, pt ->
-                val x = cx + pt.first * r; val y = cy + pt.second * r
-                if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
-            }
-            path.close(); drawPath(path, col)
-        }
-        star(8.5f * u, 8.5f * u, 5.5f * u, Color(0xFF71717A))
-        star(16f * u, 16f * u, 7.5f * u, Color(0xFFF4F4F5))
+    val pts = remember {
+        listOf(
+            0f to -1f, 0.24f to -0.24f, 1f to 0f, 0.24f to 0.24f,
+            0f to 1f, -0.24f to 0.24f, -1f to 0f, -0.24f to -0.24f
+        )
     }
+    NativeVectorCanvas(
+        modifier = Modifier.size(16.dp),
+        drawKey = "dock_fx",
+        buildCmds = { w, _, _ ->
+            val u = w / 25f
+            fun addStar(cx: Float, cy: Float, r: Float, argb: Int) {
+                val xs = FloatArray(pts.size) { cx + pts[it].first * r }
+                val ys = FloatArray(pts.size) { cy + pts[it].second * r }
+                addFilledPolygon(xs, ys, pts.size, argb)
+            }
+            addStar(8.5f * u, 8.5f * u, 5.5f * u, Color(0xFF71717A).toArgb())
+            addStar(16f * u, 16f * u, 7.5f * u, Color(0xFFF4F4F5).toArgb())
+        },
+        fallbackDraw = {
+            val u = size.width / 25f
+            fun star(cx: Float, cy: Float, r: Float, col: Color) {
+                val path = Path()
+                pts.forEachIndexed { i, pt ->
+                    val x = cx + pt.first * r; val y = cy + pt.second * r
+                    if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                }
+                path.close(); drawPath(path, col)
+            }
+            star(8.5f * u, 8.5f * u, 5.5f * u, Color(0xFF71717A))
+            star(16f * u, 16f * u, 7.5f * u, Color(0xFFF4F4F5))
+        }
+    )
 }
 
 /** The reference's text glyph: T strokes. */
 @Composable
 private fun DockTextGlyph() {
-    Canvas(Modifier.size(15.dp)) {
-        val u = size.width / 24f
-        val c = Color(0xFFD4D4D8)
-        val w = 2.3f * u
-        drawLine(c, Offset(6f * u, 6f * u), Offset(18f * u, 6f * u), w, StrokeCap.Round)
-        drawLine(c, Offset(12f * u, 6f * u), Offset(12f * u, 18f * u), w, StrokeCap.Round)
-        drawLine(c, Offset(9.5f * u, 18f * u), Offset(14.5f * u, 18f * u), w, StrokeCap.Round)
-    }
+    NativeVectorCanvas(
+        modifier = Modifier.size(15.dp),
+        drawKey = "dock_text",
+        buildCmds = { w, _, _ ->
+            val u = w / 24f
+            val cArgb = Color(0xFFD4D4D8).toArgb()
+            val sw = 2.3f * u
+            addLine(6f * u, 6f * u, 18f * u, 6f * u, sw, cArgb, capRound = true)
+            addLine(12f * u, 6f * u, 12f * u, 18f * u, sw, cArgb, capRound = true)
+            addLine(9.5f * u, 18f * u, 14.5f * u, 18f * u, sw, cArgb, capRound = true)
+        },
+        fallbackDraw = {
+            val u = size.width / 24f
+            val c = Color(0xFFD4D4D8)
+            val w = 2.3f * u
+            drawLine(c, Offset(6f * u, 6f * u), Offset(18f * u, 6f * u), w, StrokeCap.Round)
+            drawLine(c, Offset(12f * u, 6f * u), Offset(12f * u, 18f * u), w, StrokeCap.Round)
+            drawLine(c, Offset(9.5f * u, 18f * u), Offset(14.5f * u, 18f * u), w, StrokeCap.Round)
+        }
+    )
 }
 
 /** The reference's shapes glyph: a grey circle + a white rounded square. */
 @Composable
 private fun DockShapesGlyph() {
-    Canvas(Modifier.size(16.dp)) {
-        val u = size.width / 25f
-        drawCircle(Color(0xFF71717A), radius = 5.2f * u, center = Offset(9.8f * u, 9.8f * u))
-        drawRoundRect(
-            Color(0xFFF4F4F5),
-            topLeft = Offset(9.8f * u, 9.8f * u),
-            size = Size(10.8f * u, 10.8f * u),
-            cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.6f * u)
-        )
-    }
+    NativeVectorCanvas(
+        modifier = Modifier.size(16.dp),
+        drawKey = "dock_shapes",
+        buildCmds = { w, _, _ ->
+            val u = w / 25f
+            addCircle(9.8f * u, 9.8f * u, 5.2f * u, Color(0xFF71717A).toArgb())
+            addRoundRect(
+                cx = (9.8f + 5.4f) * u, cy = (9.8f + 5.4f) * u,
+                width = 10.8f * u, height = 10.8f * u,
+                cornerRadius = 2.6f * u,
+                fillArgb = Color(0xFFF4F4F5).toArgb()
+            )
+        },
+        fallbackDraw = {
+            val u = size.width / 25f
+            drawCircle(Color(0xFF71717A), radius = 5.2f * u, center = Offset(9.8f * u, 9.8f * u))
+            drawRoundRect(
+                Color(0xFFF4F4F5),
+                topLeft = Offset(9.8f * u, 9.8f * u),
+                size = Size(10.8f * u, 10.8f * u),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.6f * u)
+            )
+        }
+    )
 }
 
 /** The reference's null glyph: a centre square + four corner squares. */
 @Composable
 private fun DockNullGlyph() {
-    Canvas(Modifier.size(16.dp)) {
-        val u = size.width / 25f
-        val c = Color(0xFFE4E4E7)
-        drawRoundRect(
-            c,
-            topLeft = Offset(6.5f * u, 6.5f * u),
-            size = Size(12f * u, 12f * u),
-            cornerRadius = androidx.compose.ui.geometry.CornerRadius(1.5f * u)
-        )
-        listOf(4f to 4f, 17f to 4f, 4f to 17f, 17f to 17f).forEach { pt ->
-            drawRoundRect(
-                com.example.ui.theme.RefSurface,
-                topLeft = Offset(pt.first * u, pt.second * u),
-                size = Size(4f * u, 4f * u),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(1f * u)
-            )
+    NativeVectorCanvas(
+        modifier = Modifier.size(16.dp),
+        drawKey = "dock_null",
+        buildCmds = { w, _, _ ->
+            val u = w / 25f
+            val cArgb = Color(0xFFE4E4E7).toArgb()
+            val bgArgb = com.example.ui.theme.RefSurface.toArgb()
+            addRoundRect(12.5f * u, 12.5f * u, 12f * u, 12f * u, 1.5f * u, cArgb)
+            listOf(4f to 4f, 17f to 4f, 4f to 17f, 17f to 17f).forEach { pt ->
+                addRoundRect(
+                    (pt.first + 2f) * u, (pt.second + 2f) * u,
+                    4f * u, 4f * u, 1f * u,
+                    fillArgb = bgArgb, strokeWidth = 1.5f * u, strokeArgb = cArgb
+                )
+            }
+        },
+        fallbackDraw = {
+            val u = size.width / 25f
+            val c = Color(0xFFE4E4E7)
             drawRoundRect(
                 c,
-                topLeft = Offset(pt.first * u, pt.second * u),
-                size = Size(4f * u, 4f * u),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(1f * u),
-                style = Stroke(1.5f * u)
+                topLeft = Offset(6.5f * u, 6.5f * u),
+                size = Size(12f * u, 12f * u),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(1.5f * u)
             )
+            listOf(4f to 4f, 17f to 4f, 4f to 17f, 17f to 17f).forEach { pt ->
+                drawRoundRect(
+                    com.example.ui.theme.RefSurface,
+                    topLeft = Offset(pt.first * u, pt.second * u),
+                    size = Size(4f * u, 4f * u),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(1f * u)
+                )
+                drawRoundRect(
+                    c,
+                    topLeft = Offset(pt.first * u, pt.second * u),
+                    size = Size(4f * u, 4f * u),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(1f * u),
+                    style = Stroke(1.5f * u)
+                )
+            }
         }
-    }
+    )
 }
 
 /** Build 218: the Vector tile's glyph — a node polyline (the Pen tool). */
 @Composable
 private fun DockVectorGlyph() {
-    Canvas(Modifier.size(16.dp)) {
-        val u = size.width / 25f
-        val c = Color(0xFFE4E4E7)
-        val pts = listOf(5f to 19f, 10f to 7.5f, 15f to 14.5f, 20f to 6f)
-        for (i in 0 until pts.size - 1) {
-            drawLine(
-                c, Offset(pts[i].first * u, pts[i].second * u),
-                Offset(pts[i + 1].first * u, pts[i + 1].second * u),
-                1.8f * u, StrokeCap.Round
-            )
+    val pts = remember { listOf(5f to 19f, 10f to 7.5f, 15f to 14.5f, 20f to 6f) }
+    NativeVectorCanvas(
+        modifier = Modifier.size(16.dp),
+        drawKey = "dock_vector",
+        buildCmds = { w, _, _ ->
+            val u = w / 25f
+            val cArgb = Color(0xFFE4E4E7).toArgb()
+            val xs = FloatArray(pts.size) { pts[it].first * u }
+            val ys = FloatArray(pts.size) { pts[it].second * u }
+            addPolyline(xs, ys, pts.size, false, 1.8f * u, cArgb, capRound = true)
+            for (i in pts.indices) addCircle(xs[i], ys[i], 2f * u, cArgb)
+        },
+        fallbackDraw = {
+            val u = size.width / 25f
+            val c = Color(0xFFE4E4E7)
+            for (i in 0 until pts.size - 1) {
+                drawLine(
+                    c, Offset(pts[i].first * u, pts[i].second * u),
+                    Offset(pts[i + 1].first * u, pts[i + 1].second * u),
+                    1.8f * u, StrokeCap.Round
+                )
+            }
+            pts.forEach { pt -> drawCircle(c, radius = 2f * u, center = Offset(pt.first * u, pt.second * u)) }
         }
-        pts.forEach { pt -> drawCircle(c, radius = 2f * u, center = Offset(pt.first * u, pt.second * u)) }
-    }
+    )
 }
 
 /** Build 218: the Drawing tile's glyph — a freehand scribble stroke. */
 @Composable
 private fun DockDrawingGlyph() {
-    Canvas(Modifier.size(16.dp)) {
-        val u = size.width / 25f
-        val c = Color(0xFFE4E4E7)
-        val p = Path().apply {
-            moveTo(4f * u, 16f * u)
-            cubicTo(7f * u, 6f * u, 10.5f * u, 20f * u, 13.5f * u, 10.5f * u)
-            cubicTo(15.5f * u, 5.5f * u, 18f * u, 13f * u, 21f * u, 9.5f * u)
+    NativeVectorCanvas(
+        modifier = Modifier.size(16.dp),
+        drawKey = "dock_drawing",
+        buildCmds = { w, _, _ ->
+            val u = w / 25f
+            val cArgb = Color(0xFFE4E4E7).toArgb()
+            val sw = 2f * u
+            addCubic(4f * u, 16f * u, 7f * u, 6f * u, 10.5f * u, 20f * u, 13.5f * u, 10.5f * u, sw, cArgb, capRound = true)
+            addCubic(13.5f * u, 10.5f * u, 15.5f * u, 5.5f * u, 18f * u, 13f * u, 21f * u, 9.5f * u, sw, cArgb, capRound = true)
+        },
+        fallbackDraw = {
+            val u = size.width / 25f
+            val c = Color(0xFFE4E4E7)
+            val p = Path().apply {
+                moveTo(4f * u, 16f * u)
+                cubicTo(7f * u, 6f * u, 10.5f * u, 20f * u, 13.5f * u, 10.5f * u)
+                cubicTo(15.5f * u, 5.5f * u, 18f * u, 13f * u, 21f * u, 9.5f * u)
+            }
+            drawPath(p, c, style = Stroke(2f * u, cap = StrokeCap.Round))
         }
-        drawPath(p, c, style = Stroke(2f * u, cap = StrokeCap.Round))
-    }
+    )
 }
 
 /** Build 218: the Group tile's glyph — two overlapping rounded squares. */
 @Composable
 private fun DockGroupGlyph() {
-    Canvas(Modifier.size(16.dp)) {
-        val u = size.width / 25f
-        val c = Color(0xFFE4E4E7)
-        drawRoundRect(
-            c.copy(alpha = 0.55f),
-            topLeft = Offset(4f * u, 4f * u),
-            size = Size(13.5f * u, 13.5f * u),
-            cornerRadius = androidx.compose.ui.geometry.CornerRadius(3f * u),
-            style = Stroke(1.9f * u)
-        )
-        drawRoundRect(
-            c,
-            topLeft = Offset(8.5f * u, 8.5f * u),
-            size = Size(12.5f * u, 12.5f * u),
-            cornerRadius = androidx.compose.ui.geometry.CornerRadius(3f * u),
-            style = Stroke(1.9f * u)
-        )
-    }
+    NativeVectorCanvas(
+        modifier = Modifier.size(16.dp),
+        drawKey = "dock_group",
+        buildCmds = { w, _, _ ->
+            val u = w / 25f
+            val c = Color(0xFFE4E4E7)
+            val sw = 1.9f * u
+            addRoundRect(
+                cx = (4f + 6.75f) * u, cy = (4f + 6.75f) * u,
+                width = 13.5f * u, height = 13.5f * u,
+                cornerRadius = 3f * u, fillArgb = 0, strokeWidth = sw, strokeArgb = c.copy(alpha = 0.55f).toArgb()
+            )
+            addRoundRect(
+                cx = (8.5f + 6.25f) * u, cy = (8.5f + 6.25f) * u,
+                width = 12.5f * u, height = 12.5f * u,
+                cornerRadius = 3f * u, fillArgb = 0, strokeWidth = sw, strokeArgb = c.toArgb()
+            )
+        },
+        fallbackDraw = {
+            val u = size.width / 25f
+            val c = Color(0xFFE4E4E7)
+            drawRoundRect(
+                c.copy(alpha = 0.55f),
+                topLeft = Offset(4f * u, 4f * u),
+                size = Size(13.5f * u, 13.5f * u),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(3f * u),
+                style = Stroke(1.9f * u)
+            )
+            drawRoundRect(
+                c,
+                topLeft = Offset(8.5f * u, 8.5f * u),
+                size = Size(12.5f * u, 12.5f * u),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(3f * u),
+                style = Stroke(1.9f * u)
+            )
+        }
+    )
 }
 
 /** Build 218: the Chain tile's glyph — two interlocked rounded links. */
 @Composable
 private fun DockChainGlyph() {
-    Canvas(Modifier.size(16.dp)) {
-        val u = size.width / 25f
-        val c = Color(0xFFE4E4E7)
-        drawRoundRect(
-            c,
-            topLeft = Offset(3f * u, 9.5f * u),
-            size = Size(10.5f * u, 6.5f * u),
-            cornerRadius = androidx.compose.ui.geometry.CornerRadius(3.25f * u),
-            style = Stroke(2f * u)
-        )
-        drawRoundRect(
-            c,
-            topLeft = Offset(11.5f * u, 9.5f * u),
-            size = Size(10.5f * u, 6.5f * u),
-            cornerRadius = androidx.compose.ui.geometry.CornerRadius(3.25f * u),
-            style = Stroke(2f * u)
-        )
-    }
+    NativeVectorCanvas(
+        modifier = Modifier.size(16.dp),
+        drawKey = "dock_chain",
+        buildCmds = { w, _, _ ->
+            val u = w / 25f
+            val cArgb = Color(0xFFE4E4E7).toArgb()
+            val sw = 2f * u
+            addRoundRect((3f + 5.25f) * u, (9.5f + 3.25f) * u, 10.5f * u, 6.5f * u, 3.25f * u, 0, sw, cArgb)
+            addRoundRect((11.5f + 5.25f) * u, (9.5f + 3.25f) * u, 10.5f * u, 6.5f * u, 3.25f * u, 0, sw, cArgb)
+        },
+        fallbackDraw = {
+            val u = size.width / 25f
+            val c = Color(0xFFE4E4E7)
+            drawRoundRect(
+                c,
+                topLeft = Offset(3f * u, 9.5f * u),
+                size = Size(10.5f * u, 6.5f * u),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(3.25f * u),
+                style = Stroke(2f * u)
+            )
+            drawRoundRect(
+                c,
+                topLeft = Offset(11.5f * u, 9.5f * u),
+                size = Size(10.5f * u, 6.5f * u),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(3.25f * u),
+                style = Stroke(2f * u)
+            )
+        }
+    )
 }
 
 /**

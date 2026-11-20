@@ -5,6 +5,8 @@ import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.AmCardSurface
 import com.example.ui.theme.AmCornerCard
 import androidx.compose.ui.graphics.RectangleShape
+import com.example.engine.UiMathNative
+import com.example.engine.VectorCmdBuilder
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -118,12 +120,20 @@ fun BoxScope.TrackSetupOverlay(
                     }
                 }
             }
-            .drawBehind {
+            .testTag("track_setup_overlay")
+    ) {
+        NativeVectorCanvas(
+            modifier = Modifier.matchParentSize(),
+            drawKey = circle,
+            buildCmds = { w, h, d ->
+                addTrackCircleCmds(circle.cx * w, circle.cy * h, circle.r * w, d)
+            },
+            fallbackDraw = {
                 val centre = Offset(circle.cx * size.width, circle.cy * size.height)
                 drawTrackCircle(centre, circle.r * size.width)
             }
-            .testTag("track_setup_overlay")
-    )
+        )
+    }
 
     // cancel (top left)
     RoundButton(
@@ -190,25 +200,50 @@ private fun DrawScope.drawTrackCircle(centre: Offset, radius: Float) {
  */
 class TrackLive(val cx: Float, val cy: Float, val r: Float, val pts: FloatArray)
 
+private fun VectorCmdBuilder.addTrackCircleCmds(cx: Float, cy: Float, radius: Float, d: Float) {
+    if (radius <= 0f) return
+    val steps = 48
+    val xs = FloatArray(steps)
+    val ys = FloatArray(steps)
+    for (i in 0 until steps) {
+        val a = (i.toFloat() / steps) * (Math.PI * 2.0)
+        xs[i] = cx + kotlin.math.cos(a).toFloat() * radius
+        ys[i] = cy + kotlin.math.sin(a).toFloat() * radius
+    }
+    addPolyline(xs, ys, steps, closed = true, width = 4f * d, argb = 0x59000000)
+    addPolyline(xs, ys, steps, closed = true, width = 2f * d, argb = android.graphics.Color.WHITE, dashOn = 10f * d, dashOff = 7f * d)
+    addCircle(cx, cy, 3f * d, android.graphics.Color.WHITE)
+}
+
 /** Draws the moving circle and the followed corners (green) while a track runs. No touch handling. */
 @Composable
 fun BoxScope.TrackRunOverlay(live: TrackLive?) {
-    Box(
+    NativeVectorCanvas(
         modifier = Modifier
             .matchParentSize()
-            .drawBehind {
-                val l = live ?: return@drawBehind
-                drawTrackCircle(Offset(l.cx * size.width, l.cy * size.height), l.r * size.width)
-                var i = 0
-                while (i + 1 < l.pts.size) {
-                    drawCircle(
-                        Color(0xFF39FF14), radius = 2.dp.toPx(),
-                        center = Offset(l.pts[i] * size.width, l.pts[i + 1] * size.height)
-                    )
-                    i += 2
-                }
+            .testTag("track_run_overlay"),
+        drawKey = live,
+        buildCmds = { w, h, d ->
+            val l = live ?: return@NativeVectorCanvas
+            addTrackCircleCmds(l.cx * w, l.cy * h, l.r * w, d)
+            var i = 0
+            while (i + 1 < l.pts.size) {
+                addCircle(l.pts[i] * w, l.pts[i + 1] * h, 2f * d, 0xFF39FF14.toInt())
+                i += 2
             }
-            .testTag("track_run_overlay")
+        },
+        fallbackDraw = {
+            val l = live ?: return@NativeVectorCanvas
+            drawTrackCircle(Offset(l.cx * size.width, l.cy * size.height), l.r * size.width)
+            var i = 0
+            while (i + 1 < l.pts.size) {
+                drawCircle(
+                    Color(0xFF39FF14), radius = 2.dp.toPx(),
+                    center = Offset(l.pts[i] * size.width, l.pts[i + 1] * size.height)
+                )
+                i += 2
+            }
+        }
     )
 }
 
@@ -367,7 +402,20 @@ data class PlanarQuad(
 ) {
     fun withCorner(i: Int, p: Offset) = PlanarQuad(c.mapIndexed { k, o -> if (k == i) Offset(p.x.coerceIn(0f, 1f), p.y.coerceIn(0f, 1f)) else o })
 
+    fun toFloatArray(): FloatArray = FloatArray(8).also { arr ->
+        for (i in 0 until 4) {
+            val o = c.getOrElse(i) { Offset.Zero }
+            arr[i * 2] = o.x
+            arr[i * 2 + 1] = o.y
+        }
+    }
+
     fun moved(d: Offset): PlanarQuad {
+        if (UiMathNative.isAvailable && c.size >= 4) {
+            val out = FloatArray(8)
+            UiMathNative.nativePlanarMove(toFloatArray(), d.x, d.y, out)
+            return PlanarQuad(List(4) { i -> Offset(out[i * 2], out[i * 2 + 1]) })
+        }
         val minX = c.minOf { it.x }
         val maxX = c.maxOf { it.x }
         val minY = c.minOf { it.y }
@@ -379,6 +427,9 @@ data class PlanarQuad(
 
     /** Is the point inside (convex quad test)? */
     fun contains(p: Offset): Boolean {
+        if (UiMathNative.isAvailable && c.size >= 4) {
+            return UiMathNative.nativePlanarHitTest(p.x, p.y, toFloatArray(), 0f) == 4
+        }
         var sign = 0
         for (i in 0 until 4) {
             val a = c[i]
@@ -422,6 +473,31 @@ private fun DrawScope.drawPlanarQuad(q: List<Offset>, handles: Boolean, dim: Boo
     }
 }
 
+private fun VectorCmdBuilder.addPlanarQuadCmds(
+    q: List<Offset>, w: Float, h: Float, d: Float, handles: Boolean, dim: Boolean = false
+) {
+    if (q.size < 4) return
+    val xs = FloatArray(4) { q[it].x * w }
+    val ys = FloatArray(4) { q[it].y * h }
+    addPolyline(xs, ys, 4, closed = true, width = 5f * d, argb = 0x59000000)
+    addPolyline(xs, ys, 4, closed = true, width = 2f * d, argb = if (dim) 0xFF39FF14.toInt() else 0xFFFFD54F.toInt())
+    fun lx(i: Int, j: Int, t: Float) = xs[i] + (xs[j] - xs[i]) * t
+    fun ly(i: Int, j: Int, t: Float) = ys[i] + (ys[j] - ys[i]) * t
+    val gridCol = 0x73FFFFFF
+    for (k in 1..2) {
+        val t = k / 3f
+        addLine(lx(0, 1, t), ly(0, 1, t), lx(3, 2, t), ly(3, 2, t), 1f * d, gridCol)
+        addLine(lx(0, 3, t), ly(0, 3, t), lx(1, 2, t), ly(1, 2, t), 1f * d, gridCol)
+    }
+    if (handles) {
+        for (i in 0 until 4) {
+            addCircle(xs[i], ys[i], 11f * d, 0x73000000)
+            addCircle(xs[i], ys[i], 8f * d, 0, 2.5f * d, 0xFFFFD54F.toInt())
+            addCircle(xs[i], ys[i], 2.5f * d, android.graphics.Color.WHITE)
+        }
+    }
+}
+
 /**
  * Drawn on top of the canvas frame while the user chooses the surface to pin a layer on: drag a corner handle to move
  * that corner (put the 4 corners on the 4 corners of the screen / poster), drag inside to move all four.
@@ -453,15 +529,21 @@ fun BoxScope.PlanarSetupOverlay(
                         val h = boxSize.height.toFloat()
                         grab = -1
                         if (w > 0f && h > 0f) {
-                            var best = grabRadius
-                            quadNow.c.forEachIndexed { i, o ->
-                                val d = Offset(o.x * w - pos.x, o.y * h - pos.y).getDistance()
-                                if (d < best) {
-                                    best = d
-                                    grab = i
+                            if (UiMathNative.isAvailable && quadNow.c.size >= 4) {
+                                grab = UiMathNative.nativePlanarHitTest(
+                                    pos.x / w, pos.y / h, quadNow.toFloatArray(), grabRadius / minOf(w, h)
+                                )
+                            } else {
+                                var best = grabRadius
+                                quadNow.c.forEachIndexed { i, o ->
+                                    val d = Offset(o.x * w - pos.x, o.y * h - pos.y).getDistance()
+                                    if (d < best) {
+                                        best = d
+                                        grab = i
+                                    }
                                 }
+                                if (grab < 0 && quadNow.contains(Offset(pos.x / w, pos.y / h))) grab = 4
                             }
-                            if (grab < 0 && quadNow.contains(Offset(pos.x / w, pos.y / h))) grab = 4
                         }
                     },
                     onDrag = { change, amount ->
@@ -480,9 +562,15 @@ fun BoxScope.PlanarSetupOverlay(
                     }
                 )
             }
-            .drawBehind { drawPlanarQuad(quad.c, handles = true) }
             .testTag("planar_setup_overlay")
-    )
+    ) {
+        NativeVectorCanvas(
+            modifier = Modifier.matchParentSize(),
+            drawKey = quad,
+            buildCmds = { w, h, d -> addPlanarQuadCmds(quad.c, w, h, d, handles = true) },
+            fallbackDraw = { drawPlanarQuad(quad.c, handles = true) }
+        )
+    }
 
     RoundButton(
         modifier = Modifier.align(Alignment.TopStart).padding(5.dp).testTag("planar_cancel"),
@@ -519,24 +607,36 @@ fun BoxScope.PlanarSetupOverlay(
 /** Draws the moving surface (4 corners) and the followed points (green) while a planar track runs. No touch handling. */
 @Composable
 fun BoxScope.PlanarRunOverlay(live: PlanarLive?) {
-    Box(
+    NativeVectorCanvas(
         modifier = Modifier
             .matchParentSize()
-            .drawBehind {
-                val l = live ?: return@drawBehind
-                if (l.quad.size >= 8) {
-                    drawPlanarQuad(List(4) { Offset(l.quad[2 * it], l.quad[2 * it + 1]) }, handles = false, dim = true)
-                }
-                var i = 0
-                while (i + 1 < l.pts.size) {
-                    drawCircle(
-                        Color(0xFF39FF14), radius = 2.dp.toPx(),
-                        center = Offset(l.pts[i] * size.width, l.pts[i + 1] * size.height)
-                    )
-                    i += 2
-                }
+            .testTag("planar_run_overlay"),
+        drawKey = live,
+        buildCmds = { w, h, d ->
+            val l = live ?: return@NativeVectorCanvas
+            if (l.quad.size >= 8) {
+                addPlanarQuadCmds(List(4) { Offset(l.quad[2 * it], l.quad[2 * it + 1]) }, w, h, d, handles = false, dim = true)
             }
-            .testTag("planar_run_overlay")
+            var i = 0
+            while (i + 1 < l.pts.size) {
+                addCircle(l.pts[i] * w, l.pts[i + 1] * h, 2f * d, 0xFF39FF14.toInt())
+                i += 2
+            }
+        },
+        fallbackDraw = {
+            val l = live ?: return@NativeVectorCanvas
+            if (l.quad.size >= 8) {
+                drawPlanarQuad(List(4) { Offset(l.quad[2 * it], l.quad[2 * it + 1]) }, handles = false, dim = true)
+            }
+            var i = 0
+            while (i + 1 < l.pts.size) {
+                drawCircle(
+                    Color(0xFF39FF14), radius = 2.dp.toPx(),
+                    center = Offset(l.pts[i] * size.width, l.pts[i + 1] * size.height)
+                )
+                i += 2
+            }
+        }
     )
 }
 
@@ -615,7 +715,27 @@ fun BoxScope.RemoveMaskOverlay(
                     }
                 )
             }
-            .drawBehind {
+            .testTag("remove_mask_overlay")
+    ) {
+        NativeVectorCanvas(
+            modifier = Modifier.matchParentSize(),
+            drawKey = Pair(quad, paint),
+            buildCmds = { w, h, d ->
+                addPlanarQuadCmds(quad.c, w, h, d, handles = false, dim = true)
+                val col = 0x99FF3B5C.toInt()
+                val r = paint.brush * w
+                paint.strokes.forEach { s ->
+                    if (s.isEmpty()) return@forEach
+                    if (s.size == 1) {
+                        addCircle(s[0].x * w, s[0].y * h, r, col)
+                    } else {
+                        val xs = FloatArray(s.size) { s[it].x * w }
+                        val ys = FloatArray(s.size) { s[it].y * h }
+                        addPolyline(xs, ys, s.size, closed = false, width = 2f * r, argb = col, capRound = true)
+                    }
+                }
+            },
+            fallbackDraw = {
                 drawPlanarQuad(quad.c, handles = false, dim = true)
                 val col = Color(0x99FF3B5C)
                 val r = paint.brush * size.width
@@ -632,8 +752,8 @@ fun BoxScope.RemoveMaskOverlay(
                     }
                 }
             }
-            .testTag("remove_mask_overlay")
-    )
+        )
+    }
 
     // cancel and "back to the corners" (top left)
     Row(

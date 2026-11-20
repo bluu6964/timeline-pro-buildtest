@@ -55,7 +55,7 @@ fun DrawVectorOverlay(
 ) {
     val density = LocalDensity.current.density
     val strokeNow by rememberUpdatedState(onStroke)
-    Canvas(
+    Box(
         modifier = modifier
             .fillMaxSize()
             .testTag("draw_vector_overlay")
@@ -78,7 +78,6 @@ fun DrawVectorOverlay(
                                 val fx = (ch.position.x / size.width).coerceIn(0f, 1f)
                                 val fy = (ch.position.y / size.height).coerceIn(0f, 1f)
                                 val last = pts.last()
-                                // Keep the stored stroke light: a new point every ~3 px of travel.
                                 if (hypot((fx - last.first) * size.width, (fy - last.second) * size.height) >= 3f) {
                                     pts = pts + (fx to fy)
                                     strokeNow(pts)
@@ -92,24 +91,49 @@ fun DrawVectorOverlay(
                 }
             }
     ) {
-        if (points.isNotEmpty()) {
-            val path = Path()
-            points.forEachIndexed { i, (fx, fy) ->
-                val o = Offset(fx * size.width, fy * size.height)
-                if (i == 0) path.moveTo(o.x, o.y) else path.lineTo(o.x, o.y)
+        NativeVectorCanvas(
+            modifier = Modifier.fillMaxSize(),
+            drawKey = listOf(points, strokeWidthDp, closed),
+            buildCmds = { w, h, d ->
+                if (points.isNotEmpty()) {
+                    val n = points.size
+                    val xs = FloatArray(n) { points[it].first * w }
+                    val ys = FloatArray(n) { points[it].second * h }
+                    if (closed && n >= 3) {
+                        addFilledPolygon(xs, ys, n, 0x40FFFFFF)
+                    }
+                    if (n >= 2) {
+                        addPolyline(
+                            xs, ys, n,
+                            closed = closed && n >= 3,
+                            width = (strokeWidthDp * d).coerceAtLeast(1f),
+                            argb = android.graphics.Color.WHITE,
+                            capRound = true
+                        )
+                    }
+                }
+            },
+            fallbackDraw = {
+                if (points.isNotEmpty()) {
+                    val path = Path()
+                    points.forEachIndexed { i, (fx, fy) ->
+                        val o = Offset(fx * size.width, fy * size.height)
+                        if (i == 0) path.moveTo(o.x, o.y) else path.lineTo(o.x, o.y)
+                    }
+                    if (closed && points.size >= 3) path.close()
+                    if (closed && points.size >= 3) {
+                        drawPath(path, Color.White.copy(alpha = 0.25f))
+                    }
+                    drawPath(
+                        path, Color.White,
+                        style = Stroke(
+                            width = (strokeWidthDp * density).coerceAtLeast(1f),
+                            cap = StrokeCap.Round, join = StrokeJoin.Round
+                        )
+                    )
+                }
             }
-            if (closed && points.size >= 3) path.close()
-            if (closed && points.size >= 3) {
-                drawPath(path, Color.White.copy(alpha = 0.25f))
-            }
-            drawPath(
-                path, Color.White,
-                style = Stroke(
-                    width = (strokeWidthDp * density).coerceAtLeast(1f),
-                    cap = StrokeCap.Round, join = StrokeJoin.Round
-                )
-            )
-        }
+        )
     }
 }
 

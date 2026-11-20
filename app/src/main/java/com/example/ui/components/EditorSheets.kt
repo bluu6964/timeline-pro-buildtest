@@ -502,25 +502,51 @@ fun ExportModalDialog(
                             modifier = Modifier.size(134.dp).testTag("export_progress_ring"),
                             contentAlignment = Alignment.Center
                         ) {
-                            Canvas(modifier = Modifier.fillMaxSize()) {
-                                val stroke = 8.dp.toPx()
-                                val inset = stroke / 2f
-                                val arcSize = Size(size.width - stroke, size.height - stroke)
-                                drawArc(
-                                    color = com.example.ui.theme.AmPanelElevated,
-                                    startAngle = 0f, sweepAngle = 360f, useCenter = false,
-                                    topLeft = Offset(inset, inset), size = arcSize,
-                                    style = Stroke(width = stroke)
-                                )
-                                drawArc(
-                                    color = com.example.ui.theme.AmAccent,
-                                    startAngle = -90f,
-                                    sweepAngle = progress.coerceIn(0f, 1f) * 360f,
-                                    useCenter = false,
-                                    topLeft = Offset(inset, inset), size = arcSize,
-                                    style = Stroke(width = stroke)
-                                )
-                            }
+                            NativeVectorCanvas(
+                                modifier = Modifier.fillMaxSize(),
+                                drawKey = progress,
+                                buildCmds = { w, h, d ->
+                                    val stroke = 8f * d
+                                    val cx = w / 2f
+                                    val cy = h / 2f
+                                    val rx = (w - stroke) / 2f
+                                    val ry = (h - stroke) / 2f
+                                    addArc(
+                                        cx = cx, cy = cy, rx = rx, ry = ry,
+                                        startDeg = 0f, sweepDeg = 360f, width = stroke,
+                                        strokeArgb = com.example.ui.theme.AmPanelElevated.toArgb(),
+                                        capRound = false, closedPie = false
+                                    )
+                                    val sweep = progress.coerceIn(0f, 1f) * 360f
+                                    if (sweep > 0.01f) {
+                                        addArc(
+                                            cx = cx, cy = cy, rx = rx, ry = ry,
+                                            startDeg = -90f, sweepDeg = sweep, width = stroke,
+                                            strokeArgb = com.example.ui.theme.AmAccent.toArgb(),
+                                            capRound = false, closedPie = false
+                                        )
+                                    }
+                                },
+                                fallbackDraw = {
+                                    val stroke = 8.dp.toPx()
+                                    val inset = stroke / 2f
+                                    val arcSize = Size(size.width - stroke, size.height - stroke)
+                                    drawArc(
+                                        color = com.example.ui.theme.AmPanelElevated,
+                                        startAngle = 0f, sweepAngle = 360f, useCenter = false,
+                                        topLeft = Offset(inset, inset), size = arcSize,
+                                        style = Stroke(width = stroke)
+                                    )
+                                    drawArc(
+                                        color = com.example.ui.theme.AmAccent,
+                                        startAngle = -90f,
+                                        sweepAngle = progress.coerceIn(0f, 1f) * 360f,
+                                        useCenter = false,
+                                        topLeft = Offset(inset, inset), size = arcSize,
+                                        style = Stroke(width = stroke)
+                                    )
+                                }
+                            )
                             Text(
                                 "${(progress * 100).toInt()}%", color = TextPrimary, fontSize = 30.sp,
                                 fontWeight = FontWeight.Black
@@ -812,44 +838,73 @@ private fun ExportBadge(modifier: Modifier = Modifier) {
         ), label = "inner"
     )
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
+        NativeVectorCanvas(
+            modifier = Modifier.fillMaxSize(),
+            drawKey = "export_badge_seal",
+            buildCmds = { w, h, _ ->
+                val cx = w / 2f
+                val cy = h / 2f
+                val badgeR = minOf(w, h) * 0.30f
+                val lobes = 12
+                val steps = 90
+                val xs = FloatArray(steps)
+                val ys = FloatArray(steps)
+                for (i in 0 until steps) {
+                    val a = (i / steps.toFloat()) * 2f * Math.PI.toFloat()
+                    val r = badgeR * (1f + 0.075f * kotlin.math.cos(lobes * a))
+                    xs[i] = cx + r * kotlin.math.cos(a)
+                    ys[i] = cy + r * kotlin.math.sin(a)
+                }
+                addFilledPolygon(xs, ys, steps, com.example.ui.theme.AmPanelElevated.toArgb())
+                val blobR = badgeR * 0.40f
+                addCircle(
+                    cx, cy, blobR,
+                    fillArgb = com.example.ui.theme.AmAccent.toArgb(),
+                    strokeWidth = badgeR * 0.03f,
+                    strokeArgb = com.example.ui.theme.AmHairlineStrong.toArgb()
+                )
+            },
+            fallbackDraw = {
+                val cx = size.width / 2f
+                val cy = size.height / 2f
+                val badgeR = minOf(size.width, size.height) * 0.30f
+                val path = Path()
+                val lobes = 12
+                val steps = 360
+                for (i in 0..steps) {
+                    val a = (i / steps.toFloat()) * 2f * Math.PI.toFloat()
+                    val r = badgeR * (1f + 0.075f * kotlin.math.cos(lobes * a))
+                    val x = cx + r * kotlin.math.cos(a)
+                    val y = cy + r * kotlin.math.sin(a)
+                    if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                }
+                path.close()
+                drawPath(path, color = com.example.ui.theme.AmPanelElevated)
+                val blobR = badgeR * 0.40f
+                drawCircle(com.example.ui.theme.AmAccent, radius = blobR, center = Offset(cx, cy))
+                drawCircle(
+                    com.example.ui.theme.AmHairlineStrong,
+                    radius = blobR,
+                    center = Offset(cx, cy),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = badgeR * 0.03f)
+                )
+            }
+        )
         Canvas(modifier = Modifier.fillMaxSize()) {
             val cx = size.width / 2f
             val cy = size.height / 2f
             val badgeR = minOf(size.width, size.height) * 0.30f
-
-            // Big faint outer ring text
             val outerR = minOf(size.width * 0.46f, size.height * 0.5f)
             drawRingText(
                 text = "TIMELINE PRO • PROFESSIONAL VIDEO EDITOR • ",
                 cx = cx, cy = cy, radius = outerR, textSizePx = outerR * 0.26f,
                 color = com.example.ui.theme.AmTextFaint.copy(alpha = 0.55f), bold = true, rotationDeg = outerRot
             )
-
-            // Wavy seal
-            val path = Path()
-            val lobes = 12
-            val steps = 360
-            for (i in 0..steps) {
-                val a = (i / steps.toFloat()) * 2f * Math.PI.toFloat()
-                val r = badgeR * (1f + 0.075f * kotlin.math.cos(lobes * a))
-                val x = cx + r * kotlin.math.cos(a)
-                val y = cy + r * kotlin.math.sin(a)
-                if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
-            }
-            path.close()
-            drawPath(path, color = com.example.ui.theme.AmPanelElevated)
-
-            // Small ring text inside the seal
             drawRingText(
                 text = "PROFESSIONAL VIDEO EDITOR • TIMELINE PRO • ",
                 cx = cx, cy = cy, radius = badgeR * 0.80f, textSizePx = badgeR * 0.115f,
                 color = com.example.ui.theme.AmTextDim, bold = true, rotationDeg = innerRot
             )
-
-            // Logo blob (the lime disc) — "TP" is written on it
-            val blobR = badgeR * 0.40f
-            drawCircle(com.example.ui.theme.AmAccent, radius = blobR, center = Offset(cx, cy))
-            drawCircle(com.example.ui.theme.AmHairlineStrong, radius = blobR, center = Offset(cx, cy), style = androidx.compose.ui.graphics.drawscope.Stroke(width = badgeR * 0.03f))
         }
         Text(
             text = "TP", color = AmInk, fontSize = 26.sp,
@@ -1163,31 +1218,70 @@ private fun ShapePickerCard(
                 .border(1.dp, AmHairline, tile),
             contentAlignment = Alignment.Center
         ) {
-            Canvas(modifier = Modifier.fillMaxSize(0.48f)) {
-                val c = Color(0xFFEDEDED)
-                when (pattern) {
-                    "CIRCLE" -> drawCircle(c)
-                    "SQUARE" -> drawRect(c)
-                    "ROUNDED_SQUARE", "ROUNDED_RECT" ->
-                        drawRoundRect(c, cornerRadius = CornerRadius(size.minDimension * 0.24f))
-                    "WIDE_ROUNDED_RECT" -> {
-                        val h = size.height * 0.62f
-                        drawRoundRect(
-                            c,
-                            topLeft = Offset(0f, (size.height - h) / 2f),
-                            size = Size(size.width, h),
-                            cornerRadius = CornerRadius(h * 0.22f)
-                        )
+            NativeVectorCanvas(
+                modifier = Modifier.fillMaxSize(0.48f),
+                drawKey = pattern,
+                buildCmds = { w, h, _ ->
+                    val c = Color(0xFFEDEDED).toArgb()
+                    fun addRegPoly(points: Int, innerRatio: Float) {
+                        val cx = w / 2f
+                        val cy = h / 2f
+                        val outer = minOf(w, h) / 2f
+                        val total = if (innerRatio < 1f) points * 2 else points
+                        val xs = FloatArray(total)
+                        val ys = FloatArray(total)
+                        for (i in 0 until total) {
+                            val angle = Math.toRadians(i * 360.0 / total - 90.0)
+                            val radius = if (innerRatio < 1f && i % 2 == 1) outer * innerRatio else outer
+                            xs[i] = cx + radius * kotlin.math.cos(angle).toFloat()
+                            ys[i] = cy + radius * kotlin.math.sin(angle).toFloat()
+                        }
+                        addFilledPolygon(xs, ys, total, c)
                     }
-                    "OVAL" -> {
-                        val h = size.height * 0.68f
-                        drawOval(c, topLeft = Offset(0f, (size.height - h) / 2f), size = Size(size.width, h))
+                    when (pattern) {
+                        "CIRCLE" -> addCircle(w / 2f, h / 2f, minOf(w, h) / 2f, c)
+                        "SQUARE" -> addRect(0f, 0f, w, h, c)
+                        "ROUNDED_SQUARE", "ROUNDED_RECT" ->
+                            addRoundRect(w / 2f, h / 2f, w, h, minOf(w, h) * 0.24f, c)
+                        "WIDE_ROUNDED_RECT" -> {
+                            val rh = h * 0.62f
+                            addRoundRect(w / 2f, h / 2f, w, rh, rh * 0.22f, c)
+                        }
+                        "OVAL" -> {
+                            val rh = h * 0.68f
+                            addArc(w / 2f, h / 2f, w / 2f, rh / 2f, 0f, 360f, fillArgb = c)
+                        }
+                        "STAR" -> addRegPoly(5, innerRatio = 0.45f)
+                        "PENTAGON" -> addRegPoly(5, innerRatio = 1f)
+                        else -> addCircle(w / 2f, h / 2f, minOf(w, h) / 2f, c)
                     }
-                    "STAR" -> drawRegularPolygon(c, 5, innerRatio = 0.45f)
-                    "PENTAGON" -> drawRegularPolygon(c, 5, innerRatio = 1f)
-                    else -> drawCircle(c)
+                },
+                fallbackDraw = {
+                    val c = Color(0xFFEDEDED)
+                    when (pattern) {
+                        "CIRCLE" -> drawCircle(c)
+                        "SQUARE" -> drawRect(c)
+                        "ROUNDED_SQUARE", "ROUNDED_RECT" ->
+                            drawRoundRect(c, cornerRadius = CornerRadius(size.minDimension * 0.24f))
+                        "WIDE_ROUNDED_RECT" -> {
+                            val h = size.height * 0.62f
+                            drawRoundRect(
+                                c,
+                                topLeft = Offset(0f, (size.height - h) / 2f),
+                                size = Size(size.width, h),
+                                cornerRadius = CornerRadius(h * 0.22f)
+                            )
+                        }
+                        "OVAL" -> {
+                            val h = size.height * 0.68f
+                            drawOval(c, topLeft = Offset(0f, (size.height - h) / 2f), size = Size(size.width, h))
+                        }
+                        "STAR" -> drawRegularPolygon(c, 5, innerRatio = 0.45f)
+                        "PENTAGON" -> drawRegularPolygon(c, 5, innerRatio = 1f)
+                        else -> drawCircle(c)
+                    }
                 }
-            }
+            )
         }
         Spacer(Modifier.height(4.dp))
         Text(
