@@ -72,6 +72,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.model.PagerGrid
 import com.example.ui.theme.AmAccent
 import com.example.ui.util.amChromeSpec
 import com.example.ui.theme.AmBase
@@ -451,7 +452,8 @@ private fun PagerToolBtn(
  * The selected state's toolbar (reference .bottom-toolbar): a 3-page
  * horizontal pager (swipe with snap, one page per swipe) + the
  * pagination dots under it (tap a dot = jump to that page). Page 1/2
- * are rows of .tool-btns; page 3 is the 2×3 tall grid.
+ * are rows of .tool-btns; page 3 is the tall-button grid — rows of 3
+ * derived from the tool list itself since build 238 (model/PagerGrid).
  */
 @Composable
 fun SelectedToolsPager219(
@@ -481,31 +483,44 @@ fun SelectedToolsPager219(
                 .height(202.dp)
         ) { page ->
             if (page == 2) {
-                // Page 3: 2 rows × 3 columns of tall buttons (min 88 dp).
+                // Page 3: tall buttons in rows of 3 (2 rows at the current
+                // tool counts). Build 238: the rows are derived from the
+                // list itself (model/PagerGrid) — the old fixed 2×3 grid
+                // indexed page3[r * 3 + c] up to index 5 and crashed once
+                // build 237 shrank the list to 5 tools. A short last row
+                // pads with empty slots of the same weight, so the layout
+                // is unchanged and no tool is invented for the empty slot.
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 6.dp),
                     verticalArrangement = Arrangement.spacedBy(9.dp)
                 ) {
-                    for (r in 0 until 2) {
+                    PagerGrid.rows(page3).forEach { rowTools ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .weight(1f),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            for (c in 0 until 3) {
-                                val tool = page3[r * 3 + c]
-                                PagerToolBtn(
-                                    tool = tool,
-                                    iconSizeDp = 26,
-                                    labelGapDp = 8,
-                                    smallLabel = false,
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .fillMaxHeight()
-                                )
+                            rowTools.forEach { tool ->
+                                if (tool != null) {
+                                    PagerToolBtn(
+                                        tool = tool,
+                                        iconSizeDp = 26,
+                                        labelGapDp = 8,
+                                        smallLabel = false,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .fillMaxHeight()
+                                    )
+                                } else {
+                                    Spacer(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .fillMaxHeight()
+                                    )
+                                }
                             }
                         }
                     }
