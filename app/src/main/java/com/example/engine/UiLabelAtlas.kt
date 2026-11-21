@@ -29,7 +29,7 @@ import kotlin.math.ceil
  * for one snapshot, check [overflowed], and re-resolve after [reset]
  * (the two-pass pattern NativeTimelineEngine uses).
  */
-enum class UiLabelStyle(val sp: Float, val weight: Int) {
+enum class UiLabelStyle(val sp: Float, val weight: Int, val letterSpacingSp: Float = 0f) {
     /** Dock tile labels: 9.5 sp SemiBold. */
     DOCK(9.5f, 600),
 
@@ -37,7 +37,25 @@ enum class UiLabelStyle(val sp: Float, val weight: Int) {
     TIMECODE(10f, 700),
 
     /** Ruler total duration: 9.5 sp Medium. */
-    TOTAL(9.5f, 500)
+    TOTAL(9.5f, 500),
+
+    /** Build 250 (stage 3): controls-bar badge ("Full" / resolution): 9.5 sp ExtraBold. */
+    BADGE(9.5f, 800),
+
+    /** Build 250 (stage 3): app-header resolution pill: 11 sp Bold. */
+    PILL(11f, 700),
+
+    /** Build 250 (stage 3): layer-header name: 15 sp SemiBold. */
+    HEADER_NAME(15f, 600),
+
+    /** Build 250 (stage 3): selected-header (build 219) name: 14.5 sp with 0.15 sp letter spacing. */
+    SEL_NAME(14.5f, 400, letterSpacingSp = 0.15f),
+
+    /** Build 250 (stage 3): multi-select bar count: 11.5 sp SemiBold. */
+    MULTI_COUNT(11.5f, 600),
+
+    /** Build 250 (stage 3): multi-select mini / boolean tile labels: 7.5 sp Medium. */
+    MINI_LABEL(7.5f, 500)
 }
 
 class UiLabelAtlas(
@@ -91,6 +109,8 @@ class UiLabelAtlas(
         p.color = Color.WHITE
         p.textSize = style.sp * density * fontScale
         p.typeface = typefaceFor(style.weight)
+        // Paint letter spacing is an em fraction of the text size.
+        if (style.letterSpacingSp != 0f) p.letterSpacing = style.letterSpacingSp / style.sp
         p
     }
 
