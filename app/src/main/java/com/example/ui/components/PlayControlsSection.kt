@@ -1,75 +1,67 @@
 package com.example.ui.components
 
-import androidx.compose.foundation.Canvas
+import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Redo
 import androidx.compose.material.icons.automirrored.filled.Undo
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.example.engine.NativeVectorCanvas
+import com.example.engine.UiGlNative.VectorCmdBuilder
+import com.example.engine.UiLabelAtlas
+import com.example.engine.UiLabelStyle
+import com.example.engine.rememberUiAtlas
+import com.example.model.ChromeGeometry
 import com.example.ui.theme.AmBase
 import com.example.ui.theme.AmHairline
 import com.example.ui.theme.RefCtrl
 import com.example.ui.theme.RefCtrlDisabled
 import com.example.ui.theme.RefLime
 import com.example.ui.theme.RefOrange
-import com.example.ui.util.bouncyClickable
+import kotlin.math.roundToInt
 
 /**
  * THE CONTROLS BAR (build 217 — Sarowar's HTML reference, copied exactly):
- * one slim row on the app background, padding 6 / 16, a #1A1A20 hairline
- * under it. LEFT group (gap 14): Undo, Redo, the "Full" outline badge.
- * CENTRE: Play / Pause. RIGHT group (gap 14): the snap toggle, the grid
- * toggle, and Add-Keyframe with its orange dot. Ctrl glyphs are #E4E4E7,
- * an active toggle turns LIME, a disabled one #45454D — except the snap
- * magnet, which follows Sarowar's own icon language: WHITE = on, GREY = off.
- *
- * Jobs (mapped to the app's real actions): the Full badge opens the
- * fullscreen player; Play toggles playback; the magnet flips snapping
- * (build 222 — it took the transform-box toggle's slot at Sarowar's
- * order; the selection-frame toggle lives in the timeline options
- * sheet's Frame tile now); the grid toggle drives the canvas thirds
- * grid; the shield adds a transform keyframe at the playhead for the
- * selected layer. Previous / next frame live in the timeline options
- * sheet behind the ruler's layer-count pill (the named Marker tool was
- * removed entirely in build 222). The preview-resolution cycle (the
- * build-216 "Full" chip's old job) lives there too, as the Preview tile.
+ * one slim row on the app background, a #1A1A20 hairline under it. LEFT
+ * group: Undo, Redo, the "Full" outline badge. CENTRE: Play / Pause.
+ * RIGHT group: the snap toggle, the grid toggle, and Add-Keyframe with
+ * its orange dot. Ctrl glyphs are #E4E4E7, an active toggle turns LIME,
+ * a disabled one #45454D — except the snap magnet, which follows
+ * Sarowar's own icon language: WHITE = on, GREY = off.
  *
  * [showEditorControls] false = a chrome-only host (CropView, audit S-3):
  * the editor-only right group is omitted and the host's own wired
  * controls (previous / next / fullscreen, the resolution badge) render
  * in the same language instead — nothing the host wires is dropped.
+ *
+ * Build 250 (UI migration stage 3): the whole bar is drawn on ONE
+ * native GL surface — positions from [ChromeGeometry.Controls] (the
+ * build-249 layout, host-tested), the badge label through the stage-2
+ * label atlas, the Material undo/redo icons as atlas rasters, and the
+ * drawn glyphs ported command-for-command from their build-249
+ * per-glyph canvases (same unit math, placed with the builder's
+ * translate + press-scale transform). The tap targets stay Compose:
+ * invisible boxes in the original Row layout carrying the original
+ * tags/descriptions and bouncyClickable's gesture contract
+ * ([ChromePressBox]). Behaviour and pixels are build 249's.
  */
 @Composable
 fun PlayControlsSection(
@@ -106,6 +98,44 @@ fun PlayControlsSection(
     /** Build 217: add a transform keyframe at the playhead (selected layer). */
     onAddKeyframeClick: () -> Unit = {}
 ) {
+    val c = ChromeGeometry.Controls
+    val density = LocalDensity.current.density
+    val atlas = rememberUiAtlas()
+    val badgeText = if (showEditorControls) "Full" else resolutionLabel
+
+    val undoPainter = rememberVectorPainter(Icons.AutoMirrored.Filled.Undo)
+    val redoPainter = rememberVectorPainter(Icons.AutoMirrored.Filled.Redo)
+
+    fun resolveAll(): ControlsEntries {
+        val g = (c.GLYPH_SMALL_DP * density).roundToInt()
+        val badge = atlas.resolve(badgeText, UiLabelStyle.BADGE)
+        val undo = atlas.resolveIcon("ctrl:undo", g, g) { cv, x, y ->
+            val b = rasterizePainterBitmap(undoPainter, g, density)
+            cv.drawBitmap(b, x, y, null)
+            b.recycle()
+        }
+        val redo = atlas.resolveIcon("ctrl:redo", g, g) { cv, x, y ->
+            val b = rasterizePainterBitmap(redoPainter, g, density)
+            cv.drawBitmap(b, x, y, null)
+            b.recycle()
+        }
+        return ControlsEntries(badge, undo, redo)
+    }
+    var entries = resolveAll()
+    if (atlas.overflowed) {
+        atlas.reset()
+        entries = resolveAll()
+    }
+    val badgeTextH = atlas.textHeightPx(UiLabelStyle.BADGE)
+    val badgeAscent = atlas.fontMetrics(UiLabelStyle.BADGE).ascent
+
+    // One press Animatable per button, in layout order: undo, redo,
+    // badge, play, then the right group (snap/prev, grid/next,
+    // keyframe/fullscreen).
+    val scales = remember { List(7) { Animatable(1f) } }
+    val scaleValues = scales.map { it.value }
+    val pad = UiLabelAtlas.PAD.toFloat()
+
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -113,306 +143,345 @@ fun PlayControlsSection(
             .background(AmBase)
             .testTag("controls_bar")
     ) {
+        NativeVectorCanvas(
+            modifier = Modifier.fillMaxSize(),
+            clearArgb = 0,
+            atlas = atlas,
+            drawKey = listOf(
+                isPlaying, canUndo, canRedo, snapOn, gridOn, showEditorControls,
+                entries, scaleValues, atlas.generation
+            ),
+            buildCmds = { w, h, dd ->
+                val btnPx = c.BTN_DP * dd
+                val btnT = c.btnTopPx(h, dd)
+                val cy = btnT + btnPx / 2f
+
+                // The bar's bottom hairline.
+                addRect(0f, c.hairlineTopPx(h, dd), w, dd, AmHairline.toArgb())
+
+                // Undo / redo: atlas icons; a disabled button's tint is
+                // the disabled colour at bouncyClickable's 0.45 alpha.
+                entries.undo?.let { e ->
+                    setScaleAbout(c.undoLeftPx(dd) + btnPx / 2f, cy, scales[0].value)
+                    addText(
+                        e.index,
+                        c.glyphLeftPx(c.undoLeftPx(dd), c.GLYPH_SMALL_DP, dd) - pad,
+                        c.glyphTopPx(btnT, c.GLYPH_SMALL_DP, dd) - pad,
+                        0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                        tintArgb = if (canUndo) RefCtrl.toArgb()
+                            else RefCtrlDisabled.copy(alpha = 0.45f).toArgb()
+                    )
+                    clearTransform()
+                }
+                entries.redo?.let { e ->
+                    setScaleAbout(c.redoLeftPx(dd) + btnPx / 2f, cy, scales[1].value)
+                    addText(
+                        e.index,
+                        c.glyphLeftPx(c.redoLeftPx(dd), c.GLYPH_SMALL_DP, dd) - pad,
+                        c.glyphTopPx(btnT, c.GLYPH_SMALL_DP, dd) - pad,
+                        0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                        tintArgb = if (canRedo) RefCtrl.toArgb()
+                            else RefCtrlDisabled.copy(alpha = 0.45f).toArgb()
+                    )
+                    clearTransform()
+                }
+
+                // Badge: the outlined pill + its centred label.
+                entries.badge?.let { e ->
+                    val cx = c.badgeLeftPx(dd) + btnPx / 2f
+                    setScaleAbout(cx, cy, scales[2].value)
+                    val bw = c.badgeWidthPx(e.advance, dd)
+                    val bh = c.badgeHeightPx(badgeTextH, dd)
+                    val vl = c.badgeVisualLeftPx(e.advance, dd)
+                    val vt = c.badgeVisualTopPx(h, badgeTextH, dd)
+                    addRoundRect(
+                        vl + bw / 2f, vt + bh / 2f,
+                        bw - c.BADGE_BORDER_DP * dd, bh - c.BADGE_BORDER_DP * dd,
+                        (c.BADGE_CORNER_DP - c.BADGE_BORDER_DP / 2f) * dd,
+                        0, c.BADGE_BORDER_DP * dd, RefCtrl.toArgb()
+                    )
+                    val baseY = c.badgeTextTopPx(h, badgeTextH, dd) - badgeAscent
+                    addText(
+                        e.index, vl + 4f * dd + e.bearing - pad, baseY - e.base,
+                        0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                        tintArgb = RefCtrl.toArgb()
+                    )
+                    clearTransform()
+                }
+
+                // Play / pause, exactly centred.
+                run {
+                    val left = c.playLeftPx(w, dd)
+                    setScaleAbout(left + btnPx / 2f, cy, scales[3].value)
+                    setTranslate(
+                        c.glyphLeftPx(left, c.GLYPH_PLAY_DP, dd),
+                        c.glyphTopPx(btnT, c.GLYPH_PLAY_DP, dd)
+                    )
+                    glyphPlayBody(c.GLYPH_PLAY_DP * dd, c.GLYPH_PLAY_DP * dd, isPlaying)
+                    clearTransform()
+                }
+
+                if (showEditorControls) {
+                    // Snap toggle (magnet).
+                    run {
+                        val left = c.rightLeftPx(w, dd, 0)
+                        setScaleAbout(left + btnPx / 2f, cy, scales[4].value)
+                        setTranslate(
+                            c.glyphLeftPx(left, c.GLYPH_SMALL_DP, dd),
+                            c.glyphTopPx(btnT, c.GLYPH_SMALL_DP, dd)
+                        )
+                        glyphMagnetBody(c.GLYPH_SMALL_DP * dd, snapOn)
+                        clearTransform()
+                    }
+                    // Grid toggle.
+                    run {
+                        val left = c.rightLeftPx(w, dd, 1)
+                        setScaleAbout(left + btnPx / 2f, cy, scales[5].value)
+                        setTranslate(
+                            c.glyphLeftPx(left, c.GLYPH_SMALL_DP, dd),
+                            c.glyphTopPx(btnT, c.GLYPH_SMALL_DP, dd)
+                        )
+                        glyphGridBody(c.GLYPH_SMALL_DP * dd, gridOn)
+                        clearTransform()
+                    }
+                    // Add keyframe: shield + the orange dot at its
+                    // glyph box's bottom-end corner.
+                    run {
+                        val left = c.rightLeftPx(w, dd, 2)
+                        val gl = c.glyphLeftPx(left, c.GLYPH_SMALL_DP, dd)
+                        val gt = c.glyphTopPx(btnT, c.GLYPH_SMALL_DP, dd)
+                        val g = c.GLYPH_SMALL_DP * dd
+                        setScaleAbout(left + btnPx / 2f, cy, scales[6].value)
+                        setTranslate(gl, gt)
+                        glyphShieldBody(g)
+                        setTranslate(0f, 0f)
+                        val dotX = c.dotCenterXPx(gl + g, dd)
+                        val dotY = c.dotCenterYPx(gt + g, dd)
+                        addCircle(dotX, dotY, c.dotRadiusPx(dd), RefOrange.toArgb())
+                        addCircle(
+                            dotX, dotY, c.dotRingRadiusPx(dd),
+                            0, c.dotStrokePx(dd), AmBase.toArgb()
+                        )
+                        clearTransform()
+                    }
+                } else {
+                    // Previous / next frame (skip glyphs).
+                    run {
+                        val left = c.rightLeftPx(w, dd, 0)
+                        setScaleAbout(left + btnPx / 2f, cy, scales[4].value)
+                        setTranslate(
+                            c.glyphLeftPx(left, c.GLYPH_SMALL_DP, dd),
+                            c.glyphTopPx(btnT, c.GLYPH_SMALL_DP, dd)
+                        )
+                        glyphSkipBody(c.GLYPH_SMALL_DP * dd, mirrored = true)
+                        clearTransform()
+                    }
+                    run {
+                        val left = c.rightLeftPx(w, dd, 1)
+                        setScaleAbout(left + btnPx / 2f, cy, scales[5].value)
+                        setTranslate(
+                            c.glyphLeftPx(left, c.GLYPH_SMALL_DP, dd),
+                            c.glyphTopPx(btnT, c.GLYPH_SMALL_DP, dd)
+                        )
+                        glyphSkipBody(c.GLYPH_SMALL_DP * dd, mirrored = false)
+                        clearTransform()
+                    }
+                    // Fullscreen (frame glyph).
+                    run {
+                        val left = c.rightLeftPx(w, dd, 2)
+                        setScaleAbout(left + btnPx / 2f, cy, scales[6].value)
+                        setTranslate(
+                            c.glyphLeftPx(left, c.GLYPH_SMALL_DP, dd),
+                            c.glyphTopPx(btnT, c.GLYPH_SMALL_DP, dd)
+                        )
+                        glyphFrameBody(c.GLYPH_SMALL_DP * dd)
+                        clearTransform()
+                    }
+                }
+            }
+        )
+
+        // Tap targets: the build-249 Row layout, invisible.
         Row(
             modifier = Modifier
-                .fillMaxWidth()
-                .height(height)
+                .fillMaxSize()
                 .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // ── Left group: undo · redo · Full badge ──────────────
-            CtrlButton(
-                enabled = canUndo, onClick = onUndoClick,
-                tag = "workspace_undo_button", description = "Undo"
-            ) {
-                Icon(
-                    Icons.AutoMirrored.Filled.Undo, contentDescription = null,
-                    tint = if (canUndo) RefCtrl else RefCtrlDisabled,
-                    modifier = Modifier.size(17.dp)
-                )
-            }
+            ChromePressBox(
+                scales[0], 0.9f, onUndoClick, Modifier.size(28.dp),
+                enabled = canUndo, tag = "workspace_undo_button", description = "Undo"
+            )
             Spacer(Modifier.size(10.dp))
-            CtrlButton(
-                enabled = canRedo, onClick = onRedoClick,
-                tag = "workspace_redo_button", description = "Redo"
-            ) {
-                Icon(
-                    Icons.AutoMirrored.Filled.Redo, contentDescription = null,
-                    tint = if (canRedo) RefCtrl else RefCtrlDisabled,
-                    modifier = Modifier.size(17.dp)
-                )
-            }
+            ChromePressBox(
+                scales[1], 0.9f, onRedoClick, Modifier.size(28.dp),
+                enabled = canRedo, tag = "workspace_redo_button", description = "Redo"
+            )
             Spacer(Modifier.size(10.dp))
-            CtrlButton(
-                enabled = true,
-                onClick = if (showEditorControls) onFullScreenClick else onResolutionClick,
+            ChromePressBox(
+                scales[2], 0.9f,
+                if (showEditorControls) onFullScreenClick else onResolutionClick,
+                Modifier.size(28.dp),
                 tag = if (showEditorControls) "fullscreen_button" else "preview_resolution_button",
                 description = if (showEditorControls) "Full Screen" else "Preview resolution"
-            ) {
-                Box(
-                    modifier = Modifier
-                        .border(1.5.dp, RefCtrl, RoundedCornerShape(5.dp))
-                        .padding(horizontal = 4.dp, vertical = 1.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = if (showEditorControls) "Full" else resolutionLabel,
-                        color = RefCtrl,
-                        fontSize = 9.5.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        textAlign = TextAlign.Center,
-                        maxLines = 1
-                    )
-                }
-            }
-
+            )
             Spacer(Modifier.weight(1f))
-
-            // ── Centre: play / pause ──────────────────────────────
-            CtrlButton(
-                enabled = true, onClick = onPlayPauseClick,
+            ChromePressBox(
+                scales[3], 0.9f, onPlayPauseClick, Modifier.size(28.dp),
                 tag = "play_pause_button", description = if (isPlaying) "Pause" else "Play"
-            ) {
-                PlayGlyph(isPlaying)
-            }
-
+            )
             Spacer(Modifier.weight(1f))
-
             if (showEditorControls) {
-                // ── Right group: snap · grid · add-keyframe ──
-                CtrlButton(
-                    enabled = true, onClick = onSnapClick, active = snapOn,
+                ChromePressBox(
+                    scales[4], 0.9f, onSnapClick, Modifier.size(28.dp),
                     tag = "workspace_snap_toggle", description = "Snap"
-                ) {
-                    MagnetGlyph(snapOn)
-                }
+                )
                 Spacer(Modifier.size(10.dp))
-                CtrlButton(
-                    enabled = true, onClick = onGridClick, active = gridOn,
+                ChromePressBox(
+                    scales[5], 0.9f, onGridClick, Modifier.size(28.dp),
                     tag = "workspace_grid_toggle", description = "Grid"
-                ) {
-                    GridToggleGlyph(gridOn)
-                }
+                )
                 Spacer(Modifier.size(10.dp))
-                CtrlButton(
-                    enabled = true, onClick = onAddKeyframeClick,
+                ChromePressBox(
+                    scales[6], 0.9f, onAddKeyframeClick, Modifier.size(28.dp),
                     tag = "add_keyframe_button", description = "Add Keyframe"
-                ) {
-                    Box {
-                        KeyframeShieldGlyph()
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.BottomEnd)
-                                .size(5.5.dp)
-                                .clip(CircleShape)
-                                .background(RefOrange)
-                                .border(1.dp, AmBase, CircleShape)
-                        )
-                    }
-                }
+                )
             } else {
-                // ── Chrome host (CropView): its own wired controls ─
-                CtrlButton(
-                    enabled = true, onClick = onPreviousClick,
+                ChromePressBox(
+                    scales[4], 0.9f, onPreviousClick, Modifier.size(28.dp),
                     tag = "previous_button", description = "Previous"
-                ) {
-                    SkipGlyph(mirrored = true)
-                }
+                )
                 Spacer(Modifier.size(10.dp))
-                CtrlButton(
-                    enabled = true, onClick = onNextClick,
+                ChromePressBox(
+                    scales[5], 0.9f, onNextClick, Modifier.size(28.dp),
                     tag = "next_button", description = "Next"
-                ) {
-                    SkipGlyph(mirrored = false)
-                }
+                )
                 Spacer(Modifier.size(10.dp))
-                CtrlButton(
-                    enabled = true, onClick = onFullScreenClick,
+                ChromePressBox(
+                    scales[6], 0.9f, onFullScreenClick, Modifier.size(28.dp),
                     tag = "fullscreen_button", description = "Full Screen"
-                ) {
-                    FrameGlyph()
-                }
+                )
             }
         }
-        // The bar's bottom hairline (build 223: the family hairline token).
-        Box(
-            Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(AmHairline)
-        )
     }
 }
 
-/** One controls-bar button: a 34 dp touch box around a 21–24 dp glyph. */
-@Composable
-private fun CtrlButton(
-    enabled: Boolean,
-    onClick: () -> Unit,
-    tag: String,
-    description: String,
-    active: Boolean = false,
-    content: @Composable () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .size(28.dp)
-            .clip(RoundedCornerShape(6.dp))
-            .semantics { contentDescription = description }
-            .bouncyClickable(enabled = enabled, pressedScale = 0.9f, onClick = onClick)
-            .testTag(tag),
-        contentAlignment = Alignment.Center
-    ) { content() }
-}
+private data class ControlsEntries(
+    val badge: UiLabelAtlas.Entry?,
+    val undo: UiLabelAtlas.Entry?,
+    val redo: UiLabelAtlas.Entry?
+)
 
-// ── Glyphs ───────────────────────────────────────────────────────────────
+// ── Glyph bodies ────────────────────────────────────────────────────
+// Command-for-command ports of the build-249 per-glyph
+// NativeVectorCanvas draws (identical unit math); the caller places
+// them with the builder's translate + press-scale transform, so the
+// coordinates here are glyph-box-local, exactly as they were on their
+// own canvases.
 
 /** Soft rounded play triangle, or two bars while playing (19 dp, controls colour). */
-@Composable
-private fun PlayGlyph(isPlaying: Boolean) {
-    NativeVectorCanvas(
-        modifier = Modifier.size(19.dp),
-        drawKey = isPlaying,
-        buildCmds = { w, h, _ ->
-            val u = w / 24f
-            val cArgb = RefCtrl.toArgb()
-            if (isPlaying) {
-                val bw = 4.4f * u
-                val bh = 17f * u
-                val cy = h / 2f
-                addRoundRect(w / 2f - 6.4f * u + bw / 2f, cy, bw, bh, 1.8f * u, cArgb)
-                addRoundRect(w / 2f + 2.0f * u + bw / 2f, cy, bw, bh, 1.8f * u, cArgb)
-            } else {
-                val r = 1.6f * u
-                val tw = 14.6f * u - 2 * r
-                val th = 17.2f * u - 2 * r
-                val x0 = w / 2f - 14.6f * u / 2f + r + 0.6f * u
-                val y0 = (h - th) / 2f
-                val xs = floatArrayOf(x0, x0 + tw, x0)
-                val ys = floatArrayOf(y0, y0 + th / 2f, y0 + th)
-                addFilledPolygon(xs, ys, 3, cArgb)
-                addPolyline(xs, ys, 3, true, 2 * r, cArgb, capRound = true)
-            }
-        },
-    )
+private fun VectorCmdBuilder.glyphPlayBody(w: Float, h: Float, isPlaying: Boolean) {
+    val u = w / 24f
+    val cArgb = RefCtrl.toArgb()
+    if (isPlaying) {
+        val bw = 4.4f * u
+        val bh = 17f * u
+        val cy = h / 2f
+        addRoundRect(w / 2f - 6.4f * u + bw / 2f, cy, bw, bh, 1.8f * u, cArgb)
+        addRoundRect(w / 2f + 2.0f * u + bw / 2f, cy, bw, bh, 1.8f * u, cArgb)
+    } else {
+        val r = 1.6f * u
+        val tw = 14.6f * u - 2 * r
+        val th = 17.2f * u - 2 * r
+        val x0 = w / 2f - 14.6f * u / 2f + r + 0.6f * u
+        val y0 = (h - th) / 2f
+        val xs = floatArrayOf(x0, x0 + tw, x0)
+        val ys = floatArrayOf(y0, y0 + th / 2f, y0 + th)
+        addFilledPolygon(xs, ys, 3, cArgb)
+        addPolyline(xs, ys, 3, true, 2 * r, cArgb, capRound = true)
+    }
 }
 
 /** Skip triangle + bar (previous / next) — chrome hosts only. */
-@Composable
-private fun SkipGlyph(mirrored: Boolean) {
-    NativeVectorCanvas(
-        modifier = Modifier.size(17.dp),
-        drawKey = mirrored,
-        buildCmds = { w, _, _ ->
-            val u = w / 24f
-            val cArgb = RefCtrl.toArgb()
-            fun x(v: Float) = (if (mirrored) 24f - v else v) * u
-            addLine(x(5f), 5.5f * u, x(5f), 18.5f * u, 2.4f * u, cArgb, capRound = true)
-            val xs = floatArrayOf(x(9f), x(19f), x(9f))
-            val ys = floatArrayOf(6f * u, 12f * u, 18f * u)
-            addFilledPolygon(xs, ys, 3, cArgb)
-            addPolyline(xs, ys, 3, true, 1.6f * u, cArgb, capRound = true)
-        },
-    )
+private fun VectorCmdBuilder.glyphSkipBody(w: Float, mirrored: Boolean) {
+    val u = w / 24f
+    val cArgb = RefCtrl.toArgb()
+    fun x(v: Float) = (if (mirrored) 24f - v else v) * u
+    addLine(x(5f), 5.5f * u, x(5f), 18.5f * u, 2.4f * u, cArgb, capRound = true)
+    val xs = floatArrayOf(x(9f), x(19f), x(9f))
+    val ys = floatArrayOf(6f * u, 12f * u, 18f * u)
+    addFilledPolygon(xs, ys, 3, cArgb)
+    addPolyline(xs, ys, 3, true, 1.6f * u, cArgb, capRound = true)
 }
 
 /** Four corners + two overlapping layers — the fullscreen glyph (chrome hosts). */
-@Composable
-private fun FrameGlyph() {
-    NativeVectorCanvas(
-        modifier = Modifier.size(17.dp),
-        drawKey = "ctrl_frame_glyph",
-        buildCmds = { w, _, _ ->
-            val u = w / 24f
-            val cArgb = RefCtrl.toArgb()
-            val a = 4.7f * u
-            val b = 19.3f * u
-            addLine(a, a, b, a, 1.4f * u, cArgb, capRound = true)
-            addLine(a, b, b, b, 1.4f * u, cArgb, capRound = true)
-            addLine(a, a, a, b, 1.4f * u, cArgb, capRound = true)
-            addLine(b, a, b, b, 1.4f * u, cArgb, capRound = true)
-            for (cx in listOf(a, b)) for (cy in listOf(a, b)) addCircle(cx, cy, 1.95f * u, cArgb)
-            addRoundRect((8.7f + 4.2f) * u, (12.5f + 2.45f) * u, 8.4f * u, 4.9f * u, 2.4f * u, Color(0xFFA1A1AA).toArgb())
-            addRoundRect((7.0f + 4.0f) * u, (6.9f + 2.5f) * u, 8.0f * u, 5.0f * u, 2.5f * u, cArgb, 1.2f * u, AmBase.toArgb())
-        },
-    )
+private fun VectorCmdBuilder.glyphFrameBody(w: Float) {
+    val u = w / 24f
+    val cArgb = RefCtrl.toArgb()
+    val a = 4.7f * u
+    val b = 19.3f * u
+    addLine(a, a, b, a, 1.4f * u, cArgb, capRound = true)
+    addLine(a, b, b, b, 1.4f * u, cArgb, capRound = true)
+    addLine(a, a, a, b, 1.4f * u, cArgb, capRound = true)
+    addLine(b, a, b, b, 1.4f * u, cArgb, capRound = true)
+    for (cx in listOf(a, b)) for (cy in listOf(a, b)) addCircle(cx, cy, 1.95f * u, cArgb)
+    addRoundRect((8.7f + 4.2f) * u, (12.5f + 2.45f) * u, 8.4f * u, 4.9f * u, 2.4f * u, Color(0xFFA1A1AA).toArgb())
+    addRoundRect((7.0f + 4.0f) * u, (6.9f + 2.5f) * u, 8.0f * u, 5.0f * u, 2.5f * u, cArgb, 1.2f * u, AmBase.toArgb())
 }
 
-/** The snap magnet (build 222): a horseshoe magnet, WHITE while on, GREY while off (21 dp). */
-@Composable
-private fun MagnetGlyph(on: Boolean) {
-    NativeVectorCanvas(
-        modifier = Modifier.size(17.dp),
-        drawKey = on,
-        buildCmds = { width, _, _ ->
-            val u = width / 24f
-            val c = if (on) RefCtrl else RefCtrlDisabled
-            val cArgb = c.toArgb()
-            val sw = 3.6f * u
-            addArc(
-                cx = 12f * u, cy = 10.2f * u,
-                rx = 6.8f * u, ry = 6.8f * u,
-                startDeg = 180f, sweepDeg = 180f,
-                width = sw, strokeArgb = cArgb, capRound = false, closedPie = false
-            )
-            addLine(5.2f * u, 10.2f * u, 5.2f * u, 19.6f * u, sw, cArgb, capRound = false)
-            addLine(18.8f * u, 10.2f * u, 18.8f * u, 19.6f * u, sw, cArgb, capRound = false)
-            val tipArgb = (if (on) Color.White else c).toArgb()
-            addLine(5.2f * u, 16.4f * u, 5.2f * u, 19.6f * u, sw, tipArgb, capRound = false)
-            addLine(18.8f * u, 16.4f * u, 18.8f * u, 19.6f * u, sw, tipArgb, capRound = false)
-        },
+/** The snap magnet (build 222): a horseshoe magnet, WHITE while on, GREY while off (17 dp). */
+private fun VectorCmdBuilder.glyphMagnetBody(w: Float, on: Boolean) {
+    val u = w / 24f
+    val c = if (on) RefCtrl else RefCtrlDisabled
+    val cArgb = c.toArgb()
+    val sw = 3.6f * u
+    addArc(
+        cx = 12f * u, cy = 10.2f * u,
+        rx = 6.8f * u, ry = 6.8f * u,
+        startDeg = 180f, sweepDeg = 180f,
+        width = sw, strokeArgb = cArgb, capRound = false, closedPie = false
     )
+    addLine(5.2f * u, 10.2f * u, 5.2f * u, 19.6f * u, sw, cArgb, capRound = false)
+    addLine(18.8f * u, 10.2f * u, 18.8f * u, 19.6f * u, sw, cArgb, capRound = false)
+    val tipArgb = (if (on) Color.White else c).toArgb()
+    addLine(5.2f * u, 16.4f * u, 5.2f * u, 19.6f * u, sw, tipArgb, capRound = false)
+    addLine(18.8f * u, 16.4f * u, 18.8f * u, 19.6f * u, sw, tipArgb, capRound = false)
 }
 
-/** The reference's grid glyph: a rounded square divided in thirds both ways (21 dp). Lime while on. */
-@Composable
-private fun GridToggleGlyph(on: Boolean) {
-    NativeVectorCanvas(
-        modifier = Modifier.size(17.dp),
-        drawKey = on,
-        buildCmds = { w, _, _ ->
-            val u = w / 24f
-            val cArgb = (if (on) RefLime else RefCtrl).toArgb()
-            addRoundRect(12f * u, 12f * u, 16f * u, 16f * u, 3f * u, 0, 1.8f * u, cArgb)
-            addLine(9f * u, 4f * u, 9f * u, 20f * u, 1.5f * u, cArgb, capRound = false)
-            addLine(15f * u, 4f * u, 15f * u, 20f * u, 1.5f * u, cArgb, capRound = false)
-            addLine(4f * u, 9f * u, 20f * u, 9f * u, 1.5f * u, cArgb, capRound = false)
-            addLine(4f * u, 15f * u, 20f * u, 15f * u, 1.5f * u, cArgb, capRound = false)
-        },
-    )
+/** The reference's grid glyph: a rounded square divided in thirds both ways (17 dp). Lime while on. */
+private fun VectorCmdBuilder.glyphGridBody(w: Float, on: Boolean) {
+    val u = w / 24f
+    val cArgb = (if (on) RefLime else RefCtrl).toArgb()
+    addRoundRect(12f * u, 12f * u, 16f * u, 16f * u, 3f * u, 0, 1.8f * u, cArgb)
+    addLine(9f * u, 4f * u, 9f * u, 20f * u, 1.5f * u, cArgb, capRound = false)
+    addLine(15f * u, 4f * u, 15f * u, 20f * u, 1.5f * u, cArgb, capRound = false)
+    addLine(4f * u, 9f * u, 20f * u, 9f * u, 1.5f * u, cArgb, capRound = false)
+    addLine(4f * u, 15f * u, 20f * u, 15f * u, 1.5f * u, cArgb, capRound = false)
 }
 
-/** The reference's Add-Keyframe glyph: a filled shield with a plus cut out of it (21 dp). */
-@Composable
-private fun KeyframeShieldGlyph() {
-    NativeVectorCanvas(
-        modifier = Modifier.size(17.dp),
-        drawKey = "keyframe_shield_glyph",
-        buildCmds = { w, _, _ ->
-            val u = w / 24f
-            val pts = mutableListOf<Pair<Float, Float>>()
-            pts.add(12f * u to 2.5f * u)
-            pts.add(18.5f * u to 6f * u)
-            pts.add(18.5f * u to 14.2f * u)
-            fun addCubicPts(x0: Float, y0: Float, c1x: Float, c1y: Float, c2x: Float, c2y: Float, x1: Float, y1: Float) {
-                for (i in 1..10) {
-                    val t = i / 10f
-                    val m = 1f - t
-                    val px = m * m * m * x0 + 3f * m * m * t * c1x + 3f * m * t * t * c2x + t * t * t * x1
-                    val py = m * m * m * y0 + 3f * m * m * t * c1y + 3f * m * t * t * c2y + t * t * t * y1
-                    pts.add(px to py)
-                }
-            }
-            addCubicPts(18.5f * u, 14.2f * u, 18.5f * u, 17.5f * u, 15.8f * u, 19.9f * u, 12f * u, 21.5f * u)
-            addCubicPts(12f * u, 21.5f * u, 8.2f * u, 19.9f * u, 5.5f * u, 17.5f * u, 5.5f * u, 14.2f * u)
-            pts.add(5.5f * u to 6f * u)
-            val xs = FloatArray(pts.size) { pts[it].first }
-            val ys = FloatArray(pts.size) { pts[it].second }
-            addFilledPolygon(xs, ys, pts.size, RefCtrl.toArgb())
-            val cutArgb = AmBase.toArgb()
-            addLine(12f * u, 8f * u, 12f * u, 14f * u, 2f * u, cutArgb, capRound = true)
-            addLine(9f * u, 11f * u, 15f * u, 11f * u, 2f * u, cutArgb, capRound = true)
-        },
-    )
+/** The reference's Add-Keyframe glyph: a filled shield with a plus cut out of it (17 dp). */
+private fun VectorCmdBuilder.glyphShieldBody(w: Float) {
+    val u = w / 24f
+    val pts = mutableListOf<Pair<Float, Float>>()
+    pts.add(12f * u to 2.5f * u)
+    pts.add(18.5f * u to 6f * u)
+    pts.add(18.5f * u to 14.2f * u)
+    fun addCubicPts(x0: Float, y0: Float, c1x: Float, c1y: Float, c2x: Float, c2y: Float, x1: Float, y1: Float) {
+        for (i in 1..10) {
+            val t = i / 10f
+            val m = 1f - t
+            val px = m * m * m * x0 + 3f * m * m * t * c1x + 3f * m * t * t * c2x + t * t * t * x1
+            val py = m * m * m * y0 + 3f * m * m * t * c1y + 3f * m * t * t * c2y + t * t * t * y1
+            pts.add(px to py)
+        }
+    }
+    addCubicPts(18.5f * u, 14.2f * u, 18.5f * u, 17.5f * u, 15.8f * u, 19.9f * u, 12f * u, 21.5f * u)
+    addCubicPts(12f * u, 21.5f * u, 8.2f * u, 19.9f * u, 5.5f * u, 17.5f * u, 5.5f * u, 14.2f * u)
+    pts.add(5.5f * u to 6f * u)
+    val xs = FloatArray(pts.size) { pts[it].first }
+    val ys = FloatArray(pts.size) { pts[it].second }
+    addFilledPolygon(xs, ys, pts.size, RefCtrl.toArgb())
+    val cutArgb = AmBase.toArgb()
+    addLine(12f * u, 8f * u, 12f * u, 14f * u, 2f * u, cutArgb, capRound = true)
+    addLine(9f * u, 11f * u, 15f * u, 11f * u, 2f * u, cutArgb, capRound = true)
 }
