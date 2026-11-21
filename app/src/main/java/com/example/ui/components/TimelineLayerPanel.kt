@@ -741,13 +741,10 @@ internal fun TimelineBarActionsPublisher(
                     onClick: () -> Unit
                 ) {
                     add(
-                        BarActionTile(label, tag, destructive = destructive, onClick = onClick) {
-                            Icon(
-                                icon, contentDescription = null,
-                                tint = if (destructive) AmDanger else IconActive,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
+                        BarActionTile(
+                            label, tag, destructive = destructive, onClick = onClick,
+                            glyph = BarGlyph.Icon(icon, if (destructive) AmDanger else IconActive)
+                        )
                     )
                 }
                 tile(

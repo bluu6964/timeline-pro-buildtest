@@ -4,6 +4,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.vector.ImageVector
 
 /**
  * One clip panel's tools, as shown in the tools grid (build 202's shared
@@ -46,14 +49,33 @@ class MorePanelState {
 }
 
 /**
+ * A bar action's glyph as DATA (build 251, UI migration stage 4): the
+ * tools grid draws on the native GL surface, so a glyph can no longer be
+ * an opaque composable — it is either a Material [Icon] (rasterized into
+ * the UI atlas) or one of the bars' own [Drawn] DrawScope glyphs
+ * (rasterized the same way, the stage-3 multi-select bar pattern). Each
+ * carries the tint its producer drew it in; only the raster's alpha is
+ * read at blit time.
+ */
+sealed interface BarGlyph {
+    class Icon(val icon: ImageVector, val tint: Color) : BarGlyph
+    class Drawn(
+        val widthDp: Float,
+        val heightDp: Float,
+        val tint: Color,
+        val draw: DrawScope.() -> Unit
+    ) : BarGlyph
+}
+
+/**
  * One action of the timeline's selected-layer bar / multi-select bar, as a
  * tile of the tools grid (build 211 — NO STICKY TOOL LINES: while the
  * tools panel is open those bars are not rendered anywhere; their actions
  * live at the HEAD of the grid's one scrolling list instead). [glyph] is
- * the tile's artwork composable (a Material icon or one of the bars' own
- * drawn glyphs); it sets its own tint. [destructive] reads the label in
- * the semantic red (Delete). [enabled] dims the tile and swallows its tap
- * (the multi bar's distribute tiles below three checked layers).
+ * the tile's artwork (a [BarGlyph] — build 251 made it data so the grid
+ * can draw it natively). [destructive] reads the label in the semantic
+ * red (Delete). [enabled] dims the tile and swallows its tap (the multi
+ * bar's distribute tiles below three checked layers).
  */
 class BarActionTile(
     val label: String,
@@ -61,7 +83,7 @@ class BarActionTile(
     val destructive: Boolean = false,
     val enabled: Boolean = true,
     val onClick: () -> Unit,
-    val glyph: @Composable () -> Unit
+    val glyph: BarGlyph
 )
 
 /** The bar actions as one ordered section (the bars' own left-to-right, row-by-row order). */

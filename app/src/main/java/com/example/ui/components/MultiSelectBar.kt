@@ -326,8 +326,10 @@ fun multiBarActionTiles(
     onSelectAll: () -> Unit
 ): List<BarActionTile> {
     val tiles = mutableListOf<BarActionTile>()
-    fun glyph(w: androidx.compose.ui.unit.Dp = 24.dp, h: androidx.compose.ui.unit.Dp = 20.dp, draw: DrawScope.() -> Unit): @Composable () -> Unit =
-        { Canvas(Modifier.size(w, h)) { draw() } }
+    // Build 251: the glyph is data now (BarGlyph) — the tools grid
+    // rasterizes the DrawScope draw into the UI atlas and blits it.
+    fun glyph(w: androidx.compose.ui.unit.Dp = 24.dp, h: androidx.compose.ui.unit.Dp = 20.dp, draw: DrawScope.() -> Unit): BarGlyph =
+        BarGlyph.Drawn(w.value, h.value, IconColor, draw)
     fun action(label: String, tag: String, a: MultiAction, draw: DrawScope.() -> Unit) {
         tiles += BarActionTile(label, tag, onClick = { onAction(a) }, glyph = glyph(draw = draw))
     }
@@ -369,7 +371,7 @@ fun multiBarActionTiles(
     action("Chain", "multi_chain", MultiAction.CHAIN) { drawChainIcon() }
     action("Group", "multi_group", MultiAction.GROUP) { drawGroupIcon() }
     tiles += BarActionTile("All", "multi_all", onClick = onSelectAll, glyph = glyph { drawSelectAllGlyph() })
-    tiles += BarActionTile("Delete", "multi_delete", destructive = true, onClick = onDeleteChecked, glyph = glyph { drawTrashGlyph() })
+    tiles += BarActionTile("Delete", "multi_delete", destructive = true, onClick = onDeleteChecked, glyph = BarGlyph.Drawn(24f, 20f, AmDanger) { drawTrashGlyph() })
     // Row 4: shape booleans (only when the bar would show them).
     if (showBooleanRow) {
         for (op in ShapeBooleanOp.values()) {

@@ -1,5 +1,19 @@
 package com.example.ui.components
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeOff
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
@@ -9,46 +23,23 @@ import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.ViewStream
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items as rowItems
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.key
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.example.engine.UiLabelAtlas
+import com.example.engine.UiLabelStyle
+import com.example.engine.VectorCmdBuilder
+import com.example.engine.rememberUiAtlas
+import com.example.model.PanelGeometry
 import com.example.ui.theme.AmCardSurface
 import com.example.ui.theme.AmTextPrimary
 import com.example.ui.theme.AmCornerCard
@@ -57,7 +48,7 @@ import com.example.ui.theme.AmPanelHigh
 import com.example.ui.theme.AmPillSelected
 import com.example.ui.theme.AmTextDim
 import com.example.ui.theme.IconDisabled
-import com.example.ui.util.bouncyClickable
+import kotlin.math.roundToInt
 
 private val IconWhite = AmTextPrimary // build 223: tokenized (was a near-white literal)
 
@@ -91,18 +82,24 @@ private val IconWhite = AmTextPrimary // build 223: tokenized (was a near-white 
  * utility row's IN/OUT, beat mark, onion, scopes, snap, frame, canvas
  * — the same entries, tags and semantics the More panel carried; the
  * named Marker was removed in build 222 and the selection-frame toggle
- * took its slot). The grid is
- * 4 columns of icon + label tiles; every label is a full word (two
- * lines allowed, never truncated); past the viewport the grid scrolls
- * VERTICALLY inside the sheet — no horizontal scroll, no clipped rows,
- * nothing pinned. Momentary entries (IN, OUT, beat, canvas)
- * close the sheet on tap via [onCloseRequest]; toggles (snap, onion,
- * scopes, frame) and clip tools keep it open, as the More panel did.
+ * took its slot). Since build 215 the panel is ONE horizontally
+ * scrolling row of icon + label tiles; every label is a full word (two
+ * lines allowed, never truncated); past the viewport the row scrolls
+ * inside the sheet — nothing pinned. Momentary entries (IN, OUT, beat,
+ * canvas) close the sheet on tap via [onCloseRequest]; toggles (snap,
+ * onion, scopes, frame) and clip tools keep it open, as the More panel
+ * did.
  *
- * Geometry (dp, 360 dp reference width): sheet padding 10 dp each side +
- * 3 gaps of 8 dp → tile width (360 − 16 sheet margin − 20 − 24) / 4 = 75 dp;
- * tile height 62 dp (24 dp glyph + two 13 dp label lines + padding) — every
- * target ≥ 40 dp.
+ * Build 251 (UI migration stage 4): the row is drawn on ONE native GL
+ * surface — positions from [PanelGeometry.Grid] (host-tested), glyphs
+ * and labels through the stage-2 atlas (the drawn utility glyphs keep
+ * their exact vector command bodies, now emitted into the sheet's
+ * stream; the bars' drawn glyphs arrive as [BarGlyph.Drawn] rasters,
+ * the stage-3 pattern). The scrolling content (canvas + tap targets)
+ * rides in one horizontally scrolling box, so the surface scrolls with
+ * its targets; the tap targets are invisible Compose boxes at the
+ * law's rects (ChromePressBox, 0.92). The sheet's flat background stays
+ * on the host Column (the stage-3 precedent).
  */
 const val TOOLS_GRID_COLUMNS = 4
 const val TOOLS_GRID_TILE_H_DP = 48
@@ -140,6 +137,23 @@ fun toolsGridRowsForHeight(heightDp: Int): Int {
         (TOOLS_GRID_TILE_H_DP + TOOLS_GRID_GAP_DP)).coerceAtLeast(0)
 }
 
+/** A grid tile's glyph as data (build 251): drawn natively by the sheet. */
+private sealed interface GridGlyph {
+    /** One of the sheet's own vector glyphs (command bodies below). */
+    class Vector(val kind: Kind, val on: Boolean) : GridGlyph {
+        enum class Kind { GRID, FRAME, NATIVE_TIMELINE, ONION, SCOPES, MAGNET, BEAT }
+    }
+
+    /** A short text mark (IN / OUT / the preview label). */
+    class TextGlyph(val text: String, val style: UiLabelStyle, val tint: Color) : GridGlyph
+
+    /** A Material icon, rasterized into the atlas. */
+    class IconGlyph(val icon: ImageVector, val tint: Color) : GridGlyph
+
+    /** A timeline bar action's glyph (icon or drawn raster). */
+    class Bar(val glyph: BarGlyph) : GridGlyph
+}
+
 /** One tile of the tools grid. */
 private class GridEntry(
     val label: String,
@@ -152,7 +166,7 @@ private class GridEntry(
     val destructive: Boolean = false,
     /** A dimmed, inert tile (the multi bar's distribute actions below three checked layers). */
     val enabled: Boolean = true,
-    val glyph: @Composable () -> Unit
+    val glyph: GridGlyph
 )
 
 @Composable
@@ -234,52 +248,43 @@ fun ToolsGridSheet(
     // The utility section's entries, in the build-201 utility row's order
     // with the transport row's snap/canvas appended (build 202's order).
     val utilityEntries = listOf(
-        GridEntry("Range in", exportInSet, "export_in_button", "Export range in point", closeOnTap = true, onClick = onExportInClick) {
-            Text("IN", color = if (exportInSet) IconWhite else IconDisabled, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
-        },
-        GridEntry("Range out", exportOutSet, "export_out_button", "Export range out point", closeOnTap = true, onClick = onExportOutClick) {
-            Text("OUT", color = if (exportOutSet) IconWhite else IconDisabled, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
-        },
-        GridEntry("Beat mark", false, "beat_mark_button", "Beat mark", closeOnTap = true, onClick = onBeatMarkClick) { BeatMarkGlyph() },
-        GridEntry("Onion", onionSkinOn, "onion_skin_button", "Onion skin", closeOnTap = false, onClick = onOnionSkinClick) { OnionGlyph(onionSkinOn) },
-        GridEntry("Scopes", scopesOn, "scopes_button", "Scopes", closeOnTap = false, onClick = onScopesClick) { ScopesGlyph(scopesOn) },
-        GridEntry("Snap", snapOn, "snap_button", "Snap", closeOnTap = false, onClick = onSnapClick) { MagnetGlyph(snapOn) },
-        GridEntry("Frame", frameOn, "frame_button", "Selection frame", closeOnTap = false, onClick = onFrameClick) { FrameGlyph(frameOn) },
-        GridEntry("Native timeline", nativeTimelineOn, "native_timeline_button", "Native timeline renderer", closeOnTap = false, onClick = onNativeTimelineClick) { NativeTimelineGlyph(nativeTimelineOn) },
-        GridEntry("Canvas", false, "grid_button", "Canvas", closeOnTap = true, onClick = onCanvasClick) { GridGlyph() },
-        GridEntry("Prev frame", false, "prev_frame_button", "Previous frame", closeOnTap = false, onClick = onPrevFrameClick) {
-            Icon(Icons.Default.SkipPrevious, null, tint = IconWhite, modifier = Modifier.size(18.dp))
-        },
-        GridEntry("Next frame", false, "next_frame_button", "Next frame", closeOnTap = false, onClick = onNextFrameClick) {
-            Icon(Icons.Default.SkipNext, null, tint = IconWhite, modifier = Modifier.size(18.dp))
-        },
-        GridEntry("Preview", false, "preview_resolution_button", "Preview resolution", closeOnTap = true, onClick = onPreviewClick) {
-            Text(previewLabel, color = IconWhite, fontSize = 10.5.sp, fontWeight = FontWeight.ExtraBold)
-        },
-        GridEntry("Save frame", false, "save_frame_button", "Save current frame", closeOnTap = true, onClick = onSaveFrameClick) {
-            Icon(Icons.Default.PhotoCamera, null, tint = IconWhite, modifier = Modifier.size(18.dp))
-        },
-        GridEntry("Master", masterMuted, "master_audio_button", "Master audio mute", closeOnTap = false, onClick = onMasterAudioClick) {
-            Icon(
+        GridEntry("Range in", exportInSet, "export_in_button", "Export range in point", closeOnTap = true, onClick = onExportInClick,
+            glyph = GridGlyph.TextGlyph("IN", UiLabelStyle.GRID_MARK, if (exportInSet) IconWhite else IconDisabled)),
+        GridEntry("Range out", exportOutSet, "export_out_button", "Export range out point", closeOnTap = true, onClick = onExportOutClick,
+            glyph = GridGlyph.TextGlyph("OUT", UiLabelStyle.GRID_MARK, if (exportOutSet) IconWhite else IconDisabled)),
+        GridEntry("Beat mark", false, "beat_mark_button", "Beat mark", closeOnTap = true, onClick = onBeatMarkClick,
+            glyph = GridGlyph.Vector(GridGlyph.Vector.Kind.BEAT, on = false)),
+        GridEntry("Onion", onionSkinOn, "onion_skin_button", "Onion skin", closeOnTap = false, onClick = onOnionSkinClick,
+            glyph = GridGlyph.Vector(GridGlyph.Vector.Kind.ONION, on = onionSkinOn)),
+        GridEntry("Scopes", scopesOn, "scopes_button", "Scopes", closeOnTap = false, onClick = onScopesClick,
+            glyph = GridGlyph.Vector(GridGlyph.Vector.Kind.SCOPES, on = scopesOn)),
+        GridEntry("Snap", snapOn, "snap_button", "Snap", closeOnTap = false, onClick = onSnapClick,
+            glyph = GridGlyph.Vector(GridGlyph.Vector.Kind.MAGNET, on = snapOn)),
+        GridEntry("Frame", frameOn, "frame_button", "Selection frame", closeOnTap = false, onClick = onFrameClick,
+            glyph = GridGlyph.Vector(GridGlyph.Vector.Kind.FRAME, on = frameOn)),
+        GridEntry("Native timeline", nativeTimelineOn, "native_timeline_button", "Native timeline renderer", closeOnTap = false, onClick = onNativeTimelineClick,
+            glyph = GridGlyph.Vector(GridGlyph.Vector.Kind.NATIVE_TIMELINE, on = nativeTimelineOn)),
+        GridEntry("Canvas", false, "grid_button", "Canvas", closeOnTap = true, onClick = onCanvasClick,
+            glyph = GridGlyph.Vector(GridGlyph.Vector.Kind.GRID, on = false)),
+        GridEntry("Prev frame", false, "prev_frame_button", "Previous frame", closeOnTap = false, onClick = onPrevFrameClick,
+            glyph = GridGlyph.IconGlyph(Icons.Default.SkipPrevious, IconWhite)),
+        GridEntry("Next frame", false, "next_frame_button", "Next frame", closeOnTap = false, onClick = onNextFrameClick,
+            glyph = GridGlyph.IconGlyph(Icons.Default.SkipNext, IconWhite)),
+        GridEntry("Preview", false, "preview_resolution_button", "Preview resolution", closeOnTap = true, onClick = onPreviewClick,
+            glyph = GridGlyph.TextGlyph(previewLabel, UiLabelStyle.GRID_PREVIEW, IconWhite)),
+        GridEntry("Save frame", false, "save_frame_button", "Save current frame", closeOnTap = true, onClick = onSaveFrameClick,
+            glyph = GridGlyph.IconGlyph(Icons.Default.PhotoCamera, IconWhite)),
+        GridEntry("Master", masterMuted, "master_audio_button", "Master audio mute", closeOnTap = false, onClick = onMasterAudioClick,
+            glyph = GridGlyph.IconGlyph(
                 if (masterMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
-                null,
-                tint = if (masterMuted) IconWhite else AmTextDim,
-                modifier = Modifier.size(18.dp)
-            )
-        },
-        GridEntry("Density", densityComfort, "density_button", "Lane density (32 / 44 dp)", closeOnTap = false, onClick = onDensityClick) {
-            Icon(
-                Icons.Default.ViewStream, null,
-                tint = if (densityComfort) IconWhite else AmTextDim,
-                modifier = Modifier.size(18.dp)
-            )
-        },
-        GridEntry("Templates", false, "templates_button", "Templates", closeOnTap = true, onClick = onTemplatesClick) {
-            Icon(Icons.Default.Layers, null, tint = IconWhite, modifier = Modifier.size(18.dp))
-        },
-        GridEntry("Controller", false, "controller_button", "Add controller layer", closeOnTap = true, onClick = onControllerClick) {
-            Icon(Icons.Default.Tune, null, tint = IconWhite, modifier = Modifier.size(18.dp))
-        }
+                if (masterMuted) IconWhite else AmTextDim
+            )),
+        GridEntry("Density", densityComfort, "density_button", "Lane density (32 / 44 dp)", closeOnTap = false, onClick = onDensityClick,
+            glyph = GridGlyph.IconGlyph(Icons.Default.ViewStream, if (densityComfort) IconWhite else AmTextDim)),
+        GridEntry("Templates", false, "templates_button", "Templates", closeOnTap = true, onClick = onTemplatesClick,
+            glyph = GridGlyph.IconGlyph(Icons.Default.Layers, IconWhite)),
+        GridEntry("Controller", false, "controller_button", "Add controller layer", closeOnTap = true, onClick = onControllerClick,
+            glyph = GridGlyph.IconGlyph(Icons.Default.Tune, IconWhite))
     )
     val clipEntries = clipOverflow?.tools?.map { tool ->
         val used = tool.id in clipOverflow.usedTools
@@ -289,15 +294,9 @@ fun ToolsGridSheet(
             tag = clipOverflow.tileTag(tool.id),
             description = tool.label,
             closeOnTap = false,
-            onClick = { clipOverflow.onTool(tool) }
-        ) {
-            Icon(
-                imageVector = tool.icon,
-                contentDescription = null,
-                tint = if (used) IconWhite else AmTextDim,
-                modifier = Modifier.size(18.dp)
-            )
-        }
+            onClick = { clipOverflow.onTool(tool) },
+            glyph = GridGlyph.IconGlyph(tool.icon, if (used) IconWhite else AmTextDim)
+        )
     } ?: emptyList()
     // The timeline bars' actions ride at the HEAD of the list (build
     // 211): while this sheet is open the SelectedBar / MultiBar are not
@@ -312,8 +311,9 @@ fun ToolsGridSheet(
             closeOnTap = false,
             onClick = tile.onClick,
             destructive = tile.destructive,
-            enabled = tile.enabled
-        ) { tile.glyph() }
+            enabled = tile.enabled,
+            glyph = GridGlyph.Bar(tile.glyph)
+        )
     } ?: emptyList()
     // ONE scrolling list (TOOLS PANEL LAW, build 210; completed by build
     // 211's no-sticky-lines law): bar actions first, then the clip
@@ -329,6 +329,77 @@ fun ToolsGridSheet(
     val entries = primaryClip + barEntries.sortedBy { it.destructive } + restClip +
         (if (includeUtilities) utilityEntries else emptyList())
 
+    val g = PanelGeometry.Grid
+    val density = LocalDensity.current.density
+    val fontScale = LocalDensity.current.fontScale
+    val atlas = rememberUiAtlas()
+    val pad = UiLabelAtlas.PAD.toFloat()
+    val lineBoxPx = 11f * density * fontScale
+
+    // Stable painters per icon (an entry's icon never changes identity).
+    val distinctIcons = entries.mapNotNull { e ->
+        when (val gl = e.glyph) {
+            is GridGlyph.IconGlyph -> gl.icon
+            is GridGlyph.Bar -> (gl.glyph as? BarGlyph.Icon)?.icon
+            else -> null
+        }
+    }.distinct()
+    val painterByName = HashMap<String, androidx.compose.ui.graphics.vector.VectorPainter>()
+    for (icon in distinctIcons) {
+        painterByName[icon.name] = key(icon.name) { rememberVectorPainter(icon) }
+    }
+
+    val iconPx = (g.GLYPH_DP * density).roundToInt()
+    fun resolveAll(): List<GridResolved> = entries.map { entry ->
+        val labelStyle = if (entry.active) UiLabelStyle.TILE_LABEL_BOLD else UiLabelStyle.TILE_LABEL
+        val lineTexts = PanelGeometry.wrapGreedy(entry.label, g.labelWidthPx(density), 2) {
+            atlas.measure(it, labelStyle)
+        }
+        val labelLines = lineTexts.map { atlas.resolve(it, labelStyle) }
+        val glyphEntry = when (val gl = entry.glyph) {
+            is GridGlyph.IconGlyph -> painterByName[gl.icon.name]?.let { p ->
+                atlas.resolveIcon("grid-icon:${gl.icon.name}", iconPx, iconPx) { cv, x, y ->
+                    val b = rasterizePainterBitmap(p, iconPx, density)
+                    cv.drawBitmap(b, x, y, null)
+                    b.recycle()
+                }
+            }
+            is GridGlyph.Bar -> when (val bg = gl.glyph) {
+                is BarGlyph.Icon -> painterByName[bg.icon.name]?.let { p ->
+                    atlas.resolveIcon("grid-icon:${bg.icon.name}", iconPx, iconPx) { cv, x, y ->
+                        val b = rasterizePainterBitmap(p, iconPx, density)
+                        cv.drawBitmap(b, x, y, null)
+                        b.recycle()
+                    }
+                }
+                is BarGlyph.Drawn -> {
+                    val wPx = (bg.widthDp * density).roundToInt()
+                    val hPx = (bg.heightDp * density).roundToInt()
+                    atlas.resolveIcon("grid-drawn:${entry.tag}", wPx, hPx) { cv, x, y ->
+                        val b = rasterizeDrawBitmap(wPx, hPx, density, bg.draw)
+                        cv.drawBitmap(b, x, y, null)
+                        b.recycle()
+                    }
+                }
+            }
+            is GridGlyph.TextGlyph -> atlas.resolve(gl.text, gl.style)
+            is GridGlyph.Vector -> null
+        }
+        GridResolved(glyphEntry, labelLines)
+    }
+    var resolved = resolveAll()
+    if (atlas.overflowed) {
+        atlas.reset()
+        resolved = resolveAll()
+    }
+
+    val scales = remember(entries.map { it.tag }) { entries.map { Animatable(1f) } }
+    val scaleValues = scales.map { it.value }
+    val scrollState = rememberScrollState()
+
+    fun dim(argb: Int, f: Float): Int =
+        if (f >= 1f) argb else Color(argb).copy(alpha = Color(argb).alpha * f).toArgb()
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -338,18 +409,162 @@ fun ToolsGridSheet(
             .padding(vertical = TOOLS_GRID_PAD_V_DP.dp)
             .testTag("tools_grid_sheet")
     ) {
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(TOOLS_GRID_GAP_DP.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-        ) {
-            rowItems(entries, key = { it.tag }) { entry ->
-                GridTile(entry) {
-                    if (entry.enabled) {
-                        entry.onClick()
-                        if (entry.closeOnTap) onCloseRequest()
+        if (entries.isNotEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .horizontalScroll(scrollState)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .width((g.contentWidthPx(entries.size, density) / density).dp)
+                        .fillMaxHeight()
+                ) {
+                    NativeVectorCanvas(
+                        modifier = Modifier.fillMaxSize(),
+                        clearArgb = 0,
+                        atlas = atlas,
+                        drawKey = listOf(resolved, scaleValues, atlas.generation),
+                        buildCmds = { _, _, dd ->
+                            entries.forEachIndexed { i, entry ->
+                                val left = g.tileLeftPx(i, dd)
+                                val tileW = g.TILE_W_DP * dd
+                                val tileH = g.TILE_H_DP * dd
+                                val dimF = if (entry.enabled) 1f else 0.38f
+                                val labelStyle =
+                                    if (entry.active) UiLabelStyle.TILE_LABEL_BOLD else UiLabelStyle.TILE_LABEL
+                                val labelFm = atlas.fontMetrics(labelStyle)
+                                val lines = resolved[i].labelLines
+                                val stackTop = g.stackTopPx(0f, lines.size, lineBoxPx, dd)
+                                setScaleAbout(left + tileW / 2f, tileH / 2f, scales[i].value)
+                                addRoundRect(
+                                    left + tileW / 2f, tileH / 2f, tileW, tileH,
+                                    g.TILE_CORNER_DP * dd,
+                                    dim((if (entry.active) AmPillSelected else AmPanelHigh).toArgb(), dimF)
+                                )
+                                // The glyph.
+                                val glyphLeft = g.glyphLeftPx(left, dd)
+                                when (val gl = entry.glyph) {
+                                    is GridGlyph.Vector -> {
+                                        // The canvas and beat glyphs are always
+                                        // primary; the state glyphs read
+                                        // primary when on, disabled-grey when off.
+                                        val baseTint = when (gl.kind) {
+                                            GridGlyph.Vector.Kind.GRID,
+                                            GridGlyph.Vector.Kind.BEAT -> AmTextPrimary
+                                            else -> if (gl.on) AmTextPrimary else IconDisabled
+                                        }
+                                        val tint = dim(baseTint.toArgb(), dimF)
+                                        setTranslate(glyphLeft, stackTop)
+                                        gridVectorGlyph(gl.kind, gl.on, g.GLYPH_DP * dd, tint)
+                                        setTranslate(0f, 0f)
+                                    }
+                                    is GridGlyph.TextGlyph -> resolved[i].glyphEntry?.let { e ->
+                                        val textH = atlas.textHeightPx(gl.style)
+                                        val boxTop = stackTop + (g.GLYPH_DP * dd - textH) / 2f
+                                        addText(
+                                            e.index,
+                                            glyphLeft + (g.GLYPH_DP * dd - e.advance) / 2f + e.bearing - pad,
+                                            boxTop - atlas.fontMetrics(gl.style).ascent - e.base,
+                                            0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                                            tintArgb = dim(gl.tint.toArgb(), dimF)
+                                        )
+                                    }
+                                    is GridGlyph.IconGlyph -> resolved[i].glyphEntry?.let { e ->
+                                        addText(
+                                            e.index, glyphLeft - pad, stackTop - pad,
+                                            0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                                            tintArgb = dim(gl.tint.toArgb(), dimF)
+                                        )
+                                    }
+                                    is GridGlyph.Bar -> resolved[i].glyphEntry?.let { e ->
+                                        when (val bg = gl.glyph) {
+                                            is BarGlyph.Icon -> addText(
+                                                e.index, glyphLeft - pad, stackTop - pad,
+                                                0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                                                tintArgb = dim(bg.tint.toArgb(), dimF)
+                                            )
+                                            is BarGlyph.Drawn -> addText(
+                                                e.index,
+                                                left + tileW / 2f - e.inkW / 2f - pad,
+                                                stackTop + g.GLYPH_DP * dd / 2f - e.inkH / 2f - pad,
+                                                0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                                                tintArgb = dim(bg.tint.toArgb(), dimF)
+                                            )
+                                        }
+                                    }
+                                }
+                                // The label lines (full words, up to two lines).
+                                val labelTint = dim(
+                                    when {
+                                        entry.destructive -> AmDanger
+                                        entry.active -> IconWhite
+                                        else -> AmTextDim
+                                    }.toArgb(), dimF
+                                )
+                                val centreX = left + tileW / 2f
+                                val labelW = g.labelWidthPx(dd)
+                                val textBlockTop = stackTop + (g.GLYPH_DP + g.GLYPH_GAP_DP) * dd
+                                lines.forEachIndexed { li, e ->
+                                    if (e == null) return@forEachIndexed
+                                    val baseline = PanelGeometry.lineBaselinePx(
+                                        textBlockTop + li * lineBoxPx, lineBoxPx,
+                                        labelFm.ascent, labelFm.descent
+                                    )
+                                    if (e.advance <= labelW) {
+                                        addText(
+                                            e.index,
+                                            centreX - e.advance / 2f + e.bearing - pad,
+                                            baseline - e.base,
+                                            0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                                            tintArgb = labelTint
+                                        )
+                                    } else {
+                                        // Centre-clipped (a single glyph wider
+                                        // than the label box — the wrap law
+                                        // breaks everything else to fit).
+                                        val cut = (e.advance - labelW) / 2f
+                                        var srcDX = pad - e.bearing + cut
+                                        var dstX = centreX - e.advance / 2f + e.bearing - pad + cut
+                                        if (srcDX < 0f) {
+                                            dstX += srcDX
+                                            srcDX = 0f
+                                        }
+                                        addText(
+                                            e.index, dstX, baseline - e.base,
+                                            srcDX, 0f, labelW, e.rectH.toFloat(),
+                                            tintArgb = labelTint
+                                        )
+                                    }
+                                }
+                                clearTransform()
+                            }
+                        }
+                    )
+                    // Tap targets at the law's tile rects, invisible.
+                    Row(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = g.PAD_H_DP.dp),
+                        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(g.GAP_DP.dp)
+                    ) {
+                        entries.forEachIndexed { i, entry ->
+                            ChromePressBox(
+                                scales[i], 0.92f,
+                                {
+                                    if (entry.enabled) {
+                                        entry.onClick()
+                                        if (entry.closeOnTap) onCloseRequest()
+                                    }
+                                },
+                                Modifier
+                                    .width(g.TILE_W_DP.dp)
+                                    .height(g.TILE_H_DP.dp),
+                                tag = entry.tag,
+                                description = entry.description
+                            )
+                        }
                     }
                 }
             }
@@ -357,69 +572,24 @@ fun ToolsGridSheet(
     }
 }
 
-/**
- * A grid tile: a soft rounded surface (active = the selected-pill fill),
- * glyph over a full-word label. Labels wrap to two lines — never truncated.
- */
-@Composable
-private fun GridTile(entry: GridEntry, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .width(56.dp)
-            .height(TOOLS_GRID_TILE_H_DP.dp)
-            .semantics { contentDescription = entry.description }
-            .bouncyClickable(pressedScale = 0.92f, onClick = onClick)
-            .testTag(entry.tag),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    if (entry.active) AmPillSelected else AmPanelHigh,
-                    RoundedCornerShape(12.dp)
-                )
-                .clip(RoundedCornerShape(12.dp))
-                .alpha(if (entry.enabled) 1f else 0.38f)
-                .padding(horizontal = 3.dp, vertical = 3.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Box(
-                modifier = Modifier.size(18.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                entry.glyph()
-            }
-            Spacer(modifier = Modifier.height(1.dp))
-            Text(
-                text = entry.label,
-                color = when {
-                    entry.destructive -> AmDanger
-                    entry.active -> IconWhite
-                    else -> AmTextDim
-                },
-                fontSize = 9.5.sp,
-                lineHeight = 11.sp,
-                fontWeight = if (entry.active) FontWeight.Bold else FontWeight.Normal,
-                maxLines = 2,
-                textAlign = TextAlign.Center
-            )
-        }
-    }
-}
+private data class GridResolved(
+    val glyphEntry: UiLabelAtlas.Entry?,
+    val labelLines: List<UiLabelAtlas.Entry?>
+)
 
-// ── Glyphs (moved from the build-202 More panel, unchanged) ──────────────
+// ── Glyphs (moved from the build-202 More panel; build 251 emits the
+// same commands into the sheet's GL stream, in a 24-unit space scaled
+// by u = size/24, origin at the glyph box's top-left) ─────────────────
 
-/** Rounded outline with a 4 x 3 grid of small squares. */
-@Composable
-private fun GridGlyph() {
-    NativeVectorCanvas(
-        modifier = Modifier.size(18.dp),
-        drawKey = "tools_grid_glyph",
-        buildCmds = { w, h, _ ->
-            val u = w / 24f
-            val cArgb = AmTextPrimary.toArgb()
+private fun VectorCmdBuilder.gridVectorGlyph(
+    kind: GridGlyph.Vector.Kind, on: Boolean, sizePx: Float, cArgb: Int
+) {
+    val w = sizePx
+    val h = sizePx
+    val u = w / 24f
+    when (kind) {
+        GridGlyph.Vector.Kind.GRID -> {
+            // Rounded outline with a 4 x 3 grid of small squares.
             val rw = 20.7f * u - 2.2f * u
             val rh = 19f * u - 2.2f * u
             val left = (w - 20.7f * u) / 2f + 1.1f * u
@@ -431,108 +601,46 @@ private fun GridGlyph() {
             for (r in 0..2) for (k in 0..3) {
                 addRoundRect(cx0 + k * 3.85f * u, cy0 + r * 4.4f * u, sq, sq, 0.5f * u, cArgb)
             }
-        },
-    )
-}
-
-/**
- * The selection frame (build 222): a handled rectangle — the transform box
- * the canvas draws around the selected layer. White = on, grey = off —
- * the used-tool state law, like every other state in this bar.
- */
-@Composable
-private fun FrameGlyph(on: Boolean) {
-    NativeVectorCanvas(
-        modifier = Modifier.size(18.dp),
-        drawKey = on,
-        buildCmds = { w, _, _ ->
-            val u = w / 24f
-            val cArgb = (if (on) AmTextPrimary else IconDisabled).toArgb()
+        }
+        GridGlyph.Vector.Kind.FRAME -> {
+            // The selection frame (build 222): a handled rectangle.
             addRoundRect(12f * u, 12f * u, 14f * u, 14f * u, 1.6f * u, 0, 1.7f * u, cArgb)
             val sq = 3.4f * u
             for ((hx, hy) in listOf(5f to 5f, 19f to 5f, 5f to 19f, 19f to 19f)) {
                 addRoundRect(hx * u, hy * u, sq, sq, 0.8f * u, cArgb)
             }
-        },
-    )
-}
-
-/**
- * The native timeline (build 224): a ticked ruler over two lane bars.
- * White = the C++ surface draws the timeline, grey = the Compose panel does.
- */
-@Composable
-private fun NativeTimelineGlyph(on: Boolean) {
-    NativeVectorCanvas(
-        modifier = Modifier.size(18.dp),
-        drawKey = on,
-        buildCmds = { w, _, _ ->
-            val u = w / 24f
-            val cArgb = (if (on) AmTextPrimary else IconDisabled).toArgb()
+        }
+        GridGlyph.Vector.Kind.NATIVE_TIMELINE -> {
+            // A ticked ruler over two lane bars (build 224).
             addLine(3f * u, 6f * u, 21f * u, 6f * u, 1.6f * u, cArgb, capRound = false)
             for (tx in listOf(6f, 12f, 18f)) {
                 addLine(tx * u, 4f * u, tx * u, 8f * u, 1.6f * u, cArgb, capRound = false)
             }
             addRoundRect((3f + 6.5f) * u, (11f + 2.2f) * u, 13f * u, 4.4f * u, 2.2f * u, cArgb)
             addRoundRect((8f + 6.5f) * u, (17.6f + 2.2f) * u, 13f * u, 4.4f * u, 2.2f * u, cArgb)
-        },
-    )
-}
-
-/**
- * Two overlapping frames (the onion-skin ghosts, build 190): the back frame is a bare
- * outline, the front frame is filled while the ghosts are on. White = on, grey = off —
- * the used-tool state law, like every other state in this bar.
- */
-@Composable
-private fun OnionGlyph(on: Boolean) {
-    NativeVectorCanvas(
-        modifier = Modifier.size(18.dp),
-        drawKey = on,
-        buildCmds = { w, _, _ ->
-            val u = w / 24f
-            val cArgb = (if (on) AmTextPrimary else IconDisabled).toArgb()
+        }
+        GridGlyph.Vector.Kind.ONION -> {
+            // Two overlapping frames (the onion-skin ghosts, build 190):
+            // the back frame is a bare outline, the front frame is
+            // filled while the ghosts are on.
             addRoundRect((8.6f + 6f) * u, (3.4f + 6f) * u, 12f * u, 12f * u, 2.6f * u, 0, 1.8f * u, cArgb)
             if (on) {
                 addRoundRect((3.4f + 6f) * u, (8.6f + 6f) * u, 12f * u, 12f * u, 2.6f * u, cArgb)
             } else {
                 addRoundRect((3.4f + 6f) * u, (8.6f + 6f) * u, 12f * u, 12f * u, 2.6f * u, 0, 1.8f * u, cArgb)
             }
-        },
-    )
-}
-
-/**
- * Four histogram bars on a baseline (the video scopes, build 196). White =
- * on, grey = off — the used-tool state law, like the onion glyph beside it.
- */
-@Composable
-private fun ScopesGlyph(on: Boolean) {
-    NativeVectorCanvas(
-        modifier = Modifier.size(18.dp),
-        drawKey = on,
-        buildCmds = { w, _, _ ->
-            val u = w / 24f
-            val cArgb = (if (on) AmTextPrimary else IconDisabled).toArgb()
+        }
+        GridGlyph.Vector.Kind.SCOPES -> {
+            // Four histogram bars on a baseline (build 196).
             val base = 19.4f * u
             addLine(3.4f * u, base, 20.6f * u, base, 1.8f * u, cArgb, capRound = true)
             val bars = listOf(6.5f to 8f, 10.6f to 13.5f, 14.7f to 10.5f, 18.8f to 15.5f)
             for ((x, top) in bars) {
                 addLine(x * u, base, x * u, (24f - top) * u, 2.6f * u, cArgb, capRound = true)
             }
-        },
-    )
-}
-
-/** U-magnet (build 199, A3): the snap toggle. White = snapping on, grey = off. */
-@Composable
-private fun MagnetGlyph(on: Boolean) {
-    NativeVectorCanvas(
-        modifier = Modifier.size(18.dp),
-        drawKey = on,
-        buildCmds = { w, _, _ ->
-            val u = w / 24f
-            val cArgb = (if (on) AmTextPrimary else IconDisabled).toArgb()
+        }
+        GridGlyph.Vector.Kind.MAGNET -> {
+            // U-magnet (build 199, A3): the snap toggle.
             val sw = 2.6f * u
             addLine(6.6f * u, 4.5f * u, 6.6f * u, 12.5f * u, sw, cArgb, capRound = true)
             addCubic(6.6f * u, 12.5f * u, 6.6f * u, 17.2f * u, 9.4f * u, 19.6f * u, 12f * u, 19.6f * u, sw, cArgb, capRound = true)
@@ -540,19 +648,9 @@ private fun MagnetGlyph(on: Boolean) {
             addLine(17.4f * u, 12.5f * u, 17.4f * u, 4.5f * u, sw, cArgb, capRound = true)
             addLine(4.6f * u, 4.5f * u, 8.6f * u, 4.5f * u, sw, cArgb, capRound = true)
             addLine(15.4f * u, 4.5f * u, 19.4f * u, 4.5f * u, sw, cArgb, capRound = true)
-        },
-    )
-}
-
-/** White diamond (the mark on the ruler) with a white plus beside it: adds a beat mark. */
-@Composable
-private fun BeatMarkGlyph() {
-    NativeVectorCanvas(
-        modifier = Modifier.size(18.dp),
-        drawKey = "tools_beat_mark_glyph",
-        buildCmds = { w, _, _ ->
-            val u = w / 24f
-            val cArgb = AmTextPrimary.toArgb()
+        }
+        GridGlyph.Vector.Kind.BEAT -> {
+            // White diamond (the mark on the ruler) with a plus beside it.
             val xs = floatArrayOf(10f * u, 16.6f * u, 10f * u, 3.4f * u)
             val ys = floatArrayOf(3.2f * u, 10f * u, 16.8f * u, 10f * u)
             addFilledPolygon(xs, ys, 4, cArgb)
@@ -562,6 +660,6 @@ private fun BeatMarkGlyph() {
             val arm = 3.6f * u
             addLine(px - arm, py, px + arm, py, 2.1f * u, cArgb, capRound = true)
             addLine(px, py - arm, px, py + arm, 2.1f * u, cArgb, capRound = true)
-        },
-    )
+        }
+    }
 }
