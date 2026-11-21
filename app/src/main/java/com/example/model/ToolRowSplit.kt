@@ -1,6 +1,6 @@
 package com.example.model
 
-import kotlin.math.ceil
+import com.example.engine.ValueLawsNative
 
 /**
  * Build 202 — the geometry law behind Sarowar's "clean the UI" order
@@ -77,18 +77,19 @@ object ToolRowSplit {
     /** Rows of the selected panel's overflow shown inside the shared panel (it scrolls past that). */
     const val CLIP_SECTION_MAX_ROWS = 2
 
+    // The dp laws are native since build 247 (value_laws.cpp); the label
+    // length the width model reads is the string's UTF-16 length, exactly
+    // Kotlin's String.length.
+
     /** Modelled width of one label tile (see the header for the model). */
-    fun tileWidthDp(label: String): Int {
-        val text = ceil(label.length * CHAR_WIDTH_DP).toInt()
-        return maxOf(TILE_MIN_WIDTH_DP, TILE_PADDING_DP + maxOf(ICON_DP, text) + TILE_SAFETY_DP)
-    }
+    fun tileWidthDp(label: String): Int = ValueLawsNative.nativeToolTileWidth(label)
 
     /** Width available to tiles + gaps inside a row at [screenWidthDp]. */
     fun availableDp(
         screenWidthDp: Int,
         backZoneDp: Int = BACK_ZONE_DP,
         contentPaddingDp: Int = CONTENT_PADDING_DP
-    ): Int = screenWidthDp - backZoneDp - 2 * contentPaddingDp
+    ): Int = ValueLawsNative.nativeToolAvailableDp(screenWidthDp, backZoneDp, contentPaddingDp)
 
     /**
      * How many of [widthsDp] (in order) stay visible in a primary row: the
@@ -96,17 +97,8 @@ object ToolRowSplit {
      * fits, all of them. The rest are the panel's overflow — they live in
      * the shared More panel, so no room is reserved for a button here.
      */
-    fun visibleCount(widthsDp: List<Int>, availableDp: Int, gapDp: Int): Int {
-        var used = 0
-        var n = 0
-        while (n < widthsDp.size) {
-            val add = widthsDp[n] + if (n == 0) 0 else gapDp
-            if (used + add > availableDp) break
-            used += add
-            n++
-        }
-        return n
-    }
+    fun visibleCount(widthsDp: List<Int>, availableDp: Int, gapDp: Int): Int =
+        ValueLawsNative.nativeToolVisibleCount(widthsDp.toIntArray(), availableDp, gapDp)
 
     /** [visibleCount] for the label-measured panels (clip + audio tools). */
     fun visibleCountForLabels(labels: List<String>, screenWidthDp: Int): Int =
@@ -124,11 +116,7 @@ object ToolRowSplit {
         vPaddingDp: Int = GRID_V_PADDING_DP,
         maxRows: Int = GRID_MAX_ROWS,
         columns: Int = GRID_COLUMNS
-    ): Int {
-        if (itemCount <= 0) return 0
-        val rows = minOf((itemCount + columns - 1) / columns, maxRows)
-        return rows * tileHeightDp + (rows - 1) * gapDp + 2 * vPaddingDp
-    }
+    ): Int = ValueLawsNative.nativeToolGridHeight(itemCount, tileHeightDp, gapDp, vPaddingDp, maxRows, columns)
 
     /**
      * Total height of the shared More panel: its own vertical padding + the
@@ -137,11 +125,6 @@ object ToolRowSplit {
      * ([CLIP_SECTION_MAX_ROWS] rows shown, scrolling past that).
      * No clip overflow -> 112 dp; with any overflow -> up to 225 dp.
      */
-    fun sharedPanelHeightDp(clipOverflowCount: Int, utilityCount: Int = UTILITY_TILE_COUNT): Int {
-        var h = 2 * PANEL_V_PADDING_DP + gridHeightDp(utilityCount, vPaddingDp = 0)
-        if (clipOverflowCount > 0) {
-            h += PANEL_DIVIDER_DP + gridHeightDp(clipOverflowCount, vPaddingDp = 0, maxRows = CLIP_SECTION_MAX_ROWS)
-        }
-        return h
-    }
+    fun sharedPanelHeightDp(clipOverflowCount: Int, utilityCount: Int = UTILITY_TILE_COUNT): Int =
+        ValueLawsNative.nativeToolSharedPanelHeight(clipOverflowCount, utilityCount)
 }

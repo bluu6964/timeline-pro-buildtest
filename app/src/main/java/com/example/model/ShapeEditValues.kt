@@ -1,5 +1,7 @@
 package com.example.model
 
+import com.example.engine.ValueLawsNative
+
 /**
  * Value rules for the shape editor's sliders for the fields the Alight Motion import added
  * (corner radius, stroke trim) — pure Kotlin, so the standalone harness can test them.
@@ -15,8 +17,8 @@ object ShapeEditValues {
     /** Corner radius lives in dp inside the 130 dp shape box, so half the box is the max. */
     const val MAX_CORNER_RADIUS_DP = 65f
 
-    /** Corner radius, clamped to the shape box (0 = square corners). */
-    fun coerceCornerRadiusDp(dp: Float): Float = dp.coerceIn(0f, MAX_CORNER_RADIUS_DP)
+    /** Corner radius, clamped to the shape box (0 = square corners). (Native since build 247.) */
+    fun coerceCornerRadiusDp(dp: Float): Float = ValueLawsNative.nativeShapeCoerceCorner(dp)
 
     /**
      * Trim window as fractions of the outline length: both clamped to 0..1 and ordered, so a start
@@ -24,9 +26,8 @@ object ShapeEditValues {
      * window (start == end) draws no stroke, exactly like the renderers treat it.
      */
     fun coerceTrim(start: Float, end: Float): Pair<Float, Float> {
-        val s = start.coerceIn(0f, 1f)
-        val e = end.coerceIn(s, 1f)
-        return s to e
+        val out = ValueLawsNative.nativeShapeCoerceTrim(start, end)
+        return out[0] to out[1]
     }
 
     /**

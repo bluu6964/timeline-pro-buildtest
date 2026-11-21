@@ -1,5 +1,7 @@
 package com.example.model
 
+import com.example.engine.ValueLawsNative
+
 /** How a blend mode combines the layer with what lies beneath it. */
 enum class BlendKind {
     /** Plain "source over". */
@@ -29,61 +31,24 @@ data class BlendSpec(
 object BlendModes {
     const val NORMAL = "Normal"
 
-    val categories: List<String> =
-        listOf("Matte", "Darken", "Brighten", "Contrast", "Difference", "Color")
+    // The spec table is native DATA since build 247 (value_laws.cpp — the
+    // fx_defs precedent): names, categories, shader ids and kinds cross once
+    // and the list is built here, in the table's own order. (The Alight
+    // Motion notes on the recovered modes — Linear Burn / Darker Color /
+    // Lighter Color / Soft Overlay / Subtract / Diff have no Compose
+    // equivalent, the canvas falls back to SrcOver while the native preview
+    // / export shader implements them exactly — live with the table there.)
+    val categories: List<String> = ValueLawsNative.nativeBlendCategoryList().toList()
 
-    val all: List<BlendSpec> = listOf(
-        // Matte
-        BlendSpec("Normal", "Matte", 0, BlendKind.NORMAL),
-        BlendSpec("Alpha Matte", "Matte", 1, BlendKind.MATTE),
-        BlendSpec("Mask Invert", "Matte", 2, BlendKind.MATTE),
-        BlendSpec("Luma", "Matte", 3, BlendKind.MATTE),
-        BlendSpec("Luma Invert", "Matte", 4, BlendKind.MATTE),
-        // Darken
-        BlendSpec("Darken", "Darken", 10, BlendKind.COLOR),
-        BlendSpec("Multiply", "Darken", 11, BlendKind.COLOR),
-        BlendSpec("Color Burn", "Darken", 12, BlendKind.COLOR),
-        // Alight Motion's own modes (recovered blend defs, hunt round 3, blend-defs/):
-        // Linear Burn is backdrop + source - 1 per channel; Darker Color keeps the WHOLE
-        // colour (backdrop or source) whose luminance-weighted vector is shorter — it is
-        // not a per-channel minimum. Neither has a Compose equivalent: the editor canvas
-        // falls back to SrcOver; the native preview / export shader implements them exactly.
-        BlendSpec("Linear Burn", "Darken", 13, BlendKind.COLOR),
-        BlendSpec("Darker Color", "Darken", 14, BlendKind.COLOR),
-        // Brighten
-        BlendSpec("Lighten", "Brighten", 20, BlendKind.COLOR),
-        BlendSpec("Screen", "Brighten", 21, BlendKind.COLOR),
-        BlendSpec("Color Dodge", "Brighten", 22, BlendKind.COLOR),
-        BlendSpec("Add", "Brighten", 23, BlendKind.COLOR),
-        // Alight Motion's Lighter Color: the whole colour whose luminance-weighted vector
-        // is longer (the def compares length(w * c), w = 0.2126 / 0.7152 / 0.0722), NOT a
-        // per-channel maximum. No Compose equivalent, like Darker Color above.
-        BlendSpec("Lighter Color", "Brighten", 24, BlendKind.COLOR),
-        // Contrast
-        BlendSpec("Overlay", "Contrast", 30, BlendKind.COLOR),
-        BlendSpec("Soft Light", "Contrast", 31, BlendKind.COLOR),
-        BlendSpec("Hard Light", "Contrast", 32, BlendKind.COLOR),
-        // Alight Motion's own mode (its recovered blend shader tests the BACKDROP like Overlay
-        // but blends with the Soft Light branches): no Compose equivalent, the editor canvas
-        // falls back to SrcOver; the native preview / export shader implements it exactly.
-        BlendSpec("Soft Overlay", "Contrast", 33, BlendKind.COLOR),
-        // Difference
-        BlendSpec("Difference", "Difference", 40, BlendKind.COLOR),
-        BlendSpec("Exclusion", "Difference", 41, BlendKind.COLOR),
-        // Alight Motion's Subtract (recovered shader: backdrop − source, clamped at 0).
-        BlendSpec("Subtract", "Difference", 42, BlendKind.COLOR),
-        // Alight Motion's Diff (recovered def): |backdrop − source| at full alpha — the
-        // def premultiplies the backdrop by the layer alpha before the abs, which under
-        // this pass's W3C alpha compositing is the same colour formula as Difference;
-        // it stays a separate mode because Alight lists it separately. No Compose
-        // equivalent under its own name: the canvas falls back to SrcOver.
-        BlendSpec("Diff", "Difference", 43, BlendKind.COLOR),
-        // Color
-        BlendSpec("Hue", "Color", 50, BlendKind.COLOR),
-        BlendSpec("Saturation", "Color", 51, BlendKind.COLOR),
-        BlendSpec("Color", "Color", 52, BlendKind.COLOR),
-        BlendSpec("Luminosity", "Color", 53, BlendKind.COLOR)
-    )
+    val all: List<BlendSpec> = run {
+        val names = ValueLawsNative.nativeBlendNames()
+        val cats = ValueLawsNative.nativeBlendCategories()
+        val ids = ValueLawsNative.nativeBlendShaderIds()
+        val kinds = ValueLawsNative.nativeBlendKinds()
+        List(names.size) { i ->
+            BlendSpec(names[i], cats[i], ids[i], BlendKind.values()[kinds[i]])
+        }
+    }
 
     private val byName: Map<String, BlendSpec> = all.associateBy { it.name }
 

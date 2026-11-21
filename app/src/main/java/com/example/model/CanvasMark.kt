@@ -1,5 +1,7 @@
 package com.example.model
 
+import com.example.engine.ValueLawsNative
+
 /**
  * What the Compose canvas draws as a layer's own adornment (Sarowar's display
  * correction, 2026-11-13 ~16:09).
@@ -29,10 +31,7 @@ enum class CanvasMark { NOTHING, MARKER, SELECTION_BOX }
  */
 object CanvasMarkRule {
 
-    fun markFor(type: LayerType, isSelected: Boolean): CanvasMark = when (type) {
-        LayerType.NULL, LayerType.CONTROLLER ->
-            if (isSelected) CanvasMark.SELECTION_BOX else CanvasMark.NOTHING
-        LayerType.GROUP -> CanvasMark.MARKER
-        else -> if (isSelected) CanvasMark.SELECTION_BOX else CanvasMark.NOTHING
-    }
+    fun markFor(type: LayerType, isSelected: Boolean): CanvasMark =
+        // The rule table is native since build 247 (value_laws.cpp).
+        CanvasMark.values()[ValueLawsNative.nativeCanvasMark(type.ordinal, isSelected)]
 }

@@ -1,10 +1,7 @@
 package com.example.model
 
 import com.example.engine.AudioAnalysisNative
-import kotlin.math.abs
-import kotlin.math.exp
-import kotlin.math.ln
-import kotlin.math.pow
+import com.example.engine.ValueLawsNative
 
 /**
  * Audio ducking (build 194): the pure sidechain law. One layer (the trigger —
@@ -49,8 +46,10 @@ import kotlin.math.pow
  * a silent trigger, or a 0 dB amount all yield NO curve (null), never a
  * stuck-low volume.
  *
- * Pure Kotlin over plain arrays: no Android types, harness-pinned
- * (DuckingTest drives synthetic envelopes through every clause above).
+ * The value laws live natively in value_laws.cpp since build 247 (migration
+ * stage 4); [peakEnvelope], [gainsForLevels] and the curve builder were
+ * already native (audio_analysis). Harness-pinned (DuckingTest drives
+ * synthetic envelopes through every clause above).
  */
 object Ducking {
 
@@ -78,23 +77,13 @@ object Ducking {
      * coerceAtMost passes NaN through, so an unsanitised NaN used to become a NaN floor
      * and from there a curve of NaN gains for the shared mixer.
      */
-    fun floorGain(amountDb: Float): Float =
-        if (!(amountDb > 0f)) 1f
-        else 10.0.pow(-amountDb.coerceAtMost(MAX_AMOUNT_DB).toDouble() / 20.0).toFloat()
-
-    /** The smoothness as a lerp factor: NaN reads as the neutral middle (build 198). */
-    private fun smoothFactor(smoothness: Float): Double {
-        val s = smoothness.coerceIn(0f, 1f)
-        return if (s.isNaN()) 0.5 else s.toDouble()
-    }
+    fun floorGain(amountDb: Float): Float = ValueLawsNative.nativeDuckFloorGain(amountDb)
 
     /** Attack time constant (ms) for a smoothness 0..1: 2 ms (snappy) .. 50 ms (soft), exponential. */
-    fun attackMs(smoothness: Float): Double =
-        exp(lerp(ln(2.0), ln(50.0), smoothFactor(smoothness)))
+    fun attackMs(smoothness: Float): Double = ValueLawsNative.nativeDuckAttackMs(smoothness)
 
     /** Release time constant (ms) for a smoothness 0..1: 60 ms (quick) .. 1000 ms (slow), exponential. */
-    fun releaseMs(smoothness: Float): Double =
-        exp(lerp(ln(60.0), ln(1000.0), smoothFactor(smoothness)))
+    fun releaseMs(smoothness: Float): Double = ValueLawsNative.nativeDuckReleaseMs(smoothness)
 
     /**
      * The peak |sample| of mono PCM per [stepMs] step (the last, partial step
@@ -110,13 +99,8 @@ object Ducking {
      * 1 at or below [THRESHOLD], the floor at full scale (level >= 1),
      * linear in level between. [floor] is [floorGain] of the amount.
      */
-    fun targetGain(level: Float, floor: Float): Float {
-        if (floor >= 1f) return 1f
-        val l = abs(level)
-        if (l <= THRESHOLD) return 1f
-        val over = ((l - THRESHOLD) / (1f - THRESHOLD)).coerceIn(0f, 1f)
-        return 1f - over * (1f - floor)
-    }
+    fun targetGain(level: Float, floor: Float): Float =
+        ValueLawsNative.nativeDuckTargetGain(level, floor)
 
     /**
      * Smooths the per-step target gains of [levels] with the attack / release
@@ -152,15 +136,8 @@ object Ducking {
         if (trigger.durationMs <= 0L) return FloatArray(0)
         val peaks = peakEnvelope(samples, sampleRate)
         val steps = ((trigger.durationMs + STEP_MS - 1L) / STEP_MS).toInt()
-        val out = FloatArray(steps)
-        for (k in 0 until steps) {
-            val relMs = k * STEP_MS
-            val centre = minOf(relMs + STEP_MS / 2L, trigger.durationMs)
-            val srcStep = (trigger.sourceOffsetMs(centre) / STEP_MS).toInt()
-            val peak = if (srcStep in peaks.indices) peaks[srcStep] else 0f
-            out[k] = peak * heardGainAt(relMs).coerceAtLeast(0f)
-        }
-        return out
+        val heard = FloatArray(steps) { k -> heardGainAt(k * STEP_MS) }
+        return ValueLawsNative.nativeDuckTimelineLevels(peaks, trigger.durationMs, trigger.speed, heard)
     }
 
     /**
@@ -197,23 +174,10 @@ object Ducking {
      * for an empty curve. This is the exact contract the C++ mixer
      * implements (audio_mixer.cpp's duckGain) — keep the two in step.
      */
-    fun gainAt(curve: List<Point>, relMs: Long): Float {
-        if (curve.isEmpty()) return 1f
-        if (relMs <= curve.first().relMs) return curve.first().gain
-        if (relMs >= curve.last().relMs) return curve.last().gain
-        var lo = 0
-        var hi = curve.size - 1
-        while (hi - lo > 1) {
-            val mid = (lo + hi) / 2
-            if (curve[mid].relMs <= relMs) lo = mid else hi = mid
-        }
-        val a = curve[lo]
-        val b = curve[hi]
-        val span = (b.relMs - a.relMs).toDouble()
-        if (span <= 0.0) return b.gain
-        val f = (relMs - a.relMs).toDouble() / span
-        return (a.gain + (b.gain - a.gain) * f).toFloat()
-    }
-
-    private fun lerp(a: Double, b: Double, t: Double): Double = a + (b - a) * t
+    fun gainAt(curve: List<Point>, relMs: Long): Float =
+        ValueLawsNative.nativeDuckGainAt(
+            LongArray(curve.size) { curve[it].relMs },
+            FloatArray(curve.size) { curve[it].gain },
+            relMs,
+        )
 }

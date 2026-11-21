@@ -1,12 +1,7 @@
 package com.example.model
 
 import com.example.engine.AudioAnalysisNative
-import kotlin.math.PI
-import kotlin.math.cos
-import kotlin.math.exp
-import kotlin.math.log10
-import kotlin.math.sin
-import kotlin.math.sqrt
+import com.example.engine.ValueLawsNative
 
 /**
  * Audio noise reduction (build 195): the pure spectral-gating law. A layer's
@@ -59,8 +54,10 @@ import kotlin.math.sqrt
  * played window only — never from its volume or fades (the gate sits
  * inside the source, ahead of the mixer's gain stage).
  *
- * Pure Kotlin over plain arrays: no Android types, harness-pinned
- * (NoiseReductionTest drives synthetic tone + noise through every clause).
+ * The value laws live natively in value_laws.cpp since build 247 (migration
+ * stage 4); the frame magnitudes and the mono reference processor were
+ * already native (audio_analysis). Harness-pinned (NoiseReductionTest
+ * drives synthetic tone + noise through every clause).
  */
 object NoiseReduction {
 
@@ -96,10 +93,7 @@ object NoiseReduction {
      * (coerceIn passes NaN through) reads as 0 — no processing — never as a
      * NaN factor that would turn every gate gain NaN downstream.
      */
-    fun overSubtraction(strength: Float): Float {
-        val s = strength.coerceIn(0f, 1f)
-        return if (s.isNaN()) 0f else MAX_OVER * s
-    }
+    fun overSubtraction(strength: Float): Float = ValueLawsNative.nativeNoiseOverSubtraction(strength)
 
     /**
      * One bin's raw (unsmoothed) gate gain for magnitude [magnitude] against
@@ -108,30 +102,15 @@ object NoiseReduction {
      * bin sits at (or under) over × its floor. A silent bin ([magnitude] 0)
      * takes the floor gain — its phase is zero, so it contributes nothing.
      */
-    fun rawGain(magnitude: Float, noise: Float, strength: Float): Float {
-        val s = strength.coerceIn(0f, 1f)
-        if (!(s > 0f)) return 1f   // NaN included (build 198): no strength, no gating
-        if (magnitude <= 0f) return FLOOR_GAIN
-        val r = (overSubtraction(s) * noise / magnitude).toDouble()
-        val g2 = 1.0 - r * r
-        val floor2 = (FLOOR_GAIN * FLOOR_GAIN).toDouble()
-        return if (g2 <= floor2) FLOOR_GAIN else sqrt(g2).toFloat()
-    }
+    fun rawGain(magnitude: Float, noise: Float, strength: Float): Float =
+        ValueLawsNative.nativeNoiseRawGain(magnitude, noise, strength)
 
     /** The 3-tap frequency smoothing of one frame's raw gains (edges clamp). */
-    fun smoothAcrossFrequency(raw: FloatArray): FloatArray {
-        val out = FloatArray(raw.size)
-        for (k in raw.indices) {
-            val a = raw[maxOf(0, k - 1)]
-            val b = raw[k]
-            val c = raw[minOf(raw.size - 1, k + 1)]
-            out[k] = 0.25f * a + 0.5f * b + 0.25f * c
-        }
-        return out
-    }
+    fun smoothAcrossFrequency(raw: FloatArray): FloatArray =
+        ValueLawsNative.nativeNoiseSmoothFreq(raw)
 
     /** One-pole coefficient per STFT frame for a time constant of [tauMs] ms. */
-    fun stepCoef(tauMs: Double): Double = 1.0 - exp(-HOP * 1000.0 / (tauMs * SAMPLE_RATE))
+    fun stepCoef(tauMs: Double): Double = ValueLawsNative.nativeNoiseStepCoef(tauMs)
 
     /** The temporal smoother's attack coefficient (gain falling). */
     val attackCoef: Double = stepCoef(ATTACK_MS)
@@ -143,13 +122,8 @@ object NoiseReduction {
      * The [p] percentile of [values] (they are copied + sorted; the element
      * at floor(p × (n − 1))). Empty input -> 0.
      */
-    fun percentile(values: FloatArray, p: Double): Float {
-        if (values.isEmpty()) return 0f
-        val sorted = values.copyOf()
-        sorted.sort()
-        val idx = (p.coerceIn(0.0, 1.0) * (sorted.size - 1)).toInt()
-        return sorted[idx]
-    }
+    fun percentile(values: FloatArray, p: Double): Float =
+        ValueLawsNative.nativeNoisePercentile(values, p)
 
     /**
      * The exact noise profile of a set of magnitude frames (one [BINS]
@@ -157,14 +131,10 @@ object NoiseReduction {
      * over the frames. No frames -> all zeros (silence gates to silence).
      */
     fun noiseProfile(frames: List<FloatArray>): FloatArray {
-        val out = FloatArray(BINS)
-        if (frames.isEmpty()) return out
-        val column = FloatArray(frames.size)
-        for (k in 0 until BINS) {
-            for (f in frames.indices) column[f] = frames[f][k]
-            out[k] = percentile(column, PROFILE_PERCENTILE)
-        }
-        return out
+        if (frames.isEmpty()) return FloatArray(BINS)
+        val flat = FloatArray(frames.size * BINS)
+        for (f in frames.indices) frames[f].copyInto(flat, f * BINS)
+        return ValueLawsNative.nativeNoiseProfile(flat, frames.size, BINS)
     }
 
     /**
@@ -176,7 +146,8 @@ object NoiseReduction {
      * the exact law within one bucket (~2.5% of magnitude).
      */
     class ProfileAccumulator {
-        private val counts = Array(BINS) { IntArray(BUCKETS) }
+        // Flat [bin][bucket] counts — the native accumulator's own layout.
+        private val counts = IntArray(BINS * BUCKETS)
         private var frames = 0
 
         /** How many magnitude frames have been added. */
@@ -184,54 +155,33 @@ object NoiseReduction {
 
         fun add(magnitudes: FloatArray) {
             require(magnitudes.size == BINS) { "a magnitude frame has $BINS bins" }
-            for (k in 0 until BINS) counts[k][bucketOf(magnitudes[k])]++
+            ValueLawsNative.nativeNoiseAccumAdd(counts, magnitudes)
             frames++
         }
 
         /** The profile of everything added so far (all zeros when nothing was). */
-        fun profile(): FloatArray {
-            val out = FloatArray(BINS)
-            if (frames == 0) return out
-            val rank = (PROFILE_PERCENTILE * frames).toInt().coerceIn(1, frames)
-            for (k in 0 until BINS) {
-                var cum = 0
-                var b = 0
-                while (b < BUCKETS) {
-                    cum += counts[k][b]
-                    if (cum >= rank) break
-                    b++
-                }
-                out[k] = bucketValue(minOf(b, BUCKETS - 1))
-            }
-            return out
-        }
+        fun profile(): FloatArray =
+            ValueLawsNative.nativeNoiseAccumProfile(counts, frames, BINS)
 
         companion object {
             /** Histogram resolution: 256 log buckets over [MIN_MAG], [MAX_MAG]. */
             const val BUCKETS = 256
             const val MIN_MAG = 1e-5
             const val MAX_MAG = 2.0
-            private val LOG_MIN = log10(MIN_MAG)
-            private val LOG_STEP = (log10(MAX_MAG) - LOG_MIN) / BUCKETS
 
             /** The bucket a magnitude falls into (<= 0 clamps into bucket 0). */
-            fun bucketOf(magnitude: Float): Int {
-                if (magnitude <= MIN_MAG) return 0
-                val b = ((log10(magnitude.toDouble()) - LOG_MIN) / LOG_STEP).toInt()
-                return b.coerceIn(0, BUCKETS - 1)
-            }
+            fun bucketOf(magnitude: Float): Int = ValueLawsNative.nativeNoiseBucketOf(magnitude)
 
             /** The geometric centre of bucket [b] — the value a percentile read reports. */
-            fun bucketValue(b: Int): Float =
-                Math.pow(10.0, LOG_MIN + (b + 0.5) * LOG_STEP).toFloat()
+            fun bucketValue(b: Int): Float = ValueLawsNative.nativeNoiseBucketValue(b)
         }
     }
 
     /** The periodic Hann window of the STFT (the TimeStretcher's window law). */
-    fun hann(i: Int): Float = 0.5f - 0.5f * cos(2.0 * PI * i / FFT_SIZE).toFloat()
+    fun hann(i: Int): Float = ValueLawsNative.nativeNoiseHann(i)
 
     /** [hann] over the whole frame, computed once (the profile route runs tens of thousands of frames). */
-    val window: FloatArray by lazy { FloatArray(FFT_SIZE) { hann(it) } }
+    val window: FloatArray by lazy { ValueLawsNative.nativeNoiseWindow() }
 
     /**
      * The magnitude spectrum ([BINS] values) of one mono frame of exactly
@@ -257,61 +207,6 @@ object NoiseReduction {
             if (input.isEmpty()) return FloatArray(0)
             if (!(strength > 0f) || profile.size != BINS) return input.copyOf()   // NaN strength = passthrough (build 198)
             return AudioAnalysisNative.nativeNoiseProcessMono(input, profile, strength)
-        }
-    }
-
-    /** Iterative radix-2 FFT (in place, unscaled; [re]/[im] a power of two). */
-    private fun fft(re: FloatArray, im: FloatArray) {
-        val n = re.size
-        var j = 0
-        for (i in 1 until n) {
-            var bit = n shr 1
-            while (j and bit != 0) {
-                j = j xor bit
-                bit = bit shr 1
-            }
-            j = j or bit
-            if (i < j) {
-                val tr = re[i]; re[i] = re[j]; re[j] = tr
-                val ti = im[i]; im[i] = im[j]; im[j] = ti
-            }
-        }
-        var len = 2
-        while (len <= n) {
-            val ang = -2.0 * PI / len
-            val wr = cos(ang).toFloat()
-            val wi = sin(ang).toFloat()
-            var i = 0
-            while (i < n) {
-                var cwr = 1f
-                var cwi = 0f
-                for (k in 0 until len / 2) {
-                    val ur = re[i + k]
-                    val ui = im[i + k]
-                    val vr = re[i + k + len / 2] * cwr - im[i + k + len / 2] * cwi
-                    val vi = re[i + k + len / 2] * cwi + im[i + k + len / 2] * cwr
-                    re[i + k] = ur + vr
-                    im[i + k] = ui + vi
-                    re[i + k + len / 2] = ur - vr
-                    im[i + k + len / 2] = ui - vi
-                    val nwr = cwr * wr - cwi * wi
-                    cwi = cwr * wi + cwi * wr
-                    cwr = nwr
-                }
-                i += len
-            }
-            len = len shl 1
-        }
-    }
-
-    /** Inverse FFT via the conjugate trick, scaled by 1/n. */
-    private fun ifft(re: FloatArray, im: FloatArray) {
-        val n = re.size
-        for (i in 0 until n) im[i] = -im[i]
-        fft(re, im)
-        for (i in 0 until n) {
-            re[i] = re[i] / n
-            im[i] = -im[i] / n
         }
     }
 }

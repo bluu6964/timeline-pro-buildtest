@@ -1,5 +1,7 @@
 package com.example.model
 
+import com.example.engine.ValueLawsNative
+
 /**
  * Which tools of the clip tool row have actually been USED on a layer (build 166 —
  * Sarowar's directive 2026-11-13 ~20:22, item 5): when the layer is selected, the tool
@@ -31,20 +33,36 @@ object UsedTools {
     const val DEFAULT_FILL: Long = 0xFFFFFFFFL
 
     fun usedToolsOf(clip: TimelineClip): Set<String> {
-        val out = HashSet<String>()
-        if (clip.effects.isNotEmpty()) out += "effects"
-        if (clip.animIn != null || clip.animOut != null) out += "animations"
-        if (clip.fillMode != FILL_SOLID || clip.textColor != DEFAULT_FILL) out += "color"
-        if (clip.keyframes.isNotEmpty() || clip.transformX != 0f || clip.transformY != 0f ||
-            clip.rotationDeg != 0f || clip.scalePercent != 100f ||
-            clip.rotation3dX != 0f || clip.rotation3dY != 0f || clip.transformZ != 0f
-        ) out += "transform"
-        if (clip.cropWidthPercent < 99.9f || clip.cropHeightPercent < 99.9f) out += "crop"
-        if (clip.blendMode != "Normal" || clip.opacity != 100f) out += "blend"
-        if (clip.masks.isNotEmpty()) out += "masks"
-        if (clip.volume != 1f || clip.isMuted) out += "volume"
-        if (clip.cutoutDir != null) out += "cutout"
-        if (clip.parent != null) out += "parent"
+        // The rule is a native bitmask since build 247 (value_laws.cpp); the
+        // clip's object reads (counts, null checks, the blend-mode string
+        // compare) stay here, the threshold rules run there.
+        val mask = ValueLawsNative.nativeUsedToolsMask(
+            clip.effects.size,
+            clip.animIn != null || clip.animOut != null,
+            clip.fillMode != FILL_SOLID,
+            clip.textColor,
+            clip.keyframes.isNotEmpty(),
+            clip.transformX, clip.transformY, clip.rotationDeg, clip.scalePercent,
+            clip.rotation3dX, clip.rotation3dY, clip.transformZ,
+            clip.cropWidthPercent, clip.cropHeightPercent,
+            clip.blendMode != "Normal",
+            clip.opacity,
+            clip.masks.size,
+            clip.volume, clip.isMuted,
+            clip.cutoutDir != null,
+            clip.parent != null
+        )
+        val out = LinkedHashSet<String>()
+        if (mask and 1 != 0) out += "effects"
+        if (mask and 2 != 0) out += "animations"
+        if (mask and 4 != 0) out += "color"
+        if (mask and 8 != 0) out += "transform"
+        if (mask and 16 != 0) out += "crop"
+        if (mask and 32 != 0) out += "blend"
+        if (mask and 64 != 0) out += "masks"
+        if (mask and 128 != 0) out += "volume"
+        if (mask and 256 != 0) out += "cutout"
+        if (mask and 512 != 0) out += "parent"
         return out
     }
 }

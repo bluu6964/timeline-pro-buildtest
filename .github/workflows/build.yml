@@ -85,6 +85,11 @@ jobs:
       # Migration stage 3 adds template_plans.cpp / template_plans_jni.cpp
       # (the template builders' laws + the UserTemplateOps plans), also
       # without FP contraction.
+      # Migration stage 4 adds value_laws.cpp / value_laws_jni.cpp (the
+      # remaining value laws: ducking/noise value math, markers, onion,
+      # crop, path/mask geometry, clipboard paste plan, blend table, the
+      # FX string laws and the small panel rules), also without FP
+      # contraction.
       - name: Build host JNI library for unit tests
         run: |
           set -e
@@ -122,6 +127,9 @@ jobs:
           g++ -std=c++17 -O2 -fPIC -ffp-contract=off \
             -I"$JAVA_HOME/include" -I"$JAVA_HOME/include/linux" -I$E \
             -c $E/template_plans.cpp -o /tmp/hostlib/template_plans.o
+          g++ -std=c++17 -O2 -fPIC -ffp-contract=off \
+            -I"$JAVA_HOME/include" -I"$JAVA_HOME/include/linux" -I$E \
+            -c $E/value_laws.cpp -o /tmp/hostlib/value_laws.o
           g++ -std=c++17 -O2 -fPIC -shared -Wall -Wextra \
             -I"$JAVA_HOME/include" -I"$JAVA_HOME/include/linux" -I$E \
             -o /tmp/hostlib/libam_engine.so \
@@ -140,6 +148,7 @@ jobs:
             /tmp/hostlib/clip_algebra.o $E/clip_algebra_jni.cpp \
             /tmp/hostlib/clip_graph.o $E/clip_graph_jni.cpp \
             /tmp/hostlib/template_plans.o $E/template_plans_jni.cpp \
+            /tmp/hostlib/value_laws.o $E/value_laws_jni.cpp \
             -lm
 
       - name: Unit tests

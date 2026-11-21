@@ -1,6 +1,6 @@
 package com.example.model
 
-import kotlin.math.hypot
+import com.example.engine.ValueLawsNative
 
 /**
  * The freehand drawing tool (build 166 — Sarowar's directive 2026-11-13 ~20:22, item 1;
@@ -23,6 +23,9 @@ import kotlin.math.hypot
  * importer uses for path shapes: the stored segments are centred on the outline's
  * bounding box and divided by its LARGER half extent (a uniform divisor, so a flat
  * stroke is not squashed), and [DrawnPath.shapeScale] carries the true size back.
+ *
+ * The geometry laws live natively in value_laws.cpp since build 247 (migration
+ * stage 4); this file keeps the storage types and the packing.
  */
 object VectorDraw {
 
@@ -67,32 +70,14 @@ object VectorDraw {
     ): DrawnPath? {
         if (canvasW <= 0f || canvasH <= 0f) return null
         val aspect = canvasW / canvasH
-        // Uniform space: (x * aspect, y).
-        val pts = ArrayList<Pair<Float, Float>>()
-        for ((x, y) in rawPoints) {
-            val u = x.coerceIn(0f, 1f) * aspect
-            val v = y.coerceIn(0f, 1f)
-            val last = pts.lastOrNull()
-            if (last == null || hypot(u - last.first, v - last.second) >= MIN_STEP) pts += u to v
+        val rawXy = FloatArray(rawPoints.size * 2)
+        for (i in rawPoints.indices) {
+            rawXy[i * 2] = rawPoints[i].first
+            rawXy[i * 2 + 1] = rawPoints[i].second
         }
-        if (pts.size < MIN_POINTS) return null
-
-        val raw = ArrayList<PathSeg>()
-        raw += PathSeg(PATH_OP_MOVE, listOf(pts[0].first, pts[0].second))
-        if (smooth && pts.size >= 3) {
-            fun mid(a: Pair<Float, Float>, b: Pair<Float, Float>) = (a.first + b.first) / 2f to (a.second + b.second) / 2f
-            raw += PathSeg(PATH_OP_LINE, mid(pts[0], pts[1]).toList())
-            for (i in 1 until pts.size - 1) {
-                val m = mid(pts[i], pts[i + 1])
-                raw += PathSeg(PATH_OP_QUAD, listOf(pts[i].first, pts[i].second, m.first, m.second))
-            }
-            raw += PathSeg(PATH_OP_LINE, pts.last().toList())
-        } else {
-            for (i in 1 until pts.size) raw += PathSeg(PATH_OP_LINE, pts[i].toList())
-        }
-        if (close) raw += PathSeg(PATH_OP_CLOSE)
-
-        return normalize(raw, canvasW, canvasH, density)
+        val stream = ValueLawsNative.nativeVectorBuild(rawXy, aspect, smooth, close)
+        if (stream.isEmpty()) return null
+        return normalize(unpackSegStream(stream), canvasW, canvasH, density)
     }
 
     /**
@@ -107,33 +92,52 @@ object VectorDraw {
         canvasW: Float, canvasH: Float, density: Float
     ): DrawnPath? {
         if (canvasW <= 0f || canvasH <= 0f) return null
-        val aspect = canvasW / canvasH
-        val flat = flattenPathSegments(raw)
-        if (flat.isEmpty()) return null
-        var minX = Float.POSITIVE_INFINITY
-        var minY = Float.POSITIVE_INFINITY
-        var maxX = Float.NEGATIVE_INFINITY
-        var maxY = Float.NEGATIVE_INFINITY
-        for ((x, y) in flat) {
-            minX = minOf(minX, x); minY = minOf(minY, y)
-            maxX = maxOf(maxX, x); maxY = maxOf(maxY, y)
-        }
-        val cx = (minX + maxX) / 2f
-        val cy = (minY + maxY) / 2f
-        val half = maxOf((maxX - minX) / 2f, (maxY - minY) / 2f)
-        if (half < 1e-6f) return null
-        val segments = raw.map { seg ->
-            PathSeg(seg.op, seg.pts.mapIndexed { i, v -> if (i % 2 == 0) (v - cx) / half else (v - cy) / half })
-        }
-        // Placement: the box centre in frame fractions -> stored-unit offset from the frame
-        // centre; the scale so the painters' 130 dp box (half = 65 * density) replays the
-        // larger half extent at exactly `half` frame heights.
-        val offsetX = (cx / aspect - 0.5f) * canvasW
-        val offsetY = (cy - 0.5f) * canvasH
-        val shapeScale = half * canvasH / (65f * density.coerceAtLeast(0.1f))
-        val flatFrame = flat.map { (u, v) -> (u / aspect) to v }
-        return DrawnPath(segments, offsetX, offsetY, shapeScale, flatFrame)
+        val (ops, counts, pts) = packSegsFlat(raw)
+        val blob = ValueLawsNative.decodeNormalizeBlob(
+            ValueLawsNative.nativeVectorNormalize(ops, counts, pts, canvasW, canvasH, density)
+        )
+        if (!blob.ok) return null
+        return DrawnPath(
+            unpackSegStream(blob.segStream),
+            blob.offsetX, blob.offsetY, blob.scale,
+            pairsOf(blob.flatFrame)
+        )
     }
 }
 
-private fun Pair<Float, Float>.toList(): List<Float> = listOf(first, second)
+/** Segments -> the flat (ops, counts, points) pack the value-laws bridge takes. */
+internal fun packSegsFlat(segments: List<PathSeg>): Triple<IntArray, IntArray, FloatArray> {
+    val ops = IntArray(segments.size)
+    val counts = IntArray(segments.size)
+    var total = 0
+    for (i in segments.indices) {
+        ops[i] = segments[i].op
+        counts[i] = segments[i].pts.size
+        total += segments[i].pts.size
+    }
+    val pts = FloatArray(total)
+    var o = 0
+    for (seg in segments) {
+        for (v in seg.pts) pts[o++] = v
+    }
+    return Triple(ops, counts, pts)
+}
+
+/** The packed segment stream ([op, count, points...] per segment) -> segments. */
+internal fun unpackSegStream(stream: FloatArray): List<PathSeg> {
+    val out = ArrayList<PathSeg>()
+    var i = 0
+    while (i + 1 < stream.size) {
+        val op = stream[i].toInt()
+        val count = stream[i + 1].toInt()
+        val pts = ArrayList<Float>(count)
+        for (j in 0 until count) pts += stream[i + 2 + j]
+        out += PathSeg(op, pts)
+        i += 2 + count
+    }
+    return out
+}
+
+/** A flat xy array -> point pairs. */
+internal fun pairsOf(xy: FloatArray): List<Pair<Float, Float>> =
+    List(xy.size / 2) { xy[it * 2] to xy[it * 2 + 1] }

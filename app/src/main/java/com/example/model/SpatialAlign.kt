@@ -1,7 +1,7 @@
 package com.example.model
 
 import com.example.engine.SceneMathNative
-import kotlin.math.abs
+import com.example.engine.ValueLawsNative
 
 /**
  * One layer's axis-aligned bounds on the canvas, in canvas pixels — the same visible
@@ -46,9 +46,6 @@ enum class SpatialAction {
  * Layers already in place get no entry, so an all-aligned selection is a no-op.
  */
 object SpatialAlign {
-
-    /** Deltas smaller than this (canvas px) count as "already there" and are dropped. */
-    private const val EPS = 0.01f
 
     /**
      * The deltas for any [SpatialAction]; empty when the action cannot apply.
@@ -127,49 +124,15 @@ object SpatialAlign {
         )
     }
 
-    /** Align needs at least 2 rects. */
+    /** Align needs at least 2 rects. (Native since build 247 — value_laws.cpp.) */
     fun alignDeltas(rects: List<AlignRect>, action: SpatialAction): Map<String, Pair<Float, Float>> {
         if (rects.size < 2) return emptyMap()
-        val minL = rects.minOf { it.left }
-        val maxR = rects.maxOf { it.right }
-        val minT = rects.minOf { it.top }
-        val maxB = rects.maxOf { it.bottom }
-        val midX = (minL + maxR) / 2f
-        val midY = (minT + maxB) / 2f
-        val out = LinkedHashMap<String, Pair<Float, Float>>()
-        for (r in rects) {
-            val dx = when (action) {
-                SpatialAction.ALIGN_LEFT -> minL - r.left
-                SpatialAction.ALIGN_RIGHT -> maxR - r.right
-                SpatialAction.ALIGN_CENTER_H -> midX - r.cx
-                else -> 0f
-            }
-            val dy = when (action) {
-                SpatialAction.ALIGN_TOP -> minT - r.top
-                SpatialAction.ALIGN_BOTTOM -> maxB - r.bottom
-                SpatialAction.ALIGN_CENTER_V -> midY - r.cy
-                else -> 0f
-            }
-            if (abs(dx) > EPS || abs(dy) > EPS) out[r.id] = dx to dy
-        }
-        return out
+        return unpackDeltas(rects, ValueLawsNative.nativeSpatialAlignDeltas(packRects(rects), action.ordinal))
     }
 
-    /** Distribute needs at least 3 rects and a non-zero span between the extreme centres. */
+    /** Distribute needs at least 3 rects and a non-zero span between the extreme centres. (Native since build 247.) */
     fun distributeDeltas(rects: List<AlignRect>, horizontal: Boolean): Map<String, Pair<Float, Float>> {
         if (rects.size < 3) return emptyMap()
-        val sorted = if (horizontal) rects.sortedBy { it.cx } else rects.sortedBy { it.cy }
-        val centre: (AlignRect) -> Float = if (horizontal) { r -> r.cx } else { r -> r.cy }
-        val first = centre(sorted.first())
-        val last = centre(sorted.last())
-        val span = last - first
-        if (span <= EPS) return emptyMap()
-        val step = span / (sorted.size - 1)
-        val out = LinkedHashMap<String, Pair<Float, Float>>()
-        sorted.forEachIndexed { i, r ->
-            val d = first + step * i - centre(r)
-            if (abs(d) > EPS) out[r.id] = if (horizontal) d to 0f else 0f to d
-        }
-        return out
+        return unpackDeltas(rects, ValueLawsNative.nativeSpatialDistributeDeltas(packRects(rects), horizontal))
     }
 }

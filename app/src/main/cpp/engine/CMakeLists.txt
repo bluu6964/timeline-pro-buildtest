@@ -29,6 +29,7 @@ add_library(am_engine SHARED
     clip_algebra.cpp clip_algebra_jni.cpp
     clip_graph.cpp clip_graph_jni.cpp
     template_plans.cpp template_plans_jni.cpp
+    value_laws.cpp value_laws_jni.cpp
     crash_handler.cpp)
 target_compile_features(am_engine PRIVATE cxx_std_17)
 target_compile_options(am_engine PRIVATE -O2 -Wall -Wextra)
@@ -58,6 +59,10 @@ set_source_files_properties(clip_graph.cpp PROPERTIES COMPILE_OPTIONS -ffp-contr
 # template builders' laws: strict-IEEE Kotlin float/double math, the
 # measured bezier in Double, saturating time arithmetic), same treatment.
 set_source_files_properties(template_plans.cpp PROPERTIES COMPILE_OPTIONS -ffp-contract=off)
+# Migration stage 4: value_laws.cpp is the same kind of port (the remaining
+# value laws: strict-IEEE Kotlin float/double math, saturating casts,
+# total-order float sorts), same treatment.
+set_source_files_properties(value_laws.cpp PROPERTIES COMPILE_OPTIONS -ffp-contract=off)
 # Native text layers (FreeType + HarfBuzz). The sources are downloaded by the GitHub workflow into
 # cpp/freetype and cpp/harfbuzz. Without them text_engine.cpp compiles to a stub,
 # available() is false and the exporter keeps drawing text with the Android Canvas.

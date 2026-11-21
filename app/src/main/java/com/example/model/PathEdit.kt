@@ -1,7 +1,6 @@
 package com.example.model
 
-import kotlin.math.abs
-import kotlin.math.hypot
+import com.example.engine.ValueLawsNative
 
 /**
  * Node editing of PATH outlines (build 177 — Sarowar's correction of 2026-11-14: the
@@ -32,6 +31,10 @@ import kotlin.math.hypot
  *
  * Everything here is pure and coordinate-space agnostic: the pen builder works in
  * frame fractions, the node editor in stored segment units. Unit tested (PenPathTest).
+ *
+ * The conversion and edit laws live natively in value_laws.cpp since build 247
+ * (migration stage 4); this file keeps the storage types and the anchor packing
+ * (per anchor: x, y, in, out, hasIn, hasOut, smooth — nulls ride as flags).
  */
 data class PathAnchor(
     val x: Float, val y: Float,
@@ -57,6 +60,86 @@ data class EditablePath(
     val subpaths: List<PathSubpath> = emptyList()
 )
 
+// ------------------------------------------------------------------ anchor packing
+
+/** Path -> the bridge blob: [nSubs, (nAnchors, closed, 9 floats per anchor)*]. */
+internal fun packPath(path: EditablePath): FloatArray {
+    var size = 1
+    for (sp in path.subpaths) size += 2 + sp.anchors.size * 9
+    val blob = FloatArray(size)
+    var o = 0
+    blob[o++] = path.subpaths.size.toFloat()
+    for (sp in path.subpaths) {
+        blob[o++] = sp.anchors.size.toFloat()
+        blob[o++] = if (sp.closed) 1f else 0f
+        for (a in sp.anchors) o = packAnchor(blob, o, a)
+    }
+    return blob
+}
+
+/** Pen anchors -> the bridge blob: [nAnchors, 9 floats per anchor]. */
+internal fun packPen(anchors: List<PathAnchor>): FloatArray {
+    val blob = FloatArray(1 + anchors.size * 9)
+    blob[0] = anchors.size.toFloat()
+    var o = 1
+    for (a in anchors) o = packAnchor(blob, o, a)
+    return blob
+}
+
+private fun packAnchor(blob: FloatArray, o: Int, a: PathAnchor): Int {
+    blob[o] = a.x
+    blob[o + 1] = a.y
+    blob[o + 2] = a.inX ?: 0f
+    blob[o + 3] = a.inY ?: 0f
+    blob[o + 4] = a.outX ?: 0f
+    blob[o + 5] = a.outY ?: 0f
+    blob[o + 6] = if (a.hasIn) 1f else 0f
+    blob[o + 7] = if (a.hasOut) 1f else 0f
+    blob[o + 8] = if (a.smooth) 1f else 0f
+    return o + 9
+}
+
+private fun unpackAnchor(blob: FloatArray, o: Int): PathAnchor {
+    val hasIn = blob[o + 6] != 0f
+    val hasOut = blob[o + 7] != 0f
+    return PathAnchor(
+        blob[o], blob[o + 1],
+        inX = if (hasIn) blob[o + 2] else null, inY = if (hasIn) blob[o + 3] else null,
+        outX = if (hasOut) blob[o + 4] else null, outY = if (hasOut) blob[o + 5] else null,
+        smooth = blob[o + 8] != 0f
+    )
+}
+
+/** The bridge blob (from offset [start]) -> path. */
+internal fun unpackPath(blob: FloatArray, start: Int = 0): EditablePath {
+    var o = start
+    val nSubs = blob[o++].toInt()
+    val subs = ArrayList<PathSubpath>(nSubs)
+    for (s in 0 until nSubs) {
+        val nA = blob[o++].toInt()
+        val closed = blob[o++] != 0f
+        val anchors = ArrayList<PathAnchor>(nA)
+        for (i in 0 until nA) {
+            anchors += unpackAnchor(blob, o)
+            o += 9
+        }
+        subs += PathSubpath(anchors, closed)
+    }
+    return EditablePath(subs)
+}
+
+/** The pen blob -> anchors. */
+internal fun unpackPen(blob: FloatArray): List<PathAnchor> {
+    val n = blob[0].toInt()
+    val out = ArrayList<PathAnchor>(n)
+    var o = 1
+    for (i in 0 until n) {
+        out += unpackAnchor(blob, o)
+        o += 9
+    }
+    return out
+}
+
 object PathEdit {
 
     // ------------------------------------------------------------------ segments <-> anchors
@@ -66,144 +149,19 @@ object PathEdit {
      * MOVE) are tolerated by anchoring at the op's end point rather than dropping them.
      */
     fun fromSegments(segments: List<PathSeg>): EditablePath {
-        val subs = ArrayList<PathSubpath>()
-        var anchors = ArrayList<PathAnchor>()
-        var closed = false
-        fun flush() {
-            if (anchors.isNotEmpty()) {
-                // A curved closing segment lands exactly on the first anchor: that end
-                // point is not a separate anchor — its in handle belongs to the first.
-                if (closed && anchors.size >= 3) {
-                    val f = anchors.first()
-                    val l = anchors.last()
-                    if (f.x == l.x && f.y == l.y) {
-                        if (l.hasIn && !f.hasIn) anchors[0] = f.copy(inX = l.inX, inY = l.inY)
-                        anchors.removeAt(anchors.lastIndex)
-                    }
-                }
-                subs += PathSubpath(anchors.toList(), closed)
-            }
-            anchors = ArrayList()
-            closed = false
-        }
-        fun setLast(a: PathAnchor) {
-            if (anchors.isNotEmpty()) anchors[anchors.lastIndex] = a
-        }
-        fun lastOrStart(): PathAnchor {
-            // A drawing op before any MOVE: the implicit current point is (0, 0),
-            // the same assumption flattenPathSegments makes.
-            if (anchors.isEmpty()) anchors += PathAnchor(0f, 0f)
-            return anchors.last()
-        }
-        for (seg in segments) {
-            val q = seg.pts
-            when (seg.op) {
-                PATH_OP_MOVE -> if (q.size >= 2) {
-                    flush()
-                    anchors += PathAnchor(q[0], q[1])
-                }
-                PATH_OP_LINE -> if (q.size >= 2) {
-                    lastOrStart()
-                    anchors += PathAnchor(q[0], q[1])
-                }
-                PATH_OP_QUAD -> if (q.size >= 4) {
-                    val prev = lastOrStart()
-                    val cx = q[0]; val cy = q[1]; val ex = q[2]; val ey = q[3]
-                    // Exact degree elevation of the quadratic (prev, c, end) to a cubic.
-                    val c1x = prev.x + 2f / 3f * (cx - prev.x)
-                    val c1y = prev.y + 2f / 3f * (cy - prev.y)
-                    val c2x = ex + 2f / 3f * (cx - ex)
-                    val c2y = ey + 2f / 3f * (cy - ey)
-                    setLast(prev.copy(outX = c1x, outY = c1y))
-                    anchors += PathAnchor(ex, ey, inX = c2x, inY = c2y)
-                }
-                PATH_OP_CUBIC -> if (q.size >= 6) {
-                    val prev = lastOrStart()
-                    setLast(prev.copy(outX = q[0], outY = q[1]))
-                    anchors += PathAnchor(q[4], q[5], inX = q[2], inY = q[3])
-                }
-                PATH_OP_CLOSE -> {
-                    closed = true
-                    flush()
-                }
-            }
-        }
-        flush()
-        return EditablePath(subs.map { sp ->
-            sp.copy(anchors = sp.anchors.map { a ->
-                if (a.hasIn && a.hasOut) a.copy(smooth = isSmooth(a)) else a
-            })
-        })
+        val (ops, counts, pts) = packSegsFlat(segments)
+        return unpackPath(ValueLawsNative.nativePathFromSegments(ops, counts, pts))
     }
-
-    /** True when the anchor's two handles sit on one straight line through it, pointing opposite ways. */
-    private fun isSmooth(a: PathAnchor): Boolean {
-        val ax = a.inX!! - a.x; val ay = a.inY!! - a.y
-        val bx = a.outX!! - a.x; val by = a.outY!! - a.y
-        val la = hypot(ax, ay); val lb = hypot(bx, by)
-        if (la < 1e-9f || lb < 1e-9f) return false
-        val cross = abs(ax * by - ay * bx)
-        val dot = ax * bx + ay * by
-        return dot < 0f && cross <= 1e-3f * la * lb + 1e-9f
-    }
-
-    /** One stored segment between anchors [a] and [b]: a line only when neither side has a handle. */
-    private fun segBetween(a: PathAnchor, b: PathAnchor): PathSeg =
-        if (!a.hasOut && !b.hasIn) {
-            PathSeg(PATH_OP_LINE, listOf(b.x, b.y))
-        } else {
-            PathSeg(
-                PATH_OP_CUBIC,
-                listOf(a.outX ?: a.x, a.outY ?: a.y, b.inX ?: b.x, b.inY ?: b.y, b.x, b.y)
-            )
-        }
 
     /** Writes anchors back to stored segments (M / L / C / Z only — never Q). */
-    fun toSegments(path: EditablePath): List<PathSeg> {
-        val out = ArrayList<PathSeg>()
-        for (sp in path.subpaths) {
-            val n = sp.anchors.size
-            if (n == 0) continue
-            val first = sp.anchors[0]
-            out += PathSeg(PATH_OP_MOVE, listOf(first.x, first.y))
-            if (n == 1) continue
-            for (i in 0 until n - 1) out += segBetween(sp.anchors[i], sp.anchors[i + 1])
-            if (sp.closed) {
-                // A handle-less closing segment is the bare CLOSE (the painters draw
-                // the straight line back); a handled one is written out as a curve
-                // landing on the first anchor, then CLOSE.
-                val wrap = segBetween(sp.anchors[n - 1], first)
-                if (wrap.op == PATH_OP_CUBIC) out += wrap
-                out += PathSeg(PATH_OP_CLOSE)
-            }
-        }
-        return out
-    }
+    fun toSegments(path: EditablePath): List<PathSeg> =
+        unpackSegStream(ValueLawsNative.nativePathToSegments(packPath(path)))
 
     // ------------------------------------------------------------------ edits
 
-    private fun mapSubpath(path: EditablePath, sub: Int, f: (PathSubpath) -> PathSubpath): EditablePath {
-        if (sub !in path.subpaths.indices) return path
-        return EditablePath(path.subpaths.mapIndexed { i, sp -> if (i == sub) f(sp) else sp })
-    }
-
-    private fun mapAnchor(sp: PathSubpath, idx: Int, f: (PathAnchor) -> PathAnchor): PathSubpath {
-        if (idx !in sp.anchors.indices) return sp
-        return sp.copy(anchors = sp.anchors.mapIndexed { i, a -> if (i == idx) f(a) else a })
-    }
-
     /** Moves an anchor; its handles travel with it (the curve keeps its shape). */
     fun moveAnchor(path: EditablePath, sub: Int, idx: Int, x: Float, y: Float): EditablePath =
-        mapSubpath(path, sub) { sp ->
-            mapAnchor(sp, idx) { a ->
-                val dx = x - a.x; val dy = y - a.y
-                a.copy(
-                    x = x, y = y,
-                    inX = a.inX?.plus(dx), inY = a.inY?.plus(dy),
-                    outX = a.outX?.plus(dx), outY = a.outY?.plus(dy)
-                )
-            }
-        }
+        unpackPath(ValueLawsNative.nativePathMoveAnchor(packPath(path), sub, idx, x, y))
 
     /**
      * Moves one handle of an anchor to ([x], [y]). On a smooth point the other handle
@@ -211,27 +169,7 @@ object PathEdit {
      * corner point only the dragged handle moves.
      */
     fun moveHandle(path: EditablePath, sub: Int, idx: Int, out: Boolean, x: Float, y: Float): EditablePath =
-        mapSubpath(path, sub) { sp ->
-            mapAnchor(sp, idx) { a ->
-                var r = if (out) a.copy(outX = x, outY = y) else a.copy(inX = x, inY = y)
-                if (a.smooth) {
-                    // Vector from the dragged handle through the anchor, extended past it:
-                    // the other handle must sit on that ray, at its own distance.
-                    val dx = a.x - x; val dy = a.y - y
-                    val len = hypot(dx, dy)
-                    if (len > 1e-9f) {
-                        if (out && r.hasIn) {
-                            val ol = hypot(r.inX!! - a.x, r.inY!! - a.y)
-                            r = r.copy(inX = a.x + dx / len * ol, inY = a.y + dy / len * ol)
-                        } else if (!out && r.hasOut) {
-                            val ol = hypot(r.outX!! - a.x, r.outY!! - a.y)
-                            r = r.copy(outX = a.x + dx / len * ol, outY = a.y + dy / len * ol)
-                        }
-                    }
-                }
-                r
-            }
-        }
+        unpackPath(ValueLawsNative.nativePathMoveHandle(packPath(path), sub, idx, out, x, y))
 
     /**
      * Splits the segment that STARTS at anchor [seg] of subpath [sub] at fraction [t],
@@ -242,40 +180,8 @@ object PathEdit {
      * the new anchor smooth handles lying on the curve.
      */
     fun splitSegment(path: EditablePath, sub: Int, seg: Int, t: Float): Pair<EditablePath, Int> {
-        if (sub !in path.subpaths.indices) return path to -1
-        val sp = path.subpaths[sub]
-        val n = sp.anchors.size
-        val segCount = if (sp.closed) n else n - 1
-        if (n < 2 || seg !in 0 until segCount) return path to -1
-        val a = sp.anchors[seg]
-        val b = sp.anchors[(seg + 1) % n]
-        val tt = t.coerceIn(0.02f, 0.98f)
-        fun lerp(p: Float, q: Float) = p + (q - p) * tt
-        val p0x = a.x; val p0y = a.y
-        val p1x = a.outX ?: a.x; val p1y = a.outY ?: a.y
-        val p2x = b.inX ?: b.x; val p2y = b.inY ?: b.y
-        val p3x = b.x; val p3y = b.y
-        val q0x = lerp(p0x, p1x); val q0y = lerp(p0y, p1y)
-        val q1x = lerp(p1x, p2x); val q1y = lerp(p1y, p2y)
-        val q2x = lerp(p2x, p3x); val q2y = lerp(p2y, p3y)
-        val r0x = lerp(q0x, q1x); val r0y = lerp(q0y, q1y)
-        val r1x = lerp(q1x, q2x); val r1y = lerp(q1y, q2y)
-        val sx = lerp(r0x, r1x); val sy = lerp(r0y, r1y)
-        val wasLine = !a.hasOut && !b.hasIn
-        val list = sp.anchors.toMutableList()
-        if (!wasLine) {
-            list[seg] = a.copy(outX = q0x, outY = q0y)
-            val bi = (seg + 1) % n
-            list[bi] = list[bi].copy(inX = q2x, inY = q2y)
-        }
-        val inserted = PathAnchor(
-            sx, sy,
-            inX = if (wasLine) null else r0x, inY = if (wasLine) null else r0y,
-            outX = if (wasLine) null else r1x, outY = if (wasLine) null else r1y,
-            smooth = !wasLine
-        )
-        list.add(seg + 1, inserted)
-        return mapSubpath(path, sub) { it.copy(anchors = list.toList()) } to (seg + 1)
+        val blob = ValueLawsNative.nativePathSplitSegment(packPath(path), sub, seg, t)
+        return unpackPath(blob, 1) to blob[0].toInt()
     }
 
     /**
@@ -283,14 +189,8 @@ object PathEdit {
      * handles now face each other). Refused when the subpath would drop below a
      * drawable minimum: 2 anchors for an open path, 3 for a closed one.
      */
-    fun deleteAnchor(path: EditablePath, sub: Int, idx: Int): EditablePath {
-        if (sub !in path.subpaths.indices) return path
-        val sp = path.subpaths[sub]
-        if (idx !in sp.anchors.indices) return path
-        if (sp.closed && sp.anchors.size <= 3) return path
-        if (!sp.closed && sp.anchors.size <= 2) return path
-        return mapSubpath(path, sub) { it.copy(anchors = it.anchors.filterIndexed { i, _ -> i != idx }) }
-    }
+    fun deleteAnchor(path: EditablePath, sub: Int, idx: Int): EditablePath =
+        unpackPath(ValueLawsNative.nativePathDeleteAnchor(packPath(path), sub, idx))
 }
 
 /**
@@ -309,30 +209,22 @@ object PenPath {
 
     /** A plain tap: a corner anchor at ([x], [y]) (frame fractions). */
     fun tap(anchors: List<PathAnchor>, x: Float, y: Float): List<PathAnchor> =
-        anchors + PathAnchor(x, y)
+        unpackPen(ValueLawsNative.nativePenTap(packPen(anchors), x, y))
 
     /**
      * The finger drags after a tap: the last anchor grows handles — the out handle at
      * the finger, the in handle mirrored symmetrically through the anchor.
      */
-    fun pull(anchors: List<PathAnchor>, x: Float, y: Float): List<PathAnchor> {
-        val a = anchors.lastOrNull() ?: return anchors
-        return anchors.dropLast(1) + a.copy(
-            outX = x, outY = y,
-            inX = 2f * a.x - x, inY = 2f * a.y - y,
-            smooth = true
-        )
-    }
+    fun pull(anchors: List<PathAnchor>, x: Float, y: Float): List<PathAnchor> =
+        unpackPen(ValueLawsNative.nativePenPull(packPen(anchors), x, y))
 
     /** A tap that never turned into a drag: the last anchor keeps no handles. */
-    fun releaseTap(anchors: List<PathAnchor>): List<PathAnchor> {
-        val a = anchors.lastOrNull() ?: return anchors
-        if (!a.hasIn && !a.hasOut) return anchors
-        return anchors.dropLast(1) + a.copy(inX = null, inY = null, outX = null, outY = null, smooth = false)
-    }
+    fun releaseTap(anchors: List<PathAnchor>): List<PathAnchor> =
+        unpackPen(ValueLawsNative.nativePenReleaseTap(packPen(anchors)))
 
     /** Removes the last placed anchor (the pen panel's Undo point). */
-    fun undoPoint(anchors: List<PathAnchor>): List<PathAnchor> = anchors.dropLast(1)
+    fun undoPoint(anchors: List<PathAnchor>): List<PathAnchor> =
+        unpackPen(ValueLawsNative.nativePenUndoPoint(packPen(anchors)))
 
     /**
      * Builds the layer geometry for the placed [anchors] (frame fractions) on a canvas
@@ -343,18 +235,14 @@ object PenPath {
         canvasW: Float, canvasH: Float, density: Float
     ): VectorDraw.DrawnPath? {
         if (anchors.size < 2 || canvasW <= 0f || canvasH <= 0f) return null
-        val aspect = canvasW / canvasH
-        // Uniform space (u = x * aspect, v = y) — the space the segments are normalised in.
-        fun conv(v: Float?, xAxis: Boolean): Float? = v?.let { if (xAxis) it * aspect else it }
-        val uni = anchors.map { a ->
-            PathAnchor(
-                a.x * aspect, a.y,
-                inX = conv(a.inX, true), inY = a.inY,
-                outX = conv(a.outX, true), outY = a.outY,
-                smooth = a.smooth
-            )
-        }
-        val raw = PathEdit.toSegments(EditablePath(listOf(PathSubpath(uni, closed))))
-        return VectorDraw.normalize(raw, canvasW, canvasH, density)
+        val blob = ValueLawsNative.decodeNormalizeBlob(
+            ValueLawsNative.nativePenBuild(packPen(anchors), closed, canvasW, canvasH, density)
+        )
+        if (!blob.ok) return null
+        return VectorDraw.DrawnPath(
+            unpackSegStream(blob.segStream),
+            blob.offsetX, blob.offsetY, blob.scale,
+            pairsOf(blob.flatFrame)
+        )
     }
 }

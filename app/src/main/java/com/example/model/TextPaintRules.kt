@@ -1,5 +1,7 @@
 package com.example.model
 
+import com.example.engine.ValueLawsNative
+
 /**
  * The ONE text-paint rule every text painter follows (build 212): the Compose preview
  * ([com.example.ui.components.TextLayerContent]), the Android Canvas painter
@@ -23,18 +25,16 @@ object TextPaintRules {
      * painted at all (opacity 0, or an opacity so small the resulting alpha is 0).
      */
     fun bgArgb(bgColor: Long, bgOpacity: Float): Int? {
-        if (bgOpacity <= 0f) return null
-        val stored = ((bgColor ushr 24) and 0xFF).toInt()
-        val baseAlpha = if (stored == 0) 0xFF else stored
-        val a = Math.round(baseAlpha * bgOpacity.coerceIn(0f, 100f) / 100f).coerceIn(0, 255)
-        if (a <= 0) return null
-        return (a shl 24) or (bgColor.toInt() and 0x00FFFFFF)
+        // Native since build 247 (value_laws.cpp); an empty array is the null case.
+        val out = ValueLawsNative.nativeTextBgArgb(bgColor, bgOpacity)
+        return if (out.isEmpty()) null else out[0]
     }
 
     /** Letter spacing as an em fraction (Android Paint.letterSpacing / Compose Em semantics). */
-    fun letterSpacingEm(letterSpacingPercent: Float): Float = letterSpacingPercent / 100f
+    fun letterSpacingEm(letterSpacingPercent: Float): Float =
+        ValueLawsNative.nativeTextLetterSpacingEm(letterSpacingPercent)
 
     /** Letter spacing in px for a font size in px (native engine semantics). */
     fun letterSpacingPx(fontPx: Float, letterSpacingPercent: Float): Float =
-        fontPx * letterSpacingPercent / 100f
+        ValueLawsNative.nativeTextLetterSpacingPx(fontPx, letterSpacingPercent)
 }

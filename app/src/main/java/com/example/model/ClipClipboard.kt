@@ -1,5 +1,7 @@
 package com.example.model
 
+import com.example.engine.ClipAlgebraNative
+import com.example.engine.ValueLawsNative
 import java.util.UUID
 
 /**
@@ -18,8 +20,15 @@ fun Map<AnimProp, List<Keyframe>>.deepCopyKeyframes(): Map<AnimProp, List<Keyfra
     mapValues { (_, list) -> list.map { it.copy() } }
 
 /** The earliest key time over every prop of a copied keyframe set, or null when the set holds no keys. */
-fun Map<AnimProp, List<Keyframe>>.earliestKeyMs(): Long? =
-    values.asSequence().flatten().minOfOrNull { it.timeMs }
+fun Map<AnimProp, List<Keyframe>>.earliestKeyMs(): Long? {
+    var count = 0
+    for (list in values) count += list.size
+    if (count == 0) return null
+    val times = LongArray(count)
+    var i = 0
+    for (list in values) for (k in list) times[i++] = k.timeMs
+    return ValueLawsNative.nativeClipboardEarliest(times)
+}
 
 /**
  * This layer with [copied] keyframes pasted at [anchorRelMs] (ms from THIS layer's start).
@@ -34,16 +43,23 @@ fun TimelineClip.withPastedKeyframes(
     anchorRelMs: Long
 ): TimelineClip {
     val earliest = copied.earliestKeyMs() ?: return this
-    val anchor = anchorRelMs.coerceIn(0L, durationMs)
-    val shift = anchor - earliest
+    // The anchor clamp, the shift and each prop's span-replace merge are
+    // native since build 247 (value_laws.cpp); keys cross in the stage-1
+    // algebra pack (times, values stride 6, tags), so values / easings /
+    // tags ride through untouched.
+    val shift = ValueLawsNative.nativeClipboardPasteShift(earliest, anchorRelMs, durationMs)
     var out = this
     for ((prop, list) in copied) {
         if (list.isEmpty()) continue
-        val pasted = list.map { it.copy(timeMs = it.timeMs + shift) }.sortedBy { it.timeMs }
-        val spanStart = pasted.first().timeMs
-        val spanEnd = pasted.last().timeMs
-        val kept = keyframes[prop].orEmpty().filter { it.timeMs < spanStart || it.timeMs > spanEnd }
-        out = out.copy(keyframes = out.keyframes + (prop to (kept + pasted).sortedBy { it.timeMs }))
+        val (tTimes, tVals, tTags) = ClipAlgebraNative.packKeys(keyframes[prop].orEmpty())
+        val (cTimes, cVals, cTags) = ClipAlgebraNative.packKeys(list)
+        val merged = ValueLawsNative.decodeKeysBlob(
+            ValueLawsNative.nativeClipboardMerge(tTimes, tVals, tTags, cTimes, cVals, cTags, shift)
+        )
+        out = out.copy(
+            keyframes = out.keyframes +
+                (prop to ClipAlgebraNative.unpackKeys(merged.times, merged.vals, merged.tags, merged.times.size))
+        )
     }
     return out
 }

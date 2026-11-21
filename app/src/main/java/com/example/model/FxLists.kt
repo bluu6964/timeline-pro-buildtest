@@ -1,5 +1,7 @@
 package com.example.model
 
+import com.example.engine.ValueLawsNative
+
 /**
  * The Effects browser's per-user lists (build 200 — the layout redesign of Sarowar's
  * reference video): **Favorites** (bookmarked effect ids) and **Recent**
@@ -13,15 +15,15 @@ object FxLists {
     /** Recent keeps at most this many ids; older applications fall off the end. */
     const val RECENT_CAP = 24
 
+    // The list laws run natively over the comma-joined stored form since
+    // build 247 (value_laws_jni.cpp — the string laws work on the string's
+    // UTF-16 code units, exactly Kotlin's Char sequence, so trim / equality
+    // semantics are the JVM's own).
+
     /** Stored string -> id list: blanks dropped, duplicates removed (first wins). */
     fun parse(raw: String?): List<String> {
         if (raw.isNullOrBlank()) return emptyList()
-        val out = mutableListOf<String>()
-        for (part in raw.split(',')) {
-            val id = part.trim()
-            if (id.isNotEmpty() && id !in out) out += id
-        }
-        return out
+        return splitJoined(ValueLawsNative.nativeFxParse(raw))
     }
 
     /** Id list -> stored string (the exact inverse of [parse] for clean lists). */
@@ -29,11 +31,14 @@ object FxLists {
 
     /** Bookmark toggle: an absent id is appended, a present one removed. */
     fun toggleFavorite(favorites: List<String>, id: String): List<String> =
-        if (id in favorites) favorites - id else favorites + id
+        splitJoined(ValueLawsNative.nativeFxToggle(serialize(favorites), id))
 
     /** Records an application: [id] moves to the front, deduped, capped at [cap]. */
     fun pushRecent(recent: List<String>, id: String, cap: Int = RECENT_CAP): List<String> =
-        (listOf(id) + recent.filter { it != id }).take(cap.coerceAtLeast(1))
+        splitJoined(ValueLawsNative.nativeFxPushRecent(serialize(recent), id, cap))
+
+    private fun splitJoined(joined: String): List<String> =
+        if (joined.isEmpty()) emptyList() else joined.split(',')
 
     /** The Favorites chip's content: the library defs whose ids are bookmarked, in LIBRARY order. */
     fun favoriteDefs(all: List<FxDef>, favorites: List<String>): List<FxDef> {
@@ -57,25 +62,12 @@ object FxLists {
  */
 object FxTileArt {
 
-    /** Stable 32-bit FNV-1a hash of the effect id. */
-    fun seed(id: String): Int {
-        var h = 0x811C9DC5.toInt() // the FNV offset basis, bit pattern kept through the truncation
-        for (c in id) {
-            h = h xor c.code
-            h *= 0x01000193 // the FNV prime; Int overflow is the algorithm
-        }
-        return h
-    }
+    /** Stable 32-bit FNV-1a hash of the effect id. (Native since build 247.) */
+    fun seed(id: String): Int = ValueLawsNative.nativeFxSeed(id)
 
     /** A deterministic pseudo-random value in [0, 1) for ([seed], [salt]) — a xorshift of the two. */
-    fun unit(seed: Int, salt: Int): Float {
-        var x = seed xor (salt * -1640531527) // salt spread by the golden-ratio constant
-        x = x xor (x shl 13)
-        x = x xor (x ushr 17)
-        x = x xor (x shl 5)
-        return (x and 0xFFFFFF) / 16777216f // top 24 bits -> [0, 1)
-    }
+    fun unit(seed: Int, salt: Int): Float = ValueLawsNative.nativeFxUnit(seed, salt)
 
     /** The tile's hue rotation within its category family, in degrees: [-24, +24). */
-    fun hueShiftDeg(id: String): Float = unit(seed(id), 77) * 48f - 24f
+    fun hueShiftDeg(id: String): Float = ValueLawsNative.nativeFxHueShift(id)
 }

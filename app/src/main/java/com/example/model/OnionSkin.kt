@@ -1,6 +1,6 @@
 package com.example.model
 
-import kotlin.math.roundToLong
+import com.example.engine.ValueLawsNative
 
 /**
  * ONION SKIN (build 190): while the editor is paused or scrubbing, the canvas also
@@ -54,16 +54,15 @@ object OnionSkin {
     const val NEXT_HUE_DEG = 120f
 
     /** The settings with every value inside its range (the settings UI writes through this). */
-    fun normalize(s: OnionSkinSettings): OnionSkinSettings = s.copy(
-        countPerSide = s.countPerSide.coerceIn(1, MAX_PER_SIDE),
-        // A NaN opacity survives coerceIn (build 198): fall back to the default
-        // rather than carrying a NaN alpha into the renderer's colorize pass.
-        opacity = if (s.opacity.isNaN()) DEFAULT_OPACITY else s.opacity.coerceIn(MIN_OPACITY, MAX_OPACITY)
-    )
+    fun normalize(s: OnionSkinSettings): OnionSkinSettings {
+        // Native since build 247 (value_laws.cpp): the count clamp and the
+        // NaN-opacity fallback (build 198) run there.
+        val out = ValueLawsNative.nativeOnionNormalize(s.countPerSide, s.opacity)
+        return s.copy(countPerSide = out[0].toInt(), opacity = out[1])
+    }
 
     /** One frame step in ms at [fps]: [step] frames from the playhead. */
-    fun frameStepMs(fps: Int, step: Int): Long =
-        if (fps <= 0 || step <= 0) 0L else (step * 1000.0 / fps).roundToLong()
+    fun frameStepMs(fps: Int, step: Int): Long = ValueLawsNative.nativeOnionFrameStepMs(fps, step)
 
     /**
      * The ghosts to draw for a playhead at [playheadMs], in DRAW ORDER: farthest
@@ -83,21 +82,13 @@ object OnionSkin {
         countPerSide: Int,
         baseOpacity: Float
     ): List<OnionGhost> {
-        val count = countPerSide.coerceIn(0, MAX_PER_SIDE)
-        if (count == 0 || fps <= 0 || durationMs <= 0L) return emptyList()
-        val base = baseOpacity.coerceIn(0f, 1f)
-        if (!(base > 0f)) return emptyList()   // NaN base draws nothing (build 198)
-        val head = playheadMs.coerceIn(0L, durationMs)
-        val out = ArrayList<OnionGhost>(count * 2)
-        for (step in 1..count) {
-            val off = frameStepMs(fps, step)
-            if (off <= 0L) continue
-            val alpha = base * (count - step + 1) / count
-            val prev = head - off
-            if (prev >= 0L) out += OnionGhost(prev, -1, step, alpha, PREV_HUE_DEG)
-            val next = head + off
-            if (next <= durationMs) out += OnionGhost(next, +1, step, alpha, NEXT_HUE_DEG)
+        // Native since build 247 (value_laws.cpp) — the whole plan law,
+        // including the draw-order sort, runs there.
+        val blob = ValueLawsNative.decodeOnionPlan(
+            ValueLawsNative.nativeOnionPlan(playheadMs, fps, durationMs, countPerSide, baseOpacity)
+        )
+        return List(blob.times.size) { i ->
+            OnionGhost(blob.times[i], blob.sides[i], blob.steps[i], blob.alphas[i], blob.hues[i])
         }
-        return out.sortedWith(compareByDescending<OnionGhost> { it.step }.thenBy { it.side })
     }
 }

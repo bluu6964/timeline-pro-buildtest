@@ -1,5 +1,7 @@
 package com.example.model
 
+import com.example.engine.ValueLawsNative
+
 /**
  * Build 238 — the selected-tools pager's page-3 grid layout rule.
  *
@@ -24,14 +26,22 @@ object PagerGrid {
      */
     fun <T> rows(items: List<T>, columns: Int = 3): List<List<T?>> {
         require(columns > 0) { "columns must be positive, was $columns" }
-        return items.chunked(columns).map { row ->
-            if (row.size == columns) {
+        // The row plan (per-row item counts) is native since build 247; the
+        // chunking and null padding stay here with the items themselves.
+        val counts = ValueLawsNative.nativePagerRowCounts(items.size, columns)
+        val out = ArrayList<List<T?>>(counts.size)
+        var offset = 0
+        for (count in counts) {
+            val row = items.subList(offset, offset + count)
+            out += if (count == columns) {
                 val full: List<T?> = row
                 full
             } else {
-                val padded: List<T?> = row + List(columns - row.size) { null }
+                val padded: List<T?> = row + List(columns - count) { null }
                 padded
             }
+            offset += count
         }
+        return out
     }
 }

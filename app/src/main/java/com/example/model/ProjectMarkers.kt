@@ -1,5 +1,6 @@
 package com.example.model
 
+import com.example.engine.ValueLawsNative
 import kotlinx.serialization.Serializable
 import java.util.UUID
 
@@ -27,8 +28,12 @@ object ProjectMarkers {
     const val FALLBACK_NAME = "Marker"
 
     /** Sorted by time, negative times dropped. The shape every stored list is kept in. */
-    fun normalize(markers: List<TimelineMarker>): List<TimelineMarker> =
-        markers.filter { it.timeMs >= 0L }.sortedBy { it.timeMs }
+    fun normalize(markers: List<TimelineMarker>): List<TimelineMarker> {
+        // The filter + stable sort run natively (build 247); the permutation
+        // is applied to the markers here.
+        val perm = ValueLawsNative.nativeMarkerNormalize(LongArray(markers.size) { markers[it].timeMs })
+        return perm.map { markers[it] }
+    }
 
     /** Adds a marker at [timeMs] (clamped to >= 0) and returns the new sorted list. */
     fun add(
@@ -37,15 +42,21 @@ object ProjectMarkers {
         name: String,
         id: String = UUID.randomUUID().toString()
     ): List<TimelineMarker> {
-        val clean = name.trim().ifEmpty { FALLBACK_NAME }
+        val clean = trimmed(name).ifEmpty { FALLBACK_NAME }
         return normalize(markers + TimelineMarker(id, timeMs.coerceAtLeast(0L), clean))
     }
 
     /** Renames one marker; a blank name or an unknown id leaves the list unchanged. */
     fun rename(markers: List<TimelineMarker>, id: String, name: String): List<TimelineMarker> {
-        val clean = name.trim()
+        val clean = trimmed(name)
         if (clean.isEmpty()) return markers
         return markers.map { if (it.id == id) it.copy(name = clean) else it }
+    }
+
+    /** String.trim() over the native UTF-16 trim law (the JVM's whitespace set). */
+    private fun trimmed(s: String): String {
+        val range = ValueLawsNative.nativeTrimRange(s)
+        return s.substring(range[0], range[1])
     }
 
     /** Removes one marker (unknown id = unchanged list). */
@@ -58,7 +69,9 @@ object ProjectMarkers {
      * (a marker already at the playhead is edited instead of duplicated).
      */
     fun nearest(markers: List<TimelineMarker>, timeMs: Long, toleranceMs: Long): TimelineMarker? {
-        val best = markers.minByOrNull { kotlin.math.abs(it.timeMs - timeMs) } ?: return null
-        return if (kotlin.math.abs(best.timeMs - timeMs) <= toleranceMs) best else null
+        val idx = ValueLawsNative.nativeMarkerNearest(
+            LongArray(markers.size) { markers[it].timeMs }, timeMs, toleranceMs
+        )
+        return if (idx >= 0) markers[idx] else null
     }
 }

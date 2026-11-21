@@ -1,5 +1,7 @@
 package com.example.model
 
+import com.example.engine.ValueLawsNative
+
 /**
  * The visible part of a layer's own box after Crop, for the canvas bounds family
  * (the selection frame and the snap rects — `FrameGeo` in the UI layer).
@@ -33,16 +35,12 @@ data class CropVisibleBox(
  * phantom pre-crop box, never a zero-size one.
  */
 fun TimelineClip.cropVisibleBox(boxW: Float, boxH: Float): CropVisibleBox? {
-    if (boxW <= 0f || boxH <= 0f) return null
-    val cW = (cropWidthPercent / 100f).coerceIn(0.05f, 1f)
-    val cH = (cropHeightPercent / 100f).coerceIn(0.05f, 1f)
-    if (cW >= 0.999f && cH >= 0.999f) return CropVisibleBox(boxW, boxH, 0f, 0f)
-    val l = ((1f - cW) * (cropHorizontalPercent / 100f)).coerceIn(0f, 1f - cW)
-    val t = ((1f - cH) * (cropVerticalPercent / 100f)).coerceIn(0f, 1f - cH)
-    val w = cW * boxW
-    val h = cH * boxH
-    if (w <= 0f || h <= 0f) return null
-    return CropVisibleBox(w, h, (l + cW / 2f - 0.5f) * boxW, (t + cH / 2f - 0.5f) * boxH)
+    // Native since build 247 (value_laws.cpp); an empty array is the null case.
+    val out = ValueLawsNative.nativeCropVisibleBox(
+        cropWidthPercent, cropHeightPercent, cropHorizontalPercent, cropVerticalPercent, boxW, boxH
+    )
+    if (out.isEmpty()) return null
+    return CropVisibleBox(out[0], out[1], out[2], out[3])
 }
 
 /**
@@ -74,14 +72,12 @@ data class CropVisibleRect(
  * has nothing to bound. No crop returns the whole box at (0, 0).
  */
 fun TimelineClip.cropVisibleRect(boxW: Float, boxH: Float): CropVisibleRect? {
-    val v = cropVisibleBox(boxW, boxH) ?: return null
-    // cropVisibleBox already clamps the window inside the box; this second clamp only
-    // absorbs float dust in the centre-offset arithmetic, so the rect is exactly
-    // contained in the box (never a hair outside it) at the anchors.
-    return CropVisibleRect(
-        left = ((boxW - v.width) / 2f + v.offX).coerceIn(0f, boxW - v.width),
-        top = ((boxH - v.height) / 2f + v.offY).coerceIn(0f, boxH - v.height),
-        width = v.width,
-        height = v.height
+    // Native since build 247 (value_laws.cpp) — including the second clamp
+    // that absorbs float dust in the centre-offset arithmetic, so the rect
+    // is exactly contained in the box (never a hair outside it) at the anchors.
+    val out = ValueLawsNative.nativeCropVisibleRect(
+        cropWidthPercent, cropHeightPercent, cropHorizontalPercent, cropVerticalPercent, boxW, boxH
     )
+    if (out.isEmpty()) return null
+    return CropVisibleRect(out[0], out[1], out[2], out[3])
 }

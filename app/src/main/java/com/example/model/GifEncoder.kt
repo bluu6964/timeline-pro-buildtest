@@ -1,9 +1,9 @@
 package com.example.model
 
 import com.example.engine.GifNative
+import com.example.engine.ValueLawsNative
 import java.io.OutputStream
 import kotlin.math.max
-import kotlin.math.roundToInt
 
 /**
  * Animated GIF89a export, pure Kotlin (build 189 — production-push queue item 2).
@@ -30,13 +30,6 @@ object GifQuantizer {
 
     /** [palette] entries are 0xRRGGBB, the size a power of two in 2..256; [indices] row-major, top row first. */
     class Result(val palette: IntArray, val indices: ByteArray)
-
-    private class Box(val bins: IntArray) {
-        var population = 0
-        var rMin = 31; var rMax = 0; var gMin = 31; var gMax = 0; var bMin = 31; var bMax = 0
-        val splittable: Boolean
-            get() = bins.size > 1 && (rMax > rMin || gMax > gMin || bMax > bMin)
-    }
 
     /**
      * Quantizes [rgba] (4 bytes per pixel, R,G,B,A — alpha ignored, frames are opaque).
@@ -155,16 +148,12 @@ object GifExport {
     const val MAX_FRAMES = 1500
 
     /** Frame delay in hundredths of a second for [fps], at least 2 (viewers force 0–1 up to ~100 ms). */
-    fun delayCs(fps: Int): Int =
-        (100.0 / fps.coerceIn(1, 100)).roundToInt().coerceAtLeast(2)
+    fun delayCs(fps: Int): Int = ValueLawsNative.nativeGifDelayCs(fps)
 
     /** [srcW]×[srcH] scaled to fit [MAX_SIDE] on the longest side, both sides even and ≥ 2; unchanged when already small. */
     fun gifSize(srcW: Int, srcH: Int): Pair<Int, Int> {
-        val m = max(srcW, srcH)
-        if (m <= MAX_SIDE) return srcW to srcH
-        val k = MAX_SIDE.toFloat() / m
-        fun even(x: Float) = ((x.roundToInt() / 2) * 2).coerceAtLeast(2)
-        return even(srcW * k) to even(srcH * k)
+        val out = ValueLawsNative.nativeGifSize(srcW, srcH)
+        return out[0] to out[1]
     }
 
     /** GL readback (RGBA, bottom row first) -> ARGB ints, top row first, alpha forced opaque (the frame is a finished composite). */

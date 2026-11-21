@@ -1,20 +1,18 @@
 package com.example.model
 
 import com.example.engine.SceneMathNative
-import kotlin.math.PI
-import kotlin.math.abs
-import kotlin.math.atan2
-import kotlin.math.cos
-import kotlin.math.hypot
-import kotlin.math.max
+import com.example.engine.ValueLawsNative
 import kotlin.math.min
-import kotlin.math.sin
 
 /**
  * The geometry behind editing a mask on the canvas (outline, handles, drag maths). Pure Kotlin, no Compose, so it is
  * unit tested (MaskGeometryTest). Everything here is in PICTURE UNITS: the picture is [aspect] wide and 1 high, origin
  * top-left, so a "square" is square on the screen whatever the picture's shape. The shader uses the same layout
  * (picture pixels = picture units * height).
+ *
+ * The frame/handle/outline/drag laws live natively in value_laws.cpp since build 247
+ * (migration stage 4); this file keeps the types and the packing (a frame crosses as
+ * [cx, cy, hw, hh, cosR, sinR, aspect], shapes by their [MaskShape] ints).
  */
 data class Pt(val x: Float, val y: Float)
 
@@ -35,20 +33,34 @@ object MaskHandle {
 
 /** A mask in picture units: centre, half size, rotation. */
 class MaskFrame(val mask: ClipMask, val s: MaskState, val aspect: Float) {
-    val cx: Float = s.cx * aspect
-    val cy: Float = s.cy
-    val hw: Float = max(MIN_HALF, s.w * aspect / 2f)
-    val hh: Float = max(MIN_HALF, s.h / 2f)
-    private val rad: Double = Math.toRadians(s.rot.toDouble())
-    val cosR: Float = cos(rad).toFloat()
-    val sinR: Float = sin(rad).toFloat()
+    // The frame law (centre scaling, half-size floor, rotation trig) is native.
+    private val frame: FloatArray =
+        ValueLawsNative.nativeMaskFrameInit(s.cx, s.cy, s.w, s.h, s.rot, aspect)
+    val cx: Float = frame[0]
+    val cy: Float = frame[1]
+    val hw: Float = frame[2]
+    val hh: Float = frame[3]
+    val cosR: Float = frame[4]
+    val sinR: Float = frame[5]
 
-    fun toPicture(lx: Float, ly: Float): Pt = Pt(cx + lx * cosR - ly * sinR, cy + lx * sinR + ly * cosR)
+    private fun pointsFlat(): FloatArray {
+        val pts = mask.points
+        val flat = FloatArray(pts.size * 2)
+        for (i in pts.indices) {
+            flat[i * 2] = pts[i].x
+            flat[i * 2 + 1] = pts[i].y
+        }
+        return flat
+    }
+
+    fun toPicture(lx: Float, ly: Float): Pt {
+        val out = ValueLawsNative.nativeMaskToPicture(frame, lx, ly)
+        return Pt(out[0], out[1])
+    }
 
     fun toLocal(p: Pt): Pt {
-        val dx = p.x - cx
-        val dy = p.y - cy
-        return Pt(dx * cosR + dy * sinR, -dx * sinR + dy * cosR)
+        val out = ValueLawsNative.nativeMaskToLocal(frame, p.x, p.y)
+        return Pt(out[0], out[1])
     }
 
     /** 0 = top-left, 1 = top-right, 2 = bottom-right, 3 = bottom-left. */
@@ -69,161 +81,65 @@ class MaskFrame(val mask: ClipMask, val s: MaskState, val aspect: Float) {
 
     /** The handles of this shape and where they are (picture units). */
     fun handles(): List<Pair<Int, Pt>> {
-        val out = ArrayList<Pair<Int, Pt>>()
-        when (mask.shape) {
-            MaskShape.LINE -> out.add(MaskHandle.ROTATE to rotateHandle())
-            MaskShape.MIRROR -> {
-                out.add((MaskHandle.EDGE + 0) to edge(0))
-                out.add((MaskHandle.EDGE + 2) to edge(2))
-                out.add(MaskHandle.ROTATE to rotateHandle())
-            }
-            else -> {
-                for (i in 0..3) out.add((MaskHandle.CORNER + i) to corner(i))
-                for (i in 0..3) out.add((MaskHandle.EDGE + i) to edge(i))
-                out.add(MaskHandle.ROTATE to rotateHandle())
-                if (mask.shape == MaskShape.PATH) {
-                    for (i in mask.points.indices) out.add((MaskHandle.POINT + i) to controlPoint(i))
-                }
-            }
+        val flat = ValueLawsNative.nativeMaskHandles(
+            frame, mask.shape, mask.corner, mask.sides, mask.inner, pointsFlat()
+        )
+        val out = ArrayList<Pair<Int, Pt>>(flat.size / 3)
+        var i = 0
+        while (i + 2 < flat.size) {
+            out += flat[i].toInt() to Pt(flat[i + 1], flat[i + 2])
+            i += 3
         }
         return out
     }
 
     /** Closed outline of the shape (picture units); a LINE / MIRROR gives its lines, see [isOutlineClosed]. */
-    fun outline(): List<Pt> {
-        val pts = ArrayList<Pt>()
-        when (mask.shape) {
-            MaskShape.RECT -> {
-                val r = (mask.corner / 100f * min(hw, hh)).coerceAtLeast(0f)
-                if (r < 1e-4f) {
-                    for (i in 0..3) pts.add(corner(i))
-                } else {
-                    // corner centres and the quarter arcs around them
-                    val cs = listOf(Pair(-1f, -1f), Pair(1f, -1f), Pair(1f, 1f), Pair(-1f, 1f))
-                    val start = listOf(180.0, 270.0, 0.0, 90.0)
-                    for (k in 0..3) {
-                        val ccx = cs[k].first * (hw - r)
-                        val ccy = cs[k].second * (hh - r)
-                        for (j in 0..ARC_STEPS) {
-                            val a = Math.toRadians(start[k] + 90.0 * j / ARC_STEPS)
-                            pts.add(toPicture(ccx + (r * cos(a)).toFloat(), ccy + (r * sin(a)).toFloat()))
-                        }
-                    }
-                }
-            }
-            MaskShape.ELLIPSE -> for (i in 0 until ELLIPSE_STEPS) {
-                val a = 2.0 * PI * i / ELLIPSE_STEPS
-                pts.add(toPicture((hw * cos(a)).toFloat(), (hh * sin(a)).toFloat()))
-            }
-            MaskShape.POLYGON, MaskShape.STAR -> {
-                val n = mask.sides.coerceIn(3, 12)
-                val an = PI / n
-                val rho = if (mask.shape == MaskShape.POLYGON) cos(an) else cos(an) * mask.inner.coerceIn(5f, 100f) / 100.0
-                val count = if (mask.shape == MaskShape.POLYGON) n else 2 * n
-                for (k in 0 until count) {
-                    val outer = mask.shape == MaskShape.POLYGON || k % 2 == 0
-                    val a = k * an * (if (mask.shape == MaskShape.POLYGON) 2.0 else 1.0)
-                    val r = if (outer) 1.0 else rho
-                    // vertex up (screen up = local -y), same as the shader
-                    pts.add(toPicture((hw * r * sin(a)).toFloat(), (-hh * r * cos(a)).toFloat()))
-                }
-            }
-            MaskShape.LINE -> {
-                pts.add(toPicture(-LINE_LEN, 0f))
-                pts.add(toPicture(LINE_LEN, 0f))
-            }
-            MaskShape.MIRROR -> {
-                pts.add(toPicture(-LINE_LEN, -hh))
-                pts.add(toPicture(LINE_LEN, -hh))
-                pts.add(toPicture(-LINE_LEN, hh))
-                pts.add(toPicture(LINE_LEN, hh))
-            }
-            else -> {
-                val flat = flattenControlPoints(mask.points, mask.smooth)
-                for (p in flat) pts.add(toPicture(p.x * hw * 2f, p.y * hh * 2f))
-            }
-        }
-        return pts
-    }
+    fun outline(): List<Pt> = pairsOf(
+        ValueLawsNative.nativeMaskOutline(
+            frame, mask.shape, mask.corner, mask.sides, mask.inner, pointsFlat(), mask.smooth
+        )
+    ).map { Pt(it.first, it.second) }
 
     val isOutlineClosed: Boolean get() = mask.shape != MaskShape.LINE && mask.shape != MaskShape.MIRROR
 
     /** True when [p] is on / inside the shape (a hit for "drag the whole mask"). */
-    fun containsPoint(p: Pt, lineTol: Float): Boolean {
-        val l = toLocal(p)
-        return when (mask.shape) {
-            MaskShape.LINE -> abs(l.y) <= lineTol
-            MaskShape.MIRROR -> abs(l.y) <= hh + lineTol
-            MaskShape.PATH -> pointInPolygon(p, outline()) || nearEdge(p, outline(), lineTol)
-            else -> pointInPolygon(p, outline())
-        }
-    }
+    fun containsPoint(p: Pt, lineTol: Float): Boolean =
+        ValueLawsNative.nativeMaskContains(
+            frame, mask.shape, mask.corner, mask.sides, mask.inner, pointsFlat(), mask.smooth,
+            p.x, p.y, lineTol
+        )
 
     // ---- drags (every function returns the new state, nothing is mutated) ----
 
     /** Dragging corner [i]: the opposite corner stays where it is. */
     fun dragCorner(i: Int, p: Pt): MaskState {
-        val sx = if (i == 0 || i == 3) -1f else 1f
-        val sy = if (i == 0 || i == 1) -1f else 1f
-        val fx = -sx * hw
-        val fy = -sy * hh
-        val q = toLocal(p)
-        val nx = fx + sx * max((q.x - fx) * sx, MIN_HALF * 2f)
-        val ny = fy + sy * max((q.y - fy) * sy, MIN_HALF * 2f)
-        return resized(Pt((fx + nx) / 2f, (fy + ny) / 2f), abs(nx - fx), abs(ny - fy))
+        val out = ValueLawsNative.nativeMaskDragCorner(frame, i, p.x, p.y)
+        return s.copy(cx = out[0], cy = out[1], w = out[2], h = out[3])
     }
 
     /** Dragging an edge middle: the opposite edge stays (a mirror band grows on both sides). */
     fun dragEdge(i: Int, p: Pt): MaskState {
-        val q = toLocal(p)
-        if (mask.shape == MaskShape.MIRROR) {
-            return s.copy(h = (max(abs(q.y), MIN_HALF) * 2f).coerceAtMost(4f))
-        }
-        return when (i) {
-            0, 2 -> {
-                val sy = if (i == 0) -1f else 1f
-                val fy = -sy * hh
-                val ny = fy + sy * max((q.y - fy) * sy, MIN_HALF * 2f)
-                resized(Pt(0f, (fy + ny) / 2f), hw * 2f, abs(ny - fy))
-            }
-            else -> {
-                val sx = if (i == 3) -1f else 1f
-                val fx = -sx * hw
-                val nx = fx + sx * max((q.x - fx) * sx, MIN_HALF * 2f)
-                resized(Pt((fx + nx) / 2f, 0f), abs(nx - fx), hh * 2f)
-            }
-        }
-    }
-
-    /** New centre (local [c] = where the middle of the new box is) and full size in picture units. */
-    private fun resized(c: Pt, fullW: Float, fullH: Float): MaskState {
-        val wp = toPicture(c.x, c.y)
-        return s.copy(
-            cx = wp.x / aspect, cy = wp.y,
-            w = (fullW / aspect).coerceIn(0.001f, 8f), h = fullH.coerceIn(0.001f, 8f)
+        val out = ValueLawsNative.nativeMaskDragEdge(
+            frame, mask.shape, floatArrayOf(s.cx, s.cy, s.w, s.h), i, p.x, p.y
         )
+        return s.copy(cx = out[0], cy = out[1], w = out[2], h = out[3])
     }
 
     /** The rotate handle follows the finger: 0 deg = handle straight above the centre. Snaps to 45 deg steps near them. */
-    fun rotateTo(p: Pt): MaskState {
-        var deg = Math.toDegrees(atan2((p.y - cy).toDouble(), (p.x - cx).toDouble())).toFloat() + 90f
-        while (deg > 180f) deg -= 360f
-        while (deg < -180f) deg += 360f
-        val snapped = Math.round(deg / 45f) * 45f
-        if (abs(deg - snapped) < 2.5f) deg = if (snapped > 180f) snapped - 360f else snapped
-        return s.copy(rot = deg)
-    }
+    fun rotateTo(p: Pt): MaskState =
+        s.copy(rot = ValueLawsNative.nativeMaskRotateTo(frame, p.x, p.y))
 
     /** Moves the centre by the finger travel from [from] to [to] (picture units), starting at the state [start]. */
-    fun movedBy(start: MaskState, from: Pt, to: Pt): MaskState =
-        start.copy(cx = start.cx + (to.x - from.x) / aspect, cy = start.cy + (to.y - from.y))
+    fun movedBy(start: MaskState, from: Pt, to: Pt): MaskState {
+        val out = ValueLawsNative.nativeMaskMovedBy(start.cx, start.cy, from.x, from.y, to.x, to.y, aspect)
+        return start.copy(cx = out[0], cy = out[1])
+    }
 
     /** Control point [i] to where the finger is. */
     fun dragPoint(i: Int, p: Pt): ClipMask {
-        if (i !in mask.points.indices) return mask
-        val q = toLocal(p)
-        val np = MaskPoint((q.x / (hw * 2f)).coerceIn(-1.5f, 1.5f), (q.y / (hh * 2f)).coerceIn(-1.5f, 1.5f))
-        return mask.copy(points = mask.points.toMutableList().also { it[i] = np })
+        val out = ValueLawsNative.nativeMaskDragPoint(frame, pointsFlat(), i, p.x, p.y)
+        if (out.isEmpty()) return mask
+        return mask.copy(points = maskPointsOf(out))
     }
 
     /**
@@ -231,24 +147,10 @@ class MaskFrame(val mask: ClipMask, val s: MaskState, val aspect: Float) {
      * index, or null when the tap is farther than [tol] from every edge or the path is full.
      */
     fun insertPointNear(p: Pt, tol: Float): Pair<ClipMask, Int>? {
-        val n = mask.points.size
-        if (n < MaskLimits.MIN_POINTS || n >= MaskLimits.MAX_POINTS) return null
-        var best = -1
-        var bestD = Float.MAX_VALUE
-        for (i in 0 until n) {
-            val a = controlPoint(i)
-            val b = controlPoint((i + 1) % n)
-            val d = distToSegment(p, a, b)
-            if (d < bestD) {
-                bestD = d
-                best = i
-            }
-        }
-        if (best < 0 || bestD > tol) return null
-        val q = toLocal(p)
-        val np = MaskPoint(q.x / (hw * 2f), q.y / (hh * 2f))
-        val list = mask.points.toMutableList().also { it.add(best + 1, np) }
-        return mask.copy(points = list) to (best + 1)
+        val blob = ValueLawsNative.nativeMaskInsertPointNear(frame, pointsFlat(), p.x, p.y, tol)
+        if (blob.isEmpty()) return null
+        val index = blob[0].toInt()
+        return mask.copy(points = maskPointsOf(blob.copyOfRange(1, blob.size))) to index
     }
 
     companion object {
@@ -259,6 +161,10 @@ class MaskFrame(val mask: ClipMask, val s: MaskState, val aspect: Float) {
         private const val ELLIPSE_STEPS = 64
     }
 }
+
+/** A flat xy array -> mask control points. */
+private fun maskPointsOf(xy: FloatArray): List<MaskPoint> =
+    List(xy.size / 2) { MaskPoint(xy[it * 2], xy[it * 2 + 1]) }
 
 /** Limits shared with [ClipMaskLibrary] (kept here so the geometry file has no other dependency). */
 object MaskLimits {
@@ -294,37 +200,27 @@ fun pointInPolygon(p: Pt, poly: List<Pt>): Boolean {
     return SceneMathNative.nativePointInPolygon(p.x, p.y, polyXy)
 }
 
-fun distToSegment(p: Pt, a: Pt, b: Pt): Float {
-    val ex = b.x - a.x
-    val ey = b.y - a.y
-    val ee = ex * ex + ey * ey
-    val t = if (ee > 1e-12f) (((p.x - a.x) * ex + (p.y - a.y) * ey) / ee).coerceIn(0f, 1f) else 0f
-    return hypot(p.x - (a.x + ex * t), p.y - (a.y + ey * t))
-}
-
-private fun nearEdge(p: Pt, poly: List<Pt>, tol: Float): Boolean {
-    if (poly.size < 2) return false
-    var j = poly.size - 1
-    for (i in poly.indices) {
-        if (distToSegment(p, poly[i], poly[j]) <= tol) return true
-        j = i
-    }
-    return false
-}
+fun distToSegment(p: Pt, a: Pt, b: Pt): Float =
+    ValueLawsNative.nativeDistToSegment(p.x, p.y, a.x, a.y, b.x, b.y)
 
 /** Nearest handle to [p] within [radius] (picture units), else [MaskHandle.NONE]. Rotate / points win over corners. */
-fun MaskFrame.hitHandle(p: Pt, radius: Float): Int {
-    var best = MaskHandle.NONE
-    var bestD = radius
-    for ((kind, pos) in handles()) {
-        // control points sit on the shape, so they must beat the body but not each other's neighbours: plain nearest wins
-        val d = hypot(p.x - pos.x, p.y - pos.y)
-        if (d <= bestD) {
-            bestD = d
-            best = kind
-        }
+fun MaskFrame.hitHandle(p: Pt, radius: Float): Int =
+    ValueLawsNative.nativeMaskHitHandle(
+        frameArray(), mask.shape, mask.corner, mask.sides, mask.inner, pointsFlatArray(), p.x, p.y, radius
+    )
+
+/** The frame blob of this frame (for the extension functions in this file). */
+private fun MaskFrame.frameArray(): FloatArray =
+    floatArrayOf(cx, cy, hw, hh, cosR, sinR, aspect)
+
+private fun MaskFrame.pointsFlatArray(): FloatArray {
+    val pts = mask.points
+    val flat = FloatArray(pts.size * 2)
+    for (i in pts.indices) {
+        flat[i * 2] = pts[i].x
+        flat[i * 2 + 1] = pts[i].y
     }
-    return best
+    return flat
 }
 
 /**
@@ -341,36 +237,37 @@ class MaskLayerMap(
     private val flipH: Boolean,
     private val flipV: Boolean
 ) {
+    // [cropL, cropT, cropW, cropH, boxW, boxH, flipH, flipV] — the native map layout.
+    private val map: FloatArray =
+        floatArrayOf(cropL, cropT, cropW, cropH, boxW, boxH, if (flipH) 1f else 0f, if (flipV) 1f else 0f)
+
     fun pictureToBox(u: Float, v: Float): Pt {
-        var qx = (u - (cropL + cropW / 2f)) / cropW * boxW
-        var qy = (v - (cropT + cropH / 2f)) / cropH * boxH
-        if (flipH) qx = -qx
-        if (flipV) qy = -qy
-        return Pt(qx, qy)
+        val out = ValueLawsNative.nativeLayerMapApply(map, true, u, v)
+        return Pt(out[0], out[1])
     }
 
     fun boxToPicture(qx: Float, qy: Float): Pt {
-        val x = if (flipH) -qx else qx
-        val y = if (flipV) -qy else qy
-        return Pt(cropL + cropW / 2f + x / boxW * cropW, cropT + cropH / 2f + y / boxH * cropH)
+        val out = ValueLawsNative.nativeLayerMapApply(map, false, qx, qy)
+        return Pt(out[0], out[1])
     }
 
     companion object {
         /** [clip] as drawn at the playhead (keyframes applied), [boxW] x [boxH] = its visible size on the canvas. */
         fun of(clip: TimelineClip, boxW: Float, boxH: Float): MaskLayerMap {
-            val cw = (clip.cropWidthPercent / 100f).coerceIn(0.05f, 1f)
-            val ch = (clip.cropHeightPercent / 100f).coerceIn(0.05f, 1f)
+            val crop = ValueLawsNative.nativeLayerMapOf(
+                clip.cropWidthPercent, clip.cropHeightPercent,
+                clip.cropHorizontalPercent, clip.cropVerticalPercent
+            )
             return MaskLayerMap(
-                (1f - cw) * clip.cropHorizontalPercent / 100f, (1f - ch) * clip.cropVerticalPercent / 100f,
-                cw, ch, boxW.coerceAtLeast(1f), boxH.coerceAtLeast(1f), clip.isFlippedH, clip.isFlippedV
+                crop[0], crop[1], crop[2], crop[3],
+                boxW.coerceAtLeast(1f), boxH.coerceAtLeast(1f), clip.isFlippedH, clip.isFlippedV
             )
         }
     }
 }
 
 /** Index of the next key after [relMs] (or the previous one when [forward] is false) among all keys of the mask, or -1. */
-fun ClipMask.neighbourKey(relMs: Long, forward: Boolean): Int {
-    if (keys.isEmpty()) return -1
-    return if (forward) keys.indexOfFirst { it.timeMs > relMs + KEYFRAME_TOL_MS }
-    else keys.indexOfLast { it.timeMs < relMs - KEYFRAME_TOL_MS }
-}
+fun ClipMask.neighbourKey(relMs: Long, forward: Boolean): Int =
+    ValueLawsNative.nativeMaskNeighbourKey(
+        LongArray(keys.size) { keys[it].timeMs }, relMs, forward, KEYFRAME_TOL_MS
+    )

@@ -1,8 +1,7 @@
 package com.example.model
 
 import com.example.engine.SceneMathNative
-import kotlin.math.atan2
-import kotlin.math.hypot
+import com.example.engine.ValueLawsNative
 
 /**
  * Text-on-path (build 191): a text layer attached to a PATH shape layer
@@ -59,46 +58,28 @@ object TextOnPath {
         val total: Float
 
         init {
-            val kept = ArrayList<Pair<Float, Float>>(points.size)
-            for (p in points) {
-                val last = kept.lastOrNull()
-                if (last == null || last.first != p.first || last.second != p.second) kept += p
+            // The table build (dedupe + cumulative arc lengths) is native
+            // since build 247 (value_laws.cpp); blob = [total, n, xy..., cum...].
+            val flat = FloatArray(points.size * 2)
+            for (i in points.indices) {
+                flat[i * 2] = points[i].first
+                flat[i * 2 + 1] = points[i].second
             }
-            this.points = kept
-            cum = FloatArray(kept.size)
-            xy = FloatArray(kept.size * 2)
-            var acc = 0f
-            for (i in kept.indices) {
-                xy[i * 2] = kept[i].first
-                xy[i * 2 + 1] = kept[i].second
-                if (i > 0) {
-                    acc += hypot(kept[i].first - kept[i - 1].first, kept[i].second - kept[i - 1].second)
-                    cum[i] = acc
-                }
-            }
-            total = acc
+            val blob = ValueLawsNative.nativeArcTableBuild(flat)
+            total = blob[0]
+            val n = blob[1].toInt()
+            xy = blob.copyOfRange(2, 2 + n * 2)
+            cum = blob.copyOfRange(2 + n * 2, 2 + n * 2 + n)
+            this.points = pairsOf(xy)
         }
 
         /** The point at arc distance [d] (clamped to [0, total]); see the joint rule in the class doc. */
         fun pointAt(d: Float): PathPoint {
-            if (points.isEmpty()) return PathPoint(0f, 0f, 0f)
-            if (points.size == 1 || total <= 0f) return PathPoint(points[0].first, points[0].second, 0f)
-            val dd = d.coerceIn(0f, total)
-            // First segment whose END is strictly past dd: at an exact joint this is the
-            // outgoing segment. dd == total falls through to the last segment.
-            var lo = 0
-            var hi = points.size - 2
-            var seg = points.size - 2
-            while (lo <= hi) {
-                val mid = (lo + hi) ushr 1
-                if (cum[mid + 1] > dd) { seg = mid; hi = mid - 1 } else lo = mid + 1
-            }
-            val a = points[seg]
-            val b = points[seg + 1]
-            val segLen = cum[seg + 1] - cum[seg]
-            val t = if (segLen > 0f) (dd - cum[seg]) / segLen else 0f
-            val angle = Math.toDegrees(atan2((b.second - a.second).toDouble(), (b.first - a.first).toDouble())).toFloat()
-            return PathPoint(a.first + (b.first - a.first) * t, a.second + (b.second - a.second) * t, angle)
+            // Native since build 247: the segment search (first segment whose
+            // END is strictly past d — at an exact joint the outgoing segment)
+            // and the tangent angle run there.
+            val out = ValueLawsNative.nativeArcPointAt(xy, cum, total, d)
+            return PathPoint(out[0], out[1], out[2])
         }
     }
 
