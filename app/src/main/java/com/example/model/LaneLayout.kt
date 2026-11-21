@@ -1,5 +1,6 @@
 package com.example.model
 
+import com.example.engine.ModelLogicNative
 import com.example.engine.ProjectDocNative
 import java.util.UUID
 
@@ -74,23 +75,37 @@ object LaneLayout {
      * is what split/delete/duplicate paid 2–3× per action before build 199.
      */
     fun isNormalized(tracks: List<TimelineTrack>): Boolean {
-        for (lane in tracks) {
-            if (lane.clips.isEmpty()) return false
-            val sorted = lane.clips.sortedBy { it.startMs }
-            if (sorted != lane.clips) return false
-            val chain = sorted.firstOrNull { it.type == LayerType.CHAIN }
-            if (chain == null) {
-                if (sorted.size != 1) return false
-                if (sorted[0].chainId != null) return false
-            } else {
-                // normalize's chain lane is exactly [chain] + its members in start order; any
-                // further clip in the lane would be overflow and break the identity.
-                val expected = listOf(chain) + sorted.filter { it.id != chain.id && it.chainId == chain.id }
-                if (expected.size != sorted.size) return false
-                if (lane.clips != expected) return false
+        // The check is native since migration #3 (model_logic): per clip only
+        // startMs / type / chainId cross, chainId resolved to the flat index
+        // of the same-lane clip it names. The native side mirrors the
+        // conditions below one for one: no empty lanes, clips in start order,
+        // a plain lane holding exactly one unchained clip, a chain lane
+        // holding exactly the chain followed by its members in start order.
+        var total = 0
+        for (lane in tracks) total += lane.clips.size
+        val laneOffsets = IntArray(tracks.size + 1)
+        val startMs = LongArray(total)
+        val isChain = BooleanArray(total)
+        val chainIdNull = BooleanArray(total)
+        val chainIdTarget = IntArray(total) { -1 }
+        var k = 0
+        for ((li, lane) in tracks.withIndex()) {
+            laneOffsets[li] = k
+            val clips = lane.clips
+            for ((j, c) in clips.withIndex()) {
+                startMs[k] = c.startMs
+                isChain[k] = c.type == LayerType.CHAIN
+                chainIdNull[k] = c.chainId == null
+                if (c.chainId != null) {
+                    for ((m, o) in clips.withIndex()) {
+                        if (o.id == c.chainId) { chainIdTarget[k] = k - j + m; break }
+                    }
+                }
+                k++
             }
         }
-        return true
+        laneOffsets[tracks.size] = k
+        return ModelLogicNative.nativeIsNormalized(laneOffsets, startMs, isChain, chainIdNull, chainIdTarget)
     }
 
     fun normalize(tracks: List<TimelineTrack>): List<TimelineTrack> {

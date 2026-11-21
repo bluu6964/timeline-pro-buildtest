@@ -1,5 +1,6 @@
 package com.example.model
 
+import com.example.engine.ModelLogicNative
 import java.util.UUID
 
 /** Which option group the multi-select bar shows (it depends on where the playhead is). */
@@ -66,10 +67,14 @@ object MultiSelectOps {
     }
 
     fun barMode(selected: List<TimelineClip>, playheadMs: Long): MultiBarMode {
-        if (selected.isEmpty()) return MultiBarMode.SPLIT
-        if (selected.any { playheadMs > it.startMs && playheadMs < it.endMs }) return MultiBarMode.SPLIT
-        if (selected.all { it.endMs <= playheadMs }) return MultiBarMode.END
-        return MultiBarMode.START
+        // The mode law is native since migration #3 (model_logic): 0 SPLIT, 1 START, 2 END.
+        val starts = LongArray(selected.size) { selected[it].startMs }
+        val ends = LongArray(selected.size) { selected[it].endMs }
+        return when (ModelLogicNative.nativeBarMode(starts, ends, playheadMs)) {
+            1 -> MultiBarMode.START
+            2 -> MultiBarMode.END
+            else -> MultiBarMode.SPLIT
+        }
     }
 
     fun apply(
@@ -242,22 +247,34 @@ object MultiSelectOps {
         val all = tracks.flatMap { it.clips }
         val checked = all.filter { it.id in ids }
         if (checked.isEmpty()) return null
-        val gone = HashSet<String>()
-        for (c in checked) {
-            gone += c.id
-            if (c.type == LayerType.CHAIN) {
-                gone += all.filter { it.chainId == c.id }.map { it.id }
-            }
-            if (c.type == LayerType.GROUP) {
-                gone += GroupOps.descendantsOf(tracks, c.id).map { it.id }
+        // The deletion SET (checked + chain cascade + group descendants, minus
+        // the locked spared inside it) is native since migration #3
+        // (model_logic): clips cross as identity keys, never as objects. The
+        // lane filtering + normalize below stay Kotlin, as before.
+        val keys = HashMap<String, Int>()
+        fun keyOf(s: String): Int = keys.getOrPut(s) { keys.size }
+        val clipKeys = IntArray(all.size) { keyOf(all[it].id) }
+        val chainKeys = IntArray(all.size) { c -> all[c].chainId?.let { keyOf(it) } ?: -1 }
+        val groupKeys = IntArray(all.size) { c -> all[c].groupId?.let { keyOf(it) } ?: -1 }
+        val typeCodes = IntArray(all.size) {
+            when (all[it].type) {
+                LayerType.CHAIN -> 1
+                LayerType.GROUP -> 2
+                else -> 0
             }
         }
-        val spared = all.filter { it.id in gone && it.isLocked }
-        gone.removeAll(spared.map { it.id }.toSet())
-        if (gone.isEmpty()) return DeleteCheckedResult(tracks, 0, spared.size)
+        val locked = BooleanArray(all.size) { all[it].isLocked }
+        val checkedArr = BooleanArray(all.size) { all[it].id in ids }
+        val sparedOut = IntArray(1)
+        val goneIdx = ModelLogicNative.nativeDeleteSet(
+            clipKeys, chainKeys, groupKeys, typeCodes, locked, checkedArr, sparedOut
+        )
+        val sparedCount = sparedOut[0]
+        if (goneIdx.isEmpty()) return DeleteCheckedResult(tracks, 0, sparedCount)
+        val gone = goneIdx.mapTo(HashSet()) { all[it].id }
         val out = LaneLayout.normalize(
             tracks.map { lane -> lane.copy(clips = lane.clips.filter { it.id !in gone }) }
         )
-        return DeleteCheckedResult(out, gone.size, spared.size)
+        return DeleteCheckedResult(out, goneIdx.size, sparedCount)
     }
 }

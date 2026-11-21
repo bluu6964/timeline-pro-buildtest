@@ -1,5 +1,6 @@
 package com.example.model
 
+import com.example.engine.ModelLogicNative
 import java.util.UUID
 
 /**
@@ -79,22 +80,18 @@ object GroupOps {
     /** All layers inside the group, also the ones in groups inside it. */
     fun descendantsOf(tracks: List<TimelineTrack>, groupId: String): List<TimelineClip> {
         val all = tracks.flatMap { it.clips }
-        val seen = HashSet<String>()
-        val out = ArrayList<TimelineClip>()
-        var frontier = listOf(groupId)
-        var guard = 0
-        while (frontier.isNotEmpty() && guard++ < 16) {
-            val next = ArrayList<String>()
-            for (c in all) {
-                val g = c.groupId ?: continue
-                if (g in frontier && seen.add(c.id)) {
-                    out += c
-                    if (c.type == LayerType.GROUP) next += c.id
-                }
-            }
-            frontier = next
-        }
-        return out
+        if (all.isEmpty()) return emptyList()
+        // The traversal is native since migration #3 (model_logic): clips
+        // cross as identity keys (an id string's key is its identity class),
+        // the native side runs the same level-by-level BFS with the same
+        // 16-level guard, and the indices map back to the clips here.
+        val keys = HashMap<String, Int>()
+        fun keyOf(s: String): Int = keys.getOrPut(s) { keys.size }
+        val clipKeys = IntArray(all.size) { keyOf(all[it].id) }
+        val groupKeys = IntArray(all.size) { c -> all[c].groupId?.let { keyOf(it) } ?: -1 }
+        val isGroup = BooleanArray(all.size) { all[it].type == LayerType.GROUP }
+        val idx = ModelLogicNative.nativeDescendants(clipKeys, groupKeys, isGroup, keyOf(groupId))
+        return idx.map { all[it] }
     }
 
     /** True when [candidateId] is [ofId] itself or one of its parents (Null / group chain): linking would make a loop. */

@@ -25,6 +25,7 @@ add_library(am_engine SHARED
     ui_gl_renderer.cpp ui_gl_jni.cpp
     ui_widgets.cpp ui_widgets_jni.cpp
     fx_defs.cpp fx_defs_jni.cpp
+    model_logic.cpp model_logic_jni.cpp
     crash_handler.cpp)
 target_compile_features(am_engine PRIVATE cxx_std_17)
 target_compile_options(am_engine PRIVATE -O2 -Wall -Wextra)
@@ -36,6 +37,11 @@ target_compile_options(am_engine PRIVATE -O2 -Wall -Wextra)
 # this one TU without contraction so the port keeps the original's numerics
 # on every target.
 set_source_files_properties(shape_boolean.cpp PROPERTIES COMPILE_OPTIONS -ffp-contract=off)
+# Migration #3: model_logic.cpp is the same kind of port (strict-IEEE Kotlin
+# float/double math from model/: the Easing bezier, the BPM estimate), so it
+# gets the same treatment — without it, arm64 FMA contraction would change
+# the last bits of the ported float math against the JVM original.
+set_source_files_properties(model_logic.cpp PROPERTIES COMPILE_OPTIONS -ffp-contract=off)
 # Native text layers (FreeType + HarfBuzz). The sources are downloaded by the GitHub workflow into
 # cpp/freetype and cpp/harfbuzz. Without them text_engine.cpp compiles to a stub,
 # available() is false and the exporter keeps drawing text with the Android Canvas.

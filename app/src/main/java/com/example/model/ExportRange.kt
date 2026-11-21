@@ -1,5 +1,7 @@
 package com.example.model
 
+import com.example.engine.ModelLogicNative
+
 /**
  * The export range (build 199, audit #2 item A10): in/out points on the timeline ruler.
  * When a range is set, exports render only that window of the project; unset, exports render
@@ -22,10 +24,11 @@ data class ExportRange(val inMs: Long, val outMs: Long) {
          * into the project) closer together than [MIN_LENGTH_MS].
          */
         fun of(inMs: Long?, outMs: Long?, totalMs: Long): ExportRange? {
-            if (inMs == null || outMs == null || totalMs <= 0L) return null
-            val i = inMs.coerceIn(0L, totalMs)
-            val o = outMs.coerceIn(0L, totalMs)
-            return if (o - i >= MIN_LENGTH_MS) ExportRange(i, o) else null
+            // The clamp law is native since migration #3 (model_logic).
+            val r = ModelLogicNative.nativeExportRangeOf(
+                inMs ?: 0L, inMs != null, outMs ?: 0L, outMs != null, totalMs, MIN_LENGTH_MS
+            ) ?: return null
+            return ExportRange(r[0], r[1])
         }
     }
 }

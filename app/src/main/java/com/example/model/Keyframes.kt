@@ -1,6 +1,7 @@
 package com.example.model
 
 import com.example.engine.FrameEvalNative
+import com.example.engine.ModelLogicNative
 import kotlinx.serialization.Serializable
 import kotlin.math.abs
 
@@ -55,21 +56,13 @@ enum class AnimProp(val isColor: Boolean = false) {
     GRAD_GEOMETRY
 }
 
-/** ARGB colour -> (A,R) and (G,B) packed as two exact floats (each < 65536). */
+/** ARGB colour -> (A,R) and (G,B) packed as two exact floats (each < 65536). Native since migration #3 (model_logic). */
 fun packColor(argb: Long): Pair<Float, Float> {
-    val a = (argb shr 24) and 0xFF
-    val r = (argb shr 16) and 0xFF
-    val g = (argb shr 8) and 0xFF
-    val b = argb and 0xFF
-    return (a * 256 + r).toFloat() to (g * 256 + b).toFloat()
+    val out = ModelLogicNative.nativePackColor(argb)
+    return out[0] to out[1]
 }
 
-fun unpackColor(pa: Float, pb: Float): Long {
-    val x = pa.toInt().coerceIn(0, 65535)
-    val y = pb.toInt().coerceIn(0, 65535)
-    return ((x shr 8).toLong() shl 24) or ((x and 0xFF).toLong() shl 16) or
-        ((y shr 8).toLong() shl 8) or (y and 0xFF).toLong()
-}
+fun unpackColor(pa: Float, pb: Float): Long = ModelLogicNative.nativeUnpackColor(pa, pb)
 
 /** Playhead closer than this to a keyframe counts as "on" that keyframe. */
 const val KEYFRAME_TOL_MS = 40L
@@ -83,25 +76,13 @@ const val KEYFRAME_TOL_MS = 40L
 data class Easing(val x1: Float, val y1: Float, val x2: Float, val y2: Float) {
 
     val isLinear: Boolean
-        get() = abs(x1 - y1) < 1e-4f && abs(x2 - y2) < 1e-4f && abs(x1 - 1f / 3f) < 1e-3f && abs(x2 - 2f / 3f) < 1e-3f
+        get() = ModelLogicNative.nativeEasingIsLinear(x1, y1, x2, y2)
 
-    private fun bx(s: Float): Float {
-        val u = 1f - s
-        return 3f * u * u * s * x1 + 3f * u * s * s * x2 + s * s * s
+    /** Point of the curve for the bezier parameter [s] (0..1), used to draw it. Native since migration #3 (model_logic). */
+    fun pointAt(s: Float): Pair<Float, Float> {
+        val out = ModelLogicNative.nativeEasingPointAt(x1, y1, x2, y2, s)
+        return out[0] to out[1]
     }
-
-    private fun by(s: Float): Float {
-        val u = 1f - s
-        return 3f * u * u * s * y1 + 3f * u * s * s * y2 + s * s * s
-    }
-
-    private fun dbx(s: Float): Float {
-        val u = 1f - s
-        return 3f * u * u * x1 + 6f * u * s * (x2 - x1) + 3f * s * s * (1f - x2)
-    }
-
-    /** Point of the curve for the bezier parameter [s] (0..1), used to draw it. */
-    fun pointAt(s: Float): Pair<Float, Float> = bx(s) to by(s)
 
     /** Progress (0..1, may overshoot) for the time fraction [t] (0..1). */
     fun apply(t: Float): Float {
@@ -111,7 +92,7 @@ data class Easing(val x1: Float, val y1: Float, val x2: Float, val y2: Float) {
     }
 
     fun sameAs(o: Easing, eps: Float = 0.01f): Boolean =
-        abs(x1 - o.x1) < eps && abs(y1 - o.y1) < eps && abs(x2 - o.x2) < eps && abs(y2 - o.y2) < eps
+        ModelLogicNative.nativeEasingSameAs(x1, y1, x2, y2, o.x1, o.y1, o.x2, o.y2, eps)
 
     companion object {
         val LINEAR = Easing(1f / 3f, 1f / 3f, 2f / 3f, 2f / 3f)
@@ -173,27 +154,12 @@ fun List<Keyframe>.valueAt(relMs: Long): Pair<Float, Float> {
  * Index of the keyframe that starts the segment the time is in (k[i] <= rel < k[i+1]),
  * or -1 when the time is outside every segment (before the first / at or after the last keyframe).
  */
-fun List<Keyframe>.segmentIndexAt(relMs: Long): Int {
-    if (size < 2) return -1
-    for (i in 0 until size - 1) {
-        if (relMs >= this[i].timeMs && relMs < this[i + 1].timeMs) return i
-    }
-    return -1
-}
+fun List<Keyframe>.segmentIndexAt(relMs: Long): Int =
+    ModelLogicNative.nativeSegmentIndexAt(LongArray(size) { this[it].timeMs }, relMs)
 
 /** Index of the keyframe the time sits on (within [KEYFRAME_TOL_MS]), or -1. */
-fun List<Keyframe>.indexOnTime(relMs: Long): Int {
-    var best = -1
-    var bestD = Long.MAX_VALUE
-    for (i in indices) {
-        val d = abs(this[i].timeMs - relMs)
-        if (d <= KEYFRAME_TOL_MS && d < bestD) {
-            best = i
-            bestD = d
-        }
-    }
-    return best
-}
+fun List<Keyframe>.indexOnTime(relMs: Long): Int =
+    ModelLogicNative.nativeIndexOnTime(LongArray(size) { this[it].timeMs }, relMs, KEYFRAME_TOL_MS)
 
 /**
  * Colour keyframes: same segment / easing logic as [valueAt], but every channel (A, R, G, B) is

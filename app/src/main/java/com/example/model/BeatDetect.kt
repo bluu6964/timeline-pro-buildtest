@@ -1,6 +1,7 @@
 package com.example.model
 
 import com.example.engine.AudioAnalysisNative
+import com.example.engine.ModelLogicNative
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
@@ -65,17 +66,11 @@ object BeatDetect {
      * a doubled or missed beat — do not vote). Null when no interval votes.
      */
     fun estimateBpm(beatsMs: List<Long>): Double? {
-        if (beatsMs.size < 2) return null
-        val intervals = ArrayList<Long>(beatsMs.size - 1)
-        for (i in 1 until beatsMs.size) {
-            val d = beatsMs[i] - beatsMs[i - 1]
-            if (d in MIN_TEMPO_INTERVAL_MS..MAX_TEMPO_INTERVAL_MS) intervals.add(d)
-        }
-        if (intervals.isEmpty()) return null
-        intervals.sort()
-        val med = intervals[intervals.size / 2].toDouble()
-        if (med <= 0.0) return null
-        return kotlin.math.round(60000.0 / med * 10.0) / 10.0
+        // Native since migration #3 (model_logic); NaN encodes "no estimate".
+        val bpm = ModelLogicNative.nativeEstimateBpm(
+            beatsMs.toLongArray(), MIN_TEMPO_INTERVAL_MS, MAX_TEMPO_INTERVAL_MS
+        )
+        return if (bpm.isNaN()) null else bpm
     }
 
     /**
@@ -85,14 +80,9 @@ object BeatDetect {
      * a mark the user placed by hand. Returns the merged sorted list; how
      * many were added is `result.size - existing.size`.
      */
-    fun merge(existing: List<Long>, detected: List<Long>, toleranceMs: Long): List<Long> {
-        if (detected.isEmpty()) return existing.sorted()
-        val out = existing.sorted().toMutableList()
-        for (d in detected.sorted()) {
-            if (out.none { kotlin.math.abs(it - d) <= toleranceMs }) out.add(d)
-        }
-        return out.sorted()
-    }
+    fun merge(existing: List<Long>, detected: List<Long>, toleranceMs: Long): List<Long> =
+        // Native since migration #3 (model_logic).
+        ModelLogicNative.nativeMergeBeats(existing.toLongArray(), detected.toLongArray(), toleranceMs).toList()
 
     /**
      * The inverse of [TimelineClip.sourceOffsetMs]: given a source offset (ms into the media,
@@ -105,18 +95,13 @@ object BeatDetect {
      */
     fun timelineMsForSourceOffsets(clip: TimelineClip, sourceOffsetsMs: List<Long>): List<Long> {
         if (sourceOffsetsMs.isEmpty()) return emptyList()
-        val keys = sourceOffsetsMs.mapIndexed { index, off -> index to off }.sortedBy { it.second }
-        val out = LongArray(sourceOffsetsMs.size)
+        // The mapping law is native since migration #3 (model_logic); the span
+        // still comes from the model's own sourceOffsetMs law, and the native
+        // side applies the speed coerceAtLeast(0.01) exactly as before.
         val span = clip.sourceOffsetMs(clip.durationMs)
-        val speed = clip.speed.toDouble().coerceAtLeast(0.01)
-        for ((index, off) in keys) {
-            out[index] = when {
-                off <= 0L -> 0L
-                off >= span -> clip.durationMs
-                else -> (off / speed).toLong().coerceIn(0L, clip.durationMs)
-            }
-        }
-        return out.toList()
+        return ModelLogicNative.nativeTimelineMsForOffsets(
+            clip.durationMs, clip.speed.toDouble(), span, sourceOffsetsMs.toLongArray()
+        ).toList()
     }
 
 
