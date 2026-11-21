@@ -163,7 +163,8 @@ internal fun GlTextBlock(
     text: String,
     style: UiLabelStyle,
     colorArgb: Int,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    align: GlAlign = GlAlign.Center
 ) {
     val density = LocalDensity.current.density
     val atlas = rememberUiAtlas()
@@ -204,7 +205,11 @@ internal fun GlTextBlock(
                     for (e in entries) {
                         if (e != null) {
                             val baseline = PanelGeometry.lineBaselinePx(lineTop, textH, fm.ascent, fm.descent)
-                            val originX = EditorGeometry.centredOriginPx(w / 2f, e.advance)
+                            val originX = when (align) {
+                                GlAlign.Center -> EditorGeometry.centredOriginPx(w / 2f, e.advance)
+                                GlAlign.Start -> 0f
+                                GlAlign.End -> w - e.advance
+                            }
                             val (dstX, dstY) = EditorGeometry.textDst(originX, baseline, e.bearing, e.base, pad)
                             addText(
                                 e.index, dstX, dstY,
@@ -512,6 +517,87 @@ internal fun GlSlider(
                     thumbW, g.THUMB_H_DP * dd, thumbW / 2f, thumbArgb
                 )
             }
+        )
+    }
+}
+
+/**
+ * Build 252 (stage 5): one capsule pill chip drawn in GL — the
+ * masks panel's Chip pattern (build 207): selected = the filled
+ * AmPillSelected surface + bold label, unselected = AmPanelHigh +
+ * semibold dim label, disabled = grey label with the press still
+ * animating but the click gated. Hug width from the label advance.
+ */
+@Composable
+internal fun GlChip(
+    label: String,
+    selected: Boolean,
+    tag: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    padHDp: Float = 10f,
+    padVDp: Float = 4f,
+    pressScale: Float = 0.94f
+) {
+    val density = LocalDensity.current.density
+    val atlas = rememberUiAtlas()
+    val pad = UiLabelAtlas.PAD.toFloat()
+    val styleOn = UiLabelStyle.TEXT_11_BOLD
+    val styleOff = UiLabelStyle.TEXT_11_SEMI
+    val style = if (selected) styleOn else styleOff
+    fun resolveChip() = atlas.resolve(label, style)
+    var entry = resolveChip()
+    if (atlas.overflowed) {
+        atlas.reset()
+        entry = resolveChip()
+    }
+    val e = entry
+    val scale = remember { Animatable(1f) }
+    val textArgb = when {
+        !enabled -> 0xFFA1A1AA.toInt()
+        selected -> 0xFFF4F4F5.toInt()
+        else -> 0xFFA1A1AA.toInt()
+    }
+    val fillArgb = if (selected) 0x24D2FC32 else 0xFF202026.toInt()
+    val wDp = if (e != null) (e.advance / density + 2f * padHDp).dp else 0.dp
+    val hDp = (atlas.textHeightPx(style) / density + 2f * padVDp).dp
+    Box(
+        modifier
+            .width(wDp)
+            .height(hDp)
+    ) {
+        NativeVectorCanvas(
+            modifier = Modifier.fillMaxSize(),
+            clearArgb = 0,
+            atlas = atlas,
+            drawKey = listOf(e, scale.value, fillArgb, textArgb, atlas.generation),
+            buildCmds = { w, h, _ ->
+                // The Compose chip's background sat OUTSIDE the press
+                // graphicsLayer — only the label scales.
+                addRoundRect(w / 2f, h / 2f, w, h, h / 2f, fillArgb)
+                if (e != null) {
+                    val textH = atlas.textHeightPx(style)
+                    val fm = atlas.fontMetrics(style)
+                    val top = EditorGeometry.centredTextTopPx(0f, h, textH)
+                    val baseline = PanelGeometry.lineBaselinePx(top, textH, fm.ascent, fm.descent)
+                    val originX = EditorGeometry.centredOriginPx(w / 2f, e.advance)
+                    val (dstX, dstY) = EditorGeometry.textDst(originX, baseline, e.bearing, e.base, pad)
+                    setScaleAbout(w / 2f, h / 2f, scale.value)
+                    addText(
+                        e.index, dstX, dstY,
+                        0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                        tintArgb = textArgb
+                    )
+                    clearTransform()
+                }
+            }
+        )
+        ChromePressBox(
+            scale, pressScale, { if (enabled) onClick() },
+            Modifier.fillMaxSize(),
+            tag = tag,
+            description = label
         )
     }
 }

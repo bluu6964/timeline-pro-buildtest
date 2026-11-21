@@ -1,21 +1,20 @@
 package com.example.ui.components
 
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
@@ -23,46 +22,35 @@ import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.example.engine.UiLabelAtlas
+import com.example.engine.UiLabelStyle
+import com.example.engine.rememberUiAtlas
+import com.example.model.ChromeGeometry
 import com.example.model.ClipMask
 import com.example.model.ClipMaskLibrary
+import com.example.model.EditorGeometry
 import com.example.model.LayerType
 import com.example.model.MaskFrame
 import com.example.model.MaskMode
 import com.example.model.MaskShape
 import com.example.model.MaskState
+import com.example.model.PanelGeometry
 import com.example.model.TimelineClip
 import com.example.model.sourceOffsetMs
 import com.example.model.neighbourKey
-import com.example.ui.theme.AmPillSelected
-import com.example.ui.theme.AmPanelHigh
-import com.example.ui.theme.AmCyan
-import com.example.ui.theme.AmHairline
-import com.example.ui.theme.AmMicroLabel
 import com.example.ui.theme.AmTextDim
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
-import com.example.ui.theme.amCyanVioletBrush
-import com.example.ui.util.bouncyClickable
+import kotlin.math.roundToInt
 
 /** Width / height of the layer's picture (the mask boxes are square in pixels, so the panel must know it). */
 /**
@@ -124,83 +112,82 @@ fun ClipMasksPanel(
             .testTag("clip_masks_panel")
     ) {
         if (penPoints >= 0) {
-            Text(
-                if (penPoints < 3) "Tap the picture to place points ($penPoints / ${ClipMaskLibrary.MAX_POINTS}, at least 3)"
+            GlTextBlock(
+                text = if (penPoints < 3) "Tap the picture to place points ($penPoints / ${ClipMaskLibrary.MAX_POINTS}, at least 3)"
                 else "$penPoints points. Keep tapping, or press Done.",
-                color = TextPrimary, fontSize = 11.5.sp
+                style = UiLabelStyle.ED_TEXT,
+                colorArgb = TextPrimary.toArgb(),
+                modifier = Modifier.fillMaxWidth(),
+                align = GlAlign.Start
             )
             Spacer(Modifier.height(6.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Chip("Undo point", false, enabled = penPoints > 0, tag = "mask_pen_undo", onClick = onPenUndo)
-                Chip("Done", true, enabled = penPoints >= 3, tag = "mask_pen_done", onClick = onPenDone)
-                Chip("Cancel", false, tag = "mask_pen_cancel", onClick = onPenCancel)
+                GlChip("Undo point", false, tag = "mask_pen_undo", enabled = penPoints > 0, onClick = onPenUndo)
+                GlChip("Done", true, tag = "mask_pen_done", enabled = penPoints >= 3, onClick = onPenDone)
+                GlChip("Cancel", false, tag = "mask_pen_cancel", onClick = onPenCancel)
             }
             Spacer(Modifier.height(10.dp))
             return@Column
         }
 
-        Text("Add a mask", color = AmTextDim, style = AmMicroLabel)
+        GlTextBlock(
+            text = "Add a mask",
+            style = UiLabelStyle.MICRO,
+            colorArgb = AmTextDim.toArgb(),
+            modifier = Modifier.fillMaxWidth(),
+            align = GlAlign.Start
+        )
         Spacer(Modifier.height(4.dp))
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(addTiles) { (id, label) ->
-                ShapeTile(id, label, onClick = {
-                    if (id == "pen") {
-                        if (masks.size < ClipMaskLibrary.MAX_MASKS) onPenStart()
-                    } else if (masks.size < ClipMaskLibrary.MAX_MASKS) {
-                        val m = when (id) {
-                            "rect" -> ClipMaskLibrary.create(MaskShape.RECT, aspect)
-                            "ellipse" -> ClipMaskLibrary.create(MaskShape.ELLIPSE, aspect)
-                            "polygon" -> ClipMaskLibrary.create(MaskShape.POLYGON, aspect)
-                            "star" -> ClipMaskLibrary.create(MaskShape.STAR, aspect)
-                            "heart" -> ClipMaskLibrary.heart(aspect)
-                            "line" -> ClipMaskLibrary.create(MaskShape.LINE, aspect)
-                            else -> ClipMaskLibrary.create(MaskShape.MIRROR, aspect)
-                        }
-                        onSelect(m.id)
-                        onChange(masks + m)
-                    }
-                })
+        MaskTileStrip(onTile = { id ->
+            if (id == "pen") {
+                if (masks.size < ClipMaskLibrary.MAX_MASKS) onPenStart()
+            } else if (masks.size < ClipMaskLibrary.MAX_MASKS) {
+                val m = when (id) {
+                    "rect" -> ClipMaskLibrary.create(MaskShape.RECT, aspect)
+                    "ellipse" -> ClipMaskLibrary.create(MaskShape.ELLIPSE, aspect)
+                    "polygon" -> ClipMaskLibrary.create(MaskShape.POLYGON, aspect)
+                    "star" -> ClipMaskLibrary.create(MaskShape.STAR, aspect)
+                    "heart" -> ClipMaskLibrary.heart(aspect)
+                    "line" -> ClipMaskLibrary.create(MaskShape.LINE, aspect)
+                    else -> ClipMaskLibrary.create(MaskShape.MIRROR, aspect)
+                }
+                onSelect(m.id)
+                onChange(masks + m)
             }
-        }
+        })
         Spacer(Modifier.height(10.dp))
 
-        Text("Masks (combined top to bottom)", color = AmTextDim, style = AmMicroLabel)
+        GlTextBlock(
+            text = "Masks (combined top to bottom)",
+            style = UiLabelStyle.MICRO,
+            colorArgb = AmTextDim.toArgb(),
+            modifier = Modifier.fillMaxWidth(),
+            align = GlAlign.Start
+        )
         Spacer(Modifier.height(4.dp))
         if (masks.isEmpty()) {
-            Text("Nothing yet. Tap a shape above, then drag it on the picture.", color = TextSecondary, fontSize = 11.5.sp)
+            GlTextBlock(
+                text = "Nothing yet. Tap a shape above, then drag it on the picture.",
+                style = UiLabelStyle.ED_TEXT,
+                colorArgb = TextSecondary.toArgb(),
+                modifier = Modifier.fillMaxWidth(),
+                align = GlAlign.Start
+            )
         }
         masks.forEachIndexed { idx, m ->
             val on = m.id == selectedId
-            Box(
-                modifier = Modifier
-                    .padding(bottom = 5.dp)
-                    .fillMaxWidth()
-                    .bouncyClickable(pressedScale = 0.99f, onClick = { onSelect(if (on) null else m.id) })
-                    .testTag("mask_row_$idx"),
-                contentAlignment = Alignment.Center
-            ) {
-                // BARE row (boxless order, build 183): no pill, no selection border —
-                // selection reads from the name: white bold vs grey.
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 10.dp, vertical = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                Text(
-                    "${idx + 1}. ${MaskShape.names[m.shape] ?: "Mask"}" + (if (m.isAnimated) "  ◆" else ""),
-                    color = if (!m.enabled) TextSecondary else if (on) TextPrimary else AmTextDim,
-                    fontSize = 12.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.SemiBold,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    (MaskMode.names.firstOrNull { it.first == m.mode }?.second ?: "") + if (m.inverted) " (inv)" else "",
-                    color = TextSecondary, fontSize = 10.sp
-                )
-                IconBtn(if (m.enabled) Icons.Default.Visibility else Icons.Default.VisibilityOff, "Turn off / on", "mask_toggle_$idx") {
-                    replace(m.copy(enabled = !m.enabled))
-                }
-                IconBtn(Icons.Default.ContentCopy, "Duplicate", "mask_copy_$idx") {
+            // BARE row (boxless order, build 183): no pill, no selection
+            // border — selection reads from the name: white bold vs grey.
+            // Build 252 (stage 5): the row is drawn in GL (MaskRowGl).
+            MaskRowGl(
+                name = "${idx + 1}. ${MaskShape.names[m.shape] ?: "Mask"}" + (if (m.isAnimated) "  ◆" else ""),
+                modeLabel = (MaskMode.names.firstOrNull { it.first == m.mode }?.second ?: "") +
+                    if (m.inverted) " (inv)" else "",
+                selected = on,
+                maskEnabled = m.enabled,
+                onRowClick = { onSelect(if (on) null else m.id) },
+                onToggle = { replace(m.copy(enabled = !m.enabled)) },
+                onCopy = {
                     if (masks.size < ClipMaskLibrary.MAX_MASKS) {
                         val c = m.copy(id = java.util.UUID.randomUUID().toString(),
                             state = m.state.copy(cx = (m.state.cx + 0.04f).coerceAtMost(1f)),
@@ -208,13 +195,16 @@ fun ClipMasksPanel(
                         onSelect(c.id)
                         onChange(masks.toMutableList().also { it.add(idx + 1, c) })
                     }
-                }
-                IconBtn(Icons.Default.Delete, "Remove", "mask_remove_$idx") {
+                },
+                onRemove = {
                     if (selectedId == m.id) onSelect(null)
                     onChange(masks.filter { it.id != m.id })
-                }
-                }
-            }
+                },
+                rowTag = "mask_row_$idx",
+                toggleTag = "mask_toggle_$idx",
+                copyTag = "mask_copy_$idx",
+                removeTag = "mask_remove_$idx"
+            )
         }
 
         if (selected != null) {
@@ -224,54 +214,61 @@ fun ClipMasksPanel(
             val keyIdx = selected.keyIndexAt(rel)
             fun edit(ns: MaskState) = replace(selected.withShownStateAt(rel, src, ns))
             Spacer(Modifier.height(6.dp))
-            Text("Combine", color = AmTextDim, style = AmMicroLabel)
+            GlTextBlock(
+                text = "Combine",
+                style = UiLabelStyle.MICRO,
+                colorArgb = AmTextDim.toArgb(),
+                modifier = Modifier.fillMaxWidth(),
+                align = GlAlign.Start
+            )
             Spacer(Modifier.height(6.dp))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                items(MaskMode.names) { (mode, label) ->
-                    Chip(label, selected.mode == mode, tag = "mask_mode_$mode") { replace(selected.copy(mode = mode)) }
+            Row(
+                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                MaskMode.names.forEach { (mode, label) ->
+                    GlChip(label, selected.mode == mode, tag = "mask_mode_$mode") { replace(selected.copy(mode = mode)) }
                 }
-                item { Chip("Invert", selected.inverted, tag = "mask_invert") { replace(selected.copy(inverted = !selected.inverted)) } }
+                GlChip("Invert", selected.inverted, tag = "mask_invert") { replace(selected.copy(inverted = !selected.inverted)) }
             }
             Spacer(Modifier.height(8.dp))
 
-            // keyframes of this mask
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Animate", color = TextSecondary, fontSize = 10.5.sp, modifier = Modifier.width(66.dp))
-                IconBtn(Icons.Default.SkipPrevious, "Previous key", "mask_key_prev") {
+            // keyframes of this mask — Build 252 (stage 5): GL row.
+            MaskAnimateRowGl(
+                keysLabel = if (selected.isAnimated) "${selected.keys.size} keys" else "off",
+                filled = keyIdx >= 0,
+                active = selected.isAnimated,
+                onPrev = {
                     val i = selected.neighbourKey(rel, false)
                     if (i >= 0) onSeekTo(clip.startMs + selected.keys[i].timeMs)
-                }
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .bouncyClickable(onClick = { replace(selected.toggleKeyAt(rel)) })
-                        .testTag("mask_key_toggle"),
-                    contentAlignment = Alignment.Center
-                ) { Diamond(filled = keyIdx >= 0, active = selected.isAnimated) }
-                IconBtn(Icons.Default.SkipNext, "Next key", "mask_key_next") {
+                },
+                onToggle = { replace(selected.toggleKeyAt(rel)) },
+                onNext = {
                     val i = selected.neighbourKey(rel, true)
                     if (i >= 0) onSeekTo(clip.startMs + selected.keys[i].timeMs)
                 }
-                Text(
-                    if (selected.isAnimated) "${selected.keys.size} keys" else "off",
-                    color = TextSecondary, fontSize = 10.sp, modifier = Modifier.padding(start = 4.dp)
-                )
-            }
+            )
             Spacer(Modifier.height(4.dp))
 
             // motion track: the mask follows an object of the video (place the mask on the object first)
             val tr = selected.track
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Track", color = TextSecondary, fontSize = 10.5.sp, modifier = Modifier.width(66.dp))
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    item {
-                        Chip(if (tr == null) "Track object" else "Track again", tr != null, tag = "mask_track") { onTrackMask(selected.id) }
-                    }
+                GlTextBlock(
+                    text = "Track",
+                    style = UiLabelStyle.SHEET_DESC,
+                    colorArgb = TextSecondary.toArgb(),
+                    modifier = Modifier.width(66.dp),
+                    align = GlAlign.Start
+                )
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    GlChip(if (tr == null) "Track object" else "Track again", tr != null, tag = "mask_track") { onTrackMask(selected.id) }
                     if (tr != null) {
-                        item { Chip("Rotate", tr.followRotation, tag = "mask_track_rot") { replace(selected.copy(track = tr.withFollow(!tr.followRotation, tr.followScale))) } }
-                        item { Chip("Scale", tr.followScale, tag = "mask_track_scale") { replace(selected.copy(track = tr.withFollow(tr.followRotation, !tr.followScale))) } }
-                        item { Chip("Clear", false, tag = "mask_track_clear") { replace(selected.copy(track = null)) } }
+                        GlChip("Rotate", tr.followRotation, tag = "mask_track_rot") { replace(selected.copy(track = tr.withFollow(!tr.followRotation, tr.followScale))) }
+                        GlChip("Scale", tr.followScale, tag = "mask_track_scale") { replace(selected.copy(track = tr.withFollow(tr.followRotation, !tr.followScale))) }
+                        GlChip("Clear", false, tag = "mask_track_clear") { replace(selected.copy(track = null)) }
                     }
                 }
             }
@@ -302,16 +299,21 @@ fun ClipMasksPanel(
                 }
                 MaskShape.PATH -> {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 6.dp)) {
-                        Chip("Smooth curve", selected.smooth, tag = "mask_smooth") { replace(selected.copy(smooth = !selected.smooth)) }
-                        Chip(
+                        GlChip("Smooth curve", selected.smooth, tag = "mask_smooth") { replace(selected.copy(smooth = !selected.smooth)) }
+                        GlChip(
                             "Delete point", false,
                             enabled = selectedPoint in selected.points.indices && selected.points.size > ClipMaskLibrary.MIN_POINTS,
                             tag = "mask_delete_point", onClick = onDeletePoint
                         )
                     }
-                    Text(
-                        "Drag the dots on the picture. Tap an edge to add a point, tap a dot to select it.",
-                        color = TextSecondary, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp)
+                    GlTextBlock(
+                        text = "Drag the dots on the picture. Tap an edge to add a point, tap a dot to select it.",
+                        style = UiLabelStyle.TEXT_11,
+                        colorArgb = TextSecondary.toArgb(),
+                        modifier = Modifier
+                            .padding(top = 4.dp)
+                            .fillMaxWidth(),
+                        align = GlAlign.Start
                     )
                 }
             }
@@ -336,118 +338,432 @@ private fun MaskSlider(label: String, value: Float, min: Float, max: Float, unit
     )
 }
 
-@Composable
-private fun Chip(label: String, on: Boolean, enabled: Boolean = true, tag: String, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .background(
-                if (on) AmPillSelected else AmPanelHigh,
-                androidx.compose.foundation.shape.CircleShape
+/** One glyph stroke in unit space: interleaved points, closed flag, stroke width (px in the 24 dp box), argb. */
+private class GlyphSeg(val pts: FloatArray, val closed: Boolean, val strokeW: Float, val argb: Int)
+
+/**
+ * The add-tile glyphs as GL polylines — the same geometry the old
+ * Compose Canvas drew: shape outlines through MaskFrame (so the tile
+ * always matches the real outline), the line / mirror / pen glyphs
+ * from their fixed fractions.
+ */
+private fun maskGlyphSegments(id: String): List<GlyphSeg> {
+    val white = 0xFFFFFFFF.toInt()
+    when (id) {
+        "line" -> return listOf(
+            GlyphSeg(floatArrayOf(0f, 0.5f, 1f, 0.5f), false, 2.6f, white),
+            GlyphSeg(floatArrayOf(0.5f, 0.5f, 0.5f, 0.15f), false, 2.6f, 0x66FFFFFF)
+        )
+        "mirror" -> return listOf(
+            GlyphSeg(floatArrayOf(0f, 0.3f, 1f, 0.3f), false, 2.6f, white),
+            GlyphSeg(floatArrayOf(0f, 0.7f, 1f, 0.7f), false, 2.6f, white)
+        )
+        "pen" -> return listOf(
+            GlyphSeg(
+                floatArrayOf(0.15f, 0.8f, 0.3f, 0.2f, 0.7f, 0.35f, 0.85f, 0.85f),
+                true, 2.4f, white
             )
-            .clip(androidx.compose.foundation.shape.CircleShape)
-            .bouncyClickable(onClick = { if (enabled) onClick() })
-            .testTag(tag),
-        contentAlignment = Alignment.Center
-    ) {
-        // Pill chip (build 207): on = the filled pill surface + bold label.
-        Text(
-            label,
-            color = if (!enabled) TextSecondary else if (on) TextPrimary else AmTextDim,
-            fontSize = 11.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.SemiBold,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
         )
     }
-}
-
-@Composable
-private fun IconBtn(icon: androidx.compose.ui.graphics.vector.ImageVector, desc: String, tag: String, onClick: () -> Unit) {
-    Icon(
-        icon, contentDescription = desc, tint = TextPrimary,
-        modifier = Modifier
-            .size(28.dp)
-            .bouncyClickable(onClick = onClick)
-            .padding(6.dp)
-            .testTag(tag)
-    )
-}
-
-@Composable
-private fun Diamond(filled: Boolean, active: Boolean) {
-    Canvas(Modifier.size(16.dp)) {
-        val c = Color(if (active) 0xFFFFC107 else 0xFF9E9E9E)
-        rotate(45f) {
-            val s = size.width * 0.62f
-            val tl = Offset((size.width - s) / 2f, (size.height - s) / 2f)
-            if (filled) drawRect(c, tl, Size(s, s)) else drawRect(c, tl, Size(s, s), style = Stroke(2.2f))
-        }
-    }
-}
-
-@Composable
-private fun ShapeTile(id: String, label: String, onClick: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .width(56.dp)
-            .bouncyClickable(onClick = onClick)
-            .testTag("mask_tile_$id"),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Box(
-            modifier = Modifier.size(42.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Canvas(Modifier.size(24.dp)) { drawGlyph(id) }
-        }
-        Spacer(Modifier.height(3.dp))
-        Text(label, color = TextPrimary, fontSize = 9.5.sp, maxLines = 1)
-    }
-}
-
-/** Small picture of a shape for the add tiles, drawn with the same outline code the canvas editor uses. */
-private fun DrawScope.drawGlyph(id: String) {
-    val w = size.width
-    val stroke = Stroke(2.4f, join = StrokeJoin.Round)
-    val white = Color.White
     val shape = when (id) {
         "rect" -> MaskShape.RECT
         "ellipse" -> MaskShape.ELLIPSE
         "polygon" -> MaskShape.POLYGON
         "star" -> MaskShape.STAR
-        "line" -> MaskShape.LINE
-        "mirror" -> MaskShape.MIRROR
         else -> MaskShape.PATH
     }
-    when (id) {
-        "line" -> {
-            drawLine(white, Offset(0f, w * 0.5f), Offset(w, w * 0.5f), 2.6f)
-            drawLine(white.copy(alpha = 0.4f), Offset(w * 0.5f, w * 0.5f), Offset(w * 0.5f, w * 0.15f), 2.6f)
-            return
-        }
-        "mirror" -> {
-            drawLine(white, Offset(0f, w * 0.3f), Offset(w, w * 0.3f), 2.6f)
-            drawLine(white, Offset(0f, w * 0.7f), Offset(w, w * 0.7f), 2.6f)
-            return
-        }
-        "pen" -> {
-            val p = Path().apply {
-                moveTo(w * 0.15f, w * 0.8f); lineTo(w * 0.3f, w * 0.2f); lineTo(w * 0.7f, w * 0.35f); lineTo(w * 0.85f, w * 0.85f); close()
-            }
-            drawPath(p, white, style = stroke)
-            return
-        }
-    }
-    // unit-square glyph mask drawn through MaskFrame (so the tile always matches the real outline)
     val m: ClipMask = when (id) {
         "heart" -> ClipMaskLibrary.heart(1f)
         else -> ClipMaskLibrary.create(shape, 1f)
     }
     val s = MaskState(cx = 0.5f, cy = 0.5f, w = 0.9f, h = 0.9f)
     val pts = MaskFrame(m, s, 1f).outline()
-    if (pts.size < 2) return
-    val path = Path().apply {
-        moveTo(pts[0].x * w, pts[0].y * w)
-        for (i in 1 until pts.size) lineTo(pts[i].x * w, pts[i].y * w)
-        close()
+    if (pts.size < 2) return emptyList()
+    val flat = FloatArray(pts.size * 2)
+    pts.forEachIndexed { i, p ->
+        flat[i * 2] = p.x
+        flat[i * 2 + 1] = p.y
     }
-    drawPath(path, white, style = stroke)
+    return listOf(GlyphSeg(flat, true, 2.4f, white))
+}
+
+/**
+ * Build 252 (stage 5): the add-mask tile strip in GL — the eight
+ * 56 dp tiles (42 dp glyph box, 3 dp gap, 9.5 sp label) on one
+ * surface inside a horizontal scroll row, the LazyRow's place.
+ */
+@Composable
+private fun MaskTileStrip(onTile: (String) -> Unit) {
+    val density = androidx.compose.ui.platform.LocalDensity.current.density
+    val atlas = rememberUiAtlas()
+    val pad = UiLabelAtlas.PAD.toFloat()
+    val labelStyle = UiLabelStyle.TILE_LABEL
+    fun resolveTiles() = addTiles.map { atlas.resolve(it.second, labelStyle) }
+    var labelEntries = resolveTiles()
+    if (atlas.overflowed) {
+        atlas.reset()
+        labelEntries = resolveTiles()
+    }
+    val labels = labelEntries
+    val segments = remember { addTiles.map { maskGlyphSegments(it.first) } }
+    val scales = remember { addTiles.map { androidx.compose.animation.core.Animatable(1f) } }
+    val stripH = (42f + 3f + atlas.textHeightPx(labelStyle) / density).dp
+    Row(modifier = Modifier.horizontalScroll(rememberScrollState())) {
+        Box(
+            modifier = Modifier
+                .width((addTiles.size * 56 + (addTiles.size - 1) * 8).dp)
+                .height(stripH)
+        ) {
+            NativeVectorCanvas(
+                modifier = Modifier.fillMaxSize(),
+                clearArgb = 0,
+                atlas = atlas,
+                drawKey = listOf(labels, scales.map { it.value }, atlas.generation),
+                buildCmds = { _, _, dd ->
+                    addTiles.forEachIndexed { i, (_, label) ->
+                        val tileLeft = i * 64f * dd
+                        val tileCx = tileLeft + 28f * dd
+                        setScaleAbout(tileCx, stripH.value * dd / 2f, scales[i].value)
+                        val glyphLeft = tileLeft + 16f * dd
+                        val glyphTop = 9f * dd
+                        val glyphSize = 24f * dd
+                        for (seg in segments[i]) {
+                            val mapped = FloatArray(seg.pts.size)
+                            for (k in seg.pts.indices step 2) {
+                                mapped[k] = glyphLeft + seg.pts[k] * glyphSize
+                                mapped[k + 1] = glyphTop + seg.pts[k + 1] * glyphSize
+                            }
+                            addPolyline(mapped, seg.pts.size / 2, seg.closed, seg.strokeW, seg.argb)
+                        }
+                        labels[i]?.let { e ->
+                            val textH = atlas.textHeightPx(labelStyle)
+                            val fm = atlas.fontMetrics(labelStyle)
+                            val labelTop = 45f * dd
+                            val baseline = PanelGeometry.lineBaselinePx(labelTop, textH, fm.ascent, fm.descent)
+                            val (dstX, dstY) = EditorGeometry.textDst(
+                                EditorGeometry.centredOriginPx(tileCx, e.advance),
+                                baseline, e.bearing, e.base, pad
+                            )
+                            addText(
+                                e.index, dstX, dstY,
+                                0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                                tintArgb = TextPrimary.toArgb()
+                            )
+                        }
+                        clearTransform()
+                    }
+                }
+            )
+            addTiles.forEachIndexed { i, (id, label) ->
+                ChromePressBox(
+                    scales[i], 0.94f, { onTile(id) },
+                    Modifier
+                        .offset(x = (i * 64).dp)
+                        .width(56.dp)
+                        .height(stripH),
+                    tag = "mask_tile_$id",
+                    description = label
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Build 252 (stage 5): one mask list row in GL — name (semibold dim,
+ * or bold white when selected; grey when the mask is off), mode
+ * label, and the eye / copy / delete icon buttons. The whole row
+ * keeps its 0.99 press; the icons keep their own.
+ */
+@Composable
+private fun MaskRowGl(
+    name: String,
+    modeLabel: String,
+    selected: Boolean,
+    maskEnabled: Boolean,
+    onRowClick: () -> Unit,
+    onToggle: () -> Unit,
+    onCopy: () -> Unit,
+    onRemove: () -> Unit,
+    rowTag: String,
+    toggleTag: String,
+    copyTag: String,
+    removeTag: String
+) {
+    val density = androidx.compose.ui.platform.LocalDensity.current.density
+    val atlas = rememberUiAtlas()
+    val pad = UiLabelAtlas.PAD.toFloat()
+    val nameStyle = if (selected) UiLabelStyle.SHEET_ITEM_BOLD else UiLabelStyle.SHEET_ITEM_SEMI
+    val nameArgb = when {
+        !maskEnabled -> TextSecondary.toArgb()
+        selected -> TextPrimary.toArgb()
+        else -> AmTextDim.toArgb()
+    }
+    val eyePainter = rememberVectorPainter(if (maskEnabled) Icons.Default.Visibility else Icons.Default.VisibilityOff)
+    val copyPainter = rememberVectorPainter(Icons.Default.ContentCopy)
+    val deletePainter = rememberVectorPainter(Icons.Default.Delete)
+    val iconPx = (16f * density).roundToInt()
+    fun resolveRow(): Triple<UiLabelAtlas.Entry?, UiLabelAtlas.Entry?, List<UiLabelAtlas.Entry?>> {
+        val n = atlas.resolve(name, nameStyle)
+        val md = atlas.resolve(modeLabel, UiLabelStyle.TEXT_10)
+        val icons = listOf(
+            "maskrow:eye:$maskEnabled" to eyePainter,
+            "maskrow:copy" to copyPainter,
+            "maskrow:delete" to deletePainter
+        ).map { (k, p) ->
+            atlas.resolveIcon(k, iconPx, iconPx) { cv, x, y ->
+                val b = rasterizePainterBitmap(p, iconPx, density)
+                cv.drawBitmap(b, x, y, null)
+                b.recycle()
+            }
+        }
+        return Triple(n, md, icons)
+    }
+    var rowEntries = resolveRow()
+    if (atlas.overflowed) {
+        atlas.reset()
+        rowEntries = resolveRow()
+    }
+    val (nameEntry, modeEntry, iconEntries) = rowEntries
+    val rowScale = remember { androidx.compose.animation.core.Animatable(1f) }
+    val iconScales = remember { List(3) { androidx.compose.animation.core.Animatable(1f) } }
+    val iconClicks = listOf(onToggle, onCopy, onRemove)
+    val iconTags = listOf(toggleTag, copyTag, removeTag)
+    val iconDescriptions = listOf("Turn off / on", "Duplicate", "Remove")
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(37.dp)
+    ) {
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            val wPx = maxWidth.value * density
+            // The name ellipsizes to its zone (name weight-1 in the old
+            // Row): zone = width - row padding - mode label - icons.
+            val shownNameEntry = run {
+                val modeAdv = modeEntry?.advance ?: 0f
+                val maxW = wPx - 104f * density - modeAdv
+                if (nameEntry != null && nameEntry.advance > maxW) {
+                    val shown = ChromeGeometry.ellipsize(name, maxW, atlas, nameStyle)
+                    if (shown != null && shown != name) atlas.resolve(shown, nameStyle) ?: nameEntry else nameEntry
+                } else {
+                    nameEntry
+                }
+            }
+            NativeVectorCanvas(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(32.dp),
+                clearArgb = 0,
+                atlas = atlas,
+                drawKey = listOf(
+                    shownNameEntry, modeEntry, iconEntries, rowScale.value,
+                    iconScales.map { it.value }, nameArgb, atlas.generation
+                ),
+                buildCmds = { w, h, dd ->
+                    val cy = h / 2f
+                    setScaleAbout(w / 2f, cy, rowScale.value)
+                    val iconsLeft = w - 10f * dd - 84f * dd
+                    val modeAdv = modeEntry?.advance ?: 0f
+                    val modeLeft = iconsLeft - modeAdv
+                    if (shownNameEntry != null) {
+                        val style = nameStyle
+                        val textH = atlas.textHeightPx(style)
+                        val fm = atlas.fontMetrics(style)
+                        val top = EditorGeometry.centredTextTopPx(0f, h, textH)
+                        val baseline = PanelGeometry.lineBaselinePx(top, textH, fm.ascent, fm.descent)
+                        val (dstX, dstY) = EditorGeometry.textDst(10f * dd, baseline, shownNameEntry.bearing, shownNameEntry.base, pad)
+                        addText(
+                            shownNameEntry.index, dstX, dstY,
+                            0f, 0f, shownNameEntry.rectW.toFloat(), shownNameEntry.rectH.toFloat(),
+                            tintArgb = nameArgb
+                        )
+                    }
+                    if (modeEntry != null) {
+                        val style = UiLabelStyle.TEXT_10
+                        val textH = atlas.textHeightPx(style)
+                        val fm = atlas.fontMetrics(style)
+                        val top = EditorGeometry.centredTextTopPx(0f, h, textH)
+                        val baseline = PanelGeometry.lineBaselinePx(top, textH, fm.ascent, fm.descent)
+                        val (dstX, dstY) = EditorGeometry.textDst(modeLeft, baseline, modeEntry.bearing, modeEntry.base, pad)
+                        addText(
+                            modeEntry.index, dstX, dstY,
+                            0f, 0f, modeEntry.rectW.toFloat(), modeEntry.rectH.toFloat(),
+                            tintArgb = TextSecondary.toArgb()
+                        )
+                    }
+                    iconEntries.forEachIndexed { i, e ->
+                        if (e != null) {
+                            val cx = iconsLeft + (i * 28f + 14f) * dd
+                            setScaleAbout(cx, cy, iconScales[i].value)
+                            addText(
+                                e.index,
+                                cx - iconPx / 2f - pad, cy - iconPx / 2f - pad,
+                                0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                                tintArgb = TextPrimary.toArgb()
+                            )
+                            clearTransform()
+                            setScaleAbout(w / 2f, cy, rowScale.value)
+                        }
+                    }
+                    clearTransform()
+                }
+            )
+            ChromePressBox(
+                rowScale, 0.99f, onRowClick,
+                Modifier
+                    .fillMaxWidth()
+                    .height(32.dp),
+                tag = rowTag,
+                description = name
+            )
+            for (i in 0..2) {
+                ChromePressBox(
+                    iconScales[i], 0.94f, iconClicks[i],
+                    Modifier
+                        .offset(
+                            x = ((wPx - 94f * density + i * 28f * density) / density).dp,
+                            y = 2.dp
+                        )
+                        .size(28.dp),
+                    tag = iconTags[i],
+                    description = iconDescriptions[i]
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Build 252 (stage 5): the mask keyframe row in GL — "Animate"
+ * label, previous-key / next-key icon buttons, the keyframe diamond
+ * (a 45°-rotated square, filled or stroked, amber when the mask is
+ * animated) and the keys count.
+ */
+@Composable
+private fun MaskAnimateRowGl(
+    keysLabel: String,
+    filled: Boolean,
+    active: Boolean,
+    onPrev: () -> Unit,
+    onToggle: () -> Unit,
+    onNext: () -> Unit
+) {
+    val density = androidx.compose.ui.platform.LocalDensity.current.density
+    val atlas = rememberUiAtlas()
+    val pad = UiLabelAtlas.PAD.toFloat()
+    val prevPainter = rememberVectorPainter(Icons.Default.SkipPrevious)
+    val nextPainter = rememberVectorPainter(Icons.Default.SkipNext)
+    val iconPx = (16f * density).roundToInt()
+    fun resolveAnim(): Triple<UiLabelAtlas.Entry?, UiLabelAtlas.Entry?, List<UiLabelAtlas.Entry?>> {
+        val label = atlas.resolve("Animate", UiLabelStyle.SHEET_DESC)
+        val keys = atlas.resolve(keysLabel, UiLabelStyle.TEXT_10)
+        val icons = listOf("maskanim:prev" to prevPainter, "maskanim:next" to nextPainter).map { (k, p) ->
+            atlas.resolveIcon(k, iconPx, iconPx) { cv, x, y ->
+                val b = rasterizePainterBitmap(p, iconPx, density)
+                cv.drawBitmap(b, x, y, null)
+                b.recycle()
+            }
+        }
+        return Triple(label, keys, icons)
+    }
+    var animEntries = resolveAnim()
+    if (atlas.overflowed) {
+        atlas.reset()
+        animEntries = resolveAnim()
+    }
+    val (labelEntry, keysEntry, iconEntries) = animEntries
+    val prevScale = remember { androidx.compose.animation.core.Animatable(1f) }
+    val diamondScale = remember { androidx.compose.animation.core.Animatable(1f) }
+    val nextScale = remember { androidx.compose.animation.core.Animatable(1f) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(32.dp)
+    ) {
+        NativeVectorCanvas(
+            modifier = Modifier.fillMaxSize(),
+            clearArgb = 0,
+            atlas = atlas,
+            drawKey = listOf(
+                labelEntry, keysEntry, iconEntries, filled, active,
+                prevScale.value, diamondScale.value, nextScale.value, atlas.generation
+            ),
+            buildCmds = { w, h, dd ->
+                val cy = h / 2f
+                fun textIn(e: UiLabelAtlas.Entry?, style: UiLabelStyle, originX: Float, tint: Int) {
+                    if (e == null) return
+                    val textH = atlas.textHeightPx(style)
+                    val fm = atlas.fontMetrics(style)
+                    val top = EditorGeometry.centredTextTopPx(0f, h, textH)
+                    val baseline = PanelGeometry.lineBaselinePx(top, textH, fm.ascent, fm.descent)
+                    val (dstX, dstY) = EditorGeometry.textDst(originX, baseline, e.bearing, e.base, pad)
+                    addText(
+                        e.index, dstX, dstY,
+                        0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                        tintArgb = tint
+                    )
+                }
+                textIn(labelEntry, UiLabelStyle.SHEET_DESC, 0f, TextSecondary.toArgb())
+                textIn(keysEntry, UiLabelStyle.TEXT_10, 158f * dd, TextSecondary.toArgb())
+                val iconBoxes = listOf(66f to prevScale, 126f to nextScale)
+                iconBoxes.forEachIndexed { i, (leftDp, sc) ->
+                    val e = iconEntries[i] ?: return@forEachIndexed
+                    val cx = (leftDp + 14f) * dd
+                    setScaleAbout(cx, cy, sc.value)
+                    addText(
+                        e.index,
+                        cx - iconPx / 2f - pad, cy - iconPx / 2f - pad,
+                        0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                        tintArgb = TextPrimary.toArgb()
+                    )
+                    clearTransform()
+                }
+                // The diamond: a square of side 16 x 0.62 dp rotated
+                // 45 degrees about the 32 dp box's centre (110, cy).
+                val dcx = 110f * dd
+                val side = 16f * 0.62f * dd
+                val poly = EditorGeometry.roundedRectOutline(dcx, cy, side, side, 0f, 0f, 0f, 0f, 45f, 1)
+                val xs = FloatArray(poly.size / 2)
+                val ys = FloatArray(poly.size / 2)
+                for (k in xs.indices) {
+                    xs[k] = poly[k * 2]
+                    ys[k] = poly[k * 2 + 1]
+                }
+                val dArgb = (if (active) Color(0xFFFFC107) else Color(0xFF9E9E9E)).toArgb()
+                setScaleAbout(dcx, cy, diamondScale.value)
+                if (filled) {
+                    addFilledPolygon(xs, ys, xs.size, dArgb)
+                } else {
+                    addPolyline(poly, xs.size, true, 2.2f, dArgb)
+                }
+                clearTransform()
+            }
+        )
+        ChromePressBox(
+            prevScale, 0.94f, onPrev,
+            Modifier
+                .offset(x = 66.dp, y = 2.dp)
+                .size(28.dp),
+            tag = "mask_key_prev",
+            description = "Previous key"
+        )
+        ChromePressBox(
+            diamondScale, 0.94f, onToggle,
+            Modifier
+                .offset(x = 94.dp)
+                .size(32.dp),
+            tag = "mask_key_toggle",
+            description = "Keyframe"
+        )
+        ChromePressBox(
+            nextScale, 0.94f, onNext,
+            Modifier
+                .offset(x = 126.dp, y = 2.dp)
+                .size(28.dp),
+            tag = "mask_key_next",
+            description = "Next key"
+        )
+    }
 }
