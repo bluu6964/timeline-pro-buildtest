@@ -2,7 +2,6 @@ package com.example.ui.components
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -20,7 +19,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.rememberPagerState
@@ -44,6 +42,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -53,7 +52,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -64,12 +62,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.PlatformTextStyle
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -81,6 +74,7 @@ import com.example.engine.UiLabelStyle
 import com.example.engine.VectorCmdBuilder
 import com.example.engine.rememberUiAtlas
 import com.example.model.ChromeGeometry
+import com.example.model.PanelGeometry
 import com.example.model.PagerGrid
 import com.example.ui.theme.AmAccent
 import com.example.ui.util.amChromeSpec
@@ -470,109 +464,203 @@ data class PagerRow219(
     val tools: List<PagerTool219>
 )
 
+/**
+ * Rasterize a pager icon, pre-rotated by [rotateDeg] (Flip V reuses the
+ * Flip glyph at 90° — the old Compose Modifier.rotate, applied to the
+ * raster so the GL blit stays axis-aligned; the icon box is square, so
+ * the rotation is exact).
+ */
+private fun rasterizePagerIcon(
+    painter: androidx.compose.ui.graphics.vector.VectorPainter,
+    sizePx: Int,
+    density: Float,
+    rotateDeg: Float
+): android.graphics.Bitmap {
+    val src = rasterizePainterBitmap(painter, sizePx, density)
+    if (rotateDeg == 0f) return src
+    val out = android.graphics.Bitmap.createBitmap(sizePx, sizePx, android.graphics.Bitmap.Config.ARGB_8888)
+    val cv = android.graphics.Canvas(out)
+    val m = android.graphics.Matrix()
+    m.postRotate(rotateDeg, sizePx / 2f, sizePx / 2f)
+    cv.drawBitmap(src, m, null)
+    src.recycle()
+    return out
+}
+
+/** One pager button's resolved placement on its page (page px). */
+private class PagerBtnLayout(
+    val tool: PagerTool219,
+    val leftPx: Float,
+    val topPx: Float,
+    val wPx: Float,
+    val hPx: Float,
+    val iconSizeDp: Int,
+    val labelGapDp: Int,
+    val smallLabel: Boolean
+)
+
+private data class PagerBtnEntries(
+    val icon: UiLabelAtlas.Entry?,
+    val labels: List<UiLabelAtlas.Entry?>,
+    val badge: UiLabelAtlas.Entry?
+)
+
+/**
+ * Build 251 (UI migration stage 4): one pager page drawn on ONE native
+ * GL surface — buttons, icons, auto-fit labels and badges from
+ * [PanelGeometry.Pager] (the build-220 fit law, host-tested, measured
+ * with the atlas paint so the cut points agree with the draw). The
+ * page-level surface is what lets a badge overflow its button's top
+ * edge exactly as the Compose badge did. Tap targets stay Compose:
+ * invisible boxes at the buttons' rects with the plain clickable (the
+ * ripple draws over the surface, the stage-3 header precedent).
+ */
 @Composable
-private fun PagerToolBtn(
-    tool: PagerTool219,
-    iconSizeDp: Int,
-    labelGapDp: Int,
-    smallLabel: Boolean,
-    modifier: Modifier = Modifier
-) {
-    val iconTint = if (tool.enabled) Color.White else SelDisabled
-    val labelColor = if (tool.enabled) SelLabel else SelDisabled
-    Box(modifier = modifier.testTag("pager_tool_${tool.id}")) {
-        BoxWithConstraints(
-            modifier = Modifier
-                .fillMaxSize()
-                .clip(RoundedCornerShape(6.dp))
-                .background(if (tool.active) SelBtnActive else SelBtn)
-                .then(
-                    if (tool.active) Modifier.border(1.5.dp, SelActiveOutline, RoundedCornerShape(6.dp))
-                    else Modifier
-                )
-                .clickable(enabled = tool.enabled, onClick = tool.onClick)
-        ) {
-            // Build 220 (ITEM C — toolbar polish, Sarowar's phone
-            // correction on 219): the label is MEASURED against the
-            // button's real inner width and shrunk in 0.5 sp steps from
-            // its base size (9.5 small rows / 11 big rows) down to an
-            // 8 sp floor until it fits on ONE line; only a label that
-            // still cannot fit wraps to two centred lines, and then the
-            // icon/gap give up a few dp so the stack stays inside the
-            // button. No label is ever ellipsised or clipped again.
-            // includeFontPadding = false + an explicit line height make
-            // the stack's height exact, and the small rows' vertical
-            // padding drops 4 -> 2 dp: build 219's stack (22 icon + 2
-            // gap + font-padded 9.5 sp label + 8 padding) overflowed
-            // the 46 dp row and the labels rendered half-clipped.
-            val density = LocalDensity.current
-            val borderPx = if (tool.active) with(density) { 3.dp.roundToPx() } else 0
-            val innerW = constraints.maxWidth - with(density) { 4.dp.roundToPx() } - borderPx
-            val measurer = rememberTextMeasurer()
-            val baseSp = if (smallLabel) 9f else 10f
-            val floorSp = 7.5f
-            var fitSp = baseSp
-            var oneLine = false
-            while (true) {
-                val w = measurer.measure(
-                    text = tool.label,
-                    style = TextStyle(fontSize = fitSp.sp),
-                    softWrap = false
-                ).size.width
-                if (w <= innerW.coerceAtLeast(1)) { oneLine = true; break }
-                if (fitSp <= floorSp) break
-                fitSp = (fitSp - 0.5f).coerceAtLeast(floorSp)
-            }
-            val twoLine = !oneLine
-            val effIcon = if (twoLine) minOf(iconSizeDp, 16) else iconSizeDp
-            val effGap = if (twoLine) 1 else labelGapDp
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 2.dp, vertical = if (smallLabel) 2.dp else 3.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Icon(
-                    tool.icon,
-                    contentDescription = tool.label,
-                    tint = iconTint,
-                    modifier = Modifier
-                        .size(effIcon.dp)
-                        .then(if (tool.iconRotate != 0f) Modifier.rotate(tool.iconRotate) else Modifier)
-                )
-                Spacer(Modifier.height(effGap.dp))
-                Text(
-                    text = tool.label,
-                    color = labelColor,
-                    fontSize = fitSp.sp,
-                    lineHeight = (fitSp * 1.15f).sp,
-                    style = TextStyle(
-                        platformStyle = PlatformTextStyle(includeFontPadding = false)
-                    ),
-                    maxLines = if (twoLine) 2 else 1,
-                    overflow = if (twoLine) TextOverflow.Clip else TextOverflow.Ellipsis,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
+private fun PagerPageGl(buttons: List<PagerBtnLayout>) {
+    val g = PanelGeometry.Pager
+    val density = LocalDensity.current.density
+    val fontScale = LocalDensity.current.fontScale
+    val atlas = rememberUiAtlas()
+    val pad = UiLabelAtlas.PAD.toFloat()
+
+    val painters = buttons.map { b -> key(b.tool.id) { rememberVectorPainter(b.tool.icon) } }
+
+    // Per-button fit + lines, computed once per snapshot.
+    class Prep(
+        val fit: PanelGeometry.Pager.Fit,
+        val style: UiLabelStyle,
+        val effIconDp: Int,
+        val effGapDp: Int,
+        val lineTexts: List<String>,
+        val lineBoxPx: Float
+    )
+    val preps = buttons.map { b ->
+        val innerW = g.innerWidthPx(b.wPx, b.tool.active, density)
+        val fit = g.fit(b.tool.label, if (b.smallLabel) g.FIT_BASE_SMALL_SP else g.FIT_BASE_SP, innerW) { s, sp ->
+            atlas.measure(s, UiLabelStyle.pagerLabel(sp))
         }
-        if (tool.badge != null) {
+        val style = UiLabelStyle.pagerLabel(fit.sp)
+        val lineTexts = g.labelLines(b.tool.label, fit, innerW) { atlas.measure(it, style) }
+        Prep(
+            fit = fit,
+            style = style,
+            effIconDp = if (!fit.oneLine) minOf(b.iconSizeDp, 16) else b.iconSizeDp,
+            effGapDp = if (!fit.oneLine) 1 else b.labelGapDp,
+            lineTexts = lineTexts,
+            lineBoxPx = fit.sp * g.LINE_HEIGHT_FACTOR * density * fontScale
+        )
+    }
+
+    fun resolveAll(): List<PagerBtnEntries> = buttons.mapIndexed { i, b ->
+        val prep = preps[i]
+        val iconPx = (prep.effIconDp * density).roundToInt()
+        val rot = b.tool.iconRotate.roundToInt()
+        val icon = atlas.resolveIcon("pager-icon:${b.tool.icon.name}:${prep.effIconDp}:$rot", iconPx, iconPx) { cv, x, y ->
+            val bmp = rasterizePagerIcon(painters[i], iconPx, density, b.tool.iconRotate)
+            cv.drawBitmap(bmp, x, y, null)
+            bmp.recycle()
+        }
+        val labels = prep.lineTexts.map { atlas.resolve(it, prep.style) }
+        val badge = b.tool.badge?.let { atlas.resolve(it, UiLabelStyle.PAGER_BADGE) }
+        PagerBtnEntries(icon, labels, badge)
+    }
+    var entries = resolveAll()
+    if (atlas.overflowed) {
+        atlas.reset()
+        entries = resolveAll()
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        NativeVectorCanvas(
+            modifier = Modifier.fillMaxSize(),
+            clearArgb = 0,
+            atlas = atlas,
+            drawKey = listOf(entries, atlas.generation),
+            buildCmds = { _, _, dd ->
+                buttons.forEachIndexed { i, b ->
+                    val prep = preps[i]
+                    val e = entries[i]
+                    val cx = b.leftPx + b.wPx / 2f
+                    val cy = b.topPx + b.hPx / 2f
+                    // The button face (+ the active outline, the stroke
+                    // centred on the face edge — the dock rule).
+                    if (b.tool.active) {
+                        addRoundRect(
+                            cx, cy,
+                            b.wPx - g.BORDER_DP * dd, b.hPx - g.BORDER_DP * dd,
+                            (g.CORNER_DP - g.BORDER_DP / 2f) * dd,
+                            SelBtnActive.toArgb(), g.BORDER_DP * dd, SelActiveOutline.toArgb()
+                        )
+                    } else {
+                        addRoundRect(cx, cy, b.wPx, b.hPx, g.CORNER_DP * dd, SelBtn.toArgb())
+                    }
+                    // The icon over the label lines, the stack centred.
+                    val fm = atlas.fontMetrics(prep.style)
+                    val stackTop = g.stackTopPx(
+                        b.topPx, b.hPx, b.smallLabel,
+                        prep.effIconDp.toFloat(), prep.effGapDp.toFloat(),
+                        prep.lineTexts.size, prep.lineBoxPx, dd
+                    )
+                    val iconTint = (if (b.tool.enabled) Color.White else SelDisabled).toArgb()
+                    e.icon?.let { ic ->
+                        addText(
+                            ic.index,
+                            b.leftPx + (b.wPx - prep.effIconDp * dd) / 2f - pad,
+                            stackTop - pad,
+                            0f, 0f, ic.rectW.toFloat(), ic.rectH.toFloat(),
+                            tintArgb = iconTint
+                        )
+                    }
+                    val labelTint = (if (b.tool.enabled) SelLabel else SelDisabled).toArgb()
+                    val textBlockTop = stackTop + (prep.effIconDp + prep.effGapDp) * dd
+                    e.labels.forEachIndexed { li, le ->
+                        if (le == null) return@forEachIndexed
+                        val baseline = PanelGeometry.lineBaselinePx(
+                            textBlockTop + li * prep.lineBoxPx, prep.lineBoxPx,
+                            fm.ascent, fm.descent
+                        )
+                        addText(
+                            le.index,
+                            b.leftPx + (b.wPx - le.advance) / 2f + le.bearing - pad,
+                            baseline - le.base,
+                            0f, 0f, le.rectW.toFloat(), le.rectH.toFloat(),
+                            tintArgb = labelTint
+                        )
+                    }
+                    // The badge (overflows the top-right, page surface).
+                    if (b.tool.badge != null) {
+                        e.badge?.let { be ->
+                            val badgeW = g.badgeWidthPx(be.advance, dd)
+                            val badgeH = g.badgeHeightPx(atlas.textHeightPx(UiLabelStyle.PAGER_BADGE), dd)
+                            val badgeLeft = g.badgeLeftPx(b.leftPx + b.wPx, badgeW, dd)
+                            val badgeTop = g.badgeTopPx(b.topPx, dd)
+                            addRoundRect(
+                                badgeLeft + badgeW / 2f, badgeTop + badgeH / 2f,
+                                badgeW, badgeH, g.BADGE_CORNER_DP * dd, SelBadge.toArgb()
+                            )
+                            val bfm = atlas.fontMetrics(UiLabelStyle.PAGER_BADGE)
+                            addText(
+                                be.index,
+                                badgeLeft + g.BADGE_PAD_H_DP * dd + be.bearing - pad,
+                                badgeTop + g.BADGE_PAD_V_DP * dd - bfm.ascent - be.base,
+                                0f, 0f, be.rectW.toFloat(), be.rectH.toFloat(),
+                                tintArgb = SelBadgeText.toArgb()
+                            )
+                        }
+                    }
+                }
+            }
+        )
+        // Tap targets at the buttons' rects, invisible (ripple over GL).
+        buttons.forEach { b ->
             Box(
                 modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .offset(x = 2.dp, y = (-4).dp)
-                    .background(SelBadge, RoundedCornerShape(3.dp))
-                    .padding(horizontal = 3.dp, vertical = 1.dp)
-            ) {
-                Text(
-                    text = tool.badge,
-                    color = SelBadgeText,
-                    fontSize = 8.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.3.sp
-                )
-            }
+                    .offset(x = (b.leftPx / density).dp, y = (b.topPx / density).dp)
+                    .size((b.wPx / density).dp, (b.hPx / density).dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .clickable(enabled = b.tool.enabled, onClick = b.tool.onClick)
+                    .testTag("pager_tool_${b.tool.id}")
+            )
         }
     }
 }
@@ -593,6 +681,7 @@ fun SelectedToolsPager219(
 ) {
     val pagerState = rememberPagerState(initialPage = 0) { 3 }
     val scope = rememberCoroutineScope()
+    val density = LocalDensity.current.density
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -611,96 +700,106 @@ fun SelectedToolsPager219(
                 .fillMaxWidth()
                 .height(154.dp)
         ) { page ->
-            if (page == 2) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 4.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    PagerGrid.rows(page3).forEach { rowTools ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            rowTools.forEach { tool ->
+            // Build 251: each page is one GL surface (PagerPageGl) laid
+            // out by PanelGeometry.Pager — the same rows, heights and
+            // button rects the Compose Columns/Rows produced.
+            val g = PanelGeometry.Pager
+            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                val pageW = maxWidth.value * density
+                val pageH = maxHeight.value * density
+                val buttons = mutableListOf<PagerBtnLayout>()
+                if (page == 2) {
+                    val rows = PagerGrid.rows(page3)
+                    if (rows.isNotEmpty()) {
+                        val rowH = g.page3RowHeightPx(pageH, rows.size, density)
+                        rows.forEachIndexed { rowIdx, rowTools ->
+                            val top = g.PAD_TOP_DP * density + rowIdx * (rowH + g.GAP_DP * density)
+                            val btnW = g.buttonWidthPx(pageW, 3, density)
+                            rowTools.forEachIndexed { colIdx, tool ->
                                 if (tool != null) {
-                                    PagerToolBtn(
+                                    buttons += PagerBtnLayout(
                                         tool = tool,
+                                        leftPx = g.buttonLeftPx(colIdx, btnW, density),
+                                        topPx = top,
+                                        wPx = btnW,
+                                        hPx = rowH,
                                         iconSizeDp = 20,
                                         labelGapDp = 5,
-                                        smallLabel = false,
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .fillMaxHeight()
-                                    )
-                                } else {
-                                    Spacer(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .fillMaxHeight()
+                                        smallLabel = false
                                     )
                                 }
                             }
                         }
                     }
-                }
-            } else {
-                val rows = if (page == 0) page1 else page2
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 4.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
+                } else {
+                    val rows = if (page == 0) page1 else page2
+                    val heightsPx = rows.map { it.heightDp * density }
                     rows.forEachIndexed { rowIdx, row ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(row.heightDp.dp),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            row.tools.forEach { tool ->
-                                PagerToolBtn(
-                                    tool = tool,
-                                    iconSizeDp = when {
-                                        row.heightDp <= 36 -> if (page == 0) 16 else 15
-                                        page == 1 && rowIdx == 2 -> 19
-                                        else -> 20
-                                    },
-                                    labelGapDp = if (row.heightDp <= 36) 2 else 3,
-                                    smallLabel = row.smallLabels,
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .fillMaxHeight()
-                                )
-                            }
+                        val btnW = g.buttonWidthPx(pageW, row.tools.size, density)
+                        val top = g.rowTopPx(rowIdx, heightsPx, density)
+                        row.tools.forEachIndexed { colIdx, tool ->
+                            buttons += PagerBtnLayout(
+                                tool = tool,
+                                leftPx = g.buttonLeftPx(colIdx, btnW, density),
+                                topPx = top,
+                                wPx = btnW,
+                                hPx = row.heightDp * density,
+                                iconSizeDp = when {
+                                    row.heightDp <= 36 -> if (page == 0) 16 else 15
+                                    page == 1 && rowIdx == 2 -> 19
+                                    else -> 20
+                                },
+                                labelGapDp = if (row.heightDp <= 36) 2 else 3,
+                                smallLabel = row.smallLabels
+                            )
                         }
                     }
                 }
+                PagerPageGl(buttons)
             }
         }
         // Pagination dots: 5×5, active = 14 wide in the name colour.
-        Row(
+        // Build 251: drawn on a small GL surface (PanelGeometry.Pager);
+        // the tap boxes keep the dots' own rects and tags.
+        val g = PanelGeometry.Pager
+        val currentPage = pagerState.currentPage
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
-            verticalAlignment = Alignment.CenterVertically
+                .height((g.DOTS_TOP_DP + g.DOT_H_DP).dp)
         ) {
-            for (i in 0 until 3) {
-                val active = pagerState.currentPage == i
-                Box(
-                    modifier = Modifier
-                        .width(if (active) 14.dp else 5.dp)
-                        .height(5.dp)
-                        .clip(RoundedCornerShape(2.5.dp))
-                        .background(if (active) SelName else SelDot)
-                        .clickable { scope.launch { pagerState.animateScrollToPage(i, animationSpec = amChromeSpec()) } }
-                        .testTag("pager_dot_$i")
-                )
+            NativeVectorCanvas(
+                modifier = Modifier.fillMaxSize(),
+                clearArgb = 0,
+                drawKey = currentPage,
+                buildCmds = { w, _, dd ->
+                    for (i in 0 until 3) {
+                        val dotW = g.dotWidthPx(i, currentPage, dd)
+                        val left = g.dotLeftPx(i, currentPage, w, dd)
+                        addRoundRect(
+                            left + dotW / 2f, (g.DOTS_TOP_DP + g.DOT_H_DP / 2f) * dd,
+                            dotW, g.DOT_H_DP * dd, g.DOT_CORNER_DP * dd,
+                            (if (i == currentPage) SelName else SelDot).toArgb()
+                        )
+                    }
+                }
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = g.DOTS_TOP_DP.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                for (i in 0 until 3) {
+                    Box(
+                        modifier = Modifier
+                            .width(g.dotWidthPx(i, currentPage, 1f).dp)
+                            .height(g.DOT_H_DP.dp)
+                            .clickable { scope.launch { pagerState.animateScrollToPage(i, animationSpec = amChromeSpec()) } }
+                            .testTag("pager_dot_$i")
+                    )
+                }
             }
         }
     }
