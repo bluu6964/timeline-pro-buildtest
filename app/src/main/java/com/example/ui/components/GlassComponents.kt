@@ -143,33 +143,11 @@ fun GlassIconButton(
 /**
  * The primary action button — a flat WHITE PILL again since build 206
  * (Sarowar's frontend redesign: "buttons get their pills back", reversing
- * build 183's boxless order). Content colours come from the call site and
- * must be INK (dark) — they sit on the white fill. The name is kept so call
- * sites read as before. Touch geometry is unchanged: same padding, same row.
+ * build 183's boxless order). Build 253 (stage 6): the Compose host is
+ * GONE — its two call sites (the Templates dialog's "Add to project"
+ * pills) draw through EditorGl's GlWhitePill, same hug geometry, same
+ * hairline, same ink label.
  */
-@Composable
-fun GradientPillButton(
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    tag: String? = null,
-    contentPadding: PaddingValues = PaddingValues(horizontal = 12.dp),
-    content: @Composable RowScope.() -> Unit
-) {
-    var m = modifier
-    if (tag != null) m = m.testTag(tag)
-    Box(m, contentAlignment = Alignment.Center) {
-        Row(
-            Modifier
-                .background(Color.White, CircleShape)
-                .border(1.dp, AmHairline, CircleShape) // build 216: the white pill needs its hairline on white panels
-                .clip(CircleShape)
-                .bouncyClickable(pressedScale = 0.94f, onClick = onClick)
-                .padding(contentPadding),
-            verticalAlignment = Alignment.CenterVertically,
-            content = content
-        )
-    }
-}
 
 /**
  * Chip / tab. Since build 207 (frontend redesign) a CLICKABLE chip is a pill:

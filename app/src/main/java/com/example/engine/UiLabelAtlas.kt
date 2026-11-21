@@ -198,6 +198,7 @@ enum class UiLabelStyle(
     DLG_12_SEMI(12f, 600, letterSpacingSp = 0.2f),
     DLG_115(11.5f, 400, letterSpacingSp = 0.2f),
     DLG_11(11f, 400, letterSpacingSp = 0.2f),
+    DLG_11_SEMI(11f, 600, letterSpacingSp = 0.2f),
     DLG_10(10f, 400, letterSpacingSp = 0.2f),
 
     /** Build 253 (stage 6): sheet titles at SemiBold: 14.5 sp SemiBold. */

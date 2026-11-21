@@ -63,7 +63,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
 import com.example.engine.CounterEval
+import com.example.engine.NativeVectorCanvas
 import com.example.engine.TemplateAssets
+import com.example.engine.UiLabelAtlas
+import com.example.engine.UiLabelStyle
+import com.example.engine.rememberUiAtlas
+import com.example.model.EditorGeometry
+import com.example.model.PanelGeometry
 import com.example.model.CarouselParams
 import com.example.model.CarouselSpec
 import com.example.model.CarouselTemplate
@@ -146,17 +152,40 @@ fun TemplatesDialog(
         onDismissRequest = onDismiss,
         containerColor = AmPanel,
         shape = RoundedCornerShape(AmCornerCard),
-        title = { Text("Templates", color = HeaderText, fontWeight = FontWeight.Bold) },
+        // Build 253 (stage 6): the dialog's slot contents draw in GL
+        // (shell stays; the template PREVIEWs stay Compose — they are
+        // the templates' own animated artwork, evaluated live on the
+        // frame clock). Dialog typography: title = headlineSmall Bold
+        // in its 32sp box; body lines pitch at 18sp (DLG_* styles).
+        title = {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(with(LocalDensity.current) { 32.sp.toDp() })
+            ) {
+                GlTextLine(
+                    "Templates", UiLabelStyle.DLG_TITLE_B, HeaderText.toArgb(),
+                    Modifier.fillMaxSize()
+                )
+            }
+        },
         text = {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
             ) {
-                Text(
-                    "Built-in templates",
-                    color = HeaderText, fontWeight = FontWeight.Bold, fontSize = 14.sp
-                )
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(with(LocalDensity.current) { 18.sp.toDp() })
+                ) {
+                    GlTextLine(
+                        "Built-in templates",
+                        UiLabelStyle.DLG_14_BOLD, HeaderText.toArgb(),
+                        Modifier.fillMaxSize()
+                    )
+                }
                 Spacer(Modifier.height(8.dp))
                 TemplateSection(
                     title = "Carousel — Photo Ring",
@@ -172,32 +201,59 @@ fun TemplatesDialog(
                         {
                             Spacer(Modifier.height(6.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("Cards", color = HeaderText, fontSize = 12.sp)
+                                GlLabelLine("Cards", UiLabelStyle.DLG_12, HeaderText.toArgb())
                                 Spacer(Modifier.weight(1f))
                                 DialogSecondaryButton(
                                     text = "−",
                                     onClick = { carouselCards-- },
                                     enabled = carouselCards > CarouselSpec.MIN_CARDS
                                 )
-                                Text("$carouselCards", color = HeaderText, fontSize = 12.5.sp)
+                                GlLabelLine("$carouselCards", UiLabelStyle.DLG_125, HeaderText.toArgb())
                                 DialogSecondaryButton(
                                     text = "+",
                                     onClick = { carouselCards++ },
                                     enabled = carouselCards < CarouselSpec.MAX_CARDS
                                 )
                             }
-                            Text(
-                                "One turn: ${carouselSeconds}s",
-                                color = HeaderText, fontSize = 12.sp
-                            )
-                            Slider(
+                            Box(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .height(with(LocalDensity.current) { 18.sp.toDp() })
+                            ) {
+                                GlTextLine(
+                                    "One turn: ${carouselSeconds}s",
+                                    UiLabelStyle.DLG_12, HeaderText.toArgb(),
+                                    Modifier.fillMaxSize()
+                                )
+                            }
+                            // The M3 slider in GL (stage-5 GlSlider) with
+                            // the theme's default slider colours (primary
+                            // thumb/track, surfaceVariant inactive). The
+                            // build-252 steps=7 needs no snapping here:
+                            // onValueChange rounds to whole seconds, so
+                            // the drawn thumb only ever sits on a step.
+                            GlSlider(
                                 value = carouselSeconds.toFloat(),
                                 onValueChange = { carouselSeconds = kotlin.math.round(it).toInt() },
-                                valueRange = (CarouselSpec.MIN_DURATION_MS / 1000f)..(CarouselSpec.MAX_DURATION_MS / 1000f),
-                                steps = 7,
+                                min = (CarouselSpec.MIN_DURATION_MS / 1000f),
+                                max = (CarouselSpec.MAX_DURATION_MS / 1000f),
+                                onValueChangeFinished = null,
+                                thumbArgb = com.example.ui.theme.AmMint.toArgb(),
+                                activeArgb = com.example.ui.theme.AmMint.toArgb(),
+                                inactiveArgb = AmPanelHigh.toArgb(),
                                 modifier = Modifier.fillMaxWidth()
                             )
-                            Text("Direction", color = HeaderText, fontSize = 12.sp)
+                            Box(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .height(with(LocalDensity.current) { 18.sp.toDp() })
+                            ) {
+                                GlTextLine(
+                                    "Direction",
+                                    UiLabelStyle.DLG_12, HeaderText.toArgb(),
+                                    Modifier.fillMaxSize()
+                                )
+                            }
                             Spacer(Modifier.height(6.dp))
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -230,21 +286,14 @@ fun TemplatesDialog(
                             )
                             // The preview itself is the settings toggle — say so on the preview, not only
                             // in the small print under the Add button.
-                            Box(
+                            // Build 253: the chip draws in GL (not a
+                            // button — taps fall through to the preview).
+                            CarouselChipGl(
+                                label = if (carouselSettingsOpen) "Hide settings" else "Customise",
                                 modifier = Modifier
                                     .align(Alignment.TopEnd)
                                     .padding(8.dp)
-                                    .clip(androidx.compose.foundation.shape.CircleShape)
-                                    .background(Color(0xCC14181D))
-                                    .padding(horizontal = 10.dp, vertical = 5.dp)
-                            ) {
-                                Text(
-                                    if (carouselSettingsOpen) "Hide settings" else "Customise",
-                                    color = HeaderText,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
+                            )
                         }
                     }
                 )
@@ -325,40 +374,57 @@ fun TemplatesDialog(
                     preview = { SocialGrowthPreview(modifier = Modifier.fillMaxWidth()) }
                 )
                 Spacer(Modifier.height(8.dp))
-                Text(
-                    "My Templates",
-                    color = HeaderText, fontWeight = FontWeight.Bold, fontSize = 14.sp
-                )
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(with(LocalDensity.current) { 18.sp.toDp() })
+                ) {
+                    GlTextLine(
+                        "My Templates",
+                        UiLabelStyle.DLG_14_BOLD, HeaderText.toArgb(),
+                        Modifier.fillMaxSize()
+                    )
+                }
                 Spacer(Modifier.height(4.dp))
                 if (userTemplates.isEmpty()) {
-                    Text(
+                    GlTextBlock(
                         "Nothing saved yet. Build a group, select it, and tap " +
                             "“Save as Template” in its tools — it will appear here and can " +
                             "be added to any project.",
-                        color = TextSecondary, fontSize = 11.sp
+                        UiLabelStyle.DLG_11, TextSecondary.toArgb(),
+                        Modifier.fillMaxWidth(),
+                        linePitchSp = 18f
                     )
                 }
                 for (tpl in userTemplates) {
                     Spacer(Modifier.height(8.dp))
                     TemplateCard {
-                        Text(
-                            tpl.name,
-                            color = HeaderText, fontWeight = FontWeight.SemiBold, fontSize = 13.5.sp
-                        )
-                        Text(
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .height(with(LocalDensity.current) { 18.sp.toDp() })
+                        ) {
+                            GlTextLine(
+                                tpl.name,
+                                UiLabelStyle.DLG_135_SEMI, HeaderText.toArgb(),
+                                Modifier.fillMaxSize(),
+                                ellipsize = true
+                            )
+                        }
+                        GlTextBlock(
                             "Your saved group · ${tpl.clips.size} layer${if (tpl.clips.size == 1) "" else "s"} · " +
                                 "added as one group layer",
-                            color = TextSecondary, fontSize = 11.sp
+                            UiLabelStyle.DLG_11, TextSecondary.toArgb(),
+                            Modifier.fillMaxWidth(),
+                            linePitchSp = 18f
                         )
                         Spacer(Modifier.height(8.dp))
                         // The white pill (build 207 redesign), delete as a ghost pill.
-                        GradientPillButton(
+                        GlWhitePill(
+                            label = "Add to project",
                             onClick = { onAddUserTemplate(tpl) },
-                            modifier = Modifier.fillMaxWidth(),
-                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 7.dp)
-                        ) {
-                            Text("Add to project", color = AmInk, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                        }
+                            modifier = Modifier.fillMaxWidth()
+                        )
                         Spacer(Modifier.height(6.dp))
                         DialogSecondaryButton(text = "Delete template", onClick = { pendingDelete = tpl })
                     }
@@ -375,12 +441,25 @@ fun TemplatesDialog(
             onDismissRequest = { pendingDelete = null },
             containerColor = AmPanel,
             shape = RoundedCornerShape(AmCornerCard),
-            title = { Text("Delete template?", color = HeaderText, fontWeight = FontWeight.Bold) },
+            title = {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(with(LocalDensity.current) { 32.sp.toDp() })
+                ) {
+                    GlTextLine(
+                        "Delete template?", UiLabelStyle.DLG_TITLE_B, HeaderText.toArgb(),
+                        Modifier.fillMaxSize()
+                    )
+                }
+            },
             text = {
-                Text(
+                GlTextBlock(
                     "“${tpl.name}” will be removed from My Templates, with its saved pictures. " +
                         "Groups you already added to projects are not changed.",
-                    color = TextSecondary, fontSize = 11.5.sp
+                    UiLabelStyle.DLG_115, TextSecondary.toArgb(),
+                    Modifier.fillMaxWidth(),
+                    linePitchSp = 18f
                 )
             },
             confirmButton = {
@@ -407,16 +486,19 @@ fun TemplatesDialog(
 @Composable
 private fun TemplateCard(content: @Composable ColumnScope.() -> Unit) {
     // Build 207: the card is rounded (24 dp) in the redesign language.
-    val card = RoundedCornerShape(AmCornerCard)
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(card)
-            .background(AmPanelHigh)
-            .border(1.dp, AmHairline, card)
-            .padding(10.dp),
-        content = content
-    )
+    // Build 253 (stage 6): the card body is a GlPanelBody; the content
+    // column keeps its 10dp padding inside it.
+    GlPanelBody(
+        modifier = Modifier.fillMaxWidth(),
+        cornerDp = AmCornerCard.value,
+        fillArgb = AmPanelHigh.toArgb(),
+        borderArgb = AmHairline.toArgb()
+    ) {
+        Column(
+            modifier = Modifier.padding(10.dp),
+            content = content
+        )
+    }
 }
 
 /**
@@ -436,22 +518,94 @@ private fun ColumnScope.TemplateSection(
     TemplateCard {
         Box(Modifier.fillMaxWidth()) { preview() }
         Spacer(Modifier.height(7.dp))
-        Text(title, color = HeaderText, fontWeight = FontWeight.SemiBold, fontSize = 13.5.sp)
-        Text(description, color = TextSecondary, fontSize = 11.sp)
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(with(LocalDensity.current) { 18.sp.toDp() })
+        ) {
+            GlTextLine(
+                title,
+                UiLabelStyle.DLG_135_SEMI, HeaderText.toArgb(),
+                Modifier.fillMaxSize(),
+                ellipsize = true
+            )
+        }
+        GlTextBlock(
+            description,
+            UiLabelStyle.DLG_11, TextSecondary.toArgb(),
+            Modifier.fillMaxWidth(),
+            linePitchSp = 18f
+        )
         settings?.invoke(this)
         Spacer(Modifier.height(7.dp))
         // The white pill (build 207 redesign): the card's primary action.
-        GradientPillButton(
+        GlWhitePill(
+            label = "Add to project",
             onClick = onAdd,
-            modifier = Modifier.fillMaxWidth(),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 7.dp)
-        ) {
-            Text("Add to project", color = AmInk, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-        }
+            modifier = Modifier.fillMaxWidth()
+        )
         Spacer(Modifier.height(6.dp))
-        Text(footnote, color = TextSecondary, fontSize = 10.sp)
+        GlTextBlock(
+            footnote,
+            UiLabelStyle.DLG_10, TextSecondary.toArgb(),
+            Modifier.fillMaxWidth(),
+            linePitchSp = 18f
+        )
     }
     Spacer(Modifier.height(8.dp))
+}
+
+/**
+ * Build 253 (stage 6): the carousel preview's "Customise / Hide
+ * settings" chip on one GL surface — the 0xCC14181D capsule with the
+ * 11sp SemiBold label in its 18sp dialog line box, plus the chip's
+ * 10/5dp padding. Not a button: taps fall through to the preview.
+ */
+@Composable
+private fun CarouselChipGl(label: String, modifier: Modifier = Modifier) {
+    val density = LocalDensity.current.density
+    val fontScale = LocalDensity.current.fontScale
+    val atlas = rememberUiAtlas()
+    val pad = UiLabelAtlas.PAD.toFloat()
+    val textH = atlas.textHeightPx(UiLabelStyle.DLG_11_SEMI)
+    fun resolveChip() = atlas.resolve(label, UiLabelStyle.DLG_11_SEMI)
+    var chipE = resolveChip()
+    if (atlas.overflowed) {
+        atlas.reset()
+        chipE = resolveChip()
+    }
+    val e = chipE
+    val chipW = (e?.advance ?: 0f) + 20f * density
+    val chipH = 18f * fontScale * density + 10f * density
+
+    Box(
+        modifier
+            .width((chipW / density).dp)
+            .height((chipH / density).dp)
+    ) {
+        NativeVectorCanvas(
+            modifier = Modifier.fillMaxSize(),
+            clearArgb = 0,
+            atlas = atlas,
+            drawKey = listOf(e, atlas.generation),
+            buildCmds = { w, h, _ ->
+                addRoundRect(w / 2f, h / 2f, w, h, h / 2f, 0xCC14181D.toInt())
+                e?.let { entry ->
+                    val style = UiLabelStyle.DLG_11_SEMI
+                    val fm = atlas.fontMetrics(style)
+                    val top = EditorGeometry.centredTextTopPx(0f, h, textH)
+                    val baseline = PanelGeometry.lineBaselinePx(top, textH, fm.ascent, fm.descent)
+                    val originX = EditorGeometry.centredOriginPx(w / 2f, entry.advance)
+                    val (dstX, dstY) = EditorGeometry.textDst(originX, baseline, entry.bearing, entry.base, pad)
+                    addText(
+                        entry.index, dstX, dstY,
+                        0f, 0f, entry.rectW.toFloat(), entry.rectH.toFloat(),
+                        tintArgb = HeaderText.toArgb()
+                    )
+                }
+            }
+        )
+    }
 }
 
 /**

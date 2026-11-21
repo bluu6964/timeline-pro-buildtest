@@ -244,17 +244,28 @@ fun ColorPickerDialog(
             )
             Spacer(Modifier.height(10.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(current)
-                        .border(1.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
-                )
+                // Build 253 (stage 6): the current-colour swatch and
+                // the hex readout draw in GL (a flat colour fill is
+                // exact in GL); the hex INPUT surfaces elsewhere stay
+                // Compose by platform law.
+                Box(Modifier.size(32.dp)) {
+                    NativeVectorCanvas(
+                        modifier = Modifier.fillMaxSize(),
+                        clearArgb = 0,
+                        drawKey = current.toArgb(),
+                        buildCmds = { w, h, dd ->
+                            addRoundRect(w / 2f, h / 2f, w, h, 8f * dd, current.toArgb())
+                            addRoundRect(
+                                w / 2f, h / 2f, w - 1f * dd, h - 1f * dd, 8f * dd - 0.5f * dd,
+                                0, 1f * dd, 0x4DFFFFFF
+                            )
+                        }
+                    )
+                }
                 Spacer(Modifier.width(10.dp))
-                Text(
+                GlLabelLine(
                     String.format(Locale.US, "#%08X", current.toArgb()),
-                    color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium
+                    UiLabelStyle.TEXT_13_MED, TextPrimary.toArgb()
                 )
                 Spacer(Modifier.weight(1f))
                 DialogSecondaryButton(text = "Cancel", onClick = onDismiss)
