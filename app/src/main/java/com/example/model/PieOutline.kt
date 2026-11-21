@@ -1,13 +1,6 @@
 package com.example.model
 
 import com.example.engine.FrameEvalNative
-import kotlin.math.PI
-import kotlin.math.abs
-import kotlin.math.cos
-import kotlin.math.max
-import kotlin.math.min
-import kotlin.math.sin
-import kotlin.math.sqrt
 
 /**
  * The outline of Alight Motion's `.pie` shape: a wedge — an arc of [radius] about the layer's
@@ -36,25 +29,6 @@ import kotlin.math.sqrt
  */
 object PieOutline {
 
-    /** [startDeg] / [endDeg] prepared by getPath's wrap rule: the (low, high) pair createArc walks. */
-    private fun preparedAngles(startDeg: Double, endDeg: Double): Pair<Double, Double> {
-        var startAngle = -startDeg * PI / 180.0
-        var endAngle = -endDeg * PI / 180.0
-        startAngle += 2000.0 * PI
-        endAngle += 2000.0 * PI
-        var lowAngle = min(startAngle, endAngle)
-        var highAngle = max(startAngle, endAngle)
-        val diff = ((highAngle - lowAngle) / (2.0 * PI)) % 2.0
-        lowAngle %= (2.0 * PI)
-        highAngle %= (2.0 * PI)
-        if (diff < 1.0) {
-            lowAngle += 2.0 * PI
-        } else {
-            highAngle += 2.0 * PI
-        }
-        return lowAngle to highAngle
-    }
-
     /** The arc's sweep in degrees for the authored angles — 0 when the wrap rule closes the wedge. */
     fun sweepDegrees(startDeg: Double, endDeg: Double): Double =
         FrameEvalNative.nativePieArcSweepDegrees(startDeg, endDeg)
@@ -72,53 +46,4 @@ object PieOutline {
     /** The wedge outline normalised to radius 1 — the basis a pie clip's stored segments use. */
     fun normalisedSegments(startDeg: Double, endDeg: Double): List<PathSeg> =
         segments(startDeg, endDeg, 1.0)
-
-    /** createArc of the def: the arc as a list of Riskus cubics (x1, y1, x2, y2, x3, y3, x4, y4 each). */
-    private fun createArc(radius: Double, startAngle: Double, endAngle: Double): List<DoubleArray> {
-        val twoPI = 2.0 * PI
-        val angleDiff = (endAngle - startAngle) % twoPI
-        val startAngleN = if (abs(startAngle) > twoPI) startAngle % twoPI else startAngle
-        val endAngleN = startAngleN + angleDiff
-        val curves = ArrayList<DoubleArray>()
-        val piOverTwo = PI / 2.0
-        val sgn = if (startAngle < endAngle) 1.0 else -1.0
-        var a1 = startAngle
-        var totalAngle = min(twoPI, abs(endAngleN - startAngleN))
-        while (totalAngle > 0.00001) {
-            val a2 = a1 + sgn * min(totalAngle, piOverTwo)
-            curves += createSmallArc(radius, a1, a2)
-            totalAngle -= abs(a2 - a1)
-            a1 = a2
-        }
-        return curves
-    }
-
-    /**
-     * createSmallArc of the def: the Riskus cubic for an arc of at most 90°
-     * (A. Riskus, "Approximation of a cubic Bezier Curve by Circular Arcs and Vice Versa",
-     * Information Technology and Control, 35(4) 2006 — the def's own citation).
-     */
-    private fun createSmallArc(r: Double, a1: Double, a2: Double): DoubleArray {
-        val a = (a2 - a1) / 2.0
-        val x4 = r * cos(a)
-        val y4 = r * sin(a)
-        val x1 = x4
-        val y1 = -y4
-        val q1 = x1 * x1 + y1 * y1
-        val q2 = q1 + x1 * x4 + y1 * y4
-        val k2 = 4.0 / 3.0 * (sqrt(2.0 * q1 * q2) - q2) / (x1 * y4 - y1 * x4)
-        val x2 = x1 - k2 * y1
-        val y2 = y1 + k2 * x1
-        val x3 = x2
-        val y3 = -y2
-        val ar = a + a1
-        val cosAr = cos(ar)
-        val sinAr = sin(ar)
-        return doubleArrayOf(
-            r * cos(a1), r * sin(a1),
-            x2 * cosAr - y2 * sinAr, x2 * sinAr + y2 * cosAr,
-            x3 * cosAr - y3 * sinAr, x3 * sinAr + y3 * cosAr,
-            r * cos(a2), r * sin(a2)
-        )
-    }
 }
