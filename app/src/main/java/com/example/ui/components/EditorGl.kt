@@ -216,8 +216,8 @@ internal fun GlTextBlock(
                             val baseline = PanelGeometry.lineBaselinePx(lineTop, pitch, fm.ascent, fm.descent)
                             val originX = when (align) {
                                 TextAlign.Center -> EditorGeometry.centredOriginPx(w / 2f, e.advance)
-                                TextAlign.Start -> 0f
-                                TextAlign.End -> w - e.advance
+                                TextAlign.End, TextAlign.Right -> w - e.advance
+                                else -> 0f
                             }
                             val (dstX, dstY) = EditorGeometry.textDst(originX, baseline, e.bearing, e.base, pad)
                             addText(
