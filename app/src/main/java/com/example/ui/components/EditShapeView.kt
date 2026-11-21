@@ -11,6 +11,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -65,7 +66,13 @@ import androidx.compose.ui.graphics.asAndroidPath
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.viewinterop.AndroidView
+import com.example.engine.UiLabelAtlas
+import com.example.engine.UiLabelStyle
+import com.example.engine.rememberUiAtlas
+import com.example.model.EditorGeometry
+import com.example.model.PanelGeometry
 import com.example.model.AspectRatio
 import com.example.model.ShapeEditValues
 import com.example.model.TimelineClip
@@ -244,71 +251,28 @@ fun EditShapeView(
             .testTag("edit_shape_screen")
     ) {
         // 1. Header: Left close button, Center "Edit shape" title, Right "Add" button
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(42.dp)
-                .padding(horizontal = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(34.dp)
-                    .bouncyClickable(onClick = onDismiss)
-                    .testTag("edit_shape_back_button"),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Close,
-                    contentDescription = "Cancel",
-                    tint = IconActive,
-                    modifier = Modifier.size(20.dp)
+        // Build 252 (stage 5): drawn in GL (ShapeHeaderGl).
+        ShapeHeaderGl(
+            saveLabel = saveLabel,
+            onBack = onDismiss,
+            onSave = {
+                onSaveShape(
+                    selectedShapeType,
+                    widthPercent,
+                    heightPercent,
+                    fillColor,
+                    featherPercent,
+                    shapeOffsetX,
+                    shapeOffsetY,
+                    strokeWidth,
+                    strokeColor,
+                    cornerRadiusDp,
+                    trimStartPercent / 100f,
+                    trimEndPercent / 100f
                 )
+                onDismiss()
             }
-
-            Spacer(modifier = Modifier.weight(1f))
-
-            Text(
-                text = "Edit shape",
-                color = TextPrimary,
-                fontSize = 14.5.sp,
-                fontWeight = FontWeight.Bold
-            )
-
-            Spacer(modifier = Modifier.weight(1f))
-
-            Box(
-                modifier = Modifier
-                    .clip(CircleShape)
-                    .background(NeonCyan)
-                    .bouncyClickable(onClick = {
-                        onSaveShape(
-                            selectedShapeType,
-                            widthPercent,
-                            heightPercent,
-                            fillColor,
-                            featherPercent,
-                            shapeOffsetX,
-                            shapeOffsetY,
-                            strokeWidth,
-                            strokeColor,
-                            cornerRadiusDp,
-                            trimStartPercent / 100f,
-                            trimEndPercent / 100f
-                        )
-                        onDismiss()
-                    })
-                    .padding(horizontal = 11.dp, vertical = 5.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = saveLabel,
-                    color = EditorBackground,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
+        )
 
         // 2. Video Preview Canvas with Shape & Coral Pink Bounding Box (Canvas ratio strictly locked)
         BoxWithConstraints(
@@ -334,10 +298,19 @@ fun EditShapeView(
             Box(
                 modifier = Modifier
                     .size(width = frameW, height = frameH)
-                    .clip(androidx.compose.ui.graphics.RectangleShape)
-                    .background(com.example.ui.theme.LocalCanvasColor.current),
+                    .clip(androidx.compose.ui.graphics.RectangleShape),
                 contentAlignment = Alignment.Center
             ) {
+                // Build 252 (stage 5): the frame's flat canvas colour in GL.
+                val shapeFrameBgArgb = com.example.ui.theme.LocalCanvasColor.current.toArgb()
+                NativeVectorCanvas(
+                    modifier = Modifier.fillMaxSize(),
+                    clearArgb = 0,
+                    drawKey = shapeFrameBgArgb,
+                    buildCmds = { w, h, _ ->
+                        addRect(0f, 0f, w, h, shapeFrameBgArgb)
+                    }
+                )
                 if (mediaLayers.isNotEmpty()) {
                     MediaLayersStack(
                         layers = mediaLayers,
@@ -502,51 +475,56 @@ fun EditShapeView(
                     )
 
                     // Coral/Pink Bounding Box & 8 Drag Handles (matching screenshot)
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .border(1.5.dp, Color.White.copy(alpha = 0.85f), RoundedCornerShape(2.dp))
+                    // Build 252 (stage 5): border + handles drawn in GL
+                    // (handle centres sit 5 dp in from the edges, where
+                    // the aligned 10 dp boxes put them).
+                    NativeVectorCanvas(
+                        modifier = Modifier.fillMaxSize(),
+                        clearArgb = 0,
+                        drawKey = pinkHandleColor.toArgb(),
+                        buildCmds = { w, h, d ->
+                            addRoundRect(
+                                w / 2f, h / 2f, w - 1.5f * d, h - 1.5f * d, 1.25f * d,
+                                0, 1.5f * d, Color.White.copy(alpha = 0.85f).toArgb()
+                            )
+                            val pink = pinkHandleColor.toArgb()
+                            val centres = listOf(
+                                5f to 5f, 0.5f to 5f, 1f to 5f, 1f to 0.5f,
+                                1f to 1f, 0.5f to 1f, 5f to 1f, 5f to 0.5f
+                            )
+                            for ((fx, fy) in centres) {
+                                val cx = when (fx) {
+                                    0.5f -> w / 2f
+                                    1f -> w - 5f * d
+                                    else -> fx * d
+                                }
+                                val cy = when (fy) {
+                                    0.5f -> h / 2f
+                                    1f -> h - 5f * d
+                                    else -> fy * d
+                                }
+                                addCircle(cx, cy, 5f * d - 0.5f * d, pink, 1f * d, Color.White.toArgb())
+                            }
+                        }
                     )
-
-                    // 8 Pink Handles: Top-Left, Top, Top-Right, Right, Bottom-Right, Bottom, Bottom-Left, Left
-                    val handlePositions = listOf(
-                        Alignment.TopStart,
-                        Alignment.TopCenter,
-                        Alignment.TopEnd,
-                        Alignment.CenterEnd,
-                        Alignment.BottomEnd,
-                        Alignment.BottomCenter,
-                        Alignment.BottomStart,
-                        Alignment.CenterStart
-                    )
-
-                    handlePositions.forEach { alignment ->
-                        Box(
-                            modifier = Modifier
-                                .align(alignment)
-                                .size(10.dp)
-                                .background(pinkHandleColor, CircleShape)
-                                .border(1.dp, Color.White, CircleShape)
-                        )
-                    }
 
                     // Bottom-left Grid Anchor Button (matching screenshot)
                     Box(
                         modifier = Modifier
                             .align(Alignment.BottomStart)
                             .offset(x = (-16).dp, y = 16.dp)
-                            .size(24.dp)
-                            .background(Color.White, CircleShape)
-                            .padding(3.dp),
+                            .size(24.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         NativeVectorCanvas(
                             modifier = Modifier.fillMaxSize(),
+                            clearArgb = 0,
                             drawKey = pinkHandleColor,
-                            buildCmds = { _, _, d ->
+                            buildCmds = { w, h, d ->
+                                addCircle(w / 2f, h / 2f, w / 2f, Color.White.toArgb())
                                 val dotRadius = 1.2f * d
                                 val spacing = 4f * d
-                                val pad = 2f * d
+                                val pad = 5f * d
                                 val argb = pinkHandleColor.toArgb()
                                 for (r in 0..2) {
                                     for (c in 0..2) {
@@ -567,105 +545,28 @@ fun EditShapeView(
                 .padding(vertical = 2.dp)
         ) {
             // Controls: Skip Prev, Play/Pause, Skip Next, Undo, Redo
-            Row(
+            // Build 252 (stage 5): drawn in GL (ShapeTransportGl —
+            // 34 dp lead here, static undo/redo glyphs).
+            ShapeTransportGl(
+                isPlaying = isPlaying,
+                onPrevious = { onSeekTo(0L) },
+                onPlayPause = onTogglePlay,
+                onNext = { onSeekTo(totalDurationMs) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Spacer(modifier = Modifier.width(34.dp))
-
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(30.dp)
-                            .bouncyClickable(onClick = { onSeekTo(0L) }),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Default.SkipPrevious, contentDescription = "Prev", tint = IconActive, modifier = Modifier.size(19.dp))
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .size(34.dp)
-                            .bouncyClickable(onClick = onTogglePlay),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                            contentDescription = "Play/Pause",
-                            tint = IconActive,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .size(30.dp)
-                            .bouncyClickable(onClick = { onSeekTo(totalDurationMs) }),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Default.SkipNext, contentDescription = "Next", tint = IconActive, modifier = Modifier.size(19.dp))
-                    }
-                }
-
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Box(modifier = Modifier.size(28.dp), contentAlignment = Alignment.Center) {
-                        Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = "Undo", tint = IconActive, modifier = Modifier.size(17.dp))
-                    }
-                    Box(modifier = Modifier.size(28.dp), contentAlignment = Alignment.Center) {
-                        Icon(Icons.AutoMirrored.Filled.Redo, contentDescription = "Redo", tint = IconActive, modifier = Modifier.size(17.dp))
-                    }
-                }
-            }
+                    .padding(horizontal = 16.dp)
+            )
 
             // Timescale from actual project playhead and duration
-            Row(
+            // Build 252 (stage 5): GL texts + the native tick strip
+            // at its weight slot (ShapeTimecodeGl).
+            ShapeTimecodeGl(
+                currentText = formatTimeCode(currentPlayheadMs),
+                totalText = formatTimeCode(totalDurationMs),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 1.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Spacer(modifier = Modifier.weight(0.38f))
-                Text(
-                    text = formatTimeCode(currentPlayheadMs),
-                    color = TextPrimary,
-                    fontSize = 10.5.sp,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(text = "  |  ", color = TextSecondary, fontSize = 10.5.sp)
-                Text(
-                    text = formatTimeCode(totalDurationMs),
-                    color = TextSecondary,
-                    fontSize = 10.5.sp,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Medium
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                // Ruler ticks
-                NativeVectorCanvas(
-                    modifier = Modifier
-                        .weight(0.45f)
-                        .height(11.dp),
-                    drawKey = "edit_shape_ruler",
-                    buildCmds = { w, h, d ->
-                        val tickSpacing = 7f * d
-                        val count = (w / tickSpacing).toInt()
-                        val majorArgb = RulerTickColor.toArgb()
-                        val subArgb = RulerSubTickColor.toArgb()
-                        for (i in 0..count) {
-                            val isMajor = (i % 5 == 0)
-                            val x = i * tickSpacing
-                            addLine(x, 0f, x, if (isMajor) h else h * 0.5f, 1f * d, if (isMajor) majorArgb else subArgb, capRound = false)
-                        }
-                    },
-                )
-            }
+                    .padding(horizontal = 12.dp, vertical = 1.dp)
+            )
 
             // Real-time Mini Layer Strip
             val progressFraction = if (totalDurationMs > 0L) (currentPlayheadMs.toFloat() / totalDurationMs.toFloat()).coerceIn(0f, 1f) else 0f
@@ -675,28 +576,13 @@ fun EditShapeView(
                     .padding(horizontal = 12.dp, vertical = 2.dp)
                     .height(24.dp)
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth(progressFraction.coerceIn(0.2f, 1f))
-                        .height(22.dp)
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(AmPanelElevated) // build 223: raised track
-                        .padding(horizontal = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(14.dp)
-                            .background(fillColor.copy(alpha = fillOpacity / 100f), CircleShape)
-                    )
-                    Spacer(modifier = Modifier.width(5.dp))
-                    Text(
-                        text = selectedShapeType.label,
-                        color = TextPrimary,
-                        fontSize = 10.5.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
+                // Build 252 (stage 5): the track, colour dot and label in GL.
+                ShapeStripGl(
+                    fraction = progressFraction.coerceIn(0.2f, 1f),
+                    dotArgb = fillColor.copy(alpha = fillOpacity / 100f).toArgb(),
+                    label = selectedShapeType.label,
+                    modifier = Modifier.fillMaxWidth()
+                )
 
                 // Vertical center playhead line
                 NativeVectorCanvas(
@@ -713,51 +599,42 @@ fun EditShapeView(
         }
 
         // 4. Bottom Shape Editor Panel (matching screenshot)
+        // Build 252 (stage 5): the panel body (AmPanel, sheet
+        // corners, the AmTextFaint handle) is drawn in GL; the tab
+        // pills are a GlPillStrip (0.92 press here).
+        GlPanelBody(
+            modifier = Modifier.fillMaxWidth(),
+            cornerDp = AmCornerSheet.value,
+            fillArgb = AmPanel.toArgb(),
+            handleArgb = AmTextFaint.toArgb(),
+            handleTopDp = 6f,
+            topOnlyCorners = true
+        ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(topStart = AmCornerSheet, topEnd = AmCornerSheet))
-                .background(AmPanel) // build 223 (colour balance): dark panel (was build 216's white)
-                .padding(horizontal = 12.dp, vertical = 6.dp)
+                .padding(start = 12.dp, end = 12.dp, top = 16.dp, bottom = 6.dp)
         ) {
-            // Drag handle pill at top
-            Box(
-                modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .width(28.dp)
-                    .height(3.dp)
-                    .background(AmTextFaint, CircleShape)
-            )
-
-            Spacer(modifier = Modifier.height(7.dp))
-
             // Tab Bar: [Shape] [Fill] [Stroke] [Shadow] [Glow]
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                ShapeEditTab.values().forEach { tab ->
-                    val isSelected = tab == activeTab
-                    Box(
-                        modifier = Modifier
-                            .clip(CircleShape)
-                            .background(if (isSelected) AmAccent else AmPanelElevated)
-                            .bouncyClickable(
-                                pressedScale = 0.92f,
-                                onClick = { activeTab = tab }
-                            )
-                            .padding(horizontal = 10.dp, vertical = 5.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = tab.title,
-                            color = if (isSelected) AmInk else AmTextPrimary,
-                            fontSize = 11.5.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                        )
-                    }
-                }
-            }
+            GlPillStrip(
+                items = ShapeEditTab.values().map { tab ->
+                    GlPillItem(
+                        label = tab.title,
+                        selected = tab == activeTab,
+                        onClick = { activeTab = tab }
+                    )
+                },
+                labelStyle = { sel -> if (sel) UiLabelStyle.ED_TEXT_BOLD else UiLabelStyle.ED_TEXT_MED },
+                textArgb = { sel -> if (sel) AmInk.toArgb() else AmTextPrimary.toArgb() },
+                fillArgb = { sel -> if (sel) AmAccent.toArgb() else AmPanelElevated.toArgb() },
+                borderArgb = { null },
+                padHDp = 10f,
+                padVDp = 5f,
+                gapDp = 6f,
+                pressScale = 0.92f,
+                modifier = Modifier.fillMaxWidth()
+            )
 
             Spacer(modifier = Modifier.height(10.dp))
 
@@ -767,69 +644,21 @@ fun EditShapeView(
                     // Shape selection row: Label "Shape" + Row of shape cards (matching screenshot).
                     // Editing an existing shape the type is fixed, so the picker stays hidden.
                     if (!editing) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Shape",
-                            color = TextPrimary,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                            modifier = Modifier.width(52.dp)
-                        )
-
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            items(ShapeType.values()) { shape ->
-                                val isSelected = shape == selectedShapeType
-                                Box(
-                                    modifier = Modifier
-                                        .size(32.dp)
-                                        .clip(RoundedCornerShape(9.dp))
-                                        .background(if (isSelected) AmHairlineStrong else AmCardSurface)
-                                        .border(
-                                            width = if (isSelected) 1.5.dp else 1.dp,
-                                            color = if (isSelected) Color.White else AmTextFaint,
-                                            shape = RoundedCornerShape(9.dp)
-                                        )
-                                        .bouncyClickable(onClick = {
-                                            selectedShapeType = shape
-                                            // Each rounded shape starts at its built-in corner, as drawn before.
-                                            cornerRadiusDp = when (shape) {
-                                                ShapeType.WIDE_ROUNDED_RECT -> 12f
-                                                ShapeType.ROUNDED_SQUARE -> 20f
-                                                else -> cornerRadiusDp
-                                            }
-                                        }),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    // Shape mini icon representation
-                                    NativeVectorCanvas(
-                                        modifier = Modifier.size(18.dp),
-                                        drawKey = shape,
-                                        buildCmds = { w, h, _ ->
-                                            val cArgb = Color.White.toArgb()
-                                            when (shape) {
-                                                ShapeType.CIRCLE, ShapeType.PENTAGON, ShapeType.STAR ->
-                                                    addCircle(w / 2f, h / 2f, minOf(w, h) / 2f, cArgb)
-                                                ShapeType.SQUARE ->
-                                                    addRect(0f, 0f, w, h, cArgb)
-                                                ShapeType.WIDE_ROUNDED_RECT ->
-                                                    addRoundRect(w / 2f, h / 2f, w, h, 4f, cArgb)
-                                                ShapeType.ROUNDED_SQUARE ->
-                                                    addRoundRect(w / 2f, h / 2f, w, h, 8f, cArgb)
-                                                ShapeType.OVAL ->
-                                                    addArc(w / 2f, h / 2f, w / 2f, h / 2f, 0f, 360f, fillArgb = cArgb)
-                                            }
-                                        },
-                                    )
-                                }
+                    // Build 252 (stage 5): the picker label + cards in
+                    // GL; the cards' mini glyphs stay their native
+                    // canvases at their exact rects.
+                    ShapePickerGl(
+                        selected = selectedShapeType,
+                        onSelect = { shape ->
+                            selectedShapeType = shape
+                            // Each rounded shape starts at its built-in corner, as drawn before.
+                            cornerRadiusDp = when (shape) {
+                                ShapeType.WIDE_ROUNDED_RECT -> 12f
+                                ShapeType.ROUNDED_SQUARE -> 20f
+                                else -> cornerRadiusDp
                             }
                         }
-                    }
+                    )
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
@@ -876,12 +705,15 @@ fun EditShapeView(
                             // Animated corner radius (build 173): the slider would silently mislead —
                             // the value changes over time — so it stays hidden, like the build-86
                             // text-reveal sliders, until an explicit tap freezes it at the playhead.
-                            Text(
-                                "Animated corner radius — the radius is keyframed in Alight Motion, so it changes over time.",
-                                color = TextSecondary, fontSize = 15.sp
+                            GlTextBlock(
+                                text = "Animated corner radius — the radius is keyframed in Alight Motion, so it changes over time.",
+                                style = UiLabelStyle.NOTE_15,
+                                colorArgb = TextSecondary.toArgb(),
+                                align = GlAlign.Start,
+                                modifier = Modifier.fillMaxWidth()
                             )
                             Spacer(modifier = Modifier.height(8.dp))
-                            ShapeEditChip(label = "Use static radius", onClick = {
+                            ShapeEditChipGl(label = "Use static radius", onClick = {
                                 cornerRadiusDp = initialClip?.at(currentPlayheadMs)?.shapeCornerRadius
                                     ?: cornerRadiusDp
                                 onUseStaticRadius?.invoke()
@@ -903,20 +735,20 @@ fun EditShapeView(
 
                 ShapeEditTab.FILL -> {
                     // Color Palette
-                    Text("Fill Color", color = TextPrimary, fontSize = 11.5.sp, fontWeight = FontWeight.Medium)
+                    GlTextBlock(
+                        text = "Fill Color",
+                        style = UiLabelStyle.ED_TEXT_MED,
+                        colorArgb = TextPrimary.toArgb(),
+                        align = GlAlign.Start,
+                        modifier = Modifier.fillMaxWidth()
+                    )
                     Spacer(modifier = Modifier.height(6.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf(Color.White, Color(0xFFABE41D), Color(0xFFABE41D), Color(0xFFFFEB3B), Color(0xFF00E676), Color(0xFF9C27B0), Color(0xFFFF5722), Color(0xFF1E2129)).forEach { col ->
-                            Box(
-                                modifier = Modifier
-                                    .size(28.dp)
-                                    .clip(CircleShape)
-                                    .background(col)
-                                    .border(1.5.dp, if (fillColor == col) Color.White else Color.Transparent, CircleShape)
-                                    .bouncyClickable(onClick = { fillColor = col })
-                            )
-                        }
-                    }
+                    ShapeSwatchRowGl(
+                        colors = listOf(Color.White, Color(0xFFABE41D), Color(0xFFABE41D), Color(0xFFFFEB3B), Color(0xFF00E676), Color(0xFF9C27B0), Color(0xFFFF5722), Color(0xFF1E2129)),
+                        selected = fillColor,
+                        circleDp = 28f,
+                        onPick = { fillColor = it }
+                    )
                     Spacer(modifier = Modifier.height(10.dp))
                     RulerDialSlider(
                         label = "Opacity",
@@ -938,18 +770,12 @@ fun EditShapeView(
                         isPercentage = false
                     )
                     Spacer(modifier = Modifier.height(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf(Color.White, Color(0xFFABE41D), Color(0xFFABE41D), Color(0xFFFFEB3B), Color.Black).forEach { col ->
-                            Box(
-                                modifier = Modifier
-                                    .size(26.dp)
-                                    .clip(CircleShape)
-                                    .background(col)
-                                    .border(1.5.dp, if (strokeColor == col) Color.White else Color.Transparent, CircleShape)
-                                    .bouncyClickable(onClick = { strokeColor = col })
-                            )
-                        }
-                    }
+                    ShapeSwatchRowGl(
+                        colors = listOf(Color.White, Color(0xFFABE41D), Color(0xFFABE41D), Color(0xFFFFEB3B), Color.Black),
+                        selected = strokeColor,
+                        circleDp = 26f,
+                        onPick = { strokeColor = it }
+                    )
                     // Stroke trim (Alight `drawing.progress`, build 81): the visible window of the
                     // outline — 0–100 % draws the whole stroke, a narrower window draws it on.
                     // The sliders clamp against each other so start can never pass end.
@@ -959,12 +785,15 @@ fun EditShapeView(
                             // Animated trim (build 175): the sliders would silently mislead — the
                             // window changes over time — so they stay hidden, like the build-173
                             // corner-radius slider, until an explicit tap freezes it at the playhead.
-                            Text(
-                                "Animated stroke trim — the trim is keyframed in Alight Motion, so it changes over time.",
-                                color = TextSecondary, fontSize = 12.sp
+                            GlTextBlock(
+                                text = "Animated stroke trim — the trim is keyframed in Alight Motion, so it changes over time.",
+                                style = UiLabelStyle.SHEET_ITEM,
+                                colorArgb = TextSecondary.toArgb(),
+                                align = GlAlign.Start,
+                                modifier = Modifier.fillMaxWidth()
                             )
                             Spacer(modifier = Modifier.height(8.dp))
-                            ShapeEditChip(label = "Use static trim", onClick = {
+                            ShapeEditChipGl(label = "Use static trim", onClick = {
                                 val (s, e) = initialClip?.let {
                                     ShapeEditValues.staticTrimAt(it, currentPlayheadMs)
                                 } ?: (trimStartPercent / 100f to trimEndPercent / 100f)
@@ -1051,6 +880,7 @@ fun EditShapeView(
 
             Spacer(modifier = Modifier.height(10.dp))
         }
+        }
     }
 }
 
@@ -1072,24 +902,600 @@ private fun shapeTypeOf(pattern: String?): ShapeType = when (pattern?.uppercase(
     else -> ShapeType.SQUARE
 }
 
-/** The build-86 text-reveal sheet chip, local to the shape editor (same look). */
+/**
+ * Build 252 (stage 5): the build-86 text-reveal sheet chip in GL —
+ * AmBase capsule, white 13 sp bold label (the fill sat outside the
+ * 0.9 press layer; the label scales).
+ */
 @Composable
-private fun ShapeEditChip(label: String, onClick: () -> Unit) {
+private fun ShapeEditChipGl(label: String, onClick: () -> Unit) {
+    val density = androidx.compose.ui.platform.LocalDensity.current.density
+    val atlas = rememberUiAtlas()
+    val pad = UiLabelAtlas.PAD.toFloat()
+    val style = UiLabelStyle.CHIP_BIG
+    fun resolveChip() = atlas.resolve(label, style)
+    var entry = resolveChip()
+    if (atlas.overflowed) {
+        atlas.reset()
+        entry = resolveChip()
+    }
+    val e = entry
+    val scale = remember { androidx.compose.animation.core.Animatable(1f) }
     Box(
         modifier = Modifier
+            .width(((e?.advance ?: 0f) / density + 32f).dp)
             .height(36.dp)
-            .clip(CircleShape)
-            .background(ChipBg)
-            .bouncyClickable(pressedScale = 0.9f, onClick = onClick)
-            .padding(horizontal = 16.dp),
-        contentAlignment = Alignment.Center
     ) {
-        Text(
-            label,
-            color = Color.White,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1
+        NativeVectorCanvas(
+            modifier = Modifier.fillMaxSize(),
+            clearArgb = 0,
+            atlas = atlas,
+            drawKey = listOf(e, scale.value, atlas.generation),
+            buildCmds = { w, h, _ ->
+                addRoundRect(w / 2f, h / 2f, w, h, h / 2f, ChipBg.toArgb())
+                if (e != null) {
+                    val textH = atlas.textHeightPx(style)
+                    val fm = atlas.fontMetrics(style)
+                    val top = EditorGeometry.centredTextTopPx(0f, h, textH)
+                    val baseline = PanelGeometry.lineBaselinePx(top, textH, fm.ascent, fm.descent)
+                    val (dstX, dstY) = EditorGeometry.textDst(
+                        EditorGeometry.centredOriginPx(w / 2f, e.advance),
+                        baseline, e.bearing, e.base, pad
+                    )
+                    setScaleAbout(w / 2f, h / 2f, scale.value)
+                    addText(
+                        e.index, dstX, dstY,
+                        0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                        tintArgb = Color.White.toArgb()
+                    )
+                    clearTransform()
+                }
+            }
         )
+        ChromePressBox(
+            scale, 0.9f, onClick,
+            Modifier.fillMaxSize(),
+            description = label
+        )
+    }
+}
+
+/**
+ * Build 252 (stage 5): the shape editor's header in GL — Close box,
+ * the span-centred "Edit shape" title, and the NeonCyan save pill
+ * (fill static, label press-scales).
+ */
+@Composable
+private fun ShapeHeaderGl(saveLabel: String, onBack: () -> Unit, onSave: () -> Unit) {
+    val density = androidx.compose.ui.platform.LocalDensity.current.density
+    val atlas = rememberUiAtlas()
+    val pad = UiLabelAtlas.PAD.toFloat()
+    val closePainter = rememberVectorPainter(Icons.Default.Close)
+    val closePx = (20f * density).roundToInt()
+    fun resolveHeader(): Triple<UiLabelAtlas.Entry?, UiLabelAtlas.Entry?, UiLabelAtlas.Entry?> {
+        val close = atlas.resolveIcon("shape:close", closePx, closePx) { cv, x, y ->
+            val b = rasterizePainterBitmap(closePainter, closePx, density)
+            cv.drawBitmap(b, x, y, null)
+            b.recycle()
+        }
+        val title = atlas.resolve("Edit shape", UiLabelStyle.SCREEN_TITLE)
+        val save = atlas.resolve(saveLabel, UiLabelStyle.SHEET_ITEM_BOLD)
+        return Triple(close, title, save)
+    }
+    var headerEntries = resolveHeader()
+    if (atlas.overflowed) {
+        atlas.reset()
+        headerEntries = resolveHeader()
+    }
+    val (closeEntry, titleEntry, saveEntry) = headerEntries
+    val backScale = remember { androidx.compose.animation.core.Animatable(1f) }
+    val saveScale = remember { androidx.compose.animation.core.Animatable(1f) }
+    val pillWPx = 22f * density + (saveEntry?.advance ?: 0f)
+    val pillHPx = atlas.textHeightPx(UiLabelStyle.SHEET_ITEM_BOLD) + 10f * density
+
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(42.dp)
+    ) {
+        val wPx = maxWidth.value * density
+        NativeVectorCanvas(
+            modifier = Modifier.fillMaxSize(),
+            clearArgb = 0,
+            atlas = atlas,
+            drawKey = listOf(headerEntries, backScale.value, saveScale.value, atlas.generation),
+            buildCmds = { w, h, dd ->
+                val cy = h / 2f
+                if (closeEntry != null) {
+                    val cx = 27f * dd
+                    setScaleAbout(cx, cy, backScale.value)
+                    addText(
+                        closeEntry.index,
+                        cx - closePx / 2f - pad, cy - closePx / 2f - pad,
+                        0f, 0f, closeEntry.rectW.toFloat(), closeEntry.rectH.toFloat(),
+                        tintArgb = IconActive.toArgb()
+                    )
+                    clearTransform()
+                }
+                val pillLeft = w - 10f * dd - pillWPx
+                addRoundRect(
+                    pillLeft + pillWPx / 2f, cy, pillWPx, pillHPx, pillHPx / 2f,
+                    NeonCyan.toArgb()
+                )
+                if (titleEntry != null) {
+                    val style = UiLabelStyle.SCREEN_TITLE
+                    val textH = atlas.textHeightPx(style)
+                    val fm = atlas.fontMetrics(style)
+                    val top = EditorGeometry.centredTextTopPx(0f, h, textH)
+                    val baseline = PanelGeometry.lineBaselinePx(top, textH, fm.ascent, fm.descent)
+                    val centre = (44f * dd + pillLeft) / 2f
+                    val (dstX, dstY) = EditorGeometry.textDst(
+                        EditorGeometry.centredOriginPx(centre, titleEntry.advance),
+                        baseline, titleEntry.bearing, titleEntry.base, pad
+                    )
+                    addText(
+                        titleEntry.index, dstX, dstY,
+                        0f, 0f, titleEntry.rectW.toFloat(), titleEntry.rectH.toFloat(),
+                        tintArgb = TextPrimary.toArgb()
+                    )
+                }
+                if (saveEntry != null) {
+                    val style = UiLabelStyle.SHEET_ITEM_BOLD
+                    val textH = atlas.textHeightPx(style)
+                    val fm = atlas.fontMetrics(style)
+                    val top = EditorGeometry.centredTextTopPx(0f, h, textH)
+                    val baseline = PanelGeometry.lineBaselinePx(top, textH, fm.ascent, fm.descent)
+                    val (dstX, dstY) = EditorGeometry.textDst(
+                        EditorGeometry.centredOriginPx(pillLeft + pillWPx / 2f, saveEntry.advance),
+                        baseline, saveEntry.bearing, saveEntry.base, pad
+                    )
+                    setScaleAbout(pillLeft + pillWPx / 2f, cy, saveScale.value)
+                    addText(
+                        saveEntry.index, dstX, dstY,
+                        0f, 0f, saveEntry.rectW.toFloat(), saveEntry.rectH.toFloat(),
+                        tintArgb = EditorBackground.toArgb()
+                    )
+                    clearTransform()
+                }
+            }
+        )
+        ChromePressBox(
+            backScale, 0.94f, onBack,
+            Modifier
+                .offset(x = 10.dp, y = 4.dp)
+                .size(34.dp),
+            tag = "edit_shape_back_button",
+            description = "Cancel"
+        )
+        ChromePressBox(
+            saveScale, 0.94f, onSave,
+            Modifier
+                .offset(
+                    x = ((wPx - pillWPx) / density - 10f).dp,
+                    y = ((42f * density - pillHPx) / 2f / density).dp
+                )
+                .width((pillWPx / density).dp)
+                .height((pillHPx / density).dp),
+            description = saveLabel
+        )
+    }
+}
+
+/**
+ * Build 252 (stage 5): the shape editor's transport row in GL —
+ * 34 dp lead spacer, the 118 dp centre group (24 dp play glyph),
+ * and the static undo / redo glyphs (not buttons here).
+ */
+@Composable
+private fun ShapeTransportGl(
+    isPlaying: Boolean,
+    onPrevious: () -> Unit,
+    onPlayPause: () -> Unit,
+    onNext: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val density = androidx.compose.ui.platform.LocalDensity.current.density
+    val atlas = rememberUiAtlas()
+    val pad = UiLabelAtlas.PAD.toFloat()
+    val prevPainter = rememberVectorPainter(Icons.Default.SkipPrevious)
+    val nextPainter = rememberVectorPainter(Icons.Default.SkipNext)
+    val playPainter = rememberVectorPainter(Icons.Default.PlayArrow)
+    val pausePainter = rememberVectorPainter(Icons.Default.Pause)
+    val undoPainter = rememberVectorPainter(Icons.AutoMirrored.Filled.Undo)
+    val redoPainter = rememberVectorPainter(Icons.AutoMirrored.Filled.Redo)
+    val smallPx = (19f * density).roundToInt()
+    val playPx = (24f * density).roundToInt()
+    val undoPx = (17f * density).roundToInt()
+    fun resolveTransport(): List<UiLabelAtlas.Entry?> {
+        fun icon(key: String, p: androidx.compose.ui.graphics.vector.VectorPainter, px: Int) =
+            atlas.resolveIcon(key, px, px) { cv, x, y ->
+                val b = rasterizePainterBitmap(p, px, density)
+                cv.drawBitmap(b, x, y, null)
+                b.recycle()
+            }
+        return listOf(
+            icon("shape:prev", prevPainter, smallPx),
+            icon("shape:next", nextPainter, smallPx),
+            icon("shape:play", playPainter, playPx),
+            icon("shape:pause", pausePainter, playPx),
+            icon("shape:undo", undoPainter, undoPx),
+            icon("shape:redo", redoPainter, undoPx)
+        )
+    }
+    var transportEntries = resolveTransport()
+    if (atlas.overflowed) {
+        atlas.reset()
+        transportEntries = resolveTransport()
+    }
+    val (prevEntry, nextEntry, playEntry, pauseEntry, undoEntry, redoEntry) = transportEntries
+    val scales = remember { List(3) { androidx.compose.animation.core.Animatable(1f) } }
+
+    Box(modifier = modifier) {
+        BoxWithConstraints(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(34.dp)
+        ) {
+            val wPx = maxWidth.value * density
+            val gapPx = (wPx - (34f + 118f + 62f) * density) / 2f
+            val centreLeft = 34f * density + gapPx
+            val undoLeft = wPx - 62f * density
+            NativeVectorCanvas(
+                modifier = Modifier.fillMaxSize(),
+                clearArgb = 0,
+                atlas = atlas,
+                drawKey = listOf(transportEntries, scales.map { it.value }, isPlaying, atlas.generation),
+                buildCmds = { w, h, dd ->
+                    val cy = h / 2f
+                    fun blit(e: UiLabelAtlas.Entry?, cx: Float, px: Int, scale: Float?) {
+                        if (e == null) return
+                        if (scale != null) setScaleAbout(cx, cy, scale)
+                        addText(
+                            e.index,
+                            cx - px / 2f - pad, cy - px / 2f - pad,
+                            0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                            tintArgb = IconActive.toArgb()
+                        )
+                        if (scale != null) clearTransform()
+                    }
+                    blit(prevEntry, centreLeft + 15f * dd, smallPx, scales[0].value)
+                    blit(if (isPlaying) pauseEntry else playEntry, centreLeft + 59f * dd, playPx, scales[1].value)
+                    blit(nextEntry, centreLeft + 103f * dd, smallPx, scales[2].value)
+                    blit(undoEntry, undoLeft + 14f * dd, undoPx, null)
+                    blit(redoEntry, undoLeft + 48f * dd, undoPx, null)
+                }
+            )
+            ChromePressBox(
+                scales[0], 0.94f, onPrevious,
+                Modifier
+                    .offset(x = (centreLeft / density).dp, y = 2.dp)
+                    .size(30.dp),
+                description = "Prev"
+            )
+            ChromePressBox(
+                scales[1], 0.94f, onPlayPause,
+                Modifier
+                    .offset(x = ((centreLeft + 42f * density) / density).dp)
+                    .size(34.dp),
+                description = "Play/Pause"
+            )
+            ChromePressBox(
+                scales[2], 0.94f, onNext,
+                Modifier
+                    .offset(x = ((centreLeft + 88f * density) / density).dp, y = 2.dp)
+                    .size(30.dp),
+                description = "Next"
+            )
+        }
+    }
+}
+
+/**
+ * Build 252 (stage 5): the shape editor's timecode row — GL texts,
+ * the native tick strip at its 0.38 / 0.45 weight slot.
+ */
+@Composable
+private fun ShapeTimecodeGl(
+    currentText: String,
+    totalText: String,
+    modifier: Modifier = Modifier
+) {
+    val density = androidx.compose.ui.platform.LocalDensity.current.density
+    val atlas = rememberUiAtlas()
+    val pad = UiLabelAtlas.PAD.toFloat()
+    fun resolveTc(): Triple<UiLabelAtlas.Entry?, UiLabelAtlas.Entry?, UiLabelAtlas.Entry?> {
+        val cur = atlas.resolve(currentText, UiLabelStyle.TIMECODE_MONO)
+        val sep = atlas.resolve("  |  ", UiLabelStyle.SHEET_DESC)
+        val tot = atlas.resolve(totalText, UiLabelStyle.TIMECODE_MONO_MED)
+        return Triple(cur, sep, tot)
+    }
+    var tcEntries = resolveTc()
+    if (atlas.overflowed) {
+        atlas.reset()
+        tcEntries = resolveTc()
+    }
+    val (curEntry, sepEntry, totEntry) = tcEntries
+    val rowHDp = (atlas.textHeightPx(UiLabelStyle.TIMECODE_MONO) / density).dp
+
+    BoxWithConstraints(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(rowHDp)
+    ) {
+        val wPx = maxWidth.value * density
+        val curAdv = curEntry?.advance ?: 0f
+        val sepAdv = sepEntry?.advance ?: 0f
+        val totAdv = totEntry?.advance ?: 0f
+        val flex = wPx - curAdv - sepAdv - totAdv - 6f * density
+        val spacerW = flex * (0.38f / 0.83f)
+        val ticksW = flex * (0.45f / 0.83f)
+        val ticksX = spacerW + curAdv + sepAdv + totAdv + 6f * density
+        NativeVectorCanvas(
+            modifier = Modifier.fillMaxSize(),
+            clearArgb = 0,
+            atlas = atlas,
+            drawKey = listOf(tcEntries, atlas.generation),
+            buildCmds = { w, h, _ ->
+                fun line(e: UiLabelAtlas.Entry?, style: UiLabelStyle, originX: Float, tint: Int) {
+                    if (e == null) return
+                    val textH = atlas.textHeightPx(style)
+                    val fm = atlas.fontMetrics(style)
+                    val top = EditorGeometry.centredTextTopPx(0f, h, textH)
+                    val baseline = PanelGeometry.lineBaselinePx(top, textH, fm.ascent, fm.descent)
+                    val (dstX, dstY) = EditorGeometry.textDst(originX, baseline, e.bearing, e.base, pad)
+                    addText(
+                        e.index, dstX, dstY,
+                        0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                        tintArgb = tint
+                    )
+                }
+                line(curEntry, UiLabelStyle.TIMECODE_MONO, spacerW, TextPrimary.toArgb())
+                line(sepEntry, UiLabelStyle.SHEET_DESC, spacerW + curAdv, TextSecondary.toArgb())
+                line(totEntry, UiLabelStyle.TIMECODE_MONO_MED, spacerW + curAdv + sepAdv, TextSecondary.toArgb())
+            }
+        )
+        NativeVectorCanvas(
+            modifier = Modifier
+                .offset(x = (ticksX / density).dp, y = ((rowHDp.value - 11f) / 2f).dp)
+                .width((ticksW / density).dp)
+                .height(11.dp),
+            drawKey = "edit_shape_ruler",
+            buildCmds = { w, h, d ->
+                val tickSpacing = 7f * d
+                val count = (w / tickSpacing).toInt()
+                val majorArgb = RulerTickColor.toArgb()
+                val subArgb = RulerSubTickColor.toArgb()
+                for (i in 0..count) {
+                    val isMajor = (i % 5 == 0)
+                    val x = i * tickSpacing
+                    addLine(x, 0f, x, if (isMajor) h else h * 0.5f, 1f * d, if (isMajor) majorArgb else subArgb, capRound = false)
+                }
+            }
+        )
+    }
+}
+
+/**
+ * Build 252 (stage 5): the shape editor's mini strip track in GL —
+ * the raised track at the progress fraction's width, the flat
+ * colour dot and the shape-type label.
+ */
+@Composable
+private fun ShapeStripGl(
+    fraction: Float,
+    dotArgb: Int,
+    label: String,
+    modifier: Modifier = Modifier
+) {
+    val density = androidx.compose.ui.platform.LocalDensity.current.density
+    val atlas = rememberUiAtlas()
+    val pad = UiLabelAtlas.PAD.toFloat()
+    fun resolveStrip() = atlas.resolve(label, UiLabelStyle.SHAPE_STRIP_LABEL)
+    var labelEntry = resolveStrip()
+    if (atlas.overflowed) {
+        atlas.reset()
+        labelEntry = resolveStrip()
+    }
+    val e = labelEntry
+    BoxWithConstraints(modifier = modifier.height(24.dp)) {
+        val trackW = maxWidth.value * density * fraction
+        NativeVectorCanvas(
+            modifier = Modifier
+                .width((trackW / density).dp)
+                .height(22.dp),
+            clearArgb = 0,
+            atlas = atlas,
+            drawKey = listOf(e, dotArgb, fraction, atlas.generation),
+            buildCmds = { w, h, dd ->
+                addRoundRect(w / 2f, h / 2f, w, h, 6f * dd, AmPanelElevated.toArgb())
+                addCircle(13f * dd, h / 2f, 7f * dd, dotArgb)
+                if (e != null) {
+                    val style = UiLabelStyle.SHAPE_STRIP_LABEL
+                    val textH = atlas.textHeightPx(style)
+                    val fm = atlas.fontMetrics(style)
+                    val top = EditorGeometry.centredTextTopPx(0f, h, textH)
+                    val baseline = PanelGeometry.lineBaselinePx(top, textH, fm.ascent, fm.descent)
+                    val (dstX, dstY) = EditorGeometry.textDst(25f * dd, baseline, e.bearing, e.base, pad)
+                    addText(
+                        e.index, dstX, dstY,
+                        0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                        tintArgb = TextPrimary.toArgb()
+                    )
+                }
+            }
+        )
+    }
+}
+
+/**
+ * Build 252 (stage 5): the shape-type picker in GL — the "Shape"
+ * label and the seven 32 dp cards (fills + selection rings); the
+ * cards' mini glyphs stay their native canvases at their rects,
+ * press-scaling as the card content did.
+ */
+@Composable
+private fun ShapePickerGl(selected: ShapeType, onSelect: (ShapeType) -> Unit) {
+    val density = androidx.compose.ui.platform.LocalDensity.current.density
+    val atlas = rememberUiAtlas()
+    val pad = UiLabelAtlas.PAD.toFloat()
+    fun resolveLabel() = atlas.resolve("Shape", UiLabelStyle.SHEET_ITEM_MED)
+    var labelEntry = resolveLabel()
+    if (atlas.overflowed) {
+        atlas.reset()
+        labelEntry = resolveLabel()
+    }
+    val labelE = labelEntry
+    val shapes = ShapeType.values()
+    val scales = remember { shapes.map { androidx.compose.animation.core.Animatable(1f) } }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            Modifier
+                .width(52.dp)
+                .height(32.dp)
+        ) {
+            NativeVectorCanvas(
+                modifier = Modifier.fillMaxSize(),
+                clearArgb = 0,
+                atlas = atlas,
+                drawKey = listOf(labelE, atlas.generation),
+                buildCmds = { w, h, _ ->
+                    if (labelE != null) {
+                        val style = UiLabelStyle.SHEET_ITEM_MED
+                        val textH = atlas.textHeightPx(style)
+                        val fm = atlas.fontMetrics(style)
+                        val top = EditorGeometry.centredTextTopPx(0f, h, textH)
+                        val baseline = PanelGeometry.lineBaselinePx(top, textH, fm.ascent, fm.descent)
+                        val (dstX, dstY) = EditorGeometry.textDst(0f, baseline, labelE.bearing, labelE.base, pad)
+                        addText(
+                            labelE.index, dstX, dstY,
+                            0f, 0f, labelE.rectW.toFloat(), labelE.rectH.toFloat(),
+                            tintArgb = TextPrimary.toArgb()
+                        )
+                    }
+                }
+            )
+        }
+        Row(modifier = Modifier.horizontalScroll(rememberScrollState())) {
+            Box(
+                modifier = Modifier
+                    .width((shapes.size * 32 + (shapes.size - 1) * 6).dp)
+                    .height(32.dp)
+            ) {
+                NativeVectorCanvas(
+                    modifier = Modifier.fillMaxSize(),
+                    clearArgb = 0,
+                    drawKey = selected,
+                    buildCmds = { _, _, dd ->
+                        shapes.forEachIndexed { i, shape ->
+                            val isSel = shape == selected
+                            val left = i * 38f * dd
+                            val cx = left + 16f * dd
+                            val cy = 16f * dd
+                            addRoundRect(
+                                cx, cy, 32f * dd, 32f * dd, 9f * dd,
+                                (if (isSel) AmHairlineStrong else AmCardSurface).toArgb()
+                            )
+                            val bw = (if (isSel) 1.5f else 1f) * dd
+                            addRoundRect(
+                                cx, cy, 32f * dd - bw, 32f * dd - bw, 9f * dd - bw / 2f,
+                                0, bw, (if (isSel) Color.White else AmTextFaint).toArgb()
+                            )
+                        }
+                    }
+                )
+                shapes.forEachIndexed { i, shape ->
+                    Box(
+                        modifier = Modifier
+                            .offset(x = (i * 38).dp)
+                            .size(32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        NativeVectorCanvas(
+                            modifier = Modifier
+                                .size(18.dp)
+                                .graphicsLayer {
+                                    scaleX = scales[i].value
+                                    scaleY = scales[i].value
+                                },
+                            drawKey = shape,
+                            buildCmds = { w, h, _ ->
+                                val cArgb = Color.White.toArgb()
+                                when (shape) {
+                                    ShapeType.CIRCLE, ShapeType.PENTAGON, ShapeType.STAR ->
+                                        addCircle(w / 2f, h / 2f, minOf(w, h) / 2f, cArgb)
+                                    ShapeType.SQUARE ->
+                                        addRect(0f, 0f, w, h, cArgb)
+                                    ShapeType.WIDE_ROUNDED_RECT ->
+                                        addRoundRect(w / 2f, h / 2f, w, h, 4f, cArgb)
+                                    ShapeType.ROUNDED_SQUARE ->
+                                        addRoundRect(w / 2f, h / 2f, w, h, 8f, cArgb)
+                                    ShapeType.OVAL ->
+                                        addArc(w / 2f, h / 2f, w / 2f, h / 2f, 0f, 360f, fillArgb = cArgb)
+                                }
+                            },
+                        )
+                    }
+                    ChromePressBox(
+                        scales[i], 0.94f, { onSelect(shape) },
+                        Modifier
+                            .offset(x = (i * 38).dp)
+                            .size(32.dp),
+                        description = shape.label
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Build 252 (stage 5): a fill / stroke swatch row in GL — flat
+ * colour circles with the white selection ring. (The Compose boxes
+ * had no content after their press layer, so nothing scaled.)
+ */
+@Composable
+private fun ShapeSwatchRowGl(
+    colors: List<Color>,
+    selected: Color,
+    circleDp: Float,
+    onPick: (Color) -> Unit
+) {
+    val density = androidx.compose.ui.platform.LocalDensity.current.density
+    val scales = remember { colors.map { androidx.compose.animation.core.Animatable(1f) } }
+    Box(
+        modifier = Modifier
+            .width((colors.size * circleDp + (colors.size - 1) * 8f).dp)
+            .height(circleDp.dp)
+    ) {
+        NativeVectorCanvas(
+            modifier = Modifier.fillMaxSize(),
+            clearArgb = 0,
+            drawKey = listOf(selected, colors),
+            buildCmds = { _, _, dd ->
+                colors.forEachIndexed { i, col ->
+                    val cx = (i * (circleDp + 8f) + circleDp / 2f) * dd
+                    val cy = circleDp / 2f * dd
+                    val r = circleDp / 2f * dd
+                    if (col == selected) {
+                        addCircle(cx, cy, r - 0.75f * dd, col.toArgb(), 1.5f * dd, Color.White.toArgb())
+                    } else {
+                        addCircle(cx, cy, r, col.toArgb())
+                    }
+                }
+            }
+        )
+        colors.forEachIndexed { i, col ->
+            ChromePressBox(
+                scales[i], 0.94f, { onPick(col) },
+                Modifier
+                    .offset(x = (i * (circleDp + 8f)).dp)
+                    .size(circleDp.dp),
+                description = null
+            )
+        }
     }
 }
