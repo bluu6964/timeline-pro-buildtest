@@ -174,7 +174,82 @@ enum class UiLabelStyle(
     TITLE_125(12.5f, 700),
 
     /** Build 252 (stage 5): transform rail axis badges: 8 sp Bold. */
-    ED_BADGE(8f, 700);
+    ED_BADGE(8f, 700),
+
+    /** Build 253 (stage 6): the dialog/sheet action pill label: 12 sp SemiBold. */
+    PILL_BTN(12f, 600),
+
+    /** Build 253 (stage 6): AlertDialog title slot (headlineSmall): 24 sp Regular / Bold. */
+    DLG_TITLE(24f, 400),
+    DLG_TITLE_B(24f, 700),
+
+    /**
+     * Build 253 (stage 6): AlertDialog body-slot texts. The slot
+     * provides bodyMedium (13 sp / 18 sp line, 0.2 sp tracking), so
+     * every explicit size inside a dialog carries the 0.2 sp tracking
+     * and the 18 sp line pitch (the hosts pass the pitch separately).
+     */
+    DLG_14_BOLD(14f, 700, letterSpacingSp = 0.2f),
+    DLG_135_SEMI(13.5f, 600, letterSpacingSp = 0.2f),
+    DLG_13(13f, 400, letterSpacingSp = 0.2f),
+    DLG_125(12.5f, 400, letterSpacingSp = 0.2f),
+    DLG_125_SEMI(12.5f, 600, letterSpacingSp = 0.2f),
+    DLG_12(12f, 400, letterSpacingSp = 0.2f),
+    DLG_12_SEMI(12f, 600, letterSpacingSp = 0.2f),
+    DLG_115(11.5f, 400, letterSpacingSp = 0.2f),
+    DLG_11(11f, 400, letterSpacingSp = 0.2f),
+    DLG_10(10f, 400, letterSpacingSp = 0.2f),
+
+    /** Build 253 (stage 6): sheet titles at SemiBold: 14.5 sp SemiBold. */
+    SHEET_TITLE_SEMI(14.5f, 600),
+
+    /** Build 253 (stage 6): 13 sp family (export cards, audio readouts, hex readout). */
+    TEXT_13_SEMI(13f, 600),
+    TEXT_13_BOLD(13f, 700),
+    TEXT_13_MED(13f, 500),
+
+    /** Build 253 (stage 6): aspect-ratio card labels: 13.5 sp Medium. */
+    TEXT_135_MED(13.5f, 500),
+
+    /** Build 253 (stage 6): 14 sp Bold (projects hero, onion stepper). */
+    TEXT_14_BOLD(14f, 700),
+
+    /** Build 253 (stage 6): export card value readout: 14.5 sp Bold. */
+    TEXT_145_BOLD(14.5f, 700),
+
+    /** Build 253 (stage 6): sheet / export page titles: 16 sp Bold, 17 sp Bold. */
+    TITLE_16(16f, 700),
+    TITLE_17(17f, 700),
+
+    /** Build 253 (stage 6): export progress / complete headlines. */
+    TEXT_22_BLACK(22f, 900),
+    TEXT_30_BLACK(30f, 900),
+
+    /** Build 253 (stage 6): project-card initial: 22 sp ExtraBold. */
+    TEXT_22_XBOLD(22f, 800),
+
+    /** Build 253 (stage 6): export complete sub-line: 12 sp Medium. */
+    TEXT_12_MED(12f, 500),
+
+    /** Build 253 (stage 6): 12.5 sp family (parent rows, export warning). */
+    SEMI_125(12.5f, 600),
+    TEXT_125(12.5f, 400),
+    TEXT_125_BOLD(12.5f, 700),
+
+    /** Build 253 (stage 6): panel section label: 9.5 sp SemiBold, 0.9 sp tracking. */
+    SECTION_LABEL(9.5f, 600, letterSpacingSp = 0.9f),
+
+    /** Build 253 (stage 6): onion-skin percent readout: 10 sp Bold. */
+    TEXT_10_BOLD(10f, 700),
+
+    /** Build 253 (stage 6): 9.5 sp Medium (shape names, project meta). */
+    TEXT_95_MED(9.5f, 500),
+
+    /** Build 253 (stage 6): project-card OPEN chip: 8 sp ExtraBold. */
+    CHIP_8_XBOLD(8f, 800),
+
+    /** Build 253 (stage 6): project-card duration badge: 9 sp SemiBold. */
+    TEXT_9_SEMI(9f, 600);
 
     companion object {
         /** The pager label style for an auto-fit size (7.5–10 sp in 0.5 steps). */
