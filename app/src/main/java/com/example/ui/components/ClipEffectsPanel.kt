@@ -7,8 +7,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -109,7 +111,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import com.example.engine.UiLabelAtlas
+import com.example.engine.UiLabelStyle
+import com.example.engine.rememberUiAtlas
+import com.example.model.ChromeGeometry
+import com.example.model.EditorGeometry
+import com.example.model.PanelGeometry
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -250,49 +261,90 @@ fun ClipEffectsPanel(
         when (mode) {
             FxPanelMode.APPLIED -> {
                 // ---- Add effect: the wide button; at the cap it turns into the honest limit state ----
+                // Build 252 (stage 5): drawn in GL — capsule fill, the
+                // centred label and the right-aligned count. (The
+                // Compose button's press scaled only its texts; the
+                // fill sat outside the graphicsLayer.)
+                val addDensity = LocalDensity.current.density
+                val addAtlas = rememberUiAtlas()
+                val addPad = UiLabelAtlas.PAD.toFloat()
+                val addLabel = if (full) "Effect limit reached" else "Add effect"
+                val addCount = "${effects.size} / ${ClipFxLibrary.MAX_EFFECTS}"
+                fun resolveAdd(): Pair<UiLabelAtlas.Entry?, UiLabelAtlas.Entry?> =
+                    addAtlas.resolve(addLabel, UiLabelStyle.FX_LABEL) to
+                        addAtlas.resolve(addCount, UiLabelStyle.SHEET_DESC)
+                var addEntries = resolveAdd()
+                if (addAtlas.overflowed) {
+                    addAtlas.reset()
+                    addEntries = resolveAdd()
+                }
+                val (addLabelEntry, addCountEntry) = addEntries
+                val addScale = remember { Animatable(1f) }
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(38.dp)
-                        .clip(CircleShape)
-                        .background(if (full) AmPanelHigh.copy(alpha = 0.45f) else AmPanelHigh, CircleShape)
-                        .then(
-                            if (full) Modifier
-                            else Modifier.bouncyClickable(onClick = { mode = FxPanelMode.BROWSER })
-                        )
-                        .testTag("fx_add_effect"),
-                    contentAlignment = Alignment.Center
+                        .testTag("fx_add_effect")
                 ) {
-                    Text(
-                        if (full) "Effect limit reached" else "Add effect",
-                        color = if (full) AmTextDim else TextPrimary,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold
+                    NativeVectorCanvas(
+                        modifier = Modifier.fillMaxSize(),
+                        clearArgb = 0,
+                        atlas = addAtlas,
+                        drawKey = listOf(addLabelEntry, addCountEntry, addScale.value, full, addAtlas.generation),
+                        buildCmds = { w, h, dd ->
+                            addRoundRect(
+                                w / 2f, h / 2f, w, h, h / 2f,
+                                (if (full) AmPanelHigh.copy(alpha = 0.45f) else AmPanelHigh).toArgb()
+                            )
+                            setScaleAbout(w / 2f, h / 2f, addScale.value)
+                            fun centredText(e: UiLabelAtlas.Entry?, style: UiLabelStyle, originX: Float, tint: Int) {
+                                if (e == null) return
+                                val textH = addAtlas.textHeightPx(style)
+                                val fm = addAtlas.fontMetrics(style)
+                                val top = EditorGeometry.centredTextTopPx(0f, h, textH)
+                                val baseline = PanelGeometry.lineBaselinePx(top, textH, fm.ascent, fm.descent)
+                                val (dstX, dstY) = EditorGeometry.textDst(originX, baseline, e.bearing, e.base, addPad)
+                                addText(
+                                    e.index, dstX, dstY,
+                                    0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                                    tintArgb = tint
+                                )
+                            }
+                            if (addLabelEntry != null) {
+                                centredText(
+                                    addLabelEntry, UiLabelStyle.FX_LABEL,
+                                    EditorGeometry.centredOriginPx(w / 2f, addLabelEntry.advance),
+                                    (if (full) AmTextDim else TextPrimary).toArgb()
+                                )
+                            }
+                            if (addCountEntry != null) {
+                                centredText(
+                                    addCountEntry, UiLabelStyle.SHEET_DESC,
+                                    w - 12f * dd - addCountEntry.advance,
+                                    AmTextDim.toArgb()
+                                )
+                            }
+                            clearTransform()
+                        }
                     )
-                    Text(
-                        "${effects.size} / ${ClipFxLibrary.MAX_EFFECTS}",
-                        color = AmTextDim,
-                        fontSize = 10.5.sp,
-                        modifier = Modifier
-                            .align(Alignment.CenterEnd)
-                            .padding(end = 12.dp)
-                    )
+                    if (!full) {
+                        ChromePressBox(
+                            addScale, 0.94f, { mode = FxPanelMode.BROWSER },
+                            Modifier.fillMaxSize(),
+                            description = addLabel
+                        )
+                    }
                 }
                 Spacer(Modifier.height(8.dp))
                 if (effects.isEmpty()) {
-                    Box(
+                    GlTextBlock(
+                        text = "See applied effects here, reorder them by dragging, and control their parameters",
+                        style = UiLabelStyle.ED_TEXT,
+                        colorArgb = AmTextDim.toArgb(),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            "See applied effects here, reorder them by dragging, and control their parameters",
-                            color = AmTextDim,
-                            fontSize = 11.5.sp,
-                            textAlign = TextAlign.Center
-                        )
-                    }
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
                 } else {
                     // ---- Applied rows with grip drag-reorder (writes the same list funnel) ----
                     var draggingId by remember(clip.id) { mutableStateOf<String?>(null) }
@@ -356,35 +408,17 @@ fun ClipEffectsPanel(
 
             FxPanelMode.BROWSER -> {
                 // ---- Header row: collapse back to the applied list ----
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .bouncyClickable(onClick = { mode = FxPanelMode.APPLIED })
-                            .padding(vertical = 4.dp, horizontal = 4.dp)
-                            .testTag("fx_browser_back"),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Icons.Default.KeyboardArrowDown,
-                            contentDescription = "Back to applied effects",
-                            tint = TextPrimary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Text("Add effect", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                    }
-                    Spacer(Modifier.weight(1f))
-                    if (full) {
-                        Text(
-                            "Limit ${ClipFxLibrary.MAX_EFFECTS} reached",
-                            color = AmTextDim,
-                            fontSize = 10.5.sp
-                        )
-                    }
-                }
+                // Build 252 (stage 5): GL strip (FxHeaderRow).
+                FxHeaderRow(
+                    icon = Icons.Default.KeyboardArrowDown,
+                    iconDescription = "Back to applied effects",
+                    title = "Add effect",
+                    titleStyle = UiLabelStyle.CHIP_BIG,
+                    titleArgb = TextPrimary.toArgb(),
+                    tag = "fx_browser_back",
+                    trailingText = if (full) "Limit ${ClipFxLibrary.MAX_EFFECTS} reached" else null,
+                    onBack = { mode = FxPanelMode.APPLIED }
+                )
                 Spacer(Modifier.height(6.dp))
                 // ---- Category chips: selected = white fill / black text ----
                 val chips = listOf(FX_CHIP_ALL, FX_CHIP_FAVORITES, FX_CHIP_RECENT) + ClipFxLibrary.categories
@@ -395,24 +429,20 @@ fun ClipEffectsPanel(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     for (c in chips) {
-                        val on = c == chip
-                        Box(
-                            modifier = Modifier
-                                .padding(end = 6.dp)
-                                .clip(CircleShape)
-                                .background(if (on) Color.White else AmPanelHigh, CircleShape)
-                                .bouncyClickable(onClick = { chip = c })
-                                .testTag("fx_category_$c"),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                c,
-                                color = if (on) Color.Black else TextPrimary,
-                                fontSize = 11.5.sp,
-                                fontWeight = if (on) FontWeight.Bold else FontWeight.SemiBold,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-                            )
-                        }
+                        GlChip(
+                            label = c,
+                            selected = c == chip,
+                            tag = "fx_category_$c",
+                            onClick = { chip = c },
+                            modifier = Modifier.padding(end = 6.dp),
+                            padVDp = 5f,
+                            styleOn = UiLabelStyle.ED_TEXT_BOLD,
+                            styleOff = UiLabelStyle.ED_TEXT_SEMI,
+                            fillOnArgb = Color.White.toArgb(),
+                            fillOffArgb = AmPanelHigh.toArgb(),
+                            textOnArgb = Color.Black.toArgb(),
+                            textOffArgb = TextPrimary.toArgb()
+                        )
                     }
                 }
                 Spacer(Modifier.height(8.dp))
@@ -423,25 +453,20 @@ fun ClipEffectsPanel(
                     else -> ClipFxLibrary.all.filter { it.category == chip }
                 }
                 if (defs.isEmpty()) {
-                    Box(
+                    GlTextBlock(
+                        text = when (chip) {
+                            FX_CHIP_FAVORITES ->
+                                "No favorites yet — tap an effect to select it, then the bookmark button by the preview to keep it here."
+                            FX_CHIP_RECENT ->
+                                "Nothing applied yet — effects you add will appear here, newest first."
+                            else -> "No effects in this category."
+                        },
+                        style = UiLabelStyle.ED_TEXT,
+                        colorArgb = AmTextDim.toArgb(),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            when (chip) {
-                                FX_CHIP_FAVORITES ->
-                                    "No favorites yet — tap an effect to select it, then the bookmark button by the preview to keep it here."
-                                FX_CHIP_RECENT ->
-                                    "Nothing applied yet — effects you add will appear here, newest first."
-                                else -> "No effects in this category."
-                            },
-                            color = AmTextDim,
-                            fontSize = 11.5.sp,
-                            textAlign = TextAlign.Center
-                        )
-                    }
+                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                    )
                 } else {
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(4),
@@ -475,45 +500,25 @@ fun ClipEffectsPanel(
                     Box(Modifier.fillMaxSize())
                 } else {
                     // ---- Back row + Remove ----
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .bouncyClickable(onClick = { mode = FxPanelMode.APPLIED })
-                                .padding(vertical = 4.dp, horizontal = 4.dp)
-                                .testTag("fx_editor_back"),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                Icons.Default.KeyboardArrowLeft,
-                                contentDescription = "Back to applied effects",
-                                tint = TextPrimary,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(Modifier.width(4.dp))
-                            Text("Applied Effects", color = AmTextDim, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
-                        }
-                        Spacer(Modifier.weight(1f))
-                        Row(
-                            modifier = Modifier
-                                .clip(CircleShape)
-                                .background(AmPanelHigh, CircleShape)
-                                .bouncyClickable(onClick = {
-                                    onChange(latestEffects.filter { it.id != fx.id })
-                                    editingId = null
-                                    mode = FxPanelMode.APPLIED
-                                })
-                                .padding(vertical = 5.dp, horizontal = 9.dp)
-                                .testTag("fx_remove_${fx.type}"),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.Delete, contentDescription = "Remove effect", tint = AmDanger, modifier = Modifier.size(14.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text("Remove", color = AmDanger, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
-                        }
-                    }
+                    // Build 252 (stage 5): GL header (FxHeaderRow).
+                    FxHeaderRow(
+                        icon = Icons.Default.KeyboardArrowLeft,
+                        iconDescription = "Back to applied effects",
+                        title = "Applied Effects",
+                        titleStyle = UiLabelStyle.ED_TEXT_SEMI,
+                        titleArgb = AmTextDim.toArgb(),
+                        tag = "fx_editor_back",
+                        pillIcon = Icons.Default.Delete,
+                        pillLabel = "Remove",
+                        pillTintArgb = AmDanger.toArgb(),
+                        pillTag = "fx_remove_${fx.type}",
+                        onPill = {
+                            onChange(latestEffects.filter { it.id != fx.id })
+                            editingId = null
+                            mode = FxPanelMode.APPLIED
+                        },
+                        onBack = { mode = FxPanelMode.APPLIED }
+                    )
                     Spacer(Modifier.height(4.dp))
                     Column(
                         modifier = Modifier
@@ -581,32 +586,289 @@ fun ClipEffectsPanel(
                                 modifier = Modifier.testTag("fx_slider_${fx.type}_$idx")
                             )
                         }
-                        Box(
-                            modifier = Modifier
-                                .padding(top = 4.dp)
-                                .clip(CircleShape)
-                                .background(AmPanelHigh, CircleShape)
-                                .bouncyClickable(onClick = {
+                        Box(modifier = Modifier.padding(top = 4.dp)) {
+                            FxPillButtonGl(
+                                icon = Icons.Default.Refresh,
+                                label = "Reset",
+                                tintArgb = TextPrimary.toArgb(),
+                                tag = "fx_reset_${fx.type}",
+                                padHDp = 10f,
+                                padVDp = 7f,
+                                iconGapDp = 5f,
+                                textStyle = UiLabelStyle.TEXT_11_SEMI,
+                                onClick = {
                                     val vals = def.params.map { it.default } + fx.values.drop(def.params.size)
                                     onChange(effects.map { if (it.id == fx.id) it.copy(values = vals) else it })
-                                })
-                                .testTag("fx_reset_${fx.type}"),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(Icons.Default.Refresh, contentDescription = null, tint = TextPrimary, modifier = Modifier.size(14.dp))
-                                Spacer(Modifier.width(5.dp))
-                                Text("Reset", color = TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                            }
+                                }
+                            )
                         }
                         Spacer(Modifier.height(8.dp))
                     }
                 }
             }
         }
+    }
+}
+
+/**
+ * Build 252 (stage 5): an effects header row in GL — the back
+ * cluster (18 dp icon + title, padded 4 dp, the whole cluster
+ * press-scales as the Compose Row did) plus either a right-aligned
+ * trailing text or the Remove pill (capsule fill static, its icon +
+ * label press-scale, as its modifier chain had them).
+ */
+@Composable
+private fun FxHeaderRow(
+    icon: ImageVector,
+    iconDescription: String,
+    title: String,
+    titleStyle: UiLabelStyle,
+    titleArgb: Int,
+    tag: String,
+    trailingText: String? = null,
+    pillIcon: ImageVector? = null,
+    pillLabel: String? = null,
+    pillTintArgb: Int = 0,
+    pillTag: String? = null,
+    onPill: (() -> Unit)? = null,
+    onBack: () -> Unit
+) {
+    val density = LocalDensity.current.density
+    val atlas = rememberUiAtlas()
+    val pad = UiLabelAtlas.PAD.toFloat()
+    val iconPainter = rememberVectorPainter(icon)
+    val pillPainter = pillIcon?.let { rememberVectorPainter(it) }
+    val iconPx = (18f * density).roundToInt()
+    val pillIconPx = (14f * density).roundToInt()
+    fun resolveHeader(): List<UiLabelAtlas.Entry?> {
+        val titleE = atlas.resolve(title, titleStyle)
+        val trailE = trailingText?.let { atlas.resolve(it, UiLabelStyle.SHEET_DESC) }
+        val iconE = atlas.resolveIcon("fxhdr:${icon.name}", iconPx, iconPx) { cv, x, y ->
+            val b = rasterizePainterBitmap(iconPainter, iconPx, density)
+            cv.drawBitmap(b, x, y, null)
+            b.recycle()
+        }
+        val pillLabelE = pillLabel?.let { atlas.resolve(it, UiLabelStyle.ED_TEXT_SEMI) }
+        val pillIconE = if (pillPainter != null) {
+            atlas.resolveIcon("fxhdr:pill:${pillIcon.name}", pillIconPx, pillIconPx) { cv, x, y ->
+                val b = rasterizePainterBitmap(pillPainter, pillIconPx, density)
+                cv.drawBitmap(b, x, y, null)
+                b.recycle()
+            }
+        } else {
+            null
+        }
+        return listOf(titleE, trailE, iconE, pillLabelE, pillIconE)
+    }
+    var headerEntries = resolveHeader()
+    if (atlas.overflowed) {
+        atlas.reset()
+        headerEntries = resolveHeader()
+    }
+    val (titleEntry, trailEntry, iconEntry, pillLabelEntry, pillIconEntry) = headerEntries
+    val backScale = remember { Animatable(1f) }
+    val pillScale = remember { Animatable(1f) }
+    val titleTextH = atlas.textHeightPx(titleStyle)
+    val headerHDp = 8f + maxOf(18f, titleTextH / density)
+    val clusterWPx = 30f * density + (titleEntry?.advance ?: 0f)
+    val pillWPx = if (pillLabel != null) {
+        36f * density + (pillLabelEntry?.advance ?: 0f)
+    } else {
+        0f
+    }
+    val pillHDp = maxOf(14f, atlas.textHeightPx(UiLabelStyle.ED_TEXT_SEMI) / density) + 10f
+
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(headerHDp.dp)
+    ) {
+        val wPx = maxWidth.value * density
+        NativeVectorCanvas(
+            modifier = Modifier.fillMaxSize(),
+            clearArgb = 0,
+            atlas = atlas,
+            drawKey = listOf(
+                headerEntries, backScale.value, pillScale.value, titleArgb, pillTintArgb, atlas.generation
+            ),
+            buildCmds = { w, h, dd ->
+                val cy = h / 2f
+                // Back cluster: icon at 4..22, title after a 4 dp gap.
+                setScaleAbout(clusterWPx / 2f, cy, backScale.value)
+                if (iconEntry != null) {
+                    addText(
+                        iconEntry.index,
+                        4f * dd - pad, cy - iconPx / 2f - pad,
+                        0f, 0f, iconEntry.rectW.toFloat(), iconEntry.rectH.toFloat(),
+                        tintArgb = TextPrimary.toArgb()
+                    )
+                }
+                if (titleEntry != null) {
+                    val fm = atlas.fontMetrics(titleStyle)
+                    val top = EditorGeometry.centredTextTopPx(0f, h, titleTextH)
+                    val baseline = PanelGeometry.lineBaselinePx(top, titleTextH, fm.ascent, fm.descent)
+                    val (dstX, dstY) = EditorGeometry.textDst(26f * dd, baseline, titleEntry.bearing, titleEntry.base, pad)
+                    addText(
+                        titleEntry.index, dstX, dstY,
+                        0f, 0f, titleEntry.rectW.toFloat(), titleEntry.rectH.toFloat(),
+                        tintArgb = titleArgb
+                    )
+                }
+                clearTransform()
+                if (trailEntry != null) {
+                    val style = UiLabelStyle.SHEET_DESC
+                    val textH = atlas.textHeightPx(style)
+                    val fm = atlas.fontMetrics(style)
+                    val top = EditorGeometry.centredTextTopPx(0f, h, textH)
+                    val baseline = PanelGeometry.lineBaselinePx(top, textH, fm.ascent, fm.descent)
+                    val (dstX, dstY) = EditorGeometry.textDst(w - trailEntry.advance, baseline, trailEntry.bearing, trailEntry.base, pad)
+                    addText(
+                        trailEntry.index, dstX, dstY,
+                        0f, 0f, trailEntry.rectW.toFloat(), trailEntry.rectH.toFloat(),
+                        tintArgb = AmTextDim.toArgb()
+                    )
+                }
+                if (pillLabel != null) {
+                    val pillLeft = w - pillWPx
+                    val pillH = maxOf(14f * dd, atlas.textHeightPx(UiLabelStyle.ED_TEXT_SEMI).toFloat()) + 10f * dd
+                    addRoundRect(w - pillWPx / 2f, cy, pillWPx, pillH, pillH / 2f, AmPanelHigh.toArgb())
+                    setScaleAbout(w - pillWPx / 2f, cy, pillScale.value)
+                    if (pillIconEntry != null) {
+                        addText(
+                            pillIconEntry.index,
+                            pillLeft + 9f * dd - pad, cy - pillIconPx / 2f - pad,
+                            0f, 0f, pillIconEntry.rectW.toFloat(), pillIconEntry.rectH.toFloat(),
+                            tintArgb = pillTintArgb
+                        )
+                    }
+                    if (pillLabelEntry != null) {
+                        val style = UiLabelStyle.ED_TEXT_SEMI
+                        val textH = atlas.textHeightPx(style)
+                        val fm = atlas.fontMetrics(style)
+                        val top = EditorGeometry.centredTextTopPx(0f, h, textH)
+                        val baseline = PanelGeometry.lineBaselinePx(top, textH, fm.ascent, fm.descent)
+                        val (dstX, dstY) = EditorGeometry.textDst(
+                            pillLeft + 27f * dd, baseline, pillLabelEntry.bearing, pillLabelEntry.base, pad
+                        )
+                        addText(
+                            pillLabelEntry.index, dstX, dstY,
+                            0f, 0f, pillLabelEntry.rectW.toFloat(), pillLabelEntry.rectH.toFloat(),
+                            tintArgb = pillTintArgb
+                        )
+                    }
+                    clearTransform()
+                }
+            }
+        )
+        ChromePressBox(
+            backScale, 0.94f, onBack,
+            Modifier
+                .width((clusterWPx / density).dp)
+                .height(headerHDp.dp),
+            tag = tag,
+            description = iconDescription
+        )
+        if (pillLabel != null && onPill != null && pillTag != null) {
+            ChromePressBox(
+                pillScale, 0.94f, onPill,
+                Modifier
+                    .offset(
+                        x = ((wPx - pillWPx) / density).dp,
+                        y = ((headerHDp - pillHDp) / 2f).dp
+                    )
+                    .width((pillWPx / density).dp)
+                    .height(pillHDp.dp),
+                tag = pillTag,
+                description = pillLabel
+            )
+        }
+    }
+}
+
+/**
+ * Build 252 (stage 5): a small AmPanelHigh capsule pill button in
+ * GL (the Reset / Pick-from-picture pattern): static fill, the
+ * 14 dp icon + label press-scale about the pill's centre.
+ */
+@Composable
+private fun FxPillButtonGl(
+    icon: ImageVector,
+    label: String,
+    tintArgb: Int,
+    tag: String,
+    padHDp: Float,
+    padVDp: Float,
+    iconGapDp: Float,
+    textStyle: UiLabelStyle,
+    onClick: () -> Unit
+) {
+    val density = LocalDensity.current.density
+    val atlas = rememberUiAtlas()
+    val pad = UiLabelAtlas.PAD.toFloat()
+    val painter = rememberVectorPainter(icon)
+    val iconPx = (14f * density).roundToInt()
+    fun resolvePill(): Pair<UiLabelAtlas.Entry?, UiLabelAtlas.Entry?> {
+        val labelE = atlas.resolve(label, textStyle)
+        val iconE = atlas.resolveIcon("fxpill:${icon.name}", iconPx, iconPx) { cv, x, y ->
+            val b = rasterizePainterBitmap(painter, iconPx, density)
+            cv.drawBitmap(b, x, y, null)
+            b.recycle()
+        }
+        return labelE to iconE
+    }
+    var pillEntries = resolvePill()
+    if (atlas.overflowed) {
+        atlas.reset()
+        pillEntries = resolvePill()
+    }
+    val (labelEntry, iconEntry) = pillEntries
+    val scale = remember { Animatable(1f) }
+    val textH = atlas.textHeightPx(textStyle)
+    val wDp = (padHDp * 2 + 14f + iconGapDp + (labelEntry?.advance ?: 0f) / density).dp
+    val hDp = (maxOf(14f, textH / density) + padVDp * 2).dp
+    Box(
+        modifier = Modifier
+            .width(wDp)
+            .height(hDp)
+    ) {
+        NativeVectorCanvas(
+            modifier = Modifier.fillMaxSize(),
+            clearArgb = 0,
+            atlas = atlas,
+            drawKey = listOf(labelEntry, iconEntry, scale.value, tintArgb, atlas.generation),
+            buildCmds = { w, h, dd ->
+                addRoundRect(w / 2f, h / 2f, w, h, h / 2f, AmPanelHigh.toArgb())
+                setScaleAbout(w / 2f, h / 2f, scale.value)
+                if (iconEntry != null) {
+                    addText(
+                        iconEntry.index,
+                        padHDp * dd - pad, h / 2f - iconPx / 2f - pad,
+                        0f, 0f, iconEntry.rectW.toFloat(), iconEntry.rectH.toFloat(),
+                        tintArgb = tintArgb
+                    )
+                }
+                if (labelEntry != null) {
+                    val fm = atlas.fontMetrics(textStyle)
+                    val top = EditorGeometry.centredTextTopPx(0f, h, textH)
+                    val baseline = PanelGeometry.lineBaselinePx(top, textH, fm.ascent, fm.descent)
+                    val (dstX, dstY) = EditorGeometry.textDst(
+                        (padHDp + 14f + iconGapDp) * dd, baseline, labelEntry.bearing, labelEntry.base, pad
+                    )
+                    addText(
+                        labelEntry.index, dstX, dstY,
+                        0f, 0f, labelEntry.rectW.toFloat(), labelEntry.rectH.toFloat(),
+                        tintArgb = tintArgb
+                    )
+                }
+                clearTransform()
+            }
+        )
+        ChromePressBox(
+            scale, 0.94f, onClick,
+            Modifier.fillMaxSize(),
+            tag = tag,
+            description = label
+        )
     }
 }
 
@@ -623,62 +885,171 @@ private fun AppliedFxRow(
     onDrag: (Float) -> Unit,
     onDragEnd: () -> Unit
 ) {
-    val rowShape = RoundedCornerShape(12.dp)
-    Row(
+    // Build 252 (stage 5): the row is drawn in GL — AmPanelHigh
+    // r12 fill (+ the dragging hairline), chevron, name (ellipsized),
+    // the "Off" tag, eye and grip glyphs. The left zone keeps its
+    // 0.99 press (content only — the fill sat on the outer Row), the
+    // eye its own press, and the grip keeps its exact drag gesture.
+    val density = LocalDensity.current.density
+    val atlas = rememberUiAtlas()
+    val pad = UiLabelAtlas.PAD.toFloat()
+    val chevronPainter = rememberVectorPainter(Icons.Default.KeyboardArrowRight)
+    val eyePainter = rememberVectorPainter(if (fx.enabled) Icons.Default.Visibility else Icons.Default.VisibilityOff)
+    val gripPainter = rememberVectorPainter(Icons.Default.DragHandle)
+    val chevronPx = (17f * density).roundToInt()
+    val eyePx = (18f * density).roundToInt()
+    val gripPx = (18f * density).roundToInt()
+    fun resolveFxRow(): List<UiLabelAtlas.Entry?> {
+        val name = atlas.resolve(def.name, UiLabelStyle.SHEET_ITEM_SEMI)
+        val off = if (!fx.enabled) atlas.resolve("Off", UiLabelStyle.TEXT_10) else null
+        val chevron = atlas.resolveIcon("fxrow:chevron", chevronPx, chevronPx) { cv, x, y ->
+            val b = rasterizePainterBitmap(chevronPainter, chevronPx, density)
+            cv.drawBitmap(b, x, y, null)
+            b.recycle()
+        }
+        val eye = atlas.resolveIcon("fxrow:eye:${fx.enabled}", eyePx, eyePx) { cv, x, y ->
+            val b = rasterizePainterBitmap(eyePainter, eyePx, density)
+            cv.drawBitmap(b, x, y, null)
+            b.recycle()
+        }
+        val grip = atlas.resolveIcon("fxrow:grip", gripPx, gripPx) { cv, x, y ->
+            val b = rasterizePainterBitmap(gripPainter, gripPx, density)
+            cv.drawBitmap(b, x, y, null)
+            b.recycle()
+        }
+        return listOf(name, off, chevron, eye, grip)
+    }
+    var fxRowEntries = resolveFxRow()
+    if (atlas.overflowed) {
+        atlas.reset()
+        fxRowEntries = resolveFxRow()
+    }
+    val (nameEntry, offEntry, chevronEntry, eyeEntry, gripEntry) = fxRowEntries
+    val leftScale = remember { Animatable(1f) }
+    val eyeScale = remember { Animatable(1f) }
+    val nameArgb = (if (fx.enabled) TextPrimary else TextSecondary).toArgb()
+    val eyeArgb = (if (fx.enabled) TextPrimary else TextSecondary).toArgb()
+
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
             .height(40.dp)
             .offset { IntOffset(0, dragOffsetPx.roundToInt()) }
             .zIndex(if (isDragging) 1f else 0f)
-            .clip(rowShape)
-            .background(AmPanelHigh, rowShape)
-            .then(
-                if (isDragging) Modifier.border(1.dp, AmHairlineStrong, rowShape)
-                else Modifier
-            )
-            .testTag("fx_row_${fx.type}"),
-        verticalAlignment = Alignment.CenterVertically
+            .testTag("fx_row_${fx.type}")
     ) {
-        Row(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight()
-                .bouncyClickable(pressedScale = 0.99f, onClick = onOpen)
-                .padding(start = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                Icons.Default.KeyboardArrowRight,
-                contentDescription = null,
-                tint = TextSecondary,
-                modifier = Modifier.size(17.dp)
-            )
-            Spacer(Modifier.width(6.dp))
-            Text(
-                def.name,
-                color = if (fx.enabled) TextPrimary else TextSecondary,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            if (!fx.enabled) {
-                Spacer(Modifier.width(6.dp))
-                Text("Off", color = TextSecondary, fontSize = 10.sp)
+        val wPx = maxWidth.value * density
+        val leftWPx = wPx - 68f * density
+        // The name ellipsizes inside its zone (chevron + gaps +
+        // the "Off" tag when disabled).
+        val shownNameEntry = run {
+            val zone = leftWPx - 10f * density - 23f * density -
+                (if (!fx.enabled) 6f * density + (offEntry?.advance ?: 0f) else 0f)
+            if (nameEntry != null && nameEntry.advance > zone) {
+                val shown = ChromeGeometry.ellipsize(def.name, zone, atlas, UiLabelStyle.SHEET_ITEM_SEMI)
+                if (shown != null && shown != def.name) {
+                    atlas.resolve(shown, UiLabelStyle.SHEET_ITEM_SEMI) ?: nameEntry
+                } else {
+                    nameEntry
+                }
+            } else {
+                nameEntry
             }
         }
-        Icon(
-            if (fx.enabled) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-            contentDescription = if (fx.enabled) "Turn off" else "Turn on",
-            tint = if (fx.enabled) TextPrimary else TextSecondary,
-            modifier = Modifier
-                .size(34.dp)
-                .bouncyClickable(onClick = onToggleEnabled)
-                .padding(8.dp)
-                .testTag("fx_toggle_${fx.type}")
+        NativeVectorCanvas(
+            modifier = Modifier.fillMaxSize(),
+            clearArgb = 0,
+            atlas = atlas,
+            drawKey = listOf(
+                shownNameEntry, offEntry, chevronEntry, eyeEntry, gripEntry,
+                leftScale.value, eyeScale.value, isDragging, nameArgb, eyeArgb, atlas.generation
+            ),
+            buildCmds = { w, h, dd ->
+                val cy = h / 2f
+                addRoundRect(
+                    w / 2f, cy, w, h, 12f * dd,
+                    AmPanelHigh.toArgb(),
+                    if (isDragging) 1f * dd else 0f,
+                    AmHairlineStrong.toArgb()
+                )
+                // Left press zone: chevron + name + "Off".
+                setScaleAbout(leftWPx / 2f, cy, leftScale.value)
+                if (chevronEntry != null) {
+                    addText(
+                        chevronEntry.index,
+                        10f * dd - pad, cy - chevronPx / 2f - pad,
+                        0f, 0f, chevronEntry.rectW.toFloat(), chevronEntry.rectH.toFloat(),
+                        tintArgb = TextSecondary.toArgb()
+                    )
+                }
+                var nameRight = 33f * dd
+                if (shownNameEntry != null) {
+                    val style = UiLabelStyle.SHEET_ITEM_SEMI
+                    val textH = atlas.textHeightPx(style)
+                    val fm = atlas.fontMetrics(style)
+                    val top = EditorGeometry.centredTextTopPx(0f, h, textH)
+                    val baseline = PanelGeometry.lineBaselinePx(top, textH, fm.ascent, fm.descent)
+                    val (dstX, dstY) = EditorGeometry.textDst(33f * dd, baseline, shownNameEntry.bearing, shownNameEntry.base, pad)
+                    addText(
+                        shownNameEntry.index, dstX, dstY,
+                        0f, 0f, shownNameEntry.rectW.toFloat(), shownNameEntry.rectH.toFloat(),
+                        tintArgb = nameArgb
+                    )
+                    nameRight += shownNameEntry.advance
+                }
+                if (offEntry != null) {
+                    val style = UiLabelStyle.TEXT_10
+                    val textH = atlas.textHeightPx(style)
+                    val fm = atlas.fontMetrics(style)
+                    val top = EditorGeometry.centredTextTopPx(0f, h, textH)
+                    val baseline = PanelGeometry.lineBaselinePx(top, textH, fm.ascent, fm.descent)
+                    val (dstX, dstY) = EditorGeometry.textDst(nameRight + 6f * dd, baseline, offEntry.bearing, offEntry.base, pad)
+                    addText(
+                        offEntry.index, dstX, dstY,
+                        0f, 0f, offEntry.rectW.toFloat(), offEntry.rectH.toFloat(),
+                        tintArgb = TextSecondary.toArgb()
+                    )
+                }
+                clearTransform()
+                if (eyeEntry != null) {
+                    val cx = w - 51f * dd
+                    setScaleAbout(cx, cy, eyeScale.value)
+                    addText(
+                        eyeEntry.index,
+                        cx - eyePx / 2f - pad, cy - eyePx / 2f - pad,
+                        0f, 0f, eyeEntry.rectW.toFloat(), eyeEntry.rectH.toFloat(),
+                        tintArgb = eyeArgb
+                    )
+                    clearTransform()
+                }
+                if (gripEntry != null) {
+                    addText(
+                        gripEntry.index,
+                        w - 17f * dd - gripPx / 2f - pad, cy - gripPx / 2f - pad,
+                        0f, 0f, gripEntry.rectW.toFloat(), gripEntry.rectH.toFloat(),
+                        tintArgb = TextSecondary.toArgb()
+                    )
+                }
+            }
+        )
+        ChromePressBox(
+            leftScale, 0.99f, onOpen,
+            Modifier
+                .width((leftWPx / density).dp)
+                .fillMaxHeight(),
+            description = def.name
+        )
+        ChromePressBox(
+            eyeScale, 0.94f, onToggleEnabled,
+            Modifier
+                .offset(x = ((wPx - 68f * density) / density).dp, y = 3.dp)
+                .size(34.dp),
+            tag = "fx_toggle_${fx.type}",
+            description = if (fx.enabled) "Turn off" else "Turn on"
         )
         Box(
             modifier = Modifier
+                .offset(x = ((wPx - 34f * density) / density).dp, y = 3.dp)
                 .size(34.dp)
                 .pointerInput(fx.id) {
                     detectDragGestures(
@@ -691,16 +1062,8 @@ private fun AppliedFxRow(
                         }
                     )
                 }
-                .testTag("fx_grip_${fx.type}"),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                Icons.Default.DragHandle,
-                contentDescription = "Drag to reorder",
-                tint = TextSecondary,
-                modifier = Modifier.size(18.dp)
-            )
-        }
+                .testTag("fx_grip_${fx.type}")
+        )
     }
 }
 
@@ -714,54 +1077,157 @@ private fun FxGridTile(
     onBadgeClick: () -> Unit
 ) {
     val tileShape = RoundedCornerShape(8.dp) // the ARTWORK's corners (content, as in the reference)
-    Column(
-        modifier = Modifier
-            .bouncyClickable(onClick = onClick)
-            .testTag("fx_tile_${def.id}"),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
+    // Build 252 (stage 5): the tile's artwork stays its Compose
+    // Canvas — procedural colour gradients + a star field cannot
+    // pass the alpha-only atlas (documented stop, stage 4 law).
+    // Everything around it migrates: the dim veil, the selected
+    // border and badge, and the two-line label are drawn in GL.
+    val density = LocalDensity.current.density
+    val atlas = rememberUiAtlas()
+    val pad = UiLabelAtlas.PAD.toFloat()
+    val tunePainter = rememberVectorPainter(Icons.Default.Tune)
+    val tunePx = (11f * density).roundToInt()
+    fun resolveBadge() = atlas.resolveIcon("fxtile:tune", tunePx, tunePx) { cv, x, y ->
+        val b = rasterizePainterBitmap(tunePainter, tunePx, density)
+        cv.drawBitmap(b, x, y, null)
+        b.recycle()
+    }
+    var badgeEntry = resolveBadge()
+    if (atlas.overflowed) {
+        atlas.reset()
+        badgeEntry = resolveBadge()
+    }
+    val badgeIcon = badgeEntry
+    val tileScale = remember { Animatable(1f) }
+    val badgeScale = remember { Animatable(1f) }
+
+    Box(modifier = Modifier.testTag("fx_tile_${def.id}")) {
+        Column(
+            modifier = Modifier.graphicsLayer {
+                scaleX = tileScale.value
+                scaleY = tileScale.value
+            },
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1f)
+                    .clip(tileShape)
+            ) {
+                FxTileArtwork(def = def, modifier = Modifier.fillMaxSize())
+                NativeVectorCanvas(
+                    modifier = Modifier.fillMaxSize(),
+                    clearArgb = 0,
+                    atlas = atlas,
+                    drawKey = listOf(badgeIcon, badgeScale.value, selected, dimmed, atlas.generation),
+                    buildCmds = { w, h, dd ->
+                        if (dimmed) {
+                            addRoundRect(w / 2f, h / 2f, w, h, 8f * dd, Color.Black.copy(alpha = 0.45f).toArgb())
+                        }
+                        if (selected) {
+                            addRoundRect(
+                                w / 2f, h / 2f, w - 2f * dd, h - 2f * dd, 7f * dd,
+                                0, 2f * dd, Color.White.toArgb()
+                            )
+                            val bcx = 12f * dd
+                            val bcy = 12f * dd
+                            addCircle(bcx, bcy, 9f * dd, Color.Black.copy(alpha = 0.55f).toArgb())
+                            if (badgeIcon != null) {
+                                setScaleAbout(bcx, bcy, badgeScale.value)
+                                addText(
+                                    badgeIcon.index,
+                                    bcx - tunePx / 2f - pad, bcy - tunePx / 2f - pad,
+                                    0f, 0f, badgeIcon.rectW.toFloat(), badgeIcon.rectH.toFloat(),
+                                    tintArgb = Color.White.toArgb()
+                                )
+                                clearTransform()
+                            }
+                        }
+                    }
+                )
+            }
+            Spacer(Modifier.height(3.dp))
+            FxTileLabelGl(name = def.name, dimmed = dimmed)
+        }
+        ChromePressBox(
+            tileScale, 0.94f, onClick,
+            Modifier.matchParentSize(),
+            description = def.name
+        )
+        if (selected) {
+            ChromePressBox(
+                badgeScale, 0.94f, onBadgeClick,
+                Modifier
+                    .offset(x = 3.dp, y = 3.dp)
+                    .size(18.dp),
+                tag = "fx_badge_${def.id}",
+                description = "Edit parameters"
+            )
+        }
+    }
+}
+
+/**
+ * Build 252 (stage 5): a browser tile's name in GL — 9.5 sp on an
+ * 11 sp line pitch, centred, at most two lines with the second
+ * ellipsized (the Text's lineHeight / maxLines / Ellipsis contract).
+ */
+@Composable
+private fun FxTileLabelGl(name: String, dimmed: Boolean) {
+    val density = LocalDensity.current.density
+    val fontScale = LocalDensity.current.fontScale
+    val atlas = rememberUiAtlas()
+    val pad = UiLabelAtlas.PAD.toFloat()
+    val style = UiLabelStyle.TILE_LABEL
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val wPx = maxWidth.value * density
+        fun resolveLabel(): List<UiLabelAtlas.Entry?> {
+            val wrapped = PanelGeometry.wrapGreedy(name, wPx, Int.MAX_VALUE) { atlas.measure(it, style) }
+            val lines = if (wrapped.size > 2) {
+                val rest = name.substring(wrapped[0].length).trimStart()
+                listOf(wrapped[0], ChromeGeometry.ellipsize(rest, wPx, atlas, style) ?: rest)
+            } else {
+                wrapped
+            }
+            return lines.map { atlas.resolve(it, style) }
+        }
+        var labelEntries = resolveLabel()
+        if (atlas.overflowed) {
+            atlas.reset()
+            labelEntries = resolveLabel()
+        }
+        val lines = labelEntries
+        val linePitchPx = 11f * density * fontScale
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(1f)
-                .clip(tileShape)
-                .then(if (selected) Modifier.border(2.dp, Color.White, tileShape) else Modifier)
+                .height((linePitchPx * lines.size / density).dp)
         ) {
-            FxTileArtwork(def = def, modifier = Modifier.fillMaxSize())
-            if (dimmed) {
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.45f))
-                )
-            }
-            if (selected) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(3.dp)
-                        .size(18.dp)
-                        .clip(CircleShape)
-                        .background(Color.Black.copy(alpha = 0.55f), CircleShape)
-                        .bouncyClickable(onClick = onBadgeClick)
-                        .testTag("fx_badge_${def.id}"),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Default.Tune, contentDescription = "Edit parameters", tint = Color.White, modifier = Modifier.size(11.dp))
+            NativeVectorCanvas(
+                modifier = Modifier.fillMaxSize(),
+                clearArgb = 0,
+                atlas = atlas,
+                drawKey = listOf(lines, dimmed, atlas.generation),
+                buildCmds = { w, _, _ ->
+                    val fm = atlas.fontMetrics(style)
+                    var lineTop = 0f
+                    for (e in lines) {
+                        if (e != null) {
+                            val baseline = PanelGeometry.lineBaselinePx(lineTop, linePitchPx, fm.ascent, fm.descent)
+                            val originX = EditorGeometry.centredOriginPx(w / 2f, e.advance)
+                            val (dstX, dstY) = EditorGeometry.textDst(originX, baseline, e.bearing, e.base, pad)
+                            addText(
+                                e.index, dstX, dstY,
+                                0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                                tintArgb = (if (dimmed) TextSecondary else TextPrimary).toArgb()
+                            )
+                        }
+                        lineTop += linePitchPx
+                    }
                 }
-            }
+            )
         }
-        Spacer(Modifier.height(3.dp))
-        Text(
-            def.name,
-            color = if (dimmed) TextSecondary else TextPrimary,
-            fontSize = 9.5.sp,
-            lineHeight = 11.sp,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth()
-        )
     }
 }
 
@@ -890,29 +1356,38 @@ private fun KeyPickerRow(swatch: Color, onPick: () -> Unit) {
             .padding(bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // Build 252 (stage 5): the swatch is a flat colour disc in
+        // GL (colour + its white ring); the pill button is FxPillButtonGl.
         Box(
             modifier = Modifier
                 .size(28.dp)
-                .clip(CircleShape)
-                .background(swatch)
-                .border(1.5.dp, Color.White.copy(alpha = 0.6f), CircleShape)
                 .testTag("fx_key_swatch")
-        )
+        ) {
+            NativeVectorCanvas(
+                modifier = Modifier.fillMaxSize(),
+                clearArgb = 0,
+                drawKey = swatch.toArgb(),
+                buildCmds = { w, h, dd ->
+                    addCircle(
+                        w / 2f, h / 2f, w / 2f - 0.75f * dd,
+                        swatch.toArgb(), 1.5f * dd, Color.White.copy(alpha = 0.6f).toArgb()
+                    )
+                }
+            )
+        }
         Spacer(Modifier.width(10.dp))
         // Pill button (build 209): the filled capsule of the redesign language.
-        Row(
-            modifier = Modifier
-                .clip(CircleShape)
-                .background(AmPanelHigh, CircleShape)
-                .bouncyClickable(onClick = onPick)
-                .padding(horizontal = 12.dp, vertical = 7.dp)
-                .testTag("fx_key_pick"),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(Icons.Default.Colorize, contentDescription = null, tint = TextPrimary, modifier = Modifier.size(14.dp))
-            Spacer(Modifier.width(6.dp))
-            Text("Pick from picture", color = TextPrimary, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
-        }
+        FxPillButtonGl(
+            icon = Icons.Default.Colorize,
+            label = "Pick from picture",
+            tintArgb = TextPrimary.toArgb(),
+            tag = "fx_key_pick",
+            padHDp = 12f,
+            padVDp = 7f,
+            iconGapDp = 6f,
+            textStyle = UiLabelStyle.ED_TEXT_SEMI,
+            onClick = onPick
+        )
     }
 }
 

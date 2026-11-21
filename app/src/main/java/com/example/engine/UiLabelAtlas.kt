@@ -158,6 +158,7 @@ enum class UiLabelStyle(
 
     /** Build 252 (stage 5): big chip labels (shape editor): 13 sp Bold. */
     CHIP_BIG(13f, 700),
+    FX_LABEL(13f, 600),
 
     /** Build 252 (stage 5): effects editor title: 12.5 sp Bold. */
     TITLE_125(12.5f, 700),

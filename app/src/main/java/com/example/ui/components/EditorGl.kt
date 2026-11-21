@@ -538,13 +538,18 @@ internal fun GlChip(
     enabled: Boolean = true,
     padHDp: Float = 10f,
     padVDp: Float = 4f,
-    pressScale: Float = 0.94f
+    pressScale: Float = 0.94f,
+    styleOn: UiLabelStyle = UiLabelStyle.TEXT_11_BOLD,
+    styleOff: UiLabelStyle = UiLabelStyle.TEXT_11_SEMI,
+    fillOnArgb: Int = 0x24D2FC32,
+    fillOffArgb: Int = 0xFF202026.toInt(),
+    textOnArgb: Int = 0xFFF4F4F5.toInt(),
+    textOffArgb: Int = 0xFFA1A1AA.toInt(),
+    textDisabledArgb: Int = 0xFFA1A1AA.toInt()
 ) {
     val density = LocalDensity.current.density
     val atlas = rememberUiAtlas()
     val pad = UiLabelAtlas.PAD.toFloat()
-    val styleOn = UiLabelStyle.TEXT_11_BOLD
-    val styleOff = UiLabelStyle.TEXT_11_SEMI
     val style = if (selected) styleOn else styleOff
     fun resolveChip() = atlas.resolve(label, style)
     var entry = resolveChip()
@@ -555,11 +560,11 @@ internal fun GlChip(
     val e = entry
     val scale = remember { Animatable(1f) }
     val textArgb = when {
-        !enabled -> 0xFFA1A1AA.toInt()
-        selected -> 0xFFF4F4F5.toInt()
-        else -> 0xFFA1A1AA.toInt()
+        !enabled -> textDisabledArgb
+        selected -> textOnArgb
+        else -> textOffArgb
     }
-    val fillArgb = if (selected) 0x24D2FC32 else 0xFF202026.toInt()
+    val fillArgb = if (selected) fillOnArgb else fillOffArgb
     val wDp = if (e != null) (e.advance / density + 2f * padHDp).dp else 0.dp
     val hDp = (atlas.textHeightPx(style) / density + 2f * padVDp).dp
     Box(
