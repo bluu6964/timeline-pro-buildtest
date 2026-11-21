@@ -76,6 +76,9 @@ jobs:
       # export-range law, keyframe searches, easing/colour maths). Like
       # shape_boolean.cpp it is compiled without FP contraction — it ports
       # strict-IEEE Kotlin float/double math (see the app CMakeLists).
+      # Migration stage 1 adds clip_algebra.cpp / clip_algebra_jni.cpp (the
+      # TimelineClip keyframe algebra + the AnimPresets plans), compiled
+      # without FP contraction for the same reason.
       - name: Build host JNI library for unit tests
         run: |
           set -e
@@ -104,6 +107,9 @@ jobs:
           g++ -std=c++17 -O2 -fPIC -ffp-contract=off \
             -I"$JAVA_HOME/include" -I"$JAVA_HOME/include/linux" -I$E \
             -c $E/model_logic.cpp -o /tmp/hostlib/model_logic.o
+          g++ -std=c++17 -O2 -fPIC -ffp-contract=off \
+            -I"$JAVA_HOME/include" -I"$JAVA_HOME/include/linux" -I$E \
+            -c $E/clip_algebra.cpp -o /tmp/hostlib/clip_algebra.o
           g++ -std=c++17 -O2 -fPIC -shared -Wall -Wextra \
             -I"$JAVA_HOME/include" -I"$JAVA_HOME/include/linux" -I$E \
             -o /tmp/hostlib/libam_engine.so \
@@ -119,6 +125,7 @@ jobs:
             $E/ui_widgets.cpp $E/ui_widgets_jni.cpp \
             $E/fx_defs.cpp $E/fx_defs_jni.cpp $E/fx_plan.cpp \
             /tmp/hostlib/model_logic.o $E/model_logic_jni.cpp \
+            /tmp/hostlib/clip_algebra.o $E/clip_algebra_jni.cpp \
             -lm
 
       - name: Unit tests

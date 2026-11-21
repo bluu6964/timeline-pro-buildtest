@@ -1,5 +1,6 @@
 package com.example.model
 
+import com.example.engine.ClipAlgebraNative
 import com.example.engine.FrameEvalNative
 import com.example.engine.ModelLogicNative
 import kotlinx.serialization.Serializable
@@ -176,52 +177,28 @@ fun List<Keyframe>.colorValueAt(relMs: Long): Pair<Float, Float> {
     return out[0] to out[1]
 }
 
-fun TimelineClip.propValues(p: AnimProp): Pair<Float, Float> = when (p) {
-    AnimProp.POSITION -> transformX to transformY
-    AnimProp.SCALE -> scalePercent to 0f
-    AnimProp.ROTATION -> rotationDeg to 0f
-    AnimProp.POS_Z -> transformZ to 0f
-    AnimProp.ROT_X -> rotation3dX to 0f
-    AnimProp.ROT_Y -> rotation3dY to 0f
-    AnimProp.FILL_COLOR -> packColor(textColor)
-    AnimProp.GRAD_COLOR_1 -> packColor(gradColor1)
-    AnimProp.GRAD_COLOR_2 -> packColor(gradColor2)
-    AnimProp.CROP_SIZE -> cropWidthPercent to cropHeightPercent
-    AnimProp.CROP_POS -> cropHorizontalPercent to cropVerticalPercent
-    AnimProp.OPACITY -> opacity to 0f
-    AnimProp.SPEED -> speed to 0f
-    AnimProp.STROKE_TRIM -> strokeTrimStart to strokeTrimEnd
-    AnimProp.SHAPE_CORNER_RADIUS -> shapeCornerRadius to 0f
-    AnimProp.GRAD_GEOMETRY -> GradGeometry.angleScale(gradType, gradX1, gradY1, gradX2, gradY2)
+/**
+ * The clip's stored value of property [p]. Native since migration stage 1
+ * (clip_algebra): the dispatch lives in C++; this wrapper only marshals the
+ * algebra slice (see ClipAlgebraNative). SCALE's `b` > 0 is a separate height
+ * scale % (the Alight importer stores a shape's animated height there, see
+ * composedSizeKeys); b = 0 keeps the uniform meaning.
+ */
+fun TimelineClip.propValues(p: AnimProp): Pair<Float, Float> {
+    val out = FloatArray(2)
+    ClipAlgebraNative.nativePropValues(
+        ClipAlgebraNative.packScalars(this), ClipAlgebraNative.packColorLongs(this),
+        gradType, p.ordinal, out
+    )
+    return out[0] to out[1]
 }
 
-fun TimelineClip.withProp(p: AnimProp, a: Float, b: Float): TimelineClip = when (p) {
-    AnimProp.POSITION -> copy(transformX = a, transformY = b, shapeOffsetX = a, shapeOffsetY = b)
-    // SCALE: `a` is the width scale %; `b` > 0 is a separate height scale % (the Alight importer stores a
-    // shape's animated height there, see composedSizeKeys). b = 0 (everything the editor / presets write)
-    // keeps the uniform meaning: the height follows the width, exactly as before.
-    AnimProp.SCALE -> copy(
-        scalePercent = a, shapeScaleX = a / 100f,
-        shapeScaleY = if (b > 0f) b / 100f else a / 100f
-    )
-    AnimProp.ROTATION -> copy(rotationDeg = a)
-    AnimProp.POS_Z -> copy(transformZ = a)
-    AnimProp.ROT_X -> copy(rotation3dX = a)
-    AnimProp.ROT_Y -> copy(rotation3dY = a)
-    AnimProp.FILL_COLOR -> copy(textColor = unpackColor(a, b))
-    AnimProp.GRAD_COLOR_1 -> copy(gradColor1 = unpackColor(a, b))
-    AnimProp.GRAD_COLOR_2 -> copy(gradColor2 = unpackColor(a, b))
-    AnimProp.CROP_SIZE -> copy(cropWidthPercent = a, cropHeightPercent = b)
-    AnimProp.CROP_POS -> copy(cropHorizontalPercent = a, cropVerticalPercent = b)
-    AnimProp.OPACITY -> copy(opacity = a)
-    AnimProp.SPEED -> copy(speed = a.coerceIn(MIN_SPEED, MAX_SPEED))
-    AnimProp.STROKE_TRIM -> copy(strokeTrimStart = a.coerceIn(0f, 1f), strokeTrimEnd = b.coerceIn(0f, 1f))
-    AnimProp.SHAPE_CORNER_RADIUS -> copy(shapeCornerRadius = a)
-    AnimProp.GRAD_GEOMETRY -> {
-        val (cx, cy) = GradGeometry.center(gradType, gradX1, gradY1, gradX2, gradY2)
-        val pts = GradGeometry.endpoints(gradType, cx, cy, a, b)
-        copy(gradX1 = pts[0], gradY1 = pts[1], gradX2 = pts[2], gradY2 = pts[3])
-    }
+/** The clip with property [p] set to (a, b). Native dispatch (clip_algebra), see [propValues]. */
+fun TimelineClip.withProp(p: AnimProp, a: Float, b: Float): TimelineClip {
+    val sc = ClipAlgebraNative.packScalars(this)
+    val cl = ClipAlgebraNative.packColorLongs(this)
+    ClipAlgebraNative.nativeWithProp(sc, cl, gradType, p.ordinal, a, b)
+    return ClipAlgebraNative.applyScalars(this, sc, cl)
 }
 
 /** True for an imported `.pie` wedge: its outline is rebuilt per frame from its angle tracks. */
@@ -263,38 +240,61 @@ fun TimelineClip.arcSegmentsAt(relMs: Long): List<PathSeg> {
  * The layer as it looks at project time [timeMs]: every keyframed property is replaced by its
  * animated value. Layers without keyframes are returned as they are (no copy).
  * Preview, selection frame and export all draw from this.
+ *
+ * Native since migration stage 1 (clip_algebra): the evaluation loop, the
+ * withProp dispatch and the pie/arc outline rebuild run in C++ over the
+ * marshalled algebra slice; this wrapper keeps the identity fast path (a
+ * clip nothing applies to is returned as it is). Build 237: stored SPEED
+ * keyframes are never evaluated (the native loop skips them, like the
+ * original) — a clip always plays at its constant base speed.
  */
 fun TimelineClip.at(timeMs: Long): TimelineClip {
-    if (keyframes.isEmpty()) {
-        return if (hasPie) copy(pathSegments = pieSegmentsAt(timeMs - startMs))
-        else if (hasArc) copy(pathSegments = arcSegmentsAt(timeMs - startMs)) else this
+    val props = AnimProp.values()
+    val counts = IntArray(props.size) { -1 }
+    var total = 0
+    for (p in props) {
+        val l = keyframes[p] ?: continue
+        counts[p.ordinal] = l.size
+        total += l.size
     }
-    val rel = timeMs - startMs
+    val kfTimes = LongArray(total)
+    val kfVals = FloatArray(total * 6)
+    var off = 0
+    for (p in props) {
+        val l = keyframes[p] ?: continue
+        val (t, v, _) = ClipAlgebraNative.packKeys(l)
+        t.copyInto(kfTimes, off)
+        v.copyInto(kfVals, off * 6)
+        off += l.size
+    }
+    val (psT, psV, _) = ClipAlgebraNative.packKeys(pieStartKeys)
+    val (peT, peV, _) = ClipAlgebraNative.packKeys(pieEndKeys)
+    val (asT, asV, _) = ClipAlgebraNative.packKeys(arcStartKeys)
+    val (aeT, aeV, _) = ClipAlgebraNative.packKeys(arcEndKeys)
+    val sc = ClipAlgebraNative.packScalars(this)
+    val cl = ClipAlgebraNative.packColorLongs(this)
+    val changed = BooleanArray(1)
+    val segs = ClipAlgebraNative.nativeClipAt(
+        startMs, sc, cl, gradType, counts, kfTimes, kfVals,
+        psT, psV, peT, peV, asT, asV, aeT, aeV,
+        pieRadius, arcRadius, arcClosed, timeMs, changed
+    )
+    if (!changed[0] && segs == null) return this
     var c = this
-    for ((p, list) in keyframes) {
-        if (list.isEmpty()) continue
-        // Build 237: speed ramps are gone. Stored SPEED keyframes stay in the project file
-        // (old projects still load untouched) but are never evaluated — a clip always
-        // plays at its constant base speed.
-        if (p == AnimProp.SPEED) continue
-        val (a, b) = if (p.isColor) list.colorValueAt(rel) else list.valueAt(rel)
-        c = c.withProp(p, a, b)
-    }
-    if (c.hasPie) c = c.copy(pathSegments = c.pieSegmentsAt(rel))
-    if (c.hasArc) c = c.copy(pathSegments = c.arcSegmentsAt(rel))
+    if (changed[0]) c = ClipAlgebraNative.applyScalars(c, sc, cl)
+    if (segs != null) c = c.copy(pathSegments = FrameEvalNative.unpackSegments(segs))
     return c
 }
 
 /** Sets the value at [relMs]: replaces the keyframe the time sits on, otherwise inserts a new one. */
 fun TimelineClip.withKeyframe(p: AnimProp, relMs: Long, a: Float, b: Float): TimelineClip {
     val list = keyframes[p].orEmpty()
-    val idx = list.indexOnTime(relMs)
-    val next = if (idx >= 0) {
-        list.toMutableList().also { it[idx] = it[idx].copy(a = a, b = b) }
-    } else {
-        (list + Keyframe(relMs, a, b)).sortedBy { it.timeMs }
-    }
-    return copy(keyframes = keyframes + (p to next))
+    val (times, vals, tags) = ClipAlgebraNative.packKeys(list)
+    val outT = LongArray(list.size + 1)
+    val outV = FloatArray((list.size + 1) * 6)
+    val outG = IntArray(list.size + 1)
+    val n = ClipAlgebraNative.nativeWithKeyframe(times, vals, tags, relMs, a, b, outT, outV, outG)
+    return copy(keyframes = keyframes + (p to ClipAlgebraNative.unpackKeys(outT, outV, outG, n)))
 }
 
 /**
@@ -304,53 +304,102 @@ fun TimelineClip.withKeyframe(p: AnimProp, relMs: Long, a: Float, b: Float): Tim
 fun TimelineClip.withoutKeyframe(p: AnimProp, index: Int): TimelineClip {
     val list = keyframes[p] ?: return this
     if (index !in list.indices) return this
-    val removed = list[index]
-    val next = list.filterIndexed { i, _ -> i != index }
-    return if (next.isEmpty()) {
-        copy(keyframes = keyframes - p).withProp(p, removed.a, removed.b)
+    val (times, vals, tags) = ClipAlgebraNative.packKeys(list)
+    val outT = LongArray(list.size - 1)
+    val outV = FloatArray((list.size - 1) * 6)
+    val outG = IntArray(list.size - 1)
+    val removed = FloatArray(2)
+    val n = ClipAlgebraNative.nativeWithoutKeyframe(times, vals, tags, index, outT, outV, outG, removed)
+    return if (n == 0) {
+        copy(keyframes = keyframes - p).withProp(p, removed[0], removed[1])
     } else {
-        copy(keyframes = keyframes + (p to next))
+        copy(keyframes = keyframes + (p to ClipAlgebraNative.unpackKeys(outT, outV, outG, n)))
     }
 }
 
 fun TimelineClip.withEasing(p: AnimProp, index: Int, easing: Easing): TimelineClip {
     val list = keyframes[p] ?: return this
     if (index !in list.indices) return this
-    val next = list.toMutableList().also { it[index] = it[index].copy(easing = easing) }
-    return copy(keyframes = keyframes + (p to next))
+    val (times, vals, tags) = ClipAlgebraNative.packKeys(list)
+    val outT = LongArray(list.size)
+    val outV = FloatArray(list.size * 6)
+    val outG = IntArray(list.size)
+    val n = ClipAlgebraNative.nativeWithEasing(
+        times, vals, tags, index, easing.x1, easing.y1, easing.x2, easing.y2, outT, outV, outG
+    )
+    return copy(keyframes = keyframes + (p to ClipAlgebraNative.unpackKeys(outT, outV, outG, n)))
+}
+
+/**
+ * Applies [transform] (one native time law) to every key time of the layer at
+ * once — the keyframes map, the masks' keys and the pie/arc tracks — in one
+ * concatenated marshalling, then rebuilds with the original copy() shape.
+ */
+private fun TimelineClip.mapAllKeyTimes(transform: (LongArray) -> LongArray): TimelineClip {
+    val total = keyframes.values.sumOf { it.size } + masks.sumOf { it.keys.size } +
+        pieStartKeys.size + pieEndKeys.size + arcStartKeys.size + arcEndKeys.size
+    val all = LongArray(total)
+    var o = 0
+    for (l in keyframes.values) for (k in l) all[o++] = k.timeMs
+    for (m in masks) for (k in m.keys) all[o++] = k.timeMs
+    for (k in pieStartKeys) all[o++] = k.timeMs
+    for (k in pieEndKeys) all[o++] = k.timeMs
+    for (k in arcStartKeys) all[o++] = k.timeMs
+    for (k in arcEndKeys) all[o++] = k.timeMs
+    val out = transform(all)
+    var i = 0
+    fun take(n: Int): LongArray {
+        val s = out.copyOfRange(i, i + n)
+        i += n
+        return s
+    }
+    return copy(
+        keyframes = keyframes.mapValues { (_, l) ->
+            val ts = take(l.size)
+            l.mapIndexed { j, k -> k.copy(timeMs = ts[j]) }
+        },
+        masks = masks.map { m ->
+            val ts = take(m.keys.size)
+            if (m.keys.isEmpty()) m else m.copy(keys = m.keys.mapIndexed { j, k -> k.copy(timeMs = ts[j]) })
+        },
+        pieStartKeys = pieStartKeys.let { l -> val ts = take(l.size); l.mapIndexed { j, k -> k.copy(timeMs = ts[j]) } },
+        pieEndKeys = pieEndKeys.let { l -> val ts = take(l.size); l.mapIndexed { j, k -> k.copy(timeMs = ts[j]) } },
+        arcStartKeys = arcStartKeys.let { l -> val ts = take(l.size); l.mapIndexed { j, k -> k.copy(timeMs = ts[j]) } },
+        arcEndKeys = arcEndKeys.let { l -> val ts = take(l.size); l.mapIndexed { j, k -> k.copy(timeMs = ts[j]) } }
+    )
 }
 
 /** Moves every keyframe by [deltaMs] (the layer start moved: left trim / split). */
 fun TimelineClip.withShiftedKeyframes(deltaMs: Long): TimelineClip {
     if ((keyframes.isEmpty() && masks.isEmpty() && !hasPie && !hasArc) || deltaMs == 0L) return this
-    return copy(
-        keyframes = keyframes.mapValues { (_, l) -> l.map { it.copy(timeMs = it.timeMs + deltaMs) } },
-        masks = masks.shiftedKeys(deltaMs),
-        pieStartKeys = pieStartKeys.map { it.copy(timeMs = it.timeMs + deltaMs) },
-        pieEndKeys = pieEndKeys.map { it.copy(timeMs = it.timeMs + deltaMs) },
-        arcStartKeys = arcStartKeys.map { it.copy(timeMs = it.timeMs + deltaMs) },
-        arcEndKeys = arcEndKeys.map { it.copy(timeMs = it.timeMs + deltaMs) }
-    )
+    return mapAllKeyTimes { times ->
+        LongArray(times.size).also { ClipAlgebraNative.nativeShiftTimes(times, deltaMs, it) }
+    }
 }
 
 /** Stretches the keyframe times (speed change: the layer got longer / shorter). */
 fun TimelineClip.withScaledKeyframes(factor: Float): TimelineClip {
     if ((keyframes.isEmpty() && masks.isEmpty() && !hasPie && !hasArc) || abs(factor - 1f) < 1e-4f) return this
-    return copy(
-        keyframes = keyframes.mapValues { (_, l) -> l.map { it.copy(timeMs = (it.timeMs * factor).toLong()) } },
-        masks = masks.scaledKeys(factor),
-        pieStartKeys = pieStartKeys.map { it.copy(timeMs = (it.timeMs * factor).toLong()) },
-        pieEndKeys = pieEndKeys.map { it.copy(timeMs = (it.timeMs * factor).toLong()) },
-        arcStartKeys = arcStartKeys.map { it.copy(timeMs = (it.timeMs * factor).toLong()) },
-        arcEndKeys = arcEndKeys.map { it.copy(timeMs = (it.timeMs * factor).toLong()) }
-    )
+    return mapAllKeyTimes { times ->
+        LongArray(times.size).also { ClipAlgebraNative.nativeScaleTimes(times, factor, it) }
+    }
 }
 
 /** Every distinct keyframe time of the layer (relative), for the diamonds on the layer strip. */
-fun TimelineClip.keyframeTimes(): List<Long> =
-    (keyframes.values.flatten().map { it.timeMs } + masks.flatMap { m -> m.keys.map { it.timeMs } } +
-        pieStartKeys.map { it.timeMs } + pieEndKeys.map { it.timeMs } +
-        arcStartKeys.map { it.timeMs } + arcEndKeys.map { it.timeMs }).distinct().sorted()
+fun TimelineClip.keyframeTimes(): List<Long> {
+    val total = keyframes.values.sumOf { it.size } + masks.sumOf { it.keys.size } +
+        pieStartKeys.size + pieEndKeys.size + arcStartKeys.size + arcEndKeys.size
+    if (total == 0) return emptyList()
+    val all = LongArray(total)
+    var o = 0
+    for (l in keyframes.values) for (k in l) all[o++] = k.timeMs
+    for (m in masks) for (k in m.keys) all[o++] = k.timeMs
+    for (k in pieStartKeys) all[o++] = k.timeMs
+    for (k in pieEndKeys) all[o++] = k.timeMs
+    for (k in arcStartKeys) all[o++] = k.timeMs
+    for (k in arcEndKeys) all[o++] = k.timeMs
+    return ClipAlgebraNative.nativeKeyframeTimes(all).toList()
+}
 
 // =====================================================================================
 // Speed: time remapping

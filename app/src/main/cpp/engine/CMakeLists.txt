@@ -26,6 +26,7 @@ add_library(am_engine SHARED
     ui_widgets.cpp ui_widgets_jni.cpp
     fx_defs.cpp fx_defs_jni.cpp
     model_logic.cpp model_logic_jni.cpp
+    clip_algebra.cpp clip_algebra_jni.cpp
     crash_handler.cpp)
 target_compile_features(am_engine PRIVATE cxx_std_17)
 target_compile_options(am_engine PRIVATE -O2 -Wall -Wextra)
@@ -42,6 +43,11 @@ set_source_files_properties(shape_boolean.cpp PROPERTIES COMPILE_OPTIONS -ffp-co
 # gets the same treatment — without it, arm64 FMA contraction would change
 # the last bits of the ported float math against the JVM original.
 set_source_files_properties(model_logic.cpp PROPERTIES COMPILE_OPTIONS -ffp-contract=off)
+# Migration stage 1: clip_algebra.cpp is the same kind of port (the TimelineClip
+# keyframe algebra: strict-IEEE Kotlin float math, easing evaluation through
+# frame_eval, saturating float->long time scaling), so it gets the same
+# treatment for the same reason.
+set_source_files_properties(clip_algebra.cpp PROPERTIES COMPILE_OPTIONS -ffp-contract=off)
 # Native text layers (FreeType + HarfBuzz). The sources are downloaded by the GitHub workflow into
 # cpp/freetype and cpp/harfbuzz. Without them text_engine.cpp compiles to a stub,
 # available() is false and the exporter keeps drawing text with the Android Canvas.

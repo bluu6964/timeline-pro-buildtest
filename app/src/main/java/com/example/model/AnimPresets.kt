@@ -1,5 +1,6 @@
 package com.example.model
 
+import com.example.engine.ClipAlgebraNative
 import kotlinx.serialization.Serializable
 
 /**
@@ -15,6 +16,12 @@ import kotlinx.serialization.Serializable
  * and nothing the user made by hand outside the animation window.
  *
  * Animated properties: position, scale, rotation, opacity and crop, from any of the four directions.
+ *
+ * Since migration stage 1 (build 244) the preset PLANS — the "away" value of every property a
+ * preset touches, plus the wipe's rest replacements — are computed in C++ (clip_algebra) by
+ * catalogue index: the order of [AnimPresets.ALL] IS the native plan index. The rebuild
+ * composition (strip the slot's old keys, evaluate the base frame, splice the plan's keys into
+ * the window) stays here, built from the same native list ops as the rest of the algebra.
  */
 
 /** [Keyframe.tag] values. 0 = a keyframe the user made. */
@@ -53,26 +60,6 @@ data class ClipAnim(
     val easing: Easing
 )
 
-/** Everything a preset needs to decide how the layer looks while it is "away". */
-class AnimPlanCtx(
-    val slot: AnimSlot,
-    val dir: AnimDir,
-    /** The layer as it looks when the animation is done (In) / starts (Out). */
-    val base: TimelineClip,
-    /** Canvas size in the same pixels as the Position values (preview pixels). */
-    val canvasW: Float,
-    val canvasH: Float
-)
-
-/**
- * The "away" value of every property the animation touches, and optionally replacements for the
- * "rest" value (used by the crop wipe so the box edge stays put).
- */
-class AnimPlan(
-    val away: Map<AnimProp, Pair<Float, Float>>,
-    val rest: Map<AnimProp, Pair<Float, Float>> = emptyMap()
-)
-
 class AnimPreset(
     val id: String,
     val label: String,
@@ -80,8 +67,7 @@ class AnimPreset(
     val dirs: List<AnimDir>,
     val defaultMs: Long,
     val easingIn: Easing,
-    val easingOut: Easing,
-    val plan: (AnimPlanCtx) -> AnimPlan
+    val easingOut: Easing
 ) {
     fun defaultEasing(slot: AnimSlot): Easing = if (slot == AnimSlot.IN) easingIn else easingOut
     fun defaultDir(): AnimDir = dirs.firstOrNull() ?: AnimDir.LEFT
@@ -94,120 +80,19 @@ object AnimPresets {
     private val ALL_DIRS = listOf(AnimDir.LEFT, AnimDir.RIGHT, AnimDir.UP, AnimDir.DOWN)
     private val SPIN_DIRS = listOf(AnimDir.RIGHT, AnimDir.LEFT)
 
-    // ---- building blocks -------------------------------------------------------------
-
-    /** Position that puts the layer completely outside the canvas on the side [dir]. */
-    private fun offscreen(c: AnimPlanCtx): Pair<Float, Float> {
-        val s = (c.base.scalePercent / 100f).coerceAtLeast(0.1f)
-        val hx = c.canvasW / 2f * (1f + s)
-        val hy = c.canvasH / 2f * (1f + s)
-        val x = c.base.transformX
-        val y = c.base.transformY
-        return when (c.dir) {
-            AnimDir.LEFT -> -hx to y
-            AnimDir.RIGHT -> hx to y
-            AnimDir.UP -> x to -hy
-            AnimDir.DOWN -> x to hy
-        }
-    }
-
-    /** Position moved a [fraction] of the canvas towards the side [dir]. */
-    private fun nudged(c: AnimPlanCtx, fraction: Float): Pair<Float, Float> {
-        val x = c.base.transformX
-        val y = c.base.transformY
-        return when (c.dir) {
-            AnimDir.LEFT -> (x - c.canvasW * fraction) to y
-            AnimDir.RIGHT -> (x + c.canvasW * fraction) to y
-            AnimDir.UP -> x to (y - c.canvasH * fraction)
-            AnimDir.DOWN -> x to (y + c.canvasH * fraction)
-        }
-    }
-
-    private fun fade() = AnimProp.OPACITY to (0f to 0f)
-
-    private fun scaled(c: AnimPlanCtx, factor: Float) = AnimProp.SCALE to ((c.base.scalePercent * factor) to 0f)
-
-    /** +1 = clockwise, -1 = counter-clockwise. */
-    private fun spinSense(dir: AnimDir): Float = if (dir == AnimDir.RIGHT || dir == AnimDir.DOWN) 1f else -1f
-
-    private fun rotated(c: AnimPlanCtx, degrees: Float): Pair<AnimProp, Pair<Float, Float>> {
-        // In: arrives turning in the chosen sense (starts behind it). Out: leaves turning in that sense.
-        val sign = if (c.slot == AnimSlot.IN) -1f else 1f
-        return AnimProp.ROTATION to ((c.base.rotationDeg + sign * spinSense(c.dir) * degrees) to 0f)
-    }
-
-    /**
-     * Crop wipe: the visible box grows from (In) / shrinks to (Out) the edge [dir]. The crop box is
-     * (size %, position %): position 0 = box at the left / top edge, 100 = at the right / bottom edge.
-     */
-    private fun wipe(c: AnimPlanCtx): AnimPlan {
-        val minP = 5f // the renderer never crops below 5 %
-        val b = c.base
-        val bw = b.cropWidthPercent
-        val bh = b.cropHeightPercent
-        val l0 = (1f - bw / 100f) * (b.cropHorizontalPercent / 100f)
-        val t0 = (1f - bh / 100f) * (b.cropVerticalPercent / 100f)
-        fun pos(edgeStart: Float, size: Float): Float {
-            val room = 1f - size / 100f
-            return if (room < 1e-3f) 50f else (edgeStart / room * 100f).coerceIn(0f, 100f)
-        }
-        var w = bw
-        var h = bh
-        var px = b.cropHorizontalPercent
-        var py = b.cropVerticalPercent
-        when (c.dir) {
-            AnimDir.LEFT -> { w = minP; px = pos(l0, w) }
-            AnimDir.RIGHT -> { w = minP; px = pos(l0 + bw / 100f - w / 100f, w) }
-            AnimDir.UP -> { h = minP; py = pos(t0, h) }
-            AnimDir.DOWN -> { h = minP; py = pos(t0 + bh / 100f - h / 100f, h) }
-        }
-        // A full-size box looks the same at any position: keep the edge-anchored position at rest too,
-        // so the edge does not drift while the box grows.
-        val restX = if (bw >= 99.9f && (c.dir == AnimDir.LEFT || c.dir == AnimDir.RIGHT)) px else b.cropHorizontalPercent
-        val restY = if (bh >= 99.9f && (c.dir == AnimDir.UP || c.dir == AnimDir.DOWN)) py else b.cropVerticalPercent
-        return AnimPlan(
-            away = mapOf(
-                AnimProp.CROP_SIZE to (w to h),
-                AnimProp.CROP_POS to (px to py)
-            ),
-            rest = mapOf(AnimProp.CROP_POS to (restX to restY))
-        )
-    }
-
-    // ---- the catalogue ---------------------------------------------------------------
-
+    // The catalogue order is the native plan index in clip_algebra — append, never reorder.
     val ALL: List<AnimPreset> = listOf(
-        AnimPreset("fade", "Fade", emptyList(), 500L, ease("Ease out"), ease("Ease in")) {
-            AnimPlan(mapOf(fade()))
-        },
-        AnimPreset("slide", "Slide", ALL_DIRS, 500L, ease("Cubic out"), ease("Cubic in")) {
-            AnimPlan(mapOf(AnimProp.POSITION to offscreen(it)))
-        },
-        AnimPreset("slide_fade", "Slide Fade", ALL_DIRS, 600L, ease("Cubic out"), ease("Cubic in")) {
-            AnimPlan(mapOf(AnimProp.POSITION to nudged(it, 0.2f), fade()))
-        },
-        AnimPreset("bounce", "Bounce", ALL_DIRS, 700L, ease("Back out"), ease("Back in")) {
-            AnimPlan(mapOf(AnimProp.POSITION to offscreen(it)))
-        },
-        AnimPreset("zoom", "Zoom", emptyList(), 500L, ease("Cubic out"), ease("Cubic in")) {
-            AnimPlan(mapOf(scaled(it, 0f)))
-        },
-        AnimPreset("zoom_fade", "Zoom Fade", emptyList(), 600L, ease("Cubic out"), ease("Cubic in")) {
-            AnimPlan(mapOf(scaled(it, 0.5f), fade()))
-        },
-        AnimPreset("zoom_out", "Zoom Out", emptyList(), 600L, ease("Cubic out"), ease("Cubic in")) {
-            AnimPlan(mapOf(scaled(it, 1.6f), fade()))
-        },
-        AnimPreset("pop", "Pop", emptyList(), 600L, ease("Back out"), ease("Back in")) {
-            AnimPlan(mapOf(scaled(it, 0f)))
-        },
-        AnimPreset("spin", "Spin", SPIN_DIRS, 700L, ease("Cubic out"), ease("Cubic in")) {
-            AnimPlan(mapOf(rotated(it, 180f), fade()))
-        },
-        AnimPreset("spin_zoom", "Spin Zoom", SPIN_DIRS, 800L, ease("Cubic out"), ease("Cubic in")) {
-            AnimPlan(mapOf(rotated(it, 360f), scaled(it, 0f)))
-        },
-        AnimPreset("wipe", "Wipe", ALL_DIRS, 600L, ease("Cubic out"), ease("Cubic in")) { wipe(it) }
+        AnimPreset("fade", "Fade", emptyList(), 500L, ease("Ease out"), ease("Ease in")),
+        AnimPreset("slide", "Slide", ALL_DIRS, 500L, ease("Cubic out"), ease("Cubic in")),
+        AnimPreset("slide_fade", "Slide Fade", ALL_DIRS, 600L, ease("Cubic out"), ease("Cubic in")),
+        AnimPreset("bounce", "Bounce", ALL_DIRS, 700L, ease("Back out"), ease("Back in")),
+        AnimPreset("zoom", "Zoom", emptyList(), 500L, ease("Cubic out"), ease("Cubic in")),
+        AnimPreset("zoom_fade", "Zoom Fade", emptyList(), 600L, ease("Cubic out"), ease("Cubic in")),
+        AnimPreset("zoom_out", "Zoom Out", emptyList(), 600L, ease("Cubic out"), ease("Cubic in")),
+        AnimPreset("pop", "Pop", emptyList(), 600L, ease("Back out"), ease("Back in")),
+        AnimPreset("spin", "Spin", SPIN_DIRS, 700L, ease("Cubic out"), ease("Cubic in")),
+        AnimPreset("spin_zoom", "Spin Zoom", SPIN_DIRS, 800L, ease("Cubic out"), ease("Cubic in")),
+        AnimPreset("wipe", "Wipe", ALL_DIRS, 600L, ease("Cubic out"), ease("Cubic in"))
     )
 
     fun byId(id: String?): AnimPreset? = ALL.firstOrNull { it.id == id }
@@ -219,22 +104,30 @@ object AnimPresets {
 
 /** Length (ms) of the keyframes of [slot] on the layer, 0 when the slot has none. */
 fun TimelineClip.animSpanMs(slot: AnimSlot): Long {
-    val times = keyframes.values.flatMap { l -> l.filter { it.tag == slot.tag }.map { it.timeMs } }
-    return if (times.isEmpty()) 0L else times.max() - times.min()
+    var total = 0
+    for (l in keyframes.values) total += l.size
+    if (total == 0) return 0L
+    val times = LongArray(total)
+    val tags = IntArray(total)
+    var o = 0
+    for (l in keyframes.values) for (k in l) {
+        times[o] = k.timeMs
+        tags[o] = k.tag
+        o++
+    }
+    return ClipAlgebraNative.nativeAnimSpan(times, tags, slot.tag)
 }
 
 /** Longest the animation of [slot] may be: what is left of the layer after the other slot. */
 fun TimelineClip.maxAnimMs(slot: AnimSlot): Long {
     val other = if (slot == AnimSlot.IN) AnimSlot.OUT else AnimSlot.IN
-    val otherSpan = animSpanMs(other)
-    val used = if (otherSpan > 0L) otherSpan + ANIM_GAP_MS else 0L
-    return (durationMs - used).coerceAtLeast(0L)
+    return ClipAlgebraNative.nativeMaxAnimMs(animSpanMs(other), durationMs)
 }
 
 /** Removes the animation of [slot] (its keyframes only; the layer keeps its normal values). */
 fun TimelineClip.withoutClipAnim(slot: AnimSlot): TimelineClip {
     val cleaned = keyframes
-        .mapValues { (_, l) -> l.filter { it.tag != slot.tag } }
+        .mapValues { (_, l) -> ClipAlgebraNative.filterKeysNotTag(l, slot.tag) }
         .filterValues { it.isNotEmpty() }
     return copy(
         keyframes = cleaned,
@@ -265,28 +158,32 @@ fun TimelineClip.withClipAnim(
     val anchor = if (slot == AnimSlot.IN) d else dur - d
     val base = c0.at(c0.startMs + anchor)
     val curve = easing ?: preset.defaultEasing(slot)
-    val plan = preset.plan(AnimPlanCtx(slot, dir, base, canvasW, canvasH))
+    val presetIndex = AnimPresets.ALL.indexOf(preset)
+    check(presetIndex >= 0) {
+        "withClipAnim: preset '${preset.id}' is not in the AnimPresets catalogue (native plans are by catalogue index)"
+    }
+    val plan = ClipAlgebraNative.clipAnimPlan(presetIndex, slot.tag, dir.ordinal, base, canvasW, canvasH)
 
     val winStart = if (slot == AnimSlot.IN) 0L else dur - d
     val winEnd = if (slot == AnimSlot.IN) d else dur
 
     var kfs = c0.keyframes
-    for ((prop, away) in plan.away) {
+    for ((prop, awayA, awayB) in plan.away) {
         val rest = plan.rest[prop] ?: base.propValues(prop)
         val mine = if (slot == AnimSlot.IN) {
             listOf(
-                Keyframe(0L, away.first, away.second, curve, slot.tag),
+                Keyframe(0L, awayA, awayB, curve, slot.tag),
                 Keyframe(d, rest.first, rest.second, Easing.LINEAR, slot.tag)
             )
         } else {
             listOf(
                 Keyframe(dur - d, rest.first, rest.second, curve, slot.tag),
-                Keyframe(dur, away.first, away.second, Easing.LINEAR, slot.tag)
+                Keyframe(dur, awayA, awayB, Easing.LINEAR, slot.tag)
             )
         }
         // Anything the user keyed inside the animation window is replaced by the animation.
-        val kept = kfs[prop].orEmpty().filter { it.timeMs < winStart || it.timeMs > winEnd }
-        kfs = kfs + (prop to (kept + mine).sortedBy { it.timeMs })
+        val next = ClipAlgebraNative.animWindowSplice(kfs[prop].orEmpty(), winStart, winEnd, mine, slot.tag)
+        kfs = kfs + (prop to next)
     }
     val applied = ClipAnim(preset.id, dir, d, curve)
     return c0.copy(
@@ -303,7 +200,7 @@ fun TimelineClip.withClipAnim(
 fun TimelineClip.withTrimmedStartKeyframes(d: Long): TimelineClip {
     if (keyframes.isEmpty() || d == 0L) return this
     return copy(keyframes = keyframes.mapValues { (_, l) ->
-        l.map { if (it.tag == ANIM_TAG_IN) it else it.copy(timeMs = it.timeMs - d) }
+        ClipAlgebraNative.shiftKeyTimesByTag(l, shiftTagged = false, tag = ANIM_TAG_IN, delta = -d)
     })
 }
 
@@ -311,6 +208,6 @@ fun TimelineClip.withTrimmedStartKeyframes(d: Long): TimelineClip {
 fun TimelineClip.withEndMoved(delta: Long): TimelineClip {
     if (keyframes.isEmpty() || delta == 0L) return this
     return copy(keyframes = keyframes.mapValues { (_, l) ->
-        l.map { if (it.tag == ANIM_TAG_OUT) it.copy(timeMs = it.timeMs + delta) else it }
+        ClipAlgebraNative.shiftKeyTimesByTag(l, shiftTagged = true, tag = ANIM_TAG_OUT, delta = delta)
     })
 }
