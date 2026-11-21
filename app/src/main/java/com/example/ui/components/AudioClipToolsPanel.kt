@@ -1,19 +1,9 @@
 package com.example.ui.components
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Edit
@@ -27,20 +17,12 @@ import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Tonality
 import androidx.compose.material.icons.filled.TrendingDown
 import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
 import com.example.model.ToolRowSplit
-import com.example.ui.theme.AmBarSurface
-import com.example.ui.theme.AmHairline
-import com.example.ui.theme.IconActive
-import com.example.ui.util.bouncyClickable
 
 /** Tools shown while an AUDIO layer is selected: Split, Volume, Fade, Delete, Speed, Reverse, Duplicate. */
 @Composable
@@ -160,66 +142,35 @@ fun AudioClipToolsPanel(
     // list; the publish above still runs). Build 211's render-nothing
     // state is superseded by the dock architecture.
 
+    // Build 251 (UI migration stage 4): the row is drawn on one native
+    // GL surface (ToolsRowGl / PanelGeometry.ToolRow) — the build-206
+    // rounded bar, back icon, divider and the visible tiles; the tap
+    // targets stay Compose at the same rects with the same tags. The
+    // ToolRowSplit budgets are untouched. Build 214 holds: the row
+    // renders ALWAYS — it is the dock's primary toolbar for the
+    // selected audio layer.
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(height)
-            .padding(vertical = 2.dp)
             .testTag("audio_clip_tools_panel")
     ) {
-        // Build 206: the panel floats as a rounded bar (the redesign's pill
-        // language) — full width, so the ToolRowSplit budgets are untouched.
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(AmBarSurface, RoundedCornerShape(18.dp))
-                .clip(RoundedCornerShape(18.dp))
-                .padding(vertical = 2.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .padding(start = 6.dp, end = 4.dp)
-                    .size(36.dp)
-                    .bouncyClickable(pressedScale = 0.88f, hoverScale = 1.08f, onClick = onDeselect)
-                    .testTag("audio_tools_back_button"),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Exit audio edit",
-                    tint = IconActive,
-                    modifier = Modifier.size(19.dp)
+        ToolsRowGl(
+            items = visibleTools.map { tool ->
+                ToolRowItem(
+                    id = tool.id,
+                    label = tool.label,
+                    icon = tool.icon,
+                    used = tool.id in usedTools,
+                    testTag = "audio_tool_${tool.id}",
+                    onClick = { dispatch(tool) }
                 )
-            }
-
-            Box(
-                modifier = Modifier
-                    .width(1.dp)
-                    .height(24.dp)
-                    .background(AmHairline)
-            )
-
-            // Build 214: the row renders ALWAYS — it is the dock's
-            // primary toolbar for the selected audio layer.
-            Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .padding(horizontal = ToolRowSplit.CONTENT_PADDING_DP.dp),
-                horizontalArrangement = Arrangement.spacedBy(ToolRowSplit.GAP_DP.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                visibleTools.forEach { tool ->
-                    ToolTile(
-                        tool = tool,
-                        used = tool.id in usedTools,
-                        onClick = { dispatch(tool) },
-                        modifier = Modifier.fillMaxHeight(),
-                        testTag = "audio_tool_${tool.id}"
-                    )
-                }
-            }
-        }
+            },
+            onBack = onDeselect,
+            backTestTag = "audio_tools_back_button",
+            backDescription = "Exit audio edit",
+            outerPadDp = 2f,
+            rowPadDp = 2f
+        )
     }
 }
