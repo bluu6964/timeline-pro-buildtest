@@ -1,7 +1,6 @@
 package com.example.model
 
-import kotlin.math.cos
-import kotlin.math.sin
+import com.example.engine.TemplatePlansNative
 
 /**
  * The "Donut Chart" template (Templates programme, reference commission batch 2,
@@ -95,14 +94,12 @@ object DonutChartSpec {
 
     /** Frame position of segment [index]'s % label (its span's mid-angle at [LABEL_R_FRAC]). */
     fun labelPos(index: Int, pw: Float, ph: Float): Pair<Float, Float> {
-        val (a, b) = SPANS[index]
-        val mid = Math.toRadians(((a + b) / 2f).toDouble())
-        val r = LABEL_R_FRAC * pw
-        return (r * cos(mid)).toFloat() to (CY_FRAC * ph - r * sin(mid)).toFloat()
+        val r = TemplatePlansNative.donutLabelPos(index, pw, ph)
+        return r[0] to r[1]
     }
 
     /** Legend row [index]'s centre y (stored px from the canvas centre). */
-    fun legendY(index: Int, ph: Float): Float = (LEGEND_Y0_FRAC + index * LEGEND_PITCH_FRAC) * ph
+    fun legendY(index: Int, ph: Float): Float = TemplatePlansNative.donutLegendY(index, ph)
 
     val EASE_CUBIC_OUT = Easing(0.215f, 0.61f, 0.355f, 1f)
     val EASE_CUBIC_IN_OUT = Easing(0.645f, 0.045f, 0.355f, 1f)
@@ -147,215 +144,27 @@ object DonutChartTemplate {
         insertAtMs: Long,
         idBase: String = "donut"
     ): Insert {
-        val pw = if (previewWidthPx > 1f) previewWidthPx else 1080f
-        val ph = if (previewHeightPx > 1f) previewHeightPx else 1920f
-        val box = pw * 130f / 360f
-        val dur = DonutChartSpec.DURATION_MS
-        val cy = DonutChartSpec.CY_FRAC * ph
-        val rPx = DonutChartSpec.R_FRAC * pw
-
-        val groupId = "$idBase-group"
-        val link = GroupOps.linkTo(groupId, GroupOps.Pose.REST)
-        val group = TimelineClip(
-            id = groupId,
-            name = "Donut Chart",
-            type = LayerType.GROUP,
-            startMs = insertAtMs,
-            durationMs = dur,
-            color = 0xFFE53935L
-        )
-        fun base(id: String, name: String, type: LayerType, color: Long): TimelineClip = TimelineClip(
-            id = id, name = name, type = type,
-            startMs = insertAtMs, durationMs = dur, color = color,
-            groupId = groupId, parent = link
-        )
-
-        val background = base("$idBase-bg", "Background", LayerType.SHAPE, 0xFF455A64L).copy(
-            fillMode = FILL_SOLID,
-            textColor = DonutChartSpec.BG,
-            shapePattern = "RECT",
-            shapeScaleX = pw / box,
-            shapeScaleY = ph / box,
-            scalePercent = pw / box * 100f
-        )
-
-        val title = base("$idBase-title", "Title", LayerType.TEXT, 0xFF3992CEL).copy(
-            text = "0x",
-            textColor = 0xFF9A9A9AL,
-            fontWeight = 600,
-            scalePercent = DonutChartSpec.TITLE_FONT_FRAC / 0.11f * 100f,
-            transformY = DonutChartSpec.TITLE_Y_FRAC * ph,
-            keyframes = mapOf(
-                AnimProp.OPACITY to listOf(
-                    Keyframe(0L, 0f, 0f, DonutChartSpec.EASE_CUBIC_OUT),
-                    Keyframe(600L, 100f, 0f)
-                )
-            )
-        )
-
-        fun wedge(index: Int): TimelineClip {
-            val (a, b) = DonutChartSpec.SPANS[index]
-            val (t0, t1) = DonutChartSpec.WINDOWS[index]
-            val (g1, g2) = DonutChartSpec.GRADIENTS[index]
-            // CCW growth (segment 1): startAngle keys A-360 -> B-360, endAngle fixed A.
-            // CW growth (segments 2-5): startAngle keys B -> A, endAngle fixed B-360.
-            val startKeys: List<Keyframe>
-            val endKeys: List<Keyframe>
-            val storedStart: Float
-            val storedEnd: Float
-            if (index == 0) {
-                startKeys = listOf(
-                    Keyframe(t0, a - 360f, 0f, DonutChartSpec.EASE_CUBIC_IN_OUT),
-                    Keyframe(t1, b - 360f, 0f)
-                )
-                endKeys = listOf(Keyframe(0L, a, 0f))
-                storedStart = b - 360f
-                storedEnd = a
-            } else {
-                startKeys = listOf(
-                    Keyframe(t0, b, 0f, DonutChartSpec.EASE_CUBIC_IN_OUT),
-                    Keyframe(t1, a, 0f)
-                )
-                endKeys = listOf(Keyframe(0L, b - 360f, 0f))
-                storedStart = a
-                storedEnd = b - 360f
-            }
-            return base("$idBase-seg${index + 1}", "Segment ${DonutChartSpec.PERCENTS[index]}%", LayerType.SHAPE, 0xFFEF5350L).copy(
-                fillMode = FILL_GRADIENT,
-                gradType = GRAD_LINEAR,
-                gradColor1 = g1,
-                gradColor2 = g2,
-                gradX1 = 0.15f, gradY1 = 0.1f, gradX2 = 0.9f, gradY2 = 0.95f,
-                shapePattern = "PATH",
-                pathSegments = PieOutline.normalisedSegments(storedStart.toDouble(), storedEnd.toDouble()),
-                pieStartKeys = startKeys,
-                pieEndKeys = endKeys,
-                pieRadius = 1f,
-                shapeScaleX = 2f * rPx / box,
-                shapeScaleY = 2f * rPx / box,
-                scalePercent = 2f * rPx / box * 100f,
-                transformY = cy
-            )
-        }
-
+        // Native since migration stage 3: the construction is computed in
+        // template_plans.cpp and comes back as one plan in lanesTopFirst
+        // order — group, title, per segment (label, legend text, dot), the
+        // two arcs, the hole, the five wedges, the background. Segment i's
+        // parts sit at fixed offsets in that order.
+        val clips = TemplatePlansNative.donutPlan(previewWidthPx, previewHeightPx, insertAtMs, idBase)
+        val group = clips[0]
+        val title = clips[1]
+        val arcOuter = clips[17]
+        val arcInner = clips[18]
+        val hole = clips[19]
+        val background = clips[25]
         val segments = (0 until 5).map { i ->
-            val w = wedge(i)
-            val (_, t1) = DonutChartSpec.WINDOWS[i]
-            val lp = DonutChartSpec.labelPos(i, pw, ph)
-            val label = base("$idBase-pct${i + 1}", "Label ${DonutChartSpec.PERCENTS[i]}%", LayerType.TEXT, 0xFF3992CEL).copy(
-                text = "${DonutChartSpec.PERCENTS[i]}%",
-                textColor = 0xFFFFFFFFL,
-                fontWeight = 700,
-                scalePercent = DonutChartSpec.LABEL_FONT_FRAC / 0.11f * 100f,
-                transformX = lp.first,
-                transformY = lp.second,
-                opacity = 0f,
-                keyframes = mapOf(
-                    AnimProp.OPACITY to listOf(
-                        Keyframe(t1 - 150L, 0f, 0f, DonutChartSpec.EASE_CUBIC_OUT),
-                        Keyframe(t1 + 200L, 100f, 0f)
-                    ),
-                    AnimProp.SCALE to listOf(
-                        Keyframe(t1 - 150L, DonutChartSpec.LABEL_FONT_FRAC / 0.11f * 100f * 0.5f, 0f, DonutChartSpec.EASE_BACK_OUT),
-                        Keyframe(t1 + 200L, DonutChartSpec.LABEL_FONT_FRAC / 0.11f * 100f, 0f)
-                    )
-                )
-            )
-            val legendStart = DonutChartSpec.WINDOWS[i].first + 400L
-            val ly = DonutChartSpec.legendY(i, ph)
-            val dotD = DonutChartSpec.DOT_D_FRAC * pw
-            val dot = base("$idBase-dot${i + 1}", "Legend Dot ${i + 1}", LayerType.SHAPE, 0xFFEF5350L).copy(
-                fillMode = FILL_SOLID,
-                textColor = DonutChartSpec.GRADIENTS[i].second,
-                shapePattern = "CIRCLE",
-                shapeScaleX = dotD / box,
-                shapeScaleY = dotD / box,
-                scalePercent = dotD / box * 100f,
-                transformX = -0.235f * pw,
-                transformY = ly,
-                opacity = 0f,
-                keyframes = mapOf(
-                    AnimProp.OPACITY to listOf(
-                        Keyframe(legendStart, 0f, 0f, DonutChartSpec.EASE_CUBIC_OUT),
-                        Keyframe(legendStart + 400L, 100f, 0f)
-                    )
-                )
-            )
-            val legendText = base("$idBase-legend${i + 1}", "Legend ${i + 1}", LayerType.TEXT, 0xFF3992CEL).copy(
-                text = DonutChartSpec.LEGEND[i],
-                textColor = 0xFFFFFFFFL,
-                fontWeight = 600,
-                scalePercent = DonutChartSpec.LEGEND_FONT_FRAC / 0.11f * 100f,
-                transformX = -0.01f * pw,
-                transformY = ly,
-                opacity = 0f,
-                keyframes = mapOf(
-                    AnimProp.OPACITY to listOf(
-                        Keyframe(legendStart, 0f, 0f, DonutChartSpec.EASE_CUBIC_OUT),
-                        Keyframe(legendStart + 400L, 100f, 0f)
-                    ),
-                    AnimProp.POSITION to listOf(
-                        Keyframe(legendStart, -0.04f * pw, ly, DonutChartSpec.EASE_CUBIC_OUT),
-                        Keyframe(legendStart + 400L, -0.01f * pw, ly)
-                    )
-                )
-            )
-            Segment(w, label, dot, legendText, listOf(label, legendText, dot, w))
+            val label = clips[2 + 3 * i]
+            val legendText = clips[3 + 3 * i]
+            val dot = clips[4 + 3 * i]
+            val wedge = clips[20 + i]
+            Segment(wedge, label, dot, legendText, listOf(label, legendText, dot, wedge))
         }
-
-        val holeD = DonutChartSpec.HOLE_FRAC * pw
-        val hole = base("$idBase-hole", "Donut Hole", LayerType.SHAPE, 0xFF455A64L).copy(
-            fillMode = FILL_SOLID,
-            textColor = DonutChartSpec.BG,
-            shapePattern = "CIRCLE",
-            shapeScaleX = holeD / box,
-            shapeScaleY = holeD / box,
-            scalePercent = holeD / box * 100f,
-            transformY = cy
-        )
-
-        fun arc(id: String, name: String, dFrac: Float, rot: Float, trim: Pair<Float, Float>, t0: Long, t1: Long): TimelineClip {
-            val d = dFrac * pw
-            return base(id, name, LayerType.SHAPE, 0xFFB0BEC5L).copy(
-                fillMode = FILL_NONE,
-                shapePattern = "CIRCLE",
-                shapeScaleX = d / box,
-                shapeScaleY = d / box,
-                scalePercent = d / box * 100f,
-                strokeColor = 0xFFFFFFFFL,
-                strokeWidth = 360f * 0.004f,
-                transformY = cy,
-                rotationDeg = rot,
-                opacity = 70f,
-                strokeTrimStart = trim.first,
-                strokeTrimEnd = trim.second,
-                keyframes = mapOf(
-                    AnimProp.STROKE_TRIM to listOf(
-                        Keyframe(t0, trim.first, trim.first, DonutChartSpec.EASE_CUBIC_IN_OUT),
-                        Keyframe(t1, trim.first, trim.second)
-                    )
-                )
-            )
-        }
-        val arcOuter = arc("$idBase-arcouter", "Arc Accent Outer", 0.345f * 2f, -30f, 0.02f to 0.30f, 800L, 3000L)
-        val arcInner = arc("$idBase-arcinner", "Arc Accent Inner", 0.175f * 2f, 140f, 0.55f to 0.85f, 1500L, 4000L)
-
-        // Lane order (top lane first): title, legend rows + labels + dots, arcs, hole,
-        // wedges, background. (The hole must cover the wedges' centres; the legend and
-        // labels sit clear of the ring and keep the top lanes.)
-        val children = ArrayList<TimelineClip>()
-        children += title
-        for (s in segments) {
-            children += s.label
-            children += s.legendText
-            children += s.dot
-        }
-        children += arcOuter
-        children += arcInner
-        children += hole
-        for (s in segments) children += s.wedge
-        children += background
-        val lanesTopFirst = listOf(group) + children
+        val children = clips.subList(1, clips.size)
+        val lanesTopFirst = clips
         return Insert(group, background, title, hole, arcOuter, arcInner, segments, children, lanesTopFirst)
     }
 }

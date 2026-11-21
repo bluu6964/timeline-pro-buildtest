@@ -1,5 +1,7 @@
 package com.example.model
 
+import com.example.engine.TemplatePlansNative
+
 /**
  * The "Logo Reveal" template (Templates programme, logo-animation template #1): a logo
  * badge pops in at the top, the brand name rises in under it, and the composition then
@@ -113,99 +115,15 @@ object LogoRevealTemplate {
         insertAtMs: Long,
         idBase: String = "logoreveal"
     ): Insert {
-        val pw = if (previewWidthPx > 1f) previewWidthPx else 1080f
-        // Sizes ride on the width (the text engine's font does too); the design is
-        // centre-anchored, so any aspect keeps it in frame (pinned for 16:9 and 9:16).
-        // [previewHeightPx] is accepted for symmetry with the other templates' insert API.
-        val box = pw * LogoRevealSpec.BOX_NUM / LogoRevealSpec.BOX_DEN
-
-        val groupId = "$idBase-group"
-        val link = GroupOps.linkTo(groupId, GroupOps.Pose.REST)
-        val group = TimelineClip(
-            id = groupId,
-            name = "Logo Reveal",
-            type = LayerType.GROUP,
-            startMs = insertAtMs,
-            durationMs = LogoRevealSpec.DURATION_MS,
-            color = 0xFF7E57C2L
-        )
-
-        // The logo slot: a square ROUNDED_RECT badge in the app's shape convention, its
-        // image fill fed by the generated placeholder. The SCALE keys are absolute scale
-        // percents against the box with a zero height share (the uniform meaning): the pop
-        // runs from ENTER_SCALE % of the rest size to the rest size itself, so the settled
-        // evaluation lands exactly on the stored pose.
-        val logoScale = LogoRevealSpec.LOGO_SIDE_FRAC * pw / box   // shapeScale units
-        val restPct = logoScale * 100f
-        val logo = TimelineClip(
-            id = "$idBase-logo",
-            name = "Logo",
-            type = LayerType.SHAPE,
-            startMs = insertAtMs,
-            durationMs = LogoRevealSpec.DURATION_MS,
-            color = 0xFF5E35B1L,
-            fillMode = FILL_IMAGE,
-            fillImageUri = logoUri,
-            fillImageMode = IMG_FILL,
-            shapePattern = "ROUNDED_RECT",
-            shapeCornerRadius = LogoRevealSpec.LOGO_CORNER,
-            shapeScaleX = logoScale,
-            shapeScaleY = logoScale,
-            scalePercent = restPct,
-            transformY = LogoRevealSpec.LOGO_Y_FRAC * pw,
-            keyframes = mapOf(
-                AnimProp.SCALE to listOf(
-                    Keyframe(
-                        0L, LogoRevealSpec.ENTER_SCALE / 100f * restPct, 0f,
-                        LogoRevealSpec.EASE_BACK_OUT
-                    ),
-                    Keyframe(LogoRevealSpec.LOGO_ENTER_MS, restPct, 0f)
-                ),
-                AnimProp.OPACITY to listOf(
-                    Keyframe(0L, 0f, 0f, LogoRevealSpec.EASE_CUBIC_OUT),
-                    Keyframe(LogoRevealSpec.LOGO_ENTER_MS, 100f, 0f)
-                )
-            ),
-            groupId = groupId,
-            parent = link
-        )
-
-        // The brand name: a plain text layer under the logo. Its POSITION keys carry
-        // absolute places (the rest place is TEXT_Y_FRAC below centre, not zero): before
-        // TEXT_START_MS the evaluator holds the first key, so the layer waits invisible
-        // at its risen-from place until its entrance begins.
-        val textY = LogoRevealSpec.TEXT_Y_FRAC * pw
-        val textRise = LogoRevealSpec.TEXT_RISE_FRAC * pw
-        val text = TimelineClip(
-            id = "$idBase-text",
-            name = "Brand Name",
-            type = LayerType.TEXT,
-            startMs = insertAtMs,
-            durationMs = LogoRevealSpec.DURATION_MS,
-            color = 0xFF3992CEL,
-            text = LogoRevealSpec.SAMPLE_TEXT,
-            textColor = 0xFFFFFFFFL,
-            fontWeight = 700,
-            transformY = textY,
-            keyframes = mapOf(
-                AnimProp.POSITION to listOf(
-                    Keyframe(LogoRevealSpec.TEXT_START_MS, 0f, textY + textRise, LogoRevealSpec.EASE_CUBIC_OUT),
-                    Keyframe(LogoRevealSpec.TEXT_END_MS, 0f, textY)
-                ),
-                AnimProp.OPACITY to listOf(
-                    Keyframe(LogoRevealSpec.TEXT_START_MS, 0f, 0f, LogoRevealSpec.EASE_CUBIC_OUT),
-                    Keyframe(LogoRevealSpec.TEXT_END_MS, 100f, 0f)
-                )
-            ),
-            groupId = groupId,
-            parent = link
-        )
-
-        // Lane order (top lane first): the logo's lane above the name's (last lane =
-        // painted first, so the name is drawn first and the badge over it — they never
-        // overlap geometrically, but the badge is the star and keeps the top lane).
-        val children = listOf(logo, text)
-        val lanesTopFirst = listOf(group) + children
+        // Native since migration stage 3: the construction is computed in
+        // template_plans.cpp and comes back as one plan in lanesTopFirst
+        // order — group, logo, text.
+        val clips = TemplatePlansNative.logoRevealPlan(previewWidthPx, logoUri, insertAtMs, idBase)
+        val group = clips[0]
+        val logo = clips[1]
+        val text = clips[2]
+        val children = clips.subList(1, clips.size)
+        val lanesTopFirst = clips
         return Insert(group, logo, text, children, lanesTopFirst)
     }
 }

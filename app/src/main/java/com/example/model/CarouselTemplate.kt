@@ -1,7 +1,6 @@
 package com.example.model
 
-import kotlin.math.cos
-import kotlin.math.sin
+import com.example.engine.TemplatePlansNative
 
 /**
  * The Carousel template (Templates v1, build 142; in-project group model, build 143): 8 photo
@@ -154,71 +153,15 @@ data class CarouselParams(
 
 object CarouselTemplate {
 
-    // ---- the measured bezier law, in Double (the app's Easing evaluator is the Float twin) ----
-
-    private fun bx(s: Double): Double {
-        val u = 1.0 - s
-        return 3.0 * u * u * s * CarouselSpec.EASE_X1 + 3.0 * u * s * s * CarouselSpec.EASE_X2 + s * s * s
-    }
-
-    private fun by(s: Double): Double {
-        val u = 1.0 - s
-        return 3.0 * u * u * s * CarouselSpec.EASE_Y1 + 3.0 * u * s * s * CarouselSpec.EASE_Y2 + s * s * s
-    }
-
-    /** Bezier parameter whose x is [x] (bisection; bx is monotonic for this curve). */
-    private fun paramAtX(x: Double): Double {
-        if (x <= 0.0) return 0.0
-        if (x >= 1.0) return 1.0
-        var lo = 0.0
-        var hi = 1.0
-        var s = x
-        repeat(60) {
-            s = (lo + hi) / 2.0
-            if (bx(s) < x) lo = s else hi = s
-        }
-        return s
-    }
+    // The measured bezier law, the ring geometry and the fit are native since
+    // migration stage 3 (cpp/engine/template_plans.cpp, via
+    // TemplatePlansNative); these delegations keep the public law API the
+    // tests and the Templates dialog's preview read. The native side runs
+    // the same Double bisection / de Casteljau slicing the Kotlin original
+    // ran, and the stage-3 golden proves the outputs byte-identical.
 
     /** Loop progress 0..1 at loop fraction [x] 0..1, per the measured easing. */
-    fun progress(x: Double): Double {
-        if (x <= 0.0) return 0.0
-        if (x >= 1.0) return 1.0
-        return by(paramAtX(x))
-    }
-
-    /** The easing of the master curve restricted to loop fractions [xa]..[xb], renormalised. */
-    private fun sliceEasing(xa: Double, xb: Double): Easing {
-        val ctrl = arrayOf(
-            doubleArrayOf(0.0, 0.0),
-            doubleArrayOf(CarouselSpec.EASE_X1, CarouselSpec.EASE_Y1),
-            doubleArrayOf(CarouselSpec.EASE_X2, CarouselSpec.EASE_Y2),
-            doubleArrayOf(1.0, 1.0)
-        )
-        val sa = paramAtX(xa)
-        val sb = paramAtX(xb)
-        val right = subdivide(ctrl, sa).second
-        val seg = subdivide(right, (sb - sa) / (1.0 - sa)).first
-        val dx = seg[3][0] - seg[0][0]
-        val dy = seg[3][1] - seg[0][1]
-        if (dx <= 0.0 || dy <= 0.0) return Easing.LINEAR
-        return Easing(
-            ((seg[1][0] - seg[0][0]) / dx).toFloat(), ((seg[1][1] - seg[0][1]) / dy).toFloat(),
-            ((seg[2][0] - seg[0][0]) / dx).toFloat(), ((seg[2][1] - seg[0][1]) / dy).toFloat()
-        )
-    }
-
-    /** de Casteljau split of a cubic bezier at parameter [t]: (left, right) control polygons. */
-    private fun subdivide(
-        p: Array<DoubleArray>, t: Double
-    ): Pair<Array<DoubleArray>, Array<DoubleArray>> {
-        fun lerp(a: DoubleArray, b: DoubleArray) =
-            doubleArrayOf(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t)
-        val q0 = lerp(p[0], p[1]); val q1 = lerp(p[1], p[2]); val q2 = lerp(p[2], p[3])
-        val r0 = lerp(q0, q1); val r1 = lerp(q1, q2)
-        val s = lerp(r0, r1)
-        return arrayOf(p[0], q0, r0, s) to arrayOf(s, r1, q2, p[3])
-    }
+    fun progress(x: Double): Double = TemplatePlansNative.carouselProgress(x)
 
     /**
      * The ring radius (scene px) for [cardCount] cards: the measured [CarouselSpec.RADIUS]
@@ -227,69 +170,22 @@ object CarouselTemplate {
      * [CarouselSpec.RING_GAP] (at N = 8 the chord is 101.8 > 95 x 1.04 = 98.8, so the
      * measured ring stands; N = 9 is the first count that grows it, N = 12 needs 190.9).
      */
-    fun ringRadius(cardCount: Int): Float {
-        val needed = (CarouselSpec.CARD_SIZE * CarouselSpec.RING_GAP / 2f) /
-            sin(Math.PI / cardCount).toFloat()
-        return maxOf(CarouselSpec.RADIUS, needed)
-    }
+    fun ringRadius(cardCount: Int): Float = TemplatePlansNative.carouselRingRadius(cardCount)
 
     /** Ring angle (degrees, screen-clockwise) of card [cardIndex] at loop time [tMs]. */
-    fun angleDegAt(tMs: Long, cardIndex: Int, params: CarouselParams = CarouselParams()): Double {
-        val turn = if (params.clockwise) 360.0 else -360.0
-        return cardIndex * (360.0 / params.cardCount) +
-            turn * progress(tMs.toDouble() / params.durationMs)
-    }
+    fun angleDegAt(tMs: Long, cardIndex: Int, params: CarouselParams = CarouselParams()): Double =
+        TemplatePlansNative.carouselAngleDegAt(
+            tMs, cardIndex, params.cardCount, params.durationMs, params.clockwise
+        )
 
     /** Card centre in reference scene pixels (720x450) at loop time [tMs]. */
     fun centerSceneAt(
         tMs: Long, cardIndex: Int, params: CarouselParams = CarouselParams()
     ): Pair<Float, Float> {
-        val a = Math.toRadians(angleDegAt(tMs, cardIndex, params))
-        val r = ringRadius(params.cardCount)
-        return (CarouselSpec.CENTER_X + r * cos(a)).toFloat() to
-            (CarouselSpec.CENTER_Y + r * sin(a)).toFloat()
-    }
-
-    /**
-     * The null's ROTATION track: the measured angular law as keyframed degrees —
-     * 0 at 0 ms rising monotonically to exactly 360 at [durationMs] (exactly -360 for a
-     * counter-clockwise turn: the same law negated, so the eased shape mirrors), one key
-     * every [CarouselSpec.STEP_MS], each segment carrying the renormalised slice of the
-     * master bezier for that segment (the same slicing the build-142 position bake used), so
-     * the eased law holds at every instant, not only at key times. Keyframe times are
-     * relative to the layer start, like every track in the app.
-     */
-    private fun rotationKeys(
-        durationMs: Long = CarouselSpec.DURATION_MS, clockwise: Boolean = true
-    ): List<Keyframe> {
-        val steps = (durationMs / CarouselSpec.STEP_MS).toInt()
-        val turn = if (clockwise) 360.0 else -360.0
-        return (0..steps).map { j ->
-            val tMs = j * CarouselSpec.STEP_MS
-            val x = tMs.toDouble() / durationMs
-            Keyframe(
-                timeMs = tMs,
-                a = (turn * progress(x)).toFloat(),
-                easing = if (j < steps) {
-                    sliceEasing(x, (tMs + CarouselSpec.STEP_MS).toDouble() / durationMs)
-                } else Easing.LINEAR
-            )
-        }
-    }
-
-    /**
-     * A ring point in stored units: the t=0 pose of the card at ring phase [phaseDeg] (plus
-     * [dyScene] scene px of vertical offset, the shadow twin's drop). This is the fixed local
-     * pose a card/shadow keeps for the whole loop — the null's rotation does the travelling.
-     */
-    private fun ringStored(
-        phaseDeg: Double, k: Float, dyScene: Float, radius: Float = CarouselSpec.RADIUS
-    ): Pair<Float, Float> {
-        val a = Math.toRadians(phaseDeg)
-        val sx = CarouselSpec.CENTER_X + radius * cos(a)
-        val sy = CarouselSpec.CENTER_Y + radius * sin(a) + dyScene
-        return ((sx - CarouselSpec.SCENE_W / 2.0) * k).toFloat() to
-            ((sy - CarouselSpec.SCENE_H / 2.0) * k).toFloat()
+        val r = TemplatePlansNative.carouselCenterSceneAt(
+            tMs, cardIndex, params.cardCount, params.durationMs, params.clockwise
+        )
+        return r[0] to r[1]
     }
 
     /**
@@ -312,16 +208,8 @@ object CarouselTemplate {
     fun carouselFit(
         previewWidthPx: Float, previewHeightPx: Float, radius: Float = CarouselSpec.RADIUS
     ): Triple<Float, Float, Float> {
-        val pw = if (previewWidthPx > 1f) previewWidthPx else CarouselSpec.SCENE_W
-        val ph = if (previewHeightPx > 1f) previewHeightPx else pw * CarouselSpec.SCENE_H / CarouselSpec.SCENE_W
-        val k = pw / CarouselSpec.SCENE_W
-        val ringReach = radius + CarouselSpec.CARD_SIZE / 2f
-        val contentW = maxOf(CarouselSpec.SCENE_W, 2f * ringReach)
-        val contentH = maxOf(CarouselSpec.SCENE_H, 2f * ringReach)
-        val fit = 0.96f * minOf(pw / contentW, ph / contentH) / k
-        val cx = (CarouselSpec.CENTER_X - CarouselSpec.SCENE_W / 2f) * k
-        val cy = (CarouselSpec.CENTER_Y - CarouselSpec.SCENE_H / 2f) * k
-        return Triple(-cx * fit, -cy * fit, fit)
+        val r = TemplatePlansNative.carouselFit(previewWidthPx, previewHeightPx, radius)
+        return Triple(r[0], r[1], r[2])
     }
 
     /** What [buildGroup] hands back: the Group layer, the rig's Null layer, the edit handle's
@@ -377,162 +265,20 @@ object CarouselTemplate {
         require(cardUris.size == params.cardCount) {
             "carousel needs ${params.cardCount} card pictures"
         }
-        val pw = if (previewWidthPx > 1f) previewWidthPx else CarouselSpec.SCENE_W
-        val k = pw / CarouselSpec.SCENE_W
-        // The importer's shape box for a 720-wide scene: 720 x 130/360 = 260 scene px.
-        val boxPx = CarouselSpec.SCENE_W * 130f / 360f
-        val cardScale = CarouselSpec.CARD_SIZE / boxPx
-        val cornerStored = 65f * CarouselSpec.CARD_CORNER / (CarouselSpec.CARD_SIZE / 2f)
-        val radius = ringRadius(params.cardCount)
-        val durationMs = params.durationMs
-
-        val groupId = "$idBase-group"
-        val link = GroupOps.linkTo(groupId, GroupOps.Pose.REST)
-        val (gx, gy, fit) = carouselFit(previewWidthPx, previewHeightPx, radius)
-        val group = TimelineClip(
-            id = groupId,
-            name = "Carousel",
-            type = LayerType.GROUP,
-            startMs = insertAtMs,
-            durationMs = durationMs,
-            color = 0xFF5BB85DL,
-            transformX = gx,
-            transformY = gy,
-            scalePercent = fit * 100f
+        // Native since migration stage 3: the whole construction (the fit,
+        // the null's sliced-bezier rotation track, the ring poses, the
+        // Controller wiring) is computed in template_plans.cpp and comes back
+        // as one construction plan in lanesTopFirst order — group, null,
+        // controller, per card (card, shadow), background.
+        val clips = TemplatePlansNative.carouselPlan(
+            previewWidthPx, previewHeightPx, backgroundUri, cardUris,
+            insertAtMs, idBase, params.cardCount, params.durationMs, params.clockwise
         )
-
-        // The rig's heart (build 144, restored verbatim by build 146): a Null layer on the
-        // ring centre, a child of the group like every other layer inside (REST link, so
-        // the group fit reaches it unchanged), carrying the whole motion as its ROTATION
-        // track. Its colour is the app's own Null colour (the importer's NULL_COLOR / the
-        // lane colour of LayerType.NULL).
-        val nullId = "$idBase-null"
-        val centreX = (CarouselSpec.CENTER_X - CarouselSpec.SCENE_W / 2f) * k
-        val centreY = (CarouselSpec.CENTER_Y - CarouselSpec.SCENE_H / 2f) * k
-        val nullClip = TimelineClip(
-            id = nullId,
-            name = "Carousel Null",
-            type = LayerType.NULL,
-            startMs = insertAtMs,
-            durationMs = durationMs,
-            color = 0xFFE8A33DL,
-            transformX = centreX,
-            transformY = centreY,
-            keyframes = mapOf(AnimProp.ROTATION to rotationKeys(durationMs, params.clockwise)),
-            groupId = groupId,
-            parent = link
-        )
-        // Cards/shadows link to the null: the ref is its rest pose (ring centre, scale 100,
-        // rotation 0) and the link is rotation-LOCKED (Parent Helper): the position follows
-        // the null's turn in full, the layer's own rotation never inherits it — upright
-        // cards with no keyframes at all.
-        val nullLink = ParentLink(nullId, centreX, centreY, 100f, 0f, lockRotate = true)
-
-        // The edit handle (build 146): a Controller layer of the group, parked beside the
-        // null on the ring centre with NEUTRAL values (no keyframes, opacity 100, blend
-        // Normal, no effects). The cards/shadows below (2 x the card count) are CONNECTED to it
-        // (controllerId): editing it fans the edit out onto each of them in its own place.
-        // It parents nothing and drives nothing — the null above does the driving.
-        val controllerId = "$idBase-controller"
-        val controllerClip = TimelineClip(
-            id = controllerId,
-            name = "Carousel Controller",
-            type = LayerType.CONTROLLER,
-            startMs = insertAtMs,
-            durationMs = durationMs,
-            color = 0xFF00B8A9L,
-            transformX = centreX,
-            transformY = centreY,
-            groupId = groupId,
-            parent = link
-        )
-
-        // Children in lane order (top lane first): the null's lane, the controller's lane,
-        // then per card the photo lane above its shadow lane, the Background lane last
-        // (last track = painted first — the renderers walk the lanes reversed, and
-        // GroupOps keeps a group's children in lane order, so the inserted group paints
-        // exactly like the build-142 project did).
-        val children = ArrayList<TimelineClip>(2 * params.cardCount + 3)
-        children += nullClip
-        children += controllerClip
-        // Background: a generated gradient+grid picture on a frame-covering rect (10 scene px
-        // of bleed per side), in the template frame's own coordinates.
-        val bgScaleX = (CarouselSpec.SCENE_W + 20f) / boxPx
-        val bgScaleY = (CarouselSpec.SCENE_H + 20f) / boxPx
-        val background = TimelineClip(
-            id = "$idBase-bg",
-            name = "Background",
-            type = LayerType.SHAPE,
-            startMs = insertAtMs,
-            durationMs = durationMs,
-            color = 0xFFB2B2B4L,
-            fillMode = FILL_IMAGE,
-            fillImageUri = backgroundUri,
-            fillImageMode = IMG_FILL,
-            shapePattern = "RECT",
-            shapeScaleX = bgScaleX,
-            shapeScaleY = bgScaleY,
-            scalePercent = bgScaleX * 100f,
-            groupId = groupId,
-            parent = link
-        )
-        for (i in 0 until params.cardCount) {
-            val phase = i * (360.0 / params.cardCount)
-            // Fixed local poses (the t=0 ring positions): the null's rotation does the
-            // travelling, so neither layer carries a single keyframe (build 144). Both are
-            // connected to the Controller (their fan-out edit handle, build 146).
-            val (shX, shY) = ringStored(phase, k, CarouselSpec.SHADOW_DY, radius)
-            val shadow = TimelineClip(
-                id = "$idBase-shadow-${i + 1}",
-                name = "Card ${i + 1} shadow",
-                type = LayerType.SHAPE,
-                startMs = insertAtMs,
-                durationMs = durationMs,
-                color = 0xFF9E9E9EL,
-                fillMode = FILL_SOLID,
-                textColor = 0xFF000000L,
-                opacity = CarouselSpec.SHADOW_OPACITY,
-                shapePattern = "ROUNDED_RECT",
-                shapeScaleX = cardScale,
-                shapeScaleY = cardScale,
-                scalePercent = cardScale * 100f,
-                shapeCornerRadius = cornerStored,
-                transformX = shX,
-                transformY = shY,
-                groupId = groupId,
-                parent = nullLink,
-                controllerId = controllerId
-            )
-            val (cdX, cdY) = ringStored(phase, k, 0f, radius)
-            val card = TimelineClip(
-                id = "$idBase-card-${i + 1}",
-                name = "Photo ${i + 1}",
-                type = LayerType.SHAPE,
-                startMs = insertAtMs,
-                durationMs = durationMs,
-                color = 0xFF90A4AEL,
-                fillMode = FILL_IMAGE,
-                fillImageUri = cardUris[i],
-                fillImageMode = IMG_FILL,
-                textColor = CarouselSpec.CARD_TINTS[i % CarouselSpec.CARD_TINTS.size],
-                shapePattern = "ROUNDED_RECT",
-                shapeScaleX = cardScale,
-                shapeScaleY = cardScale,
-                scalePercent = cardScale * 100f,
-                shapeCornerRadius = cornerStored,
-                transformX = cdX,
-                transformY = cdY,
-                groupId = groupId,
-                parent = nullLink,
-                controllerId = controllerId
-            )
-            children += card
-            children += shadow
-        }
-        children += background
-
-        // The group's lane sits above its children (the GroupOps.group arrangement).
-        val lanesTopFirst = listOf(group) + children
+        val group = clips[0]
+        val nullClip = clips[1]
+        val controllerClip = clips[2]
+        val children = clips.subList(1, clips.size)
+        val lanesTopFirst = clips
         return Insert(group, nullClip, controllerClip, children, lanesTopFirst)
     }
 }

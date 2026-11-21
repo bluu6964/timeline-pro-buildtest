@@ -1,5 +1,7 @@
 package com.example.model
 
+import com.example.engine.TemplatePlansNative
+
 /**
  * The "Lower Third" template (Templates programme): the classic name strap — an amber
  * accent bar at the bottom left, the person's NAME sliding in beside it, and a smaller
@@ -114,40 +116,35 @@ object LowerThirdSpec {
     const val BOX_DEN = 360f
 
     /** The layout font in stored px on a canvas [pw] wide. */
-    fun fontPx(pw: Float): Float = FONT_FRAC * pw
+    fun fontPx(pw: Float): Float = TemplatePlansNative.lowerThirdLayout(pw, 0f)[0]
     /** The name line's height in stored px (one font at scale 100). */
-    fun nameLineHPx(pw: Float): Float = fontPx(pw) * NAME_SCALE / 100f
+    fun nameLineHPx(pw: Float): Float = TemplatePlansNative.lowerThirdLayout(pw, 0f)[1]
     /** The subtitle line's height in stored px (one font at its static 58%). */
-    fun subtitleLineHPx(pw: Float): Float = fontPx(pw) * SUBTITLE_SCALE / 100f
+    fun subtitleLineHPx(pw: Float): Float = TemplatePlansNative.lowerThirdLayout(pw, 0f)[2]
     /** The accent bar's height: it spans exactly the two lines and the gap between them. */
-    fun barHeightPx(pw: Float): Float =
-        nameLineHPx(pw) + LINE_GAP_FRAC * pw + subtitleLineHPx(pw)
+    fun barHeightPx(pw: Float): Float = TemplatePlansNative.lowerThirdLayout(pw, 0f)[3]
 
     /** The block's bottom edge in stored px from the canvas centre (+y is down). */
-    fun blockBottomPx(ph: Float): Float = ph / 2f - BOTTOM_FRAC * ph
+    fun blockBottomPx(ph: Float): Float = TemplatePlansNative.lowerThirdLayout(0f, ph)[4]
     /** The block's left edge in stored px from the canvas centre. */
-    fun leftEdgePx(pw: Float): Float = -pw / 2f + LEFT_FRAC * pw
+    fun leftEdgePx(pw: Float): Float = TemplatePlansNative.lowerThirdLayout(pw, 0f)[5]
     /** The texts' shared left edge: the bar and the gap sit between it and the block edge. */
-    fun textLeftPx(pw: Float): Float = leftEdgePx(pw) + BAR_W_FRAC * pw + TEXT_GAP_FRAC * pw
+    fun textLeftPx(pw: Float): Float = TemplatePlansNative.lowerThirdLayout(pw, 0f)[6]
 
     /** The accent bar's centre: at the block's left edge, spanning the two lines. */
-    fun barCentreXPx(pw: Float): Float = leftEdgePx(pw) + BAR_W_FRAC * pw / 2f
-    fun barCentreYPx(pw: Float, ph: Float): Float = blockBottomPx(ph) - barHeightPx(pw) / 2f
+    fun barCentreXPx(pw: Float): Float = TemplatePlansNative.lowerThirdLayout(pw, 0f)[7]
+    fun barCentreYPx(pw: Float, ph: Float): Float = TemplatePlansNative.lowerThirdLayout(pw, ph)[8]
 
     /** The name's centre: its left edge is [textLeftPx], its line tops the block. */
-    fun nameCentreXPx(pw: Float): Float =
-        textLeftPx(pw) + NAME_ADV_EM * fontPx(pw) * NAME_SCALE / 100f / 2f
-    fun nameCentreYPx(pw: Float, ph: Float): Float =
-        blockBottomPx(ph) - subtitleLineHPx(pw) - LINE_GAP_FRAC * pw - nameLineHPx(pw) / 2f
+    fun nameCentreXPx(pw: Float): Float = TemplatePlansNative.lowerThirdLayout(pw, 0f)[9]
+    fun nameCentreYPx(pw: Float, ph: Float): Float = TemplatePlansNative.lowerThirdLayout(pw, ph)[10]
 
     /** The subtitle's centre: same left edge as the name; its line bottoms the block. */
-    fun subtitleCentreXPx(pw: Float): Float =
-        textLeftPx(pw) + SUBTITLE_ADV_EM * fontPx(pw) * SUBTITLE_SCALE / 100f / 2f
-    fun subtitleCentreYPx(pw: Float, ph: Float): Float =
-        blockBottomPx(ph) - subtitleLineHPx(pw) / 2f
+    fun subtitleCentreXPx(pw: Float): Float = TemplatePlansNative.lowerThirdLayout(pw, 0f)[11]
+    fun subtitleCentreYPx(pw: Float, ph: Float): Float = TemplatePlansNative.lowerThirdLayout(pw, ph)[12]
 
     /** The slide distance in stored px. */
-    fun slidePx(pw: Float): Float = SLIDE_FRAC * pw
+    fun slidePx(pw: Float): Float = TemplatePlansNative.lowerThirdLayout(pw, 0f)[13]
 
     // The app's own easing presets (Easing.PRESETS), by name.
     val EASE_CUBIC_OUT = Easing(0.215f, 0.61f, 0.355f, 1f)      // "Cubic out"
@@ -189,133 +186,18 @@ object LowerThirdTemplate {
         insertAtMs: Long,
         idBase: String = "lowerthird"
     ): Insert {
-        val pw = if (previewWidthPx > 1f) previewWidthPx else 1080f
-        val ph = if (previewHeightPx > 1f) previewHeightPx else 1080f
-        val box = pw * LowerThirdSpec.BOX_NUM / LowerThirdSpec.BOX_DEN
-        val slide = LowerThirdSpec.slidePx(pw)
-
-        val groupId = "$idBase-group"
-        val link = GroupOps.linkTo(groupId, GroupOps.Pose.REST)
-        val group = TimelineClip(
-            id = groupId,
-            name = "Lower Third",
-            type = LayerType.GROUP,
-            startMs = insertAtMs,
-            durationMs = LowerThirdSpec.DURATION_MS,
-            color = 0xFF00695CL
+        // Native since migration stage 3: the construction is computed in
+        // template_plans.cpp and comes back as one plan in lanesTopFirst
+        // order — group, name, subtitle, bar.
+        val clips = TemplatePlansNative.lowerThirdPlan(
+            previewWidthPx, previewHeightPx, insertAtMs, idBase
         )
-
-        // One staged text line: waits invisible at its slid-left pose, slides + fades in
-        // over [startMs]..[endMs], holds, then rides the shared exit (slide back left +
-        // fade on the same Cubic-in track as every other child) to exactly opacity 0.
-        fun stagedText(
-            id: String, name: String, text: String, scale: Float,
-            centreX: Float, centreY: Float, startMs: Long, endMs: Long
-        ) = TimelineClip(
-            id = id,
-            name = name,
-            type = LayerType.TEXT,
-            startMs = insertAtMs,
-            durationMs = LowerThirdSpec.DURATION_MS,
-            color = 0xFF3992CEL,
-            text = text,
-            textColor = 0xFFFFFFFFL,
-            fontWeight = 700,
-            scalePercent = scale,
-            transformX = centreX,
-            transformY = centreY,
-            keyframes = mapOf(
-                AnimProp.POSITION to listOf(
-                    Keyframe(startMs, centreX - slide, centreY, LowerThirdSpec.EASE_CUBIC_OUT),
-                    Keyframe(endMs, centreX, centreY),
-                    Keyframe(
-                        LowerThirdSpec.EXIT_START_MS, centreX, centreY,
-                        LowerThirdSpec.EASE_CUBIC_IN
-                    ),
-                    Keyframe(LowerThirdSpec.DURATION_MS, centreX - slide, centreY)
-                ),
-                AnimProp.OPACITY to listOf(
-                    Keyframe(startMs, 0f, 0f, LowerThirdSpec.EASE_CUBIC_OUT),
-                    Keyframe(endMs, 100f, 0f),
-                    Keyframe(
-                        LowerThirdSpec.EXIT_START_MS, 100f, 0f, LowerThirdSpec.EASE_CUBIC_IN
-                    ),
-                    Keyframe(LowerThirdSpec.DURATION_MS, 0f, 0f)
-                )
-            ),
-            groupId = groupId,
-            parent = link
-        )
-
-        val name = stagedText(
-            "$idBase-name", "Name", LowerThirdSpec.NAME_TEXT, LowerThirdSpec.NAME_SCALE,
-            LowerThirdSpec.nameCentreXPx(pw), LowerThirdSpec.nameCentreYPx(pw, ph),
-            LowerThirdSpec.NAME_START_MS, LowerThirdSpec.NAME_END_MS
-        )
-        val subtitle = stagedText(
-            "$idBase-subtitle", "Subtitle", LowerThirdSpec.SUBTITLE_TEXT,
-            LowerThirdSpec.SUBTITLE_SCALE,
-            LowerThirdSpec.subtitleCentreXPx(pw), LowerThirdSpec.subtitleCentreYPx(pw, ph),
-            LowerThirdSpec.SUB_START_MS, LowerThirdSpec.SUB_END_MS
-        )
-
-        // The accent bar: a vertical stadium-ended strip in the app's shape convention.
-        // Its SCALE track is (width %, height %) against the box: the width share is the
-        // same at both grow keys (constant), the height share runs from the smallest
-        // separate height to full over the grow window. It carries no entrance slide —
-        // it grows in place — but it rides the shared exit like the texts.
-        val barScaleX = LowerThirdSpec.BAR_W_FRAC * pw / box * 100f
-        val barScaleY = LowerThirdSpec.barHeightPx(pw) / box * 100f
-        val barX = LowerThirdSpec.barCentreXPx(pw)
-        val barY = LowerThirdSpec.barCentreYPx(pw, ph)
-        val bar = TimelineClip(
-            id = "$idBase-bar",
-            name = "Accent Bar",
-            type = LayerType.SHAPE,
-            startMs = insertAtMs,
-            durationMs = LowerThirdSpec.DURATION_MS,
-            color = LowerThirdSpec.ACCENT,
-            fillMode = FILL_SOLID,
-            textColor = LowerThirdSpec.ACCENT,
-            shapePattern = "ROUNDED_RECT",
-            shapeCornerRadius = 65f,   // rho = 1 on the smaller half extent: stadium ends
-            shapeScaleX = barScaleX / 100f,
-            shapeScaleY = barScaleY / 100f,
-            scalePercent = barScaleX,
-            transformX = barX,
-            transformY = barY,
-            keyframes = mapOf(
-                AnimProp.SCALE to listOf(
-                    Keyframe(
-                        0L, barScaleX, LowerThirdSpec.GROW_START_PCT,
-                        LowerThirdSpec.EASE_CUBIC_OUT
-                    ),
-                    Keyframe(LowerThirdSpec.BAR_GROW_END_MS, barScaleX, barScaleY)
-                ),
-                AnimProp.POSITION to listOf(
-                    Keyframe(0L, barX, barY),
-                    Keyframe(
-                        LowerThirdSpec.EXIT_START_MS, barX, barY, LowerThirdSpec.EASE_CUBIC_IN
-                    ),
-                    Keyframe(LowerThirdSpec.DURATION_MS, barX - slide, barY)
-                ),
-                AnimProp.OPACITY to listOf(
-                    Keyframe(0L, 100f, 0f),
-                    Keyframe(
-                        LowerThirdSpec.EXIT_START_MS, 100f, 0f, LowerThirdSpec.EASE_CUBIC_IN
-                    ),
-                    Keyframe(LowerThirdSpec.DURATION_MS, 0f, 0f)
-                )
-            ),
-            groupId = groupId,
-            parent = link
-        )
-
-        // Lane order (top lane first): the name above the subtitle above the bar (last
-        // lane = painted first, so the bar is drawn first and the words over it — they
-        // never overlap geometrically, but the words are the stars and keep the top lanes).
-        val children = listOf(name, subtitle, bar)
-        val lanesTopFirst = listOf(group) + children
+        val group = clips[0]
+        val name = clips[1]
+        val subtitle = clips[2]
+        val bar = clips[3]
+        val children = clips.subList(1, clips.size)
+        val lanesTopFirst = clips
         return Insert(group, name, subtitle, bar, children, lanesTopFirst)
     }
 }

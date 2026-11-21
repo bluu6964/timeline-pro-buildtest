@@ -1,5 +1,6 @@
 package com.example.model
 
+import com.example.engine.TemplatePlansNative
 import kotlinx.serialization.Serializable
 import java.io.File
 import java.util.UUID
@@ -40,18 +41,11 @@ object UserTemplateOps {
      * file, and the per-frame mask folders of a cutout / face blur. These are the strings
      * the store copies into the template's own storage before capturing.
      */
-    fun mediaRefsOf(clips: List<TimelineClip>): List<String> {
-        val out = LinkedHashSet<String>()
-        for (c in clips) {
-            c.uri?.takeIf { it.isNotBlank() }?.let { out += it }
-            c.fillImageUri?.takeIf { it.isNotBlank() }?.let { out += it }
-            c.fillVideoUri?.takeIf { it.isNotBlank() }?.let { out += it }
-            c.planarRemove?.patchPath?.takeIf { it.isNotBlank() }?.let { out += it }
-            c.cutoutDir?.takeIf { it.isNotBlank() }?.let { out += it }
-            c.faceBlurDir?.takeIf { it.isNotBlank() }?.let { out += it }
-        }
-        return out.toList()
-    }
+    fun mediaRefsOf(clips: List<TimelineClip>): List<String> =
+        // Native since migration stage 3 (template_plans.cpp): the ordered
+        // de-duplication over the six reference slots runs natively; the
+        // slot order and the isNotBlank rule are unchanged.
+        TemplatePlansNative.userMediaRefs(clips)
 
     /** The root Group layer + every descendant, root first, the rest in lane order. */
     fun subtreeOf(tracks: List<TimelineTrack>, groupId: String): List<TimelineClip> {
@@ -89,41 +83,50 @@ object UserTemplateOps {
     ): SavedTemplate? {
         val subtree = subtreeOf(tracks, groupId)
         if (subtree.isEmpty()) return null
-        val inside = subtree.mapTo(HashSet()) { it.id }
-        val clips = subtree.map { c ->
-            normalise(c, inside, isRoot = c.id == groupId, rootName = name, mediaMap = mediaMap)
+        // The normalisation decisions (which links survive, which parent
+        // mode applies) are native since migration stage 3
+        // (template_plans.cpp, via TemplatePlansNative's identity-key pack —
+        // the stage-2 plan pattern); the copies below apply them with the
+        // original expressions, and the media rewrite stays a map lookup.
+        val pack = TemplatePlansNative.packUserClips(subtree)
+        val plan = TemplatePlansNative.userCapturePlan(pack, groupId)
+        val clips = subtree.mapIndexed { i, c ->
+            normalise(c, plan, i, isRoot = c.id == groupId, rootName = name, mediaMap = mediaMap)
         }
         return SavedTemplate(templateId, name, createdAtMs, clips)
     }
 
     private fun normalise(
         c: TimelineClip,
-        inside: Set<String>,
+        plan: IntArray,
+        index: Int,
         isRoot: Boolean,
         rootName: String,
         mediaMap: Map<String, String>
     ): TimelineClip {
-        val p = c.parent
-        val parent = when {
-            isRoot || p == null -> null
-            p.id in inside -> p
-            c.groupId != null && c.groupId in inside -> GroupOps.linkTo(c.groupId, GroupOps.Pose.REST)
+        // The plan row for this clip: parent mode (0 null, 1 keep verbatim,
+        // 2 the REST link to its group), then the keep flags for groupId,
+        // controllerId, maskTargetId, trackFollow, cornerPin, planarRemove.
+        val parent = when (plan[index * 7]) {
+            1 -> c.parent
+            2 -> GroupOps.linkTo(c.groupId!!, GroupOps.Pose.REST)
             else -> null
         }
+        fun keep(slot: Int): Boolean = plan[index * 7 + slot] != 0
         fun media(ref: String?): String? = ref?.let { mediaMap[it] ?: it }
         val pr = c.planarRemove
         return c.copy(
             name = if (isRoot) rootName else c.name,
-            groupId = if (isRoot) null else c.groupId?.takeIf { it in inside },
+            groupId = if (keep(1)) c.groupId else null,
             parent = parent,
-            controllerId = c.controllerId?.takeIf { it in inside },
-            maskTargetId = c.maskTargetId?.takeIf { it in inside },
+            controllerId = if (keep(2)) c.controllerId else null,
+            maskTargetId = if (keep(3)) c.maskTargetId else null,
             chainId = null,
-            trackFollow = c.trackFollow?.takeIf { it.videoId in inside },
-            cornerPin = c.cornerPin?.takeIf { it.videoId in inside },
-            planarRemove = pr?.takeIf { it.pin.videoId == c.id || it.pin.videoId in inside }?.let {
-                it.copyPreservingPatch(media(it.patchPath) ?: it.patchPath)
-            },
+            trackFollow = if (keep(4)) c.trackFollow else null,
+            cornerPin = if (keep(5)) c.cornerPin else null,
+            planarRemove = if (keep(6)) {
+                pr?.let { it.copyPreservingPatch(media(it.patchPath) ?: it.patchPath) }
+            } else null,
             uri = media(c.uri),
             fillImageUri = media(c.fillImageUri),
             fillVideoUri = media(c.fillVideoUri),
@@ -146,28 +149,48 @@ object UserTemplateOps {
      */
     fun instantiate(template: SavedTemplate, insertAtMs: Long): List<TimelineClip> {
         val root = template.clips.firstOrNull() ?: return emptyList()
-        val idMap = template.clips.associate { it.id to UUID.randomUUID().toString() }
-        val shift = insertAtMs - root.startMs
-        return template.clips.map { c ->
+        // The remap decisions (the shift and, per clip, which stored clip
+        // each reference resolves to — or none) are native since migration
+        // stage 3 (template_plans.cpp); the fresh ids are minted here, in
+        // the stored order, exactly where the original minted its id map,
+        // and the copies below apply the plan with the original expressions.
+        val pack = TemplatePlansNative.packUserClips(template.clips)
+        val plan = TemplatePlansNative.userInstantiatePlan(
+            pack, LongArray(template.clips.size) { template.clips[it].startMs }, insertAtMs
+        )
+        val shift = plan[0]
+        val newIds = template.clips.map { UUID.randomUUID().toString() }
+        fun target(i: Int, slot: Int): Int = plan[1 + i * 7 + slot].toInt()
+        return template.clips.mapIndexed { i, c ->
+            val g = target(i, 0)
+            val p = target(i, 1)
+            val ctl = target(i, 2)
+            val m = target(i, 3)
+            val tf = target(i, 4)
+            val cp = target(i, 5)
+            val pr = target(i, 6)
             c.copy(
-                id = idMap.getValue(c.id),
+                id = newIds[i],
                 startMs = c.startMs + shift,
-                groupId = c.groupId?.let { idMap[it] },
-                parent = c.parent?.let { p -> idMap[p.id]?.let { p.copy(id = it) } },
-                controllerId = c.controllerId?.let { idMap[it] },
-                maskTargetId = c.maskTargetId?.let { idMap[it] },
+                groupId = if (g >= 0) newIds[g] else null,
+                parent = if (p >= 0) c.parent?.copy(id = newIds[p]) else null,
+                controllerId = if (ctl >= 0) newIds[ctl] else null,
+                maskTargetId = if (m >= 0) newIds[m] else null,
                 chainId = null,
-                trackFollow = c.trackFollow?.let { tf ->
-                    idMap[tf.videoId]?.let { TrackFollow(it, tf.timesMs, tf.dx, tf.dy, tf.rotDeg, tf.scale) }
-                },
-                cornerPin = c.cornerPin?.let { cp ->
-                    idMap[cp.videoId]?.let { CornerPin(it, cp.timesMs, cp.quad, cp.aspect) }
-                },
-                planarRemove = c.planarRemove?.let { pr ->
-                    idMap[pr.pin.videoId]?.let {
-                        PlanarRemove(CornerPin(it, pr.pin.timesMs, pr.pin.quad, pr.pin.aspect), pr.gains, pr.patchPath, pr.usedFrames)
+                trackFollow = if (tf >= 0) {
+                    c.trackFollow?.let { TrackFollow(newIds[tf], it.timesMs, it.dx, it.dy, it.rotDeg, it.scale) }
+                } else null,
+                cornerPin = if (cp >= 0) {
+                    c.cornerPin?.let { CornerPin(newIds[cp], it.timesMs, it.quad, it.aspect) }
+                } else null,
+                planarRemove = if (pr >= 0) {
+                    c.planarRemove?.let {
+                        PlanarRemove(
+                            CornerPin(newIds[pr], it.pin.timesMs, it.pin.quad, it.pin.aspect),
+                            it.gains, it.patchPath, it.usedFrames
+                        )
                     }
-                }
+                } else null
             )
         }
     }

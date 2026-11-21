@@ -1,5 +1,7 @@
 package com.example.model
 
+import com.example.engine.TemplatePlansNative
+
 /**
  * The "Word Pop" template (Templates programme, text-animation template #2): a short
  * sentence whose words arrive ONE BY ONE — each word pops in (scale up on the Back-out
@@ -78,29 +80,22 @@ object WordPopSpec {
     const val RISE_FRAC = 0.02f
 
     /** When word [index]'s pop starts, in ms from the template's start. */
-    fun startMs(index: Int): Long = index * STAGGER_MS
+    fun startMs(index: Int): Long = TemplatePlansNative.wordPopStartMs(index)
 
     /** Word [index]'s advance on a canvas [previewWidthPx] wide, in stored px. */
     fun advancePx(index: Int, previewWidthPx: Float): Float =
-        WORD_ADV_EM[index] * FONT_FRAC * previewWidthPx
+        TemplatePlansNative.wordPopAdvancePx(index, previewWidthPx)
 
     /** The whole sentence's advance on a canvas [previewWidthPx] wide, in stored px. */
-    fun totalWidthPx(previewWidthPx: Float): Float {
-        val totalEm = WORD_ADV_EM.sum() + (WORDS.size - 1) * SPACE_EM
-        return totalEm * FONT_FRAC * previewWidthPx
-    }
+    fun totalWidthPx(previewWidthPx: Float): Float =
+        TemplatePlansNative.wordPopTotalWidthPx(previewWidthPx)
 
     /**
      * Word [index]'s centre on a canvas [previewWidthPx] wide, in stored px from the
      * canvas centre: -total/2 + everything before the word + its own half advance.
      */
-    fun centreXPx(index: Int, previewWidthPx: Float): Float {
-        val totalEm = WORD_ADV_EM.sum() + (WORDS.size - 1) * SPACE_EM
-        var beforeEm = index * SPACE_EM
-        for (j in 0 until index) beforeEm += WORD_ADV_EM[j]
-        val centreEm = -totalEm / 2f + beforeEm + WORD_ADV_EM[index] / 2f
-        return centreEm * FONT_FRAC * previewWidthPx
-    }
+    fun centreXPx(index: Int, previewWidthPx: Float): Float =
+        TemplatePlansNative.wordPopCentreXPx(index, previewWidthPx)
 
     // The app's own easing presets (Easing.PRESETS), by name.
     val EASE_BACK_OUT = Easing(0.175f, 0.885f, 0.32f, 1.2f)     // "Back out"
@@ -138,63 +133,13 @@ object WordPopTemplate {
         insertAtMs: Long,
         idBase: String = "wordpop"
     ): Insert {
-        val pw = if (previewWidthPx > 1f) previewWidthPx else 1080f
-        // Sizes ride on the width (the text engine's font does too); the design is
-        // centre-anchored, so any aspect keeps it in frame (pinned for 16:9 and 9:16).
-        // [previewHeightPx] is accepted for symmetry with the other templates' insert API.
-        val rise = WordPopSpec.RISE_FRAC * pw
-
-        val groupId = "$idBase-group"
-        val link = GroupOps.linkTo(groupId, GroupOps.Pose.REST)
-        val group = TimelineClip(
-            id = groupId,
-            name = "Word Pop",
-            type = LayerType.GROUP,
-            startMs = insertAtMs,
-            durationMs = WordPopSpec.DURATION_MS,
-            color = 0xFFEF6C00L
-        )
-
-        val words = WordPopSpec.WORDS.mapIndexed { i, word ->
-            val start = WordPopSpec.startMs(i)
-            val landed = start + WordPopSpec.POP_MS
-            val x = WordPopSpec.centreXPx(i, pw)
-            TimelineClip(
-                id = "$idBase-word${i + 1}",
-                name = "Word ${i + 1}",
-                type = LayerType.TEXT,
-                startMs = insertAtMs,
-                durationMs = WordPopSpec.DURATION_MS,
-                color = 0xFF3992CEL,
-                text = word,
-                textColor = 0xFFFFFFFFL,
-                fontWeight = 700,
-                transformX = x,
-                keyframes = mapOf(
-                    AnimProp.POSITION to listOf(
-                        Keyframe(start, x, rise, WordPopSpec.EASE_CUBIC_OUT),
-                        Keyframe(landed, x, 0f)
-                    ),
-                    AnimProp.SCALE to listOf(
-                        Keyframe(start, WordPopSpec.ENTER_SCALE, 0f, WordPopSpec.EASE_BACK_OUT),
-                        Keyframe(landed, WordPopSpec.WORD_SCALE, 0f)
-                    ),
-                    AnimProp.OPACITY to listOf(
-                        Keyframe(start, 0f, 0f, WordPopSpec.EASE_CUBIC_OUT),
-                        Keyframe(landed, 100f, 0f),
-                        Keyframe(WordPopSpec.EXIT_START_MS, 100f, 0f, WordPopSpec.EASE_CUBIC_IN),
-                        Keyframe(WordPopSpec.DURATION_MS, 0f, 0f)
-                    )
-                ),
-                groupId = groupId,
-                parent = link
-            )
-        }
-
-        // Lane order (top lane first): the words in reading order (they never overlap,
-        // so the order is presentational — word 1 keeps the top lane like the Pop
-        // Title's text keeps its lane above the bar).
-        val lanesTopFirst = listOf(group) + words
+        // Native since migration stage 3: the construction is computed in
+        // template_plans.cpp and comes back as one plan in lanesTopFirst
+        // order — group, then the three word layers in reading order.
+        val clips = TemplatePlansNative.wordPopPlan(previewWidthPx, insertAtMs, idBase)
+        val group = clips[0]
+        val words = clips.subList(1, clips.size)
+        val lanesTopFirst = clips
         return Insert(group, words, words, lanesTopFirst)
     }
 }

@@ -82,6 +82,9 @@ jobs:
       # Migration stage 2 adds clip_graph.cpp / clip_graph_jni.cpp (the
       # clip-graph algebra: group/lane/multi-select/controller/solo/mask/
       # track plans), also without FP contraction.
+      # Migration stage 3 adds template_plans.cpp / template_plans_jni.cpp
+      # (the template builders' laws + the UserTemplateOps plans), also
+      # without FP contraction.
       - name: Build host JNI library for unit tests
         run: |
           set -e
@@ -116,6 +119,9 @@ jobs:
           g++ -std=c++17 -O2 -fPIC -ffp-contract=off \
             -I"$JAVA_HOME/include" -I"$JAVA_HOME/include/linux" -I$E \
             -c $E/clip_graph.cpp -o /tmp/hostlib/clip_graph.o
+          g++ -std=c++17 -O2 -fPIC -ffp-contract=off \
+            -I"$JAVA_HOME/include" -I"$JAVA_HOME/include/linux" -I$E \
+            -c $E/template_plans.cpp -o /tmp/hostlib/template_plans.o
           g++ -std=c++17 -O2 -fPIC -shared -Wall -Wextra \
             -I"$JAVA_HOME/include" -I"$JAVA_HOME/include/linux" -I$E \
             -o /tmp/hostlib/libam_engine.so \
@@ -133,6 +139,7 @@ jobs:
             /tmp/hostlib/model_logic.o $E/model_logic_jni.cpp \
             /tmp/hostlib/clip_algebra.o $E/clip_algebra_jni.cpp \
             /tmp/hostlib/clip_graph.o $E/clip_graph_jni.cpp \
+            /tmp/hostlib/template_plans.o $E/template_plans_jni.cpp \
             -lm
 
       - name: Unit tests

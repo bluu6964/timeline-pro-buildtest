@@ -1,5 +1,7 @@
 package com.example.model
 
+import com.example.engine.TemplatePlansNative
+
 /**
  * The "Pop Title" template (Templates programme, text-animation template #1): a short title
  * that pops in, holds, and leaves — ONE ordinary TEXT layer doing the whole performance,
@@ -104,98 +106,15 @@ object PopTitleTemplate {
         insertAtMs: Long,
         idBase: String = "poptitle"
     ): Insert {
-        val pw = if (previewWidthPx > 1f) previewWidthPx else 1080f
-        // Sizes ride on the width (the text engine's font does too); the design is
-        // centre-anchored, so any aspect keeps it in frame (pinned for 16:9 and 9:16).
-        // [previewHeightPx] is accepted for symmetry with the Carousel's insert API.
-        val box = pw * PopTitleSpec.BOX_NUM / PopTitleSpec.BOX_DEN
-
-        val groupId = "$idBase-group"
-        val link = GroupOps.linkTo(groupId, GroupOps.Pose.REST)
-        val group = TimelineClip(
-            id = groupId,
-            name = "Pop Title",
-            type = LayerType.GROUP,
-            startMs = insertAtMs,
-            durationMs = PopTitleSpec.DURATION_MS,
-            color = 0xFF5BB85DL
-        )
-
-        val rise = PopTitleSpec.RISE_FRAC * pw
-        val exitRise = PopTitleSpec.EXIT_RISE_FRAC * pw
-        val text = TimelineClip(
-            id = "$idBase-text",
-            name = "Title Text",
-            type = LayerType.TEXT,
-            startMs = insertAtMs,
-            durationMs = PopTitleSpec.DURATION_MS,
-            color = 0xFF3992CEL,
-            text = PopTitleSpec.SAMPLE_TEXT,
-            textColor = 0xFFFFFFFFL,
-            fontWeight = 700,
-            keyframes = mapOf(
-                AnimProp.POSITION to listOf(
-                    Keyframe(0L, 0f, rise, PopTitleSpec.EASE_CUBIC_OUT),
-                    Keyframe(PopTitleSpec.ENTER_MS, 0f, 0f),
-                    Keyframe(PopTitleSpec.EXIT_START_MS, 0f, 0f, PopTitleSpec.EASE_CUBIC_IN),
-                    Keyframe(PopTitleSpec.DURATION_MS, 0f, -exitRise)
-                ),
-                AnimProp.SCALE to listOf(
-                    Keyframe(0L, PopTitleSpec.ENTER_SCALE, 0f, PopTitleSpec.EASE_BACK_OUT),
-                    Keyframe(PopTitleSpec.ENTER_MS, PopTitleSpec.TEXT_SCALE, 0f)
-                ),
-                AnimProp.OPACITY to listOf(
-                    Keyframe(0L, 0f, 0f, PopTitleSpec.EASE_CUBIC_OUT),
-                    Keyframe(PopTitleSpec.ENTER_MS, 100f, 0f),
-                    Keyframe(PopTitleSpec.EXIT_START_MS, 100f, 0f, PopTitleSpec.EASE_CUBIC_IN),
-                    Keyframe(PopTitleSpec.DURATION_MS, 0f, 0f)
-                )
-            ),
-            groupId = groupId,
-            parent = link
-        )
-
-        // The accent bar: full width [BAR_W_FRAC] of the frame, [BAR_H_FRAC] tall, centred
-        // [BAR_Y_FRAC] below the canvas centre (just under the text's line box). Its SCALE
-        // track is (width %, height %) in the shape convention: the height share is the
-        // same at both keys, so only the width grows — the bar sweeps out from the centre.
-        val barScaleX = PopTitleSpec.BAR_W_FRAC * pw / box * 100f
-        val barScaleY = PopTitleSpec.BAR_H_FRAC * pw / box * 100f
-        val bar = TimelineClip(
-            id = "$idBase-bar",
-            name = "Accent Bar",
-            type = LayerType.SHAPE,
-            startMs = insertAtMs,
-            durationMs = PopTitleSpec.DURATION_MS,
-            color = PopTitleSpec.ACCENT,
-            fillMode = FILL_SOLID,
-            textColor = PopTitleSpec.ACCENT,
-            shapePattern = "ROUNDED_RECT",
-            shapeCornerRadius = 65f,   // rho = 1 on the smaller half extent: stadium ends
-            shapeScaleX = barScaleX / 100f,
-            shapeScaleY = barScaleY / 100f,
-            scalePercent = barScaleX,
-            transformY = PopTitleSpec.BAR_Y_FRAC * pw,
-            keyframes = mapOf(
-                AnimProp.SCALE to listOf(
-                    Keyframe(0L, 0f, barScaleY, PopTitleSpec.EASE_CUBIC_OUT),
-                    Keyframe(PopTitleSpec.ENTER_MS, barScaleX, barScaleY)
-                ),
-                AnimProp.OPACITY to listOf(
-                    Keyframe(0L, 100f, 0f),
-                    Keyframe(PopTitleSpec.EXIT_START_MS, 100f, 0f, PopTitleSpec.EASE_CUBIC_IN),
-                    Keyframe(PopTitleSpec.DURATION_MS, 0f, 0f)
-                )
-            ),
-            groupId = groupId,
-            parent = link
-        )
-
-        // Lane order (top lane first): the text's lane above the bar's (last lane = painted
-        // first, so the bar is drawn first and the text over it — and on screen the bar
-        // sits below the words, geometrically and in z).
-        val children = listOf(text, bar)
-        val lanesTopFirst = listOf(group) + children
+        // Native since migration stage 3: the construction is computed in
+        // template_plans.cpp and comes back as one plan in lanesTopFirst
+        // order — group, text, bar.
+        val clips = TemplatePlansNative.popTitlePlan(previewWidthPx, insertAtMs, idBase)
+        val group = clips[0]
+        val text = clips[1]
+        val bar = clips[2]
+        val children = clips.subList(1, clips.size)
+        val lanesTopFirst = clips
         return Insert(group, text, bar, children, lanesTopFirst)
     }
 }
