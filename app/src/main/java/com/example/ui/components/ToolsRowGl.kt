@@ -147,7 +147,8 @@ internal fun ToolsRowGl(
                 )
                 // The back icon, press-scaled about its centre.
                 entries.back?.let { e ->
-                    setScaleAbout(g.backCenterPx(dd), centreY, backScale.value)
+                    val bc = g.backCenterPx(contentTop, contentH, dd)
+                    setScaleAbout(bc.first, bc.second, backScale.value)
                     addText(
                         e.index,
                         g.backIconLeftPx(dd) - pad,

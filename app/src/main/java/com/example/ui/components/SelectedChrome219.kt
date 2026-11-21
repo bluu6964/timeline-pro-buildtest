@@ -540,7 +540,9 @@ private fun PagerPageGl(buttons: List<PagerBtnLayout>) {
             atlas.measure(s, UiLabelStyle.pagerLabel(sp))
         }
         val style = UiLabelStyle.pagerLabel(fit.sp)
-        val lineTexts = g.labelLines(b.tool.label, fit, innerW) { atlas.measure(it, style) }
+        val lineTexts = g.labelLines(b.tool.label, fit, innerW) { s, sp ->
+            atlas.measure(s, UiLabelStyle.pagerLabel(sp))
+        }
         Prep(
             fit = fit,
             style = style,
@@ -588,11 +590,11 @@ private fun PagerPageGl(buttons: List<PagerBtnLayout>) {
                         addRoundRect(
                             cx, cy,
                             b.wPx - g.BORDER_DP * dd, b.hPx - g.BORDER_DP * dd,
-                            (g.CORNER_DP - g.BORDER_DP / 2f) * dd,
+                            (g.BTN_CORNER_DP - g.BORDER_DP / 2f) * dd,
                             SelBtnActive.toArgb(), g.BORDER_DP * dd, SelActiveOutline.toArgb()
                         )
                     } else {
-                        addRoundRect(cx, cy, b.wPx, b.hPx, g.CORNER_DP * dd, SelBtn.toArgb())
+                        addRoundRect(cx, cy, b.wPx, b.hPx, g.BTN_CORNER_DP * dd, SelBtn.toArgb())
                     }
                     // The icon over the label lines, the stack centred.
                     val fm = atlas.fontMetrics(prep.style)
@@ -713,7 +715,7 @@ fun SelectedToolsPager219(
                     if (rows.isNotEmpty()) {
                         val rowH = g.page3RowHeightPx(pageH, rows.size, density)
                         rows.forEachIndexed { rowIdx, rowTools ->
-                            val top = g.PAD_TOP_DP * density + rowIdx * (rowH + g.GAP_DP * density)
+                            val top = g.PAGE_PAD_TOP_DP * density + rowIdx * (rowH + g.GAP_DP * density)
                             val btnW = g.buttonWidthPx(pageW, 3, density)
                             rowTools.forEachIndexed { colIdx, tool ->
                                 if (tool != null) {

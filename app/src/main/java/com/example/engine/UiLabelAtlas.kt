@@ -86,8 +86,9 @@ enum class UiLabelStyle(val sp: Float, val weight: Int, val letterSpacingSp: Flo
     /** Build 251 (stage 4): clip-sheet titles: 14.5 sp Bold. */
     SHEET_TITLE(14.5f, 700),
 
-    /** Build 251 (stage 4): clip-sheet row text: 12 sp Regular / Medium / SemiBold. */
+    /** Build 251 (stage 4): clip-sheet row text: 12 sp Regular / Medium / SemiBold / Bold. */
     SHEET_ITEM(12f, 400),
+    SHEET_ITEM_BOLD(12f, 700),
     SHEET_ITEM_MED(12f, 500),
     SHEET_ITEM_SEMI(12f, 600),
 

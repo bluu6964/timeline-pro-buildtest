@@ -249,6 +249,8 @@ object PanelGeometry {
         const val BORDER_DP = 1.5f
         /** The fit law reserves 3 dp for an active button's border (build 220's rule). */
         const val FIT_BORDER_DP = 3f
+        const val FIT_BASE_SP = 10f
+        const val FIT_BASE_SMALL_SP = 9f
         const val FLOOR_SP = 7.5f
         const val STEP_SP = 0.5f
         const val LINE_HEIGHT_FACTOR = 1.15f

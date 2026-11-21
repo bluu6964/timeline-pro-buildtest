@@ -440,7 +440,7 @@ fun ToolsGridSheet(
                                 setScaleAbout(left + tileW / 2f, tileH / 2f, scales[i].value)
                                 addRoundRect(
                                     left + tileW / 2f, tileH / 2f, tileW, tileH,
-                                    g.TILE_CORNER_DP * dd,
+                                    g.CORNER_DP * dd,
                                     dim((if (entry.active) AmPillSelected else AmPanelHigh).toArgb(), dimF)
                                 )
                                 // The glyph.
