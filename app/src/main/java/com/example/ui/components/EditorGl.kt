@@ -151,6 +151,75 @@ internal fun GlTextLine(
     }
 }
 
+/**
+ * A block of text drawn in GL inside the host's box: paragraphs split
+ * on '\n', each wrapped greedily at the box width (Android's rule,
+ * [PanelGeometry.wrapGreedy]), every line centred horizontally, and
+ * the whole block centred vertically — the editors' hint / empty
+ * state texts' form.
+ */
+@Composable
+internal fun GlTextBlock(
+    text: String,
+    style: UiLabelStyle,
+    colorArgb: Int,
+    modifier: Modifier = Modifier
+) {
+    val density = LocalDensity.current.density
+    val atlas = rememberUiAtlas()
+    val pad = UiLabelAtlas.PAD.toFloat()
+    BoxWithConstraints(modifier = modifier) {
+        val wPx = maxWidth.value * density
+        fun resolveBlock(): List<UiLabelAtlas.Entry?> {
+            val lines = text.split('\n').flatMap { para ->
+                PanelGeometry.wrapGreedy(para, wPx, Int.MAX_VALUE) { atlas.measure(it, style) }
+            }
+            return lines.map { atlas.resolve(it, style) }
+        }
+        var lineEntries = resolveBlock()
+        if (atlas.overflowed) {
+            atlas.reset()
+            lineEntries = resolveBlock()
+        }
+        val entries = lineEntries
+        val textH = atlas.textHeightPx(style)
+        val blockH = textH * entries.size
+        // A wrap-height host (an old Text's place) sizes the block to
+        // its lines; a bounded host centres the block inside itself.
+        val bounded = maxHeight != androidx.compose.ui.unit.Dp.Infinity
+        val boxH = if (bounded) maxHeight else (blockH / density).dp
+        Box(
+            Modifier
+                .width(maxWidth)
+                .height(boxH)
+        ) {
+            NativeVectorCanvas(
+                modifier = Modifier.fillMaxSize(),
+                clearArgb = 0,
+                atlas = atlas,
+                drawKey = listOf(entries, colorArgb, wPx, blockH, bounded, atlas.generation),
+                buildCmds = { w, h, _ ->
+                    val fm = atlas.fontMetrics(style)
+                    var lineTop = (h - blockH) / 2f
+                    for (e in entries) {
+                        if (e != null) {
+                            val baseline = PanelGeometry.lineBaselinePx(lineTop, textH, fm.ascent, fm.descent)
+                            val originX = EditorGeometry.centredOriginPx(w / 2f, e.advance)
+                            val (dstX, dstY) = EditorGeometry.textDst(originX, baseline, e.bearing, e.base, pad)
+                            addText(
+                                e.index, dstX, dstY,
+                                0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                                tintArgb = colorArgb
+                            )
+                        }
+                        lineTop += textH
+                    }
+                }
+            )
+        }
+    }
+}
+
 /** One item of a [GlPillStrip]. */
 internal class GlPillItem(
     val label: String,

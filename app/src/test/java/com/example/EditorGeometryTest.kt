@@ -165,13 +165,14 @@ class EditorGeometryTest {
 
     @Test
     fun swatchGridCellsSplitTheRowEvenly() {
-        // Row 416 px, 4 cells, gaps 8: cell = (416 − 24)/4 = 98.
+        // Row 416 px, 4 cells, gaps 8: cell = (416 − 24)/4 = 98 (square).
         assertEquals(98f, EditorGeometry.SwatchGrid.cellWPx(416f, 4, d), 0f)
         assertEquals(212f, EditorGeometry.SwatchGrid.cellLeftPx(2, 416f, 4, d), 0f)
-        assertEquals(60f, EditorGeometry.SwatchGrid.rowTopPx(1, d), 0f)
-        // 3 rows: 3×52 + 2×8 = 172.
-        assertEquals(172f, EditorGeometry.SwatchGrid.gridHPx(3, d), 0f)
-        assertEquals(0f, EditorGeometry.SwatchGrid.gridHPx(0, d), 0f)
+        // Row stride = cell + the 8 px spacer: row 1 starts at 106.
+        assertEquals(106f, EditorGeometry.SwatchGrid.rowTopPx(1, 98f, d), 0f)
+        // 3 rows: 3 × 106 = 318 (trailing spacer included).
+        assertEquals(318f, EditorGeometry.SwatchGrid.gridHPx(3, 98f, d), 0f)
+        assertEquals(0f, EditorGeometry.SwatchGrid.gridHPx(0, 98f, d), 0f)
     }
 
     // ── M3Slider ────────────────────────────────────────────────────

@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -45,6 +46,7 @@ import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -63,7 +65,14 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import com.example.engine.UiLabelAtlas
+import com.example.engine.UiLabelStyle
+import com.example.engine.rememberUiAtlas
+import com.example.model.EditorGeometry
+import com.example.model.PanelGeometry
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -144,14 +153,20 @@ fun ColorEditSheet(
     // -1 = gradient overview, 0 / 1 = editing the colour of that gradient stop.
     var editingStop by remember(clip.id) { mutableIntStateOf(-1) }
 
-    Column(
+    // Build 252 (UI migration stage 5): the sheet's glass body (flat
+    // AmPanel fill + hairline edge) is drawn in GL behind the column;
+    // the column keeps the touch-swallowing clickable and the tag.
+    GlPanelBody(
         modifier = modifier
             .fillMaxWidth()
-            .then(if (fullHeight != null) Modifier.height(fullHeight) else Modifier)
-            .glassSurface(
-                RoundedCornerShape(AmCornerPanel),
-                fill = amGlassBrush()
-            )
+            .then(if (fullHeight != null) Modifier.height(fullHeight) else Modifier),
+        cornerDp = AmCornerPanel.value,
+        fillArgb = AmPanel.toArgb(),
+        borderArgb = AmHairline.toArgb()
+    ) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -223,19 +238,14 @@ fun ColorEditSheet(
             }
         } else
         when (clip.fillMode) {
-            FILL_NONE -> Box(
+            FILL_NONE -> GlTextBlock(
+                text = "No fill — the layer shows no colour.\nPick Solid or Gradient to color it again.",
+                style = UiLabelStyle.SHEET_ITEM,
+                colorArgb = TextSecondary.toArgb(),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    "No fill — the layer shows no colour.\nPick Solid or Gradient to color it again.",
-                    color = TextSecondary,
-                    fontSize = 12.sp,
-                    textAlign = TextAlign.Center
-                )
-            }
+                    .weight(1f)
+            )
 
             FILL_GRADIENT -> {
                 if (editingStop < 0) {
@@ -249,25 +259,20 @@ fun ColorEditSheet(
                     )
                 } else {
                     val stop = editingStop
-                    Row(
-                        modifier = Modifier
-                            .clip(RectangleShape)
-                            .background(CeTabBg)
-                            .bouncyClickable(pressedScale = 0.92f, onClick = { editingStop = -1 })
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                            .testTag("color_gradient_back"),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack, "Back to gradient",
-                            tint = TextPrimary, modifier = Modifier.size(15.dp)
-                        )
-                        Spacer(Modifier.width(5.dp))
-                        Text(
-                            if (stop == 0) "Gradient · start color" else "Gradient · end color",
-                            color = TextPrimary, fontSize = 11.5.sp, fontWeight = FontWeight.Medium
-                        )
-                    }
+                    CeIconTextRow(
+                        icon = Icons.AutoMirrored.Filled.ArrowBack,
+                        description = "Back to gradient",
+                        text = if (stop == 0) "Gradient · start color" else "Gradient · end color",
+                        iconDp = 15f,
+                        iconTextGapDp = 5f,
+                        padHDp = 8f,
+                        padVDp = 4f,
+                        pressScale = 0.92f,
+                        tag = "color_gradient_back",
+                        style = UiLabelStyle.ED_TEXT_MED,
+                        iconTint = TextPrimary,
+                        onClick = { editingStop = -1 }
+                    )
                     Spacer(Modifier.height(6.dp))
                     ColorPickerPanel(
                         color = if (stop == 0) clip.gradColor1 else clip.gradColor2,
@@ -306,52 +311,189 @@ fun ColorEditSheet(
         Spacer(Modifier.height(6.dp))
 
         // ---- Bottom card: none / solid / gradient / image (smaller) ------------------
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(36.dp)
-                .clip(RectangleShape)
-                .background(CeTabBg)
-        ) {
-            FillTab(Icons.Default.Block, "No fill", clip.fillMode == FILL_NONE, "color_tab_none") {
+        // Build 252 (stage 5): the tab row is drawn in GL — the
+        // CeTabBg bar, the selected tab's CeInnerBg fill, the icons
+        // (accent when selected, white otherwise); the four weight-1
+        // tap boxes keep the old tags and press scale.
+        val tabDefs = listOf(
+            FillTabDef(Icons.Default.Block, "No fill", FILL_NONE, "color_tab_none") {
                 onUpdate { it.copy(fillMode = FILL_NONE) }
-            }
-            FillTab(Icons.Default.FormatColorFill, "Solid color", clip.fillMode == FILL_SOLID, "color_tab_solid") {
+            },
+            FillTabDef(Icons.Default.FormatColorFill, "Solid color", FILL_SOLID, "color_tab_solid") {
                 onUpdate { it.copy(fillMode = FILL_SOLID) }
-            }
-            FillTab(Icons.Default.Gradient, "Gradient", clip.fillMode == FILL_GRADIENT, "color_tab_gradient") {
+            },
+            FillTabDef(Icons.Default.Gradient, "Gradient", FILL_GRADIENT, "color_tab_gradient") {
                 editingStop = -1
                 onUpdate { it.copy(fillMode = FILL_GRADIENT) }
-            }
-            FillTab(Icons.Default.Image, "Image fill", clip.fillMode == FILL_IMAGE, "color_tab_image") {
+            },
+            FillTabDef(Icons.Default.Image, "Image fill", FILL_IMAGE, "color_tab_image") {
                 if (clip.fillImageUri == null) onPickImage()
                 else onUpdate { it.copy(fillMode = FILL_IMAGE) }
             }
+        )
+        val tabAtlas = rememberUiAtlas()
+        val tabPad = UiLabelAtlas.PAD.toFloat()
+        val tabDensity = androidx.compose.ui.platform.LocalDensity.current.density
+        val tabPainters = tabDefs.map { def -> key(def.tag) { rememberVectorPainter(def.icon) } }
+        val tabIconPx = (19f * tabDensity).roundToInt()
+        fun resolveTabs() = tabDefs.mapIndexed { i, def ->
+            tabAtlas.resolveIcon("filltab:${def.tag}", tabIconPx, tabIconPx) { cv, x, y ->
+                val b = rasterizePainterBitmap(tabPainters[i], tabIconPx, tabDensity)
+                cv.drawBitmap(b, x, y, null)
+                b.recycle()
+            }
         }
+        var tabEntries = resolveTabs()
+        if (tabAtlas.overflowed) {
+            tabAtlas.reset()
+            tabEntries = resolveTabs()
+        }
+        val tabScales = remember { tabDefs.map { androidx.compose.animation.core.Animatable(1f) } }
+        BoxWithConstraints(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(36.dp)
+        ) {
+            val tabW = maxWidth / 4
+            NativeVectorCanvas(
+                modifier = Modifier.fillMaxSize(),
+                clearArgb = 0,
+                atlas = tabAtlas,
+                drawKey = listOf(tabEntries, tabScales.map { it.value }, clip.fillMode, tabAtlas.generation),
+                buildCmds = { w, h, _ ->
+                    addRect(0f, 0f, w, h, CeTabBg.toArgb())
+                    tabDefs.forEachIndexed { i, def ->
+                        val selected = clip.fillMode == def.mode
+                        val left = w / 4f * i
+                        val cx = left + w / 8f
+                        if (selected) addRect(left, 0f, w / 4f, h, CeInnerBg.toArgb())
+                        val e = tabEntries[i] ?: return@forEachIndexed
+                        setScaleAbout(cx, h / 2f, tabScales[i].value)
+                        addText(
+                            e.index,
+                            cx - tabIconPx / 2f - tabPad, h / 2f - tabIconPx / 2f - tabPad,
+                            0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                            tintArgb = (if (selected) CeAccent else Color.White).toArgb()
+                        )
+                        clearTransform()
+                    }
+                }
+            )
+            tabDefs.forEachIndexed { i, def ->
+                ChromePressBox(
+                    tabScales[i], 0.94f, def.onClick,
+                    Modifier
+                        .offset(x = tabW * i)
+                        .width(tabW)
+                        .fillMaxHeight(),
+                    tag = def.tag,
+                    description = def.description
+                )
+            }
+        }
+    }
     }
 }
 
+/** One fill-mode tab of the colour sheet's bottom card (build 252: GL-drawn). */
+private class FillTabDef(
+    val icon: androidx.compose.ui.graphics.vector.ImageVector,
+    val description: String,
+    val mode: Int,
+    val tag: String,
+    val onClick: () -> Unit
+)
+
+/**
+ * Build 252 (stage 5): one hug-width icon + text row of the colour
+ * sheet (gradient back, swap colours, choose picture) drawn in GL:
+ * the flat CeTabBg behind, icon and label over it. As in the Compose
+ * rows, the press scale covers the padded content (icon + text), not
+ * the background, which sat outside bouncyClickable's graphicsLayer.
+ */
 @Composable
-private fun androidx.compose.foundation.layout.RowScope.FillTab(
+private fun CeIconTextRow(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     description: String,
-    selected: Boolean,
+    text: String,
+    iconDp: Float,
+    iconTextGapDp: Float,
+    padHDp: Float,
+    padVDp: Float,
+    pressScale: Float,
     tag: String,
-    onClick: () -> Unit
+    style: UiLabelStyle,
+    iconTint: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
+    val density = androidx.compose.ui.platform.LocalDensity.current.density
+    val atlas = rememberUiAtlas()
+    val pad = UiLabelAtlas.PAD.toFloat()
+    val painter = rememberVectorPainter(icon)
+    val iconPx = (iconDp * density).roundToInt()
+
+    fun resolveRow(): Pair<UiLabelAtlas.Entry?, UiLabelAtlas.Entry?> {
+        val ie = atlas.resolveIcon("ce-row:$tag:${icon.name}", iconPx, iconPx) { cv, x, y ->
+            val b = rasterizePainterBitmap(painter, iconPx, density)
+            cv.drawBitmap(b, x, y, null)
+            b.recycle()
+        }
+        val te = atlas.resolve(text, style)
+        return ie to te
+    }
+    var rowEntries = resolveRow()
+    if (atlas.overflowed) {
+        atlas.reset()
+        rowEntries = resolveRow()
+    }
+    val (iconEntry, textEntry) = rowEntries
+    val scale = remember { androidx.compose.animation.core.Animatable(1f) }
+    val textH = atlas.textHeightPx(style)
+    val rowH = maxOf(iconDp * density, textH) + 2f * padVDp * density
+    val rowW = (padHDp + iconTextGapDp + padHDp) * density + iconPx + (textEntry?.advance ?: 0f)
+
     Box(
-        modifier = Modifier
-            .weight(1f)
-            .fillMaxHeight()
-            .background(if (selected) CeInnerBg else Color.Transparent)
-            .bouncyClickable(pressedScale = 0.94f, onClick = onClick)
-            .testTag(tag),
-        contentAlignment = Alignment.Center
+        modifier = modifier
+            .width((rowW / density).dp)
+            .height((rowH / density).dp)
     ) {
-        Icon(
-            icon, description,
-            tint = if (selected) CeAccent else Color.White,
-            modifier = Modifier.size(19.dp)
+        NativeVectorCanvas(
+            modifier = Modifier.fillMaxSize(),
+            clearArgb = 0,
+            atlas = atlas,
+            drawKey = listOf(iconEntry, textEntry, scale.value, atlas.generation),
+            buildCmds = { w, h, dd ->
+                addRect(0f, 0f, w, h, CeTabBg.toArgb())
+                setScaleAbout(w / 2f, h / 2f, scale.value)
+                if (iconEntry != null) {
+                    addText(
+                        iconEntry.index,
+                        padHDp * dd - pad, (h - iconPx) / 2f - pad,
+                        0f, 0f, iconEntry.rectW.toFloat(), iconEntry.rectH.toFloat(),
+                        tintArgb = iconTint.toArgb()
+                    )
+                }
+                if (textEntry != null) {
+                    val fm = atlas.fontMetrics(style)
+                    val top = EditorGeometry.centredTextTopPx(0f, h, textH)
+                    val baseline = PanelGeometry.lineBaselinePx(top, textH, fm.ascent, fm.descent)
+                    val originX = (padHDp + iconTextGapDp) * dd + iconPx
+                    val (dstX, dstY) = EditorGeometry.textDst(originX, baseline, textEntry.bearing, textEntry.base, pad)
+                    addText(
+                        textEntry.index, dstX, dstY,
+                        0f, 0f, textEntry.rectW.toFloat(), textEntry.rectH.toFloat(),
+                        tintArgb = TextPrimary.toArgb()
+                    )
+                }
+                clearTransform()
+            }
+        )
+        ChromePressBox(
+            scale, pressScale, onClick,
+            Modifier.fillMaxSize(),
+            tag = tag,
+            description = description
         )
     }
 }
@@ -375,30 +517,49 @@ private fun GradientOverview(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         // Gradient type: linear / radial / sweep
-        Row(
-            modifier = Modifier
-                .clip(RectangleShape)
-                .background(CeTabBg)
-        ) {
-            listOf(GRAD_LINEAR to "Linear", GRAD_RADIAL to "Radial", GRAD_SWEEP to "Sweep").forEach { (type, name) ->
-                val selected = clip.gradType == type
+        // Build 252 (stage 5): the row's bar, selected fills and the
+        // tiles' border rings are drawn in GL; the shader tiles stay
+        // native canvases at their exact rects (26 dp box, 2 dp inset).
+        val typeDefs = listOf(GRAD_LINEAR to "Linear", GRAD_RADIAL to "Radial", GRAD_SWEEP to "Sweep")
+        val typeScales = remember { typeDefs.map { androidx.compose.animation.core.Animatable(1f) } }
+        Box(modifier = Modifier.size(width = 174.dp, height = 40.dp)) {
+            NativeVectorCanvas(
+                modifier = Modifier.fillMaxSize(),
+                clearArgb = 0,
+                drawKey = listOf(clip.gradType, typeScales.map { it.value }),
+                buildCmds = { w, h, dd ->
+                    addRect(0f, 0f, w, h, CeTabBg.toArgb())
+                    typeDefs.forEachIndexed { i, (type, _) ->
+                        val left = i * 58f * dd
+                        val cx = left + 29f * dd
+                        val cy = h / 2f
+                        if (clip.gradType == type) {
+                            addRect(left, 0f, 58f * dd, h, CeInnerBg.toArgb())
+                        }
+                        setScaleAbout(cx, cy, typeScales[i].value)
+                        addRoundRect(
+                            cx, cy, 26f * dd, 26f * dd, 5f * dd, 0,
+                            1.75f * dd,
+                            (if (clip.gradType == type) CeAccent else Color.White).toArgb()
+                        )
+                        clearTransform()
+                    }
+                }
+            )
+            typeDefs.forEachIndexed { i, (type, name) ->
                 Box(
                     modifier = Modifier
-                        .width(58.dp)
-                        .height(40.dp)
-                        .background(if (selected) CeInnerBg else Color.Transparent)
-                        .bouncyClickable(pressedScale = 0.92f) { onUpdate { it.copy(gradType = type) } }
-                        .testTag("gradient_type_$name"),
+                        .offset(x = (58 * i).dp)
+                        .size(width = 58.dp, height = 40.dp)
+                        .graphicsLayer {
+                            scaleX = typeScales[i].value
+                            scaleY = typeScales[i].value
+                        },
                     contentAlignment = Alignment.Center
                 ) {
                     NativeVectorCanvas(
                         modifier = Modifier
                             .size(26.dp)
-                            .border(
-                                1.75.dp,
-                                if (selected) CeAccent else Color.White,
-                                RoundedCornerShape(5.dp)
-                            )
                             .padding(2.dp),
                         drawKey = Triple(type, clip.gradColor1, clip.gradColor2),
                         buildCmds = { w, h, d ->
@@ -416,6 +577,14 @@ private fun GradientOverview(
                         },
                     )
                 }
+                ChromePressBox(
+                    typeScales[i], 0.92f, { onUpdate { it.copy(gradType = type) } },
+                    Modifier
+                        .offset(x = (58 * i).dp)
+                        .size(width = 58.dp, height = 40.dp),
+                    tag = "gradient_type_$name",
+                    description = name
+                )
             }
         }
 
@@ -450,48 +619,55 @@ private fun GradientOverview(
         }
 
         Spacer(Modifier.height(4.dp))
-        Text(
-            "Tap a color box to change it.\nDrag the two points on the canvas to move the gradient.",
-            color = TextSecondary, fontSize = 10.5.sp, textAlign = TextAlign.Center
+        GlTextBlock(
+            text = "Tap a color box to change it.\nDrag the two points on the canvas to move the gradient.",
+            style = UiLabelStyle.SHEET_DESC,
+            colorArgb = TextSecondary.toArgb(),
+            modifier = Modifier.fillMaxWidth()
         )
 
         Spacer(Modifier.height(6.dp))
-        Row(
-            modifier = Modifier
-                .clip(RectangleShape)
-                .background(CeTabBg)
-                .bouncyClickable(pressedScale = 0.94f) {
-                    onUpdate { it.copy(gradColor1 = it.gradColor2, gradColor2 = it.gradColor1) }
-                }
-                .padding(horizontal = 12.dp, vertical = 7.dp)
-                .testTag("gradient_swap"),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(Icons.Default.SwapHoriz, "Swap colors", tint = Color.White, modifier = Modifier.size(16.dp))
-            Spacer(Modifier.width(6.dp))
-            Text("Swap colors", color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-        }
+        CeIconTextRow(
+            icon = Icons.Default.SwapHoriz,
+            description = "Swap colors",
+            text = "Swap colors",
+            iconDp = 16f,
+            iconTextGapDp = 6f,
+            padHDp = 12f,
+            padVDp = 7f,
+            pressScale = 0.94f,
+            tag = "gradient_swap",
+            style = UiLabelStyle.SHEET_ITEM_MED,
+            iconTint = Color.White,
+            onClick = {
+                onUpdate { it.copy(gradColor1 = it.gradColor2, gradColor2 = it.gradColor1) }
+            }
+        )
         Spacer(Modifier.height(4.dp))
     }
 }
 
 @Composable
 private fun StopHandle(color: Color, tag: String, modifier: Modifier, onClick: () -> Unit) {
+    // Build 252 (stage 5): the handle's flat layers are drawn in GL —
+    // the white 36 dp frame and the colour inset by 2.5 dp. (The old
+    // chain also painted a grey layer under the colour box, fully
+    // covered by it; the visible stack is frame + colour.)
     Box(
         modifier = modifier
             .size(36.dp)
-            .clip(RectangleShape)
-            .background(Color.White)
-            .padding(2.5.dp)
-            .clip(RectangleShape)
-            .background(Color(0xFF8A8A8A))
             .bouncyClickable(pressedScale = 0.9f, onClick = onClick)
             .testTag(tag)
     ) {
-        Box(
-            Modifier
-                .fillMaxSize()
-                .background(color)
+        NativeVectorCanvas(
+            modifier = Modifier.fillMaxSize(),
+            clearArgb = 0,
+            drawKey = color.toArgb(),
+            buildCmds = { w, h, dd ->
+                addRect(0f, 0f, w, h, Color.White.toArgb())
+                val inset = 2.5f * dd
+                addRect(inset, inset, w - 2f * inset, h - 2f * inset, color.toArgb())
+            }
         )
     }
 }
@@ -510,66 +686,182 @@ private fun ColorPickerPanel(
     var view by remember { mutableIntStateOf(0) } // 0 = wheel, 1 = swatches
     val onColorNow by rememberUpdatedState(onColor)
 
-    Row(
-        modifier = modifier
-            .clip(RectangleShape)
-            .background(CeInnerBg)
+    // Build 252 (stage 5): the panel's CeInnerBg body is drawn in GL
+    // (GlPanelBody, square corners — the old clip was RectangleShape).
+    GlPanelBody(
+        modifier = modifier,
+        cornerDp = 0f,
+        fillArgb = CeInnerBg.toArgb()
     ) {
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight()
-        ) {
-            if (view == 0) {
-                WheelPicker(color = color, onColor = { onColorNow(it) }, modifier = Modifier.fillMaxSize())
-            } else {
-                SwatchGrid(color = color, onColor = { onColorNow(it) }, modifier = Modifier.fillMaxSize())
+        Row(modifier = Modifier.fillMaxSize()) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+            ) {
+                if (view == 0) {
+                    WheelPicker(color = color, onColor = { onColorNow(it) }, modifier = Modifier.fillMaxSize())
+                } else {
+                    SwatchGrid(color = color, onColor = { onColorNow(it) }, modifier = Modifier.fillMaxSize())
+                }
             }
-        }
-        Column(
-            modifier = Modifier
-                .width(46.dp)
-                .fillMaxHeight()
-        ) {
-            RailButton(Icons.Default.Colorize, "Pick from canvas", false, "color_eyedropper") {
-                onEyedropper { picked -> onColorNow(picked) }
-            }
-            RailWheelButton(view == 0) { view = 0 }
-            RailButton(Icons.Default.Apps, "Swatches", view == 1, "color_view_swatches") { view = 1 }
+            ColorRailGl(
+                view = view,
+                onEyedropper = { onEyedropper { picked -> onColorNow(picked) } },
+                onWheel = { view = 0 },
+                onSwatches = { view = 1 }
+            )
         }
     }
 }
 
+/**
+ * Build 252 (stage 5): the colour picker's right rail (eyedropper /
+ * wheel / swatches) drawn in GL: the three weight-1 buttons' fills
+ * (CeTabBg, or AmMint at 16 % for the active view) and the two
+ * rasterized icons; the wheel button's hue ring stays its own native
+ * canvas over the surface. As in the Compose buttons, the press
+ * scale covers the icon (the fill sat outside the graphicsLayer).
+ */
 @Composable
-private fun androidx.compose.foundation.layout.ColumnScope.RailButton(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    description: String,
-    selected: Boolean,
-    tag: String,
-    onClick: () -> Unit
+private fun ColorRailGl(
+    view: Int,
+    onEyedropper: () -> Unit,
+    onWheel: () -> Unit,
+    onSwatches: () -> Unit
 ) {
-    Box(
+    val density = androidx.compose.ui.platform.LocalDensity.current.density
+    val atlas = rememberUiAtlas()
+    val pad = UiLabelAtlas.PAD.toFloat()
+    val dropperPainter = rememberVectorPainter(Icons.Default.Colorize)
+    val appsPainter = rememberVectorPainter(Icons.Default.Apps)
+    val iconPx = (20f * density).roundToInt()
+
+    fun resolveRail(): Pair<UiLabelAtlas.Entry?, UiLabelAtlas.Entry?> {
+        val dropper = atlas.resolveIcon("colorrail:colorize", iconPx, iconPx) { cv, x, y ->
+            val b = rasterizePainterBitmap(dropperPainter, iconPx, density)
+            cv.drawBitmap(b, x, y, null)
+            b.recycle()
+        }
+        val apps = atlas.resolveIcon("colorrail:apps", iconPx, iconPx) { cv, x, y ->
+            val b = rasterizePainterBitmap(appsPainter, iconPx, density)
+            cv.drawBitmap(b, x, y, null)
+            b.recycle()
+        }
+        return dropper to apps
+    }
+    var railEntries = resolveRail()
+    if (atlas.overflowed) {
+        atlas.reset()
+        railEntries = resolveRail()
+    }
+    val (dropperEntry, appsEntry) = railEntries
+    val scales = remember { List(3) { androidx.compose.animation.core.Animatable(1f) } }
+    val clicks = listOf(onEyedropper, onWheel, onSwatches)
+    val tags = listOf("color_eyedropper", "color_view_wheel", "color_view_swatches")
+    val descriptions = listOf("Pick from canvas", null, "Swatches")
+
+    BoxWithConstraints(
         modifier = Modifier
-            .weight(1f)
-            .fillMaxWidth()
-            .padding(2.dp)
-            .clip(RectangleShape)
-            .background(if (selected) AmMint.copy(alpha = 0.16f) else CeTabBg)
-            .bouncyClickable(pressedScale = 0.92f, onClick = onClick)
-            .testTag(tag),
-        contentAlignment = Alignment.Center
+            .width(46.dp)
+            .fillMaxHeight()
     ) {
-        Icon(
-            icon, description,
-            tint = if (selected) CeAccent else Color.White,
-            modifier = Modifier.size(20.dp)
+        val thirdH = maxHeight / 3
+        NativeVectorCanvas(
+            modifier = Modifier.fillMaxSize(),
+            clearArgb = 0,
+            atlas = atlas,
+            drawKey = listOf(dropperEntry, appsEntry, scales.map { it.value }, view, atlas.generation),
+            buildCmds = { w, h, dd ->
+                val third = h / 3f
+                val inset = 2f * dd
+                for (i in 0..2) {
+                    val selected = (i == 1 && view == 0) || (i == 2 && view == 1)
+                    addRect(
+                        inset, third * i + inset, w - 2f * inset, third - 2f * inset,
+                        (if (selected) AmMint.copy(alpha = 0.16f) else CeTabBg).toArgb()
+                    )
+                }
+                fun blitIcon(e: UiLabelAtlas.Entry?, i: Int, tint: Color) {
+                    if (e == null) return
+                    val cx = w / 2f
+                    val cy = third * i + third / 2f
+                    setScaleAbout(cx, cy, scales[i].value)
+                    addText(
+                        e.index,
+                        cx - iconPx / 2f - pad, cy - iconPx / 2f - pad,
+                        0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                        tintArgb = tint.toArgb()
+                    )
+                    clearTransform()
+                }
+                blitIcon(dropperEntry, 0, Color.White)
+                blitIcon(appsEntry, 2, if (view == 1) CeAccent else Color.White)
+            }
         )
+        // The wheel button's hue ring (native) over the middle third.
+        Box(
+            modifier = Modifier
+                .offset(y = thirdH)
+                .fillMaxWidth()
+                .height(thirdH)
+                .graphicsLayer {
+                    scaleX = scales[1].value
+                    scaleY = scales[1].value
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            NativeVectorCanvas(
+                modifier = Modifier.size(22.dp),
+                drawKey = view == 0,
+                buildCmds = { w, h, d ->
+                    val ringW = 5f * d
+                    val r = minOf(w, h) * 0.5f - ringW * 0.5f
+                    addShaderQuad(
+                        0f, 0f, w, h, 0f, UiGlNative.QUAD_HUE_WHEEL,
+                        p0 = r - ringW * 0.5f, p1 = r + ringW * 0.5f, p2 = 0f, p3 = 0f
+                    )
+                    if (view == 0) addCircle(w * 0.5f, h * 0.5f, 2.5f * d, CeAccent.toArgb())
+                },
+            )
+        }
+        for (i in 0..2) {
+            ChromePressBox(
+                scales[i], 0.92f, clicks[i],
+                Modifier
+                    .offset(x = 2.dp, y = thirdH * i + 2.dp)
+                    .width(42.dp)
+                    .height(thirdH - 4.dp),
+                tag = tags[i],
+                description = descriptions[i]
+            )
+        }
     }
 }
 
 @Composable
 private fun SwatchGrid(color: Long, onColor: (Long) -> Unit, modifier: Modifier = Modifier) {
     val rgb = color and 0xFFFFFFL
+    // Build 252 (stage 5): the header's colour fill + hex label and
+    // the whole swatch grid are drawn in GL (EditorGeometry
+    // .SwatchGrid); the header's checker stays its native canvas
+    // under the translucent colour, exactly as the Compose stack had
+    // it. Tap boxes keep the cells' press contract.
+    val density = androidx.compose.ui.platform.LocalDensity.current.density
+    val atlas = rememberUiAtlas()
+    val pad = UiLabelAtlas.PAD.toFloat()
+    val hexEntry = run {
+        fun resolveHex() = atlas.resolve(hexLabel(color), UiLabelStyle.HEX_BIG)
+        var e = resolveHex()
+        if (atlas.overflowed) {
+            atlas.reset()
+            e = resolveHex()
+        }
+        e
+    }
+    val rows = CeSwatches.chunked(EditorGeometry.SwatchGrid.COLUMNS)
+    val cellScales = remember { CeSwatches.map { androidx.compose.animation.core.Animatable(1f) } }
+
     Column(
         modifier = modifier
             .verticalScroll(rememberScrollState())
@@ -592,44 +884,80 @@ private fun SwatchGrid(color: Long, onColor: (Long) -> Unit, modifier: Modifier 
                     )
                 },
             )
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .background(Color(color)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    hexLabel(color),
-                    color = contrastOn(Color(color)),
-                    fontSize = 13.5.sp,
-                    fontWeight = FontWeight.Medium
-                )
-            }
+            NativeVectorCanvas(
+                modifier = Modifier.fillMaxSize(),
+                clearArgb = 0,
+                atlas = atlas,
+                drawKey = listOf(color, hexEntry, atlas.generation),
+                buildCmds = { w, h, _ ->
+                    addRect(0f, 0f, w, h, color.toInt())
+                    if (hexEntry != null) {
+                        val style = UiLabelStyle.HEX_BIG
+                        val textH = atlas.textHeightPx(style)
+                        val fm = atlas.fontMetrics(style)
+                        val top = EditorGeometry.centredTextTopPx(0f, h, textH)
+                        val baseline = PanelGeometry.lineBaselinePx(top, textH, fm.ascent, fm.descent)
+                        val originX = EditorGeometry.centredOriginPx(w / 2f, hexEntry.advance)
+                        val (dstX, dstY) = EditorGeometry.textDst(originX, baseline, hexEntry.bearing, hexEntry.base, pad)
+                        addText(
+                            hexEntry.index, dstX, dstY,
+                            0f, 0f, hexEntry.rectW.toFloat(), hexEntry.rectH.toFloat(),
+                            tintArgb = contrastOn(Color(color)).toArgb()
+                        )
+                    }
+                }
+            )
         }
         Spacer(Modifier.height(6.dp))
-        CeSwatches.chunked(7).forEach { row ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            val g = EditorGeometry.SwatchGrid
+            val rowWPx = maxWidth.value * density
+            val cellW = g.cellWPx(rowWPx, g.COLUMNS, density)
+            val gridH = g.gridHPx(rows.size, cellW, density)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height((gridH / density).dp)
             ) {
-                row.forEach { c ->
-                    val selected = (c and 0xFFFFFFL) == rgb
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .aspectRatio(1f)
-                            .clip(RoundedCornerShape(7.dp))
-                            .background(Color(c))
-                            .border(
-                                if (selected) 2.dp else 1.dp,
-                                if (selected) Color.White else Color.White.copy(alpha = 0.12f),
-                                RoundedCornerShape(7.dp)
+                NativeVectorCanvas(
+                    modifier = Modifier.fillMaxSize(),
+                    clearArgb = 0,
+                    drawKey = listOf(rgb, cellScales.map { it.value }),
+                    buildCmds = { _, _, dd ->
+                        CeSwatches.forEachIndexed { idx, c ->
+                            val row = idx / g.COLUMNS
+                            val col = idx % g.COLUMNS
+                            val left = g.cellLeftPx(col, rowWPx, g.COLUMNS, dd)
+                            val top = g.rowTopPx(row, cellW, dd)
+                            val selected = (c and 0xFFFFFFL) == rgb
+                            val cx = left + cellW / 2f
+                            val cy = top + cellW / 2f
+                            setScaleAbout(cx, cy, cellScales[idx].value)
+                            addRoundRect(
+                                cx, cy, cellW, cellW, g.CORNER_DP * dd,
+                                c.toInt(),
+                                (if (selected) 2f else 1f) * dd,
+                                (if (selected) Color.White else Color.White.copy(alpha = 0.12f)).toArgb()
                             )
-                            .bouncyClickable(pressedScale = 0.85f) { onColor(c) }
+                            clearTransform()
+                        }
+                    }
+                )
+                CeSwatches.forEachIndexed { idx, c ->
+                    val row = idx / g.COLUMNS
+                    val col = idx % g.COLUMNS
+                    ChromePressBox(
+                        cellScales[idx], 0.85f, { onColor(c) },
+                        Modifier
+                            .offset(
+                                x = (g.cellLeftPx(col, rowWPx, g.COLUMNS, density) / density).dp,
+                                y = (g.rowTopPx(row, cellW, density) / density).dp
+                            )
+                            .size((cellW / density).dp),
+                        description = hexLabel(c)
                     )
                 }
             }
-            Spacer(Modifier.height(4.dp))
         }
     }
 }
@@ -735,20 +1063,46 @@ private fun WheelPicker(color: Long, onColor: (Long) -> Unit, modifier: Modifier
                                 )
                             },
                         )
-                        Box(
-                            Modifier
-                                .fillMaxSize()
-                                .background(current),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                hexLabel(current.toLongArgb(), twoLines = true),
-                                color = contrastOn(current),
-                                fontSize = 10.5.sp,
-                                fontWeight = FontWeight.Medium,
-                                textAlign = TextAlign.Center
-                            )
+                        // Build 252 (stage 5): the current colour's disc
+                        // (translucent over the checker, as the Compose
+                        // background was) and the two hex lines in GL.
+                        val wheelAtlas = rememberUiAtlas()
+                        val wheelPad = UiLabelAtlas.PAD.toFloat()
+                        fun resolveWheel() = hexLabel(current.toLongArgb(), twoLines = true)
+                            .split('\n')
+                            .map { wheelAtlas.resolve(it, UiLabelStyle.SMALL_MED) }
+                        var wheelEntries = resolveWheel()
+                        if (wheelAtlas.overflowed) {
+                            wheelAtlas.reset()
+                            wheelEntries = resolveWheel()
                         }
+                        val wheelLines = wheelEntries
+                        NativeVectorCanvas(
+                            modifier = Modifier.fillMaxSize(),
+                            clearArgb = 0,
+                            atlas = wheelAtlas,
+                            drawKey = listOf(current.toArgb(), wheelLines, wheelAtlas.generation),
+                            buildCmds = { w, h, _ ->
+                                addCircle(w / 2f, h / 2f, w / 2f, current.toArgb())
+                                val style = UiLabelStyle.SMALL_MED
+                                val textH = wheelAtlas.textHeightPx(style)
+                                val fm = wheelAtlas.fontMetrics(style)
+                                var lineTop = (h - textH * wheelLines.size) / 2f
+                                for (e in wheelLines) {
+                                    if (e != null) {
+                                        val baseline = PanelGeometry.lineBaselinePx(lineTop, textH, fm.ascent, fm.descent)
+                                        val originX = EditorGeometry.centredOriginPx(w / 2f, e.advance)
+                                        val (dstX, dstY) = EditorGeometry.textDst(originX, baseline, e.bearing, e.base, wheelPad)
+                                        addText(
+                                            e.index, dstX, dstY,
+                                            0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                                            tintArgb = contrastOn(current).toArgb()
+                                        )
+                                    }
+                                    lineTop += textH
+                                }
+                            }
+                        )
                     }
                 }
 
@@ -878,36 +1232,6 @@ private fun contrastOn(c: Color): Color {
     return if (lum > 0.62f && c.alpha > 0.5f) Color.Black else Color.White
 }
 
-/** "Color wheel" button: a small hue ring (so it no longer looks like the swatches palette). */
-@Composable
-private fun androidx.compose.foundation.layout.ColumnScope.RailWheelButton(selected: Boolean, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .weight(1f)
-            .fillMaxWidth()
-            .padding(2.dp)
-            .clip(RectangleShape)
-            .background(if (selected) AmMint.copy(alpha = 0.16f) else CeTabBg)
-            .bouncyClickable(pressedScale = 0.92f, onClick = onClick)
-            .testTag("color_view_wheel"),
-        contentAlignment = Alignment.Center
-    ) {
-        NativeVectorCanvas(
-            modifier = Modifier.size(22.dp),
-            drawKey = selected,
-            buildCmds = { w, h, d ->
-                val ringW = 5f * d
-                val r = minOf(w, h) * 0.5f - ringW * 0.5f
-                addShaderQuad(
-                    0f, 0f, w, h, 0f, UiGlNative.QUAD_HUE_WHEEL,
-                    p0 = r - ringW * 0.5f, p1 = r + ringW * 0.5f, p2 = 0f, p3 = 0f
-                )
-                if (selected) addCircle(w * 0.5f, h * 0.5f, 2.5f * d, CeAccent.toArgb())
-            },
-        )
-    }
-}
-
 /** Image fill: pick a picture from the device and choose Fill / Fit / Stretch. */
 @Composable
 private fun ImageFillPanel(
@@ -921,16 +1245,53 @@ private fun ImageFillPanel(
         modifier = modifier.verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        // Build 252 (stage 5): the preview's flat fill + hairline are
+        // drawn in GL under the picture (a real bitmap — it stays a
+        // Compose Image, the stage-4 atlas limit); the empty state's
+        // icon is blitted into the same surface.
+        val imgDensity = androidx.compose.ui.platform.LocalDensity.current.density
+        val imgAtlas = rememberUiAtlas()
+        val imgPad = UiLabelAtlas.PAD.toFloat()
+        val imgPainter = rememberVectorPainter(Icons.Default.AddPhotoAlternate)
+        val imgIconPx = (30f * imgDensity).roundToInt()
+        fun resolveImgIcon() = imgAtlas.resolveIcon("fillimg:addphoto", imgIconPx, imgIconPx) { cv, x, y ->
+            val b = rasterizePainterBitmap(imgPainter, imgIconPx, imgDensity)
+            cv.drawBitmap(b, x, y, null)
+            b.recycle()
+        }
+        var imgIconEntry = resolveImgIcon()
+        if (imgAtlas.overflowed) {
+            imgAtlas.reset()
+            imgIconEntry = resolveImgIcon()
+        }
+        val imgIcon = imgIconEntry
         Box(
             modifier = Modifier
                 .size(90.dp)
-                .clip(RectangleShape)
-                .background(CeInnerBg)
-                .border(1.dp, AmHairline, RectangleShape)
                 .bouncyClickable(pressedScale = 0.95f, onClick = onPickImage)
                 .testTag("fill_image_preview"),
             contentAlignment = Alignment.Center
         ) {
+            NativeVectorCanvas(
+                modifier = Modifier.fillMaxSize(),
+                clearArgb = 0,
+                atlas = imgAtlas,
+                drawKey = listOf(bmp == null, imgIcon, imgAtlas.generation),
+                buildCmds = { w, h, dd ->
+                    addRoundRect(
+                        w / 2f, h / 2f, w, h, 0f,
+                        CeInnerBg.toArgb(), 1f * dd, AmHairline.toArgb()
+                    )
+                    if (bmp == null && imgIcon != null) {
+                        addText(
+                            imgIcon.index,
+                            w / 2f - imgIconPx / 2f - imgPad, h / 2f - imgIconPx / 2f - imgPad,
+                            0f, 0f, imgIcon.rectW.toFloat(), imgIcon.rectH.toFloat(),
+                            tintArgb = Color.White.toArgb()
+                        )
+                    }
+                }
+            )
             if (bmp != null) {
                 androidx.compose.foundation.Image(
                     bitmap = bmp.asImageBitmap(),
@@ -938,53 +1299,110 @@ private fun ImageFillPanel(
                     contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
                 )
-            } else {
-                Icon(Icons.Default.AddPhotoAlternate, "Choose picture", tint = Color.White, modifier = Modifier.size(30.dp))
             }
         }
         Spacer(Modifier.height(6.dp))
-        Row(
-            modifier = Modifier
-                .clip(RectangleShape)
-                .background(CeTabBg)
-                .bouncyClickable(pressedScale = 0.94f, onClick = onPickImage)
-                .padding(horizontal = 12.dp, vertical = 7.dp)
-                .testTag("fill_image_choose"),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(Icons.Default.AddPhotoAlternate, "Choose picture", tint = Color.White, modifier = Modifier.size(16.dp))
-            Spacer(Modifier.width(6.dp))
-            Text(
-                if (clip.fillImageUri == null) "Choose picture" else "Change picture",
-                color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Medium
-            )
-        }
+        CeIconTextRow(
+            icon = Icons.Default.AddPhotoAlternate,
+            description = "Choose picture",
+            text = if (clip.fillImageUri == null) "Choose picture" else "Change picture",
+            iconDp = 16f,
+            iconTextGapDp = 6f,
+            padHDp = 12f,
+            padVDp = 7f,
+            pressScale = 0.94f,
+            tag = "fill_image_choose",
+            style = UiLabelStyle.SHEET_ITEM_MED,
+            iconTint = Color.White,
+            onClick = onPickImage
+        )
         Spacer(Modifier.height(8.dp))
-        Row(
-            modifier = Modifier
-                .clip(RectangleShape)
-                .background(CeTabBg)
-        ) {
-            listOf(
-                Triple(IMG_FILL, "Fill", Icons.Default.Fullscreen),
-                Triple(IMG_FIT, "Fit", Icons.Default.FitScreen),
-                Triple(IMG_STRETCH, "Stretch", Icons.Default.OpenInFull)
-            ).forEach { (mode, name, icon) ->
-                val selected = clip.fillImageMode == mode
-                Column(
-                    modifier = Modifier
-                        .width(70.dp)
-                        .height(46.dp)
-                        .background(if (selected) CeInnerBg else Color.Transparent)
-                        .bouncyClickable(pressedScale = 0.92f) { onUpdate { it.copy(fillImageMode = mode) } }
-                        .testTag("fill_image_$name"),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Icon(icon, name, tint = if (selected) CeAccent else Color.White, modifier = Modifier.size(19.dp))
-                    Spacer(Modifier.height(2.dp))
-                    Text(name, color = if (selected) CeAccent else TextPrimary, fontSize = 10.5.sp)
+        // The Fill / Fit / Stretch mode row in GL: bar, selected
+        // fills, icons + labels; tap boxes keep the tags.
+        val modeDefs = listOf(
+            Triple(IMG_FILL, "Fill", Icons.Default.Fullscreen),
+            Triple(IMG_FIT, "Fit", Icons.Default.FitScreen),
+            Triple(IMG_STRETCH, "Stretch", Icons.Default.OpenInFull)
+        )
+        val modePainters = modeDefs.map { def -> key(def.second) { rememberVectorPainter(def.third) } }
+        val modeIconPx = (19f * imgDensity).roundToInt()
+        fun resolveModes(): Pair<List<UiLabelAtlas.Entry?>, List<UiLabelAtlas.Entry?>> {
+            val icons = modeDefs.mapIndexed { i, def ->
+                imgAtlas.resolveIcon("fillmode:${def.second}", modeIconPx, modeIconPx) { cv, x, y ->
+                    val b = rasterizePainterBitmap(modePainters[i], modeIconPx, imgDensity)
+                    cv.drawBitmap(b, x, y, null)
+                    b.recycle()
                 }
+            }
+            val labels = modeDefs.map { def ->
+                imgAtlas.resolve(def.second, UiLabelStyle.SHEET_DESC)
+            }
+            return icons to labels
+        }
+        var modeEntries = resolveModes()
+        if (imgAtlas.overflowed) {
+            imgAtlas.reset()
+            modeEntries = resolveModes()
+        }
+        val (modeIcons, modeLabels) = modeEntries
+        val modeScales = remember { modeDefs.map { androidx.compose.animation.core.Animatable(1f) } }
+        Box(modifier = Modifier.size(width = 210.dp, height = 46.dp)) {
+            NativeVectorCanvas(
+                modifier = Modifier.fillMaxSize(),
+                clearArgb = 0,
+                atlas = imgAtlas,
+                drawKey = listOf(modeIcons, modeLabels, modeScales.map { it.value }, clip.fillImageMode, imgAtlas.generation),
+                buildCmds = { w, h, dd ->
+                    addRect(0f, 0f, w, h, CeTabBg.toArgb())
+                    modeDefs.forEachIndexed { i, def ->
+                        val (mode, name, _) = def
+                        val selected = clip.fillImageMode == mode
+                        val left = i * 70f * dd
+                        val cx = left + 35f * dd
+                        if (selected) addRect(left, 0f, 70f * dd, h, CeInnerBg.toArgb())
+                        val tint = (if (selected) CeAccent else Color.White).toArgb()
+                        val labelTint = (if (selected) CeAccent else TextPrimary).toArgb()
+                        setScaleAbout(cx, h / 2f, modeScales[i].value)
+                        // Icon over label, the pair centred: icon 19,
+                        // gap 2, label font box.
+                        val labelStyle = UiLabelStyle.SHEET_DESC
+                        val labelH = imgAtlas.textHeightPx(labelStyle)
+                        val pairH = 19f * dd + 2f * dd + labelH
+                        val iconTop = (h - pairH) / 2f
+                        modeIcons[i]?.let { e ->
+                            addText(
+                                e.index,
+                                cx - modeIconPx / 2f - imgPad, iconTop - imgPad,
+                                0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                                tintArgb = tint
+                            )
+                        }
+                        modeLabels[i]?.let { e ->
+                            val fm = imgAtlas.fontMetrics(labelStyle)
+                            val labelTop = iconTop + 19f * dd + 2f * dd
+                            val baseline = PanelGeometry.lineBaselinePx(labelTop, labelH, fm.ascent, fm.descent)
+                            val originX = EditorGeometry.centredOriginPx(cx, e.advance)
+                            val (dstX, dstY) = EditorGeometry.textDst(originX, baseline, e.bearing, e.base, imgPad)
+                            addText(
+                                e.index, dstX, dstY,
+                                0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                                tintArgb = labelTint
+                            )
+                        }
+                        clearTransform()
+                    }
+                }
+            )
+            modeDefs.forEachIndexed { i, def ->
+                val (mode, name, _) = def
+                ChromePressBox(
+                    modeScales[i], 0.92f, { onUpdate { it.copy(fillImageMode = mode) } },
+                    Modifier
+                        .offset(x = (70 * i).dp)
+                        .size(width = 70.dp, height = 46.dp),
+                    tag = "fill_image_$name",
+                    description = name
+                )
             }
         }
         Spacer(Modifier.height(4.dp))

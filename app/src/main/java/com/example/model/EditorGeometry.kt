@@ -275,15 +275,20 @@ object EditorGeometry {
     }
 
     // ── Colour swatch grid (ColorEditView) ──────────────────────────
+    //
+    // The swatches are square (weight-1, aspectRatio 1) cells in rows
+    // of [COLUMNS], [GAP_DP] apart, with a [GAP_DP] spacer after every
+    // row (including the last).
 
     object SwatchGrid {
-        const val CELL_H_DP = 26f
+        const val COLUMNS = 7
         const val GAP_DP = 4f
-        const val CORNER_DP = 6f
+        const val CORNER_DP = 7f
 
         /**
          * One row's cell width: the row is split into [count] equal
-         * weight-1 cells with [GAP_DP] between them.
+         * weight-1 cells with [GAP_DP] between them. Cells are square,
+         * so this is also the cell height.
          */
         fun cellWPx(rowWPx: Float, count: Int, density: Float): Float =
             if (count <= 0) 0f else (rowWPx - GAP_DP * density * (count - 1)) / count
@@ -292,13 +297,13 @@ object EditorGeometry {
         fun cellLeftPx(index: Int, rowWPx: Float, count: Int, density: Float): Float =
             index * (cellWPx(rowWPx, count, density) + GAP_DP * density)
 
-        /** A row's top edge: rows of [CELL_H_DP] with [GAP_DP] between them. */
-        fun rowTopPx(rowIndex: Int, density: Float): Float =
-            rowIndex * (CELL_H_DP + GAP_DP) * density
+        /** A row's top edge: square cells + the spacer after each row. */
+        fun rowTopPx(rowIndex: Int, cellWPx: Float, density: Float): Float =
+            rowIndex * (cellWPx + GAP_DP * density)
 
-        /** The whole grid's height for [rows] rows. */
-        fun gridHPx(rows: Int, density: Float): Float =
-            if (rows <= 0) 0f else rows * CELL_H_DP * density + (rows - 1) * GAP_DP * density
+        /** The whole grid's height for [rows] rows (trailing spacer in). */
+        fun gridHPx(rows: Int, cellWPx: Float, density: Float): Float =
+            if (rows <= 0) 0f else rows * (cellWPx + GAP_DP * density)
     }
 
     // ── The stock Material 3 slider's drawn form ────────────────────
