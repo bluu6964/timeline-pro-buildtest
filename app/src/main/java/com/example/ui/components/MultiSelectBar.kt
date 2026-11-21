@@ -1,21 +1,29 @@
 package com.example.ui.components
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -30,15 +38,22 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.engine.UiLabelAtlas
+import com.example.engine.UiLabelStyle
+import com.example.engine.rememberUiAtlas
+import com.example.model.ChromeGeometry
 import com.example.model.MultiAction
 import com.example.model.MultiBarMode
 import com.example.model.ShapeBooleanOp
 import com.example.model.SpatialAction
 import com.example.ui.theme.AmCornerPanel
 import com.example.ui.theme.AmDanger
+import com.example.ui.theme.AmHairline
+import com.example.ui.theme.AmPanel
 import com.example.ui.theme.AmTextPrimary
 import com.example.ui.theme.amGlassBrush
 import com.example.ui.util.bouncyClickable
+import kotlin.math.roundToInt
 
 private val IconColor = AmTextPrimary // build 223 (colour balance): light glyphs — the bar surface is the dark AmPanel (build 216's white bar is gone; its ink glyphs were invisible on dark)
 
@@ -83,51 +98,213 @@ fun MultiSelectBar(
     /** Select-all tile (build 199, A4): checks every layer of the current scope. */
     onSelectAll: () -> Unit = {}
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 6.dp, vertical = 4.dp)
-            .glassSurface(RoundedCornerShape(AmCornerPanel), fill = amGlassBrush())
-            .padding(horizontal = 10.dp, vertical = 2.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(32.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                "$selectedCount layers",
-                color = AmTextPrimary,
-                fontSize = 11.5.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1
-            )
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                MiniTile(label = "All", labelColor = AmTextPrimary.copy(alpha = 0.75f), onClick = onSelectAll) { drawSelectAllGlyph() }
-                MiniTile(label = "Delete", labelColor = AmDanger, onClick = onDeleteChecked) { drawTrashGlyph() }
-            }
+    // Build 250 (UI migration stage 3): the bar is drawn on ONE native
+    // GL surface — positions from ChromeGeometry.Multi (the build-249
+    // layout, host-tested), the count and tile labels through the
+    // stage-2 atlas, the drawn glyphs rasterized from their DrawScope
+    // code below into atlas icons (the select-all dash and the boolean
+    // Venn path-ops have no GL equivalent; only the rasters' alpha is
+    // read, the tint supplies the colour — the boolean glyphs' 45%
+    // outline parts survive as coverage). The glass panel is drawn in
+    // GL (flat AmPanel + hairline, the glassSurface rule). Tap targets
+    // stay Compose: invisible boxes at the law's tile rects with
+    // bouncyClickable's contract (ChromePressBox, 0.94). Behaviour and
+    // pixels are build 249's.
+    val m = ChromeGeometry.Multi
+    val density = LocalDensity.current.density
+    val atlas = rememberUiAtlas()
+
+    val countText = "$selectedCount layers"
+    fun resolveAll(): MultiEntries {
+        val glyphW = (m.GLYPH_W_DP * density).roundToInt()
+        val glyphH = (m.GLYPH_H_DP * density).roundToInt()
+        val boolW = (m.BOOL_GLYPH_W_DP * density).roundToInt()
+        val selectAll = atlas.resolveIcon("multi:selectall", glyphW, glyphH) { cv, x, y ->
+            val b = rasterizeDrawBitmap(glyphW, glyphH, density) { drawSelectAllGlyph() }
+            cv.drawBitmap(b, x, y, null)
+            b.recycle()
         }
-        if (showBooleanRow) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(MultiSelectBarBooleanRowHeight),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                BooleanTile(ShapeBooleanOp.UNION, onBooleanAction)
-                BooleanTile(ShapeBooleanOp.SUBTRACT, onBooleanAction)
-                BooleanTile(ShapeBooleanOp.INTERSECT, onBooleanAction)
-                BooleanTile(ShapeBooleanOp.XOR, onBooleanAction)
+        val trash = atlas.resolveIcon("multi:trash", glyphW, glyphH) { cv, x, y ->
+            val b = rasterizeDrawBitmap(glyphW, glyphH, density) { drawTrashGlyph() }
+            cv.drawBitmap(b, x, y, null)
+            b.recycle()
+        }
+        val bools = if (showBooleanRow) ShapeBooleanOp.values().map { op ->
+            atlas.resolveIcon("multi:bool:${op.name}", boolW, glyphH) { cv, x, y ->
+                val b = rasterizeDrawBitmap(boolW, glyphH, density) { drawBooleanGlyph(op) }
+                cv.drawBitmap(b, x, y, null)
+                b.recycle()
+            }
+        } else emptyList()
+        val count = atlas.resolve(countText, UiLabelStyle.MULTI_COUNT)
+        val allLabel = atlas.resolve("All", UiLabelStyle.MINI_LABEL)
+        val deleteLabel = atlas.resolve("Delete", UiLabelStyle.MINI_LABEL)
+        val boolLabels = if (showBooleanRow) ShapeBooleanOp.values().map {
+            atlas.resolve(it.displayName, UiLabelStyle.MINI_LABEL)
+        } else emptyList()
+        return MultiEntries(count, selectAll, trash, allLabel, deleteLabel, bools, boolLabels)
+    }
+    var entries = resolveAll()
+    if (atlas.overflowed) {
+        atlas.reset()
+        entries = resolveAll()
+    }
+    val countTextH = atlas.textHeightPx(UiLabelStyle.MULTI_COUNT)
+    val countAscent = atlas.fontMetrics(UiLabelStyle.MULTI_COUNT).ascent
+    val labelTextH = atlas.textHeightPx(UiLabelStyle.MINI_LABEL)
+    val labelAscent = atlas.fontMetrics(UiLabelStyle.MINI_LABEL).ascent
+
+    // Press scales: All tile, Delete tile, then the boolean tiles.
+    val scales = remember { List(6) { Animatable(1f) } }
+    val scaleValues = scales.map { it.value }
+    val pad = UiLabelAtlas.PAD.toFloat()
+    val tileHDp = (m.tileHeightPx(labelTextH, density) / density).dp
+
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        val widthPx = maxWidth.value * density
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(m.totalHeightDp(showBooleanRow).dp)
+        ) {
+            NativeVectorCanvas(
+                modifier = Modifier.fillMaxSize(),
+                clearArgb = 0,
+                atlas = atlas,
+                drawKey = listOf(entries, showBooleanRow, scaleValues, atlas.generation),
+                buildCmds = { w, h, dd ->
+                    // The glass panel (flat AmPanel + 1 dp hairline,
+                    // the border inside — the dock stroke rule).
+                    run {
+                        val pl = m.panelLeftPx(dd)
+                        val pt = m.panelTopPx(dd)
+                        val pw = m.panelWidthPx(w, dd)
+                        val ph = m.panelHeightPx(showBooleanRow, dd)
+                        addRoundRect(
+                            pl + pw / 2f, pt + ph / 2f,
+                            m.panelFaceWidthPx(w, dd), m.panelFaceHeightPx(showBooleanRow, dd),
+                            m.panelFaceRadiusPx(dd),
+                            AmPanel.toArgb(), m.PANEL_BORDER_DP * dd, AmHairline.toArgb()
+                        )
+                    }
+                    // The count, centred on the first row.
+                    entries.count?.let { e ->
+                        val boxTop = ChromeGeometry.centeredBoxTopPx(m.row1CenterYPx(dd), countTextH)
+                        addText(
+                            e.index, m.contentLeftPx(dd) + e.bearing - pad,
+                            ChromeGeometry.baselinePx(boxTop, countAscent) - e.base,
+                            0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                            tintArgb = AmTextPrimary.toArgb()
+                        )
+                    }
+                    // One labelled tile (glyph over label, centred).
+                    fun drawTile(
+                        tileLeft: Float, centerY: Float, tileWDp: Float, glyphWDp: Float,
+                        glyph: UiLabelAtlas.Entry?, label: UiLabelAtlas.Entry?,
+                        glyphTint: Int, labelTint: Int, s: Float
+                    ) {
+                        val tileTop = m.tileTopPx(centerY, labelTextH, dd)
+                        setScaleAbout(
+                            tileLeft + tileWDp * dd / 2f,
+                            tileTop + m.tileHeightPx(labelTextH, dd) / 2f, s
+                        )
+                        glyph?.let { e ->
+                            addText(
+                                e.index,
+                                m.glyphLeftPx(tileLeft, tileWDp, glyphWDp, dd) - pad,
+                                m.glyphTopPx(tileTop, dd) - pad,
+                                0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                                tintArgb = glyphTint
+                            )
+                        }
+                        label?.let { e ->
+                            addText(
+                                e.index,
+                                m.labelBoxLeftPx(tileLeft, tileWDp, e.advance, dd) + e.bearing - pad,
+                                m.labelTopPx(tileTop, dd) - labelAscent - e.base,
+                                0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                                tintArgb = labelTint
+                            )
+                        }
+                        clearTransform()
+                    }
+                    val row1Y = m.row1CenterYPx(dd)
+                    drawTile(
+                        m.allTileLeftPx(w, dd), row1Y, m.TILE_W_DP, m.GLYPH_W_DP,
+                        entries.selectAll, entries.allLabel,
+                        IconColor.toArgb(), AmTextPrimary.copy(alpha = 0.75f).toArgb(),
+                        scales[0].value
+                    )
+                    drawTile(
+                        m.deleteTileLeftPx(w, dd), row1Y, m.TILE_W_DP, m.GLYPH_W_DP,
+                        entries.trash, entries.deleteLabel,
+                        AmDanger.toArgb(), AmDanger.toArgb(),
+                        scales[1].value
+                    )
+                    if (showBooleanRow) {
+                        val boolY = m.boolRowCenterYPx(dd)
+                        ShapeBooleanOp.values().forEachIndexed { i, _ ->
+                            drawTile(
+                                m.boolTileLeftPx(w, dd, i), boolY, m.BOOL_TILE_W_DP, m.BOOL_GLYPH_W_DP,
+                                entries.bools.getOrNull(i), entries.boolLabels.getOrNull(i),
+                                IconColor.toArgb(), AmTextPrimary.copy(alpha = 0.75f).toArgb(),
+                                scales[2 + i].value
+                            )
+                        }
+                    }
+                }
+            )
+
+            // Tap targets at the law's tile rects, invisible.
+            val tileTop1Dp = (m.tileTopPx(m.row1CenterYPx(density), labelTextH, density) / density).dp
+            ChromePressBox(
+                scales[0], 0.94f, onSelectAll,
+                Modifier
+                    .offset(
+                        x = (m.allTileLeftPx(widthPx, density) / density).dp,
+                        y = tileTop1Dp
+                    )
+                    .width(m.TILE_W_DP.dp)
+                    .height(tileHDp)
+            )
+            ChromePressBox(
+                scales[1], 0.94f, onDeleteChecked,
+                Modifier
+                    .offset(
+                        x = (m.deleteTileLeftPx(widthPx, density) / density).dp,
+                        y = tileTop1Dp
+                    )
+                    .width(m.TILE_W_DP.dp)
+                    .height(tileHDp)
+            )
+            if (showBooleanRow) {
+                val tileTopBDp = (m.tileTopPx(m.boolRowCenterYPx(density), labelTextH, density) / density).dp
+                ShapeBooleanOp.values().forEachIndexed { i, op ->
+                    ChromePressBox(
+                        scales[2 + i], 0.94f, { onBooleanAction(op) },
+                        Modifier
+                            .offset(
+                                x = (m.boolTileLeftPx(widthPx, density, i) / density).dp,
+                                y = tileTopBDp
+                            )
+                            .width(m.BOOL_TILE_W_DP.dp)
+                            .height(tileHDp)
+                    )
+                }
             }
         }
     }
 }
+
+private data class MultiEntries(
+    val count: UiLabelAtlas.Entry?,
+    val selectAll: UiLabelAtlas.Entry?,
+    val trash: UiLabelAtlas.Entry?,
+    val allLabel: UiLabelAtlas.Entry?,
+    val deleteLabel: UiLabelAtlas.Entry?,
+    val bools: List<UiLabelAtlas.Entry?>,
+    val boolLabels: List<UiLabelAtlas.Entry?>
+)
 
 /**
  * Build 211 — NO STICKY TOOL LINES: while the tools panel is open the
@@ -205,67 +382,6 @@ fun multiBarActionTiles(
     }
     return tiles
 }
-
-/**
- * A boolean tile of the third row: a drawn Venn glyph over a small name (the ops are
- * not self-evident as bare icons on first sight; the name is part of the tile, in the
- * bar's bare B/W language — no box, no fill).
- */
-@Composable
-private fun BooleanTile(
-    op: ShapeBooleanOp,
-    onAction: (ShapeBooleanOp) -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .width(48.dp)
-            .bouncyClickable { onAction(op) }
-            .padding(vertical = 2.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Canvas(modifier = Modifier.size(width = 22.dp, height = 16.dp)) { drawBooleanGlyph(op) }
-        Text(
-            op.displayName,
-            color = AmTextPrimary.copy(alpha = 0.75f),
-            fontSize = 7.5.sp,
-            fontWeight = FontWeight.Medium,
-            maxLines = 1
-        )
-    }
-}
-
-/**
- * A labelled mini-tile of the third row (build 199; moved in the build-201
- * regroup): Delete (A11) and Select-all (A4) — actions whose glyph alone would
- * be ambiguous get their name under the glyph, in the bar's bare language.
- * Delete carries the destructive red of the selected-layer bar.
- */
-@Composable
-private fun MiniTile(
-    label: String,
-    labelColor: Color,
-    onClick: () -> Unit,
-    draw: DrawScope.() -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .width(32.dp)
-            .bouncyClickable { onClick() }
-            .padding(vertical = 2.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Canvas(modifier = Modifier.size(width = 20.dp, height = 16.dp)) { draw() }
-        Text(
-            label,
-            color = labelColor,
-            fontSize = 7.5.sp,
-            fontWeight = FontWeight.Medium,
-            maxLines = 1
-        )
-    }
-}
-
-
 
 // ---------------------------------------------------------------------------------------------
 // Icons (drawn, so they match the reference screenshots without extra assets)
