@@ -32,10 +32,11 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.engine.UiLabelStyle
+import com.example.engine.rememberUiAtlas
 import com.example.model.TIMELINE_PX_PER_MS
 import com.example.model.TimescaleGeometry
 import com.example.ui.theme.AmBarSurface
@@ -78,6 +79,16 @@ private val TickSteps = longArrayOf(200L, 500L, 1000L, 2000L, 5000L, 10_000L, 30
  * CPP-UI-MIGRATION-MAP.md). The playhead is read in composition, exactly as
  * the build-247 timecode Text read it, so the GL strip redraws on the same
  * ticks the Canvas did.
+ *
+ * Build 249 (UI migration stage 2): two of the three text runs move into
+ * the GL stream as UI-atlas blits — the playhead timecode as per-digit
+ * blits (its value changes every tick; the digit table is resolved once)
+ * and the total duration as one whole-label blit — placed by
+ * [TimescaleGeometry.timecodeLayout] / [TimescaleGeometry.totalLayout],
+ * which reproduce the old overlays' Compose placement. The layer-pill
+ * label stays a Compose overlay on purpose: the pill is a composite
+ * (background, border, chevron, tap target) and moving only its text
+ * would split one 19 dp pill across two renderers.
  */
 @Composable
 fun TimescaleSection(
@@ -121,6 +132,23 @@ fun TimescaleSection(
         needleArgb = Color.White.toArgb(),
         hairlineArgb = AmHairline.toArgb()
     )
+    // Build 249: the two text runs' atlas entries — the timecode's digit
+    // table (resolved once; the value changes every tick) and the total
+    // duration's whole label. Two-pass on overflow, like the timeline's.
+    val atlas = rememberUiAtlas()
+    fun resolveStripText() = atlas.resolve(formatClock(totalDurationMs), UiLabelStyle.TOTAL) to
+        atlas.digits(UiLabelStyle.TIMECODE)
+    var stripText = resolveStripText()
+    if (atlas.overflowed) {
+        atlas.reset()
+        stripText = resolveStripText()
+    }
+    val (totalEntry, timecodeDigits) = stripText
+    val timecodeMetrics = atlas.fontMetrics(UiLabelStyle.TIMECODE)
+    val totalMetrics = atlas.fontMetrics(UiLabelStyle.TOTAL)
+    val timecodeText = formatTimeCode(currentMs)
+    val timecodeArgb = TextPrimary.toArgb()
+    val totalArgb = AmTextFaint.toArgb()
     BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
@@ -132,9 +160,11 @@ fun TimescaleSection(
         NativeVectorCanvas(
             modifier = Modifier.fillMaxSize(),
             clearArgb = 0,
+            atlas = atlas,
             drawKey = listOf(
                 currentMs, totalDurationMs, pxPerMs, backInset,
-                beatMarksMs, exportInMs, exportOutMs, keyframeTimesMs, tsColors
+                beatMarksMs, exportInMs, exportOutMs, keyframeTimesMs, tsColors,
+                atlas.entryCount, atlas.generation
             ),
             buildCmds = { w, h, density ->
                 val ops = TimescaleGeometry.ops(
@@ -158,6 +188,41 @@ fun TimescaleSection(
                         is TimescaleGeometry.Op.FillPoly ->
                             addFilledPolygon(op.xs, op.ys, op.xs.size, op.argb)
                     }
+                }
+                // Build 249: the two text runs, blitted last (the TEXT
+                // batch flushes on top of the vector batches).
+                if (totalEntry != null) {
+                    val (boxLeft, baseline) = TimescaleGeometry.totalLayout(
+                        widthPx = w, heightPx = h, density = density,
+                        advancePx = totalEntry.advance, descentPx = totalMetrics.descent
+                    )
+                    addText(
+                        entry = totalEntry.index,
+                        dstX = boxLeft + totalEntry.bearing,
+                        dstY = baseline - totalEntry.base,
+                        srcDX = 0f, srcDY = 0f,
+                        srcW = totalEntry.rectW.toFloat(), srcH = totalEntry.rectH.toFloat(),
+                        tintArgb = totalArgb
+                    )
+                }
+                val tcLayout = timecodeDigits?.let {
+                    TimescaleGeometry.timecodeLayout(
+                        widthPx = w, density = density,
+                        advances = it.advances,
+                        ascentPx = timecodeMetrics.ascent,
+                        text = timecodeText
+                    )
+                }
+                if (tcLayout != null && timecodeDigits != null) for (ch in tcLayout.chars) {
+                    val e = atlas.entry(timecodeDigits.indices[ch.charIndex]) ?: continue
+                    addText(
+                        entry = e.index,
+                        dstX = ch.originXPx + e.bearing,
+                        dstY = tcLayout.baselinePx - e.base,
+                        srcDX = 0f, srcDY = 0f,
+                        srcW = e.rectW.toFloat(), srcH = e.rectH.toFloat(),
+                        tintArgb = timecodeArgb
+                    )
                 }
             }
         )
@@ -186,40 +251,9 @@ fun TimescaleSection(
             }
         }
 
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(top = 15.dp)
-                .testTag("playhead_time_pill"),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = formatTimeCode(currentMs),
-                color = TextPrimary,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-                style = androidx.compose.ui.text.TextStyle(fontFeatureSettings = "tnum")
-            )
-        }
-        // The project length: small muted text at the ruler's right end.
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = 6.dp, bottom = 3.dp)
-                .testTag("total_time_pill"),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = formatClock(totalDurationMs),
-                color = AmTextFaint,
-                fontSize = 9.5.sp,
-                fontWeight = FontWeight.Medium,
-                textAlign = TextAlign.Center,
-                maxLines = 1
-            )
-        }
+        // Build 249: the playhead timecode and total duration are atlas
+        // blits inside the GL stream above (they were Compose Text
+        // overlays through build 248; no test referenced their tags).
 
         if (layerCount != null) {
             Row(

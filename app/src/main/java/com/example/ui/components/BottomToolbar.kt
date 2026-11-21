@@ -1,10 +1,6 @@
 package com.example.ui.components
 
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.border
 import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,17 +33,10 @@ import androidx.compose.material.icons.filled.ViewStream
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
@@ -86,6 +75,13 @@ import com.example.ui.util.bouncyClickable
  * replaced); Fx keeps its job — it opens the effects stage, it is not a
  * layer add. Twelve tiles are wider than the screen, so the row scrolls,
  * exactly as the reference's dock does (its overflow-x: auto).
+ *
+ * Build 249 (UI migration stage 2): the scrolling row is now ONE native
+ * GL surface ([DockGlRow] in DockSurface.kt) — tiles, glyphs and labels
+ * drawn from model/DockGeometry's law, the three Material-icon glyphs and
+ * all labels blitted from the UI atlas; invisible Compose boxes keep the
+ * tap targets, testTags and press animation. Same tiles, order, sizes
+ * and actions; [ChainAddPanel] below is untouched.
  */
 @Composable
 fun BottomToolbar(
@@ -119,262 +115,24 @@ fun BottomToolbar(
                 .height(1.dp)
                 .background(AmCardSurface)
         )
-        Row(
+        DockGlRow(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f)
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            DockTile("Video/Photo", "toolbar_media_button", onMediaClick) { DockMediaGlyph() }
-            DockTile("Music", "toolbar_audio_button", onAudioClick) {
-                Icon(
-                    Icons.Default.MusicNote, contentDescription = null,
-                    tint = com.example.ui.theme.RefCtrl, modifier = Modifier.size(15.dp)
-                )
-            }
-            DockTile("Fx", "toolbar_fx_button", onFxClick) { DockFxGlyph() }
-            DockTile("Text", "toolbar_text_button", onTextClick) { DockTextGlyph() }
-            DockTile("Shapes", "toolbar_shapes_button", onShapesClick) { DockShapesGlyph() }
-            DockTile("Sticker", "toolbar_sticker_button", onStickerClick) {
-                Icon(
-                    Icons.Default.SentimentSatisfiedAlt, contentDescription = null,
-                    tint = com.example.ui.theme.RefCtrl, modifier = Modifier.size(15.dp)
-                )
-            }
-            DockTile("Vector", "toolbar_vector_button", onVectorClick) { DockVectorGlyph() }
-            DockTile("Drawing", "toolbar_drawing_button", onDrawingClick) { DockDrawingGlyph() }
-            DockTile("Null", "toolbar_null_button", onNullClick) { DockNullGlyph() }
-            DockTile("3D Camera", "toolbar_camera_button", onCameraClick) {
-                Icon(
-                    Icons.Default.Videocam, contentDescription = null,
-                    tint = com.example.ui.theme.RefCtrl, modifier = Modifier.size(15.dp)
-                )
-            }
-            DockTile("Group", "toolbar_group_button", onGroupClick) { DockGroupGlyph() }
-            DockTile("Chain", "toolbar_chain_button", onChainClick) { DockChainGlyph() }
-        }
-    }
-}
-
-@Composable
-private fun DockTile(
-    label: String,
-    tag: String,
-    onClick: () -> Unit,
-    glyph: @Composable () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .width(36.dp)
-            .bouncyClickable(pressedScale = 0.94f, onClick = onClick)
-            .testTag(tag),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Box(
-            modifier = Modifier
-                .size(36.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(com.example.ui.theme.RefSurface)
-                .border(1.dp, Color.White.copy(alpha = 0.04f), RoundedCornerShape(8.dp)),
-            contentAlignment = Alignment.Center
-        ) {
-            glyph()
-        }
-        Spacer(Modifier.height(2.dp))
-        Text(
-            text = label,
-            color = AmTextDim,
-            fontSize = 9.5.sp,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1
+                .weight(1f),
+            onMediaClick = onMediaClick,
+            onAudioClick = onAudioClick,
+            onFxClick = onFxClick,
+            onTextClick = onTextClick,
+            onShapesClick = onShapesClick,
+            onNullClick = onNullClick,
+            onStickerClick = onStickerClick,
+            onVectorClick = onVectorClick,
+            onDrawingClick = onDrawingClick,
+            onCameraClick = onCameraClick,
+            onGroupClick = onGroupClick,
+            onChainClick = onChainClick
         )
     }
-}
-
-/** The reference's media glyph: a rounded rect with a play triangle. */
-@Composable
-private fun DockMediaGlyph() {
-    NativeVectorCanvas(
-        modifier = Modifier.size(15.dp),
-        drawKey = "dock_media",
-        buildCmds = { w, _, _ ->
-            val u = w / 24f
-            val cArgb = Color(0xFFD4D4D8).toArgb()
-            addRoundRect(
-                cx = 12f * u, cy = 12f * u,
-                width = 18f * u, height = 14f * u,
-                cornerRadius = 4f * u,
-                fillArgb = 0,
-                strokeWidth = 2f * u,
-                strokeArgb = cArgb
-            )
-            addFilledPolygon(
-                floatArrayOf(10.2f * u, 15.2f * u, 10.2f * u),
-                floatArrayOf(9.3f * u, 12f * u, 14.7f * u),
-                3, cArgb
-            )
-        },
-    )
-}
-
-/** The reference's fx glyph: a small grey sparkle and a big white one. */
-@Composable
-private fun DockFxGlyph() {
-    val pts = remember {
-        listOf(
-            0f to -1f, 0.24f to -0.24f, 1f to 0f, 0.24f to 0.24f,
-            0f to 1f, -0.24f to 0.24f, -1f to 0f, -0.24f to -0.24f
-        )
-    }
-    NativeVectorCanvas(
-        modifier = Modifier.size(16.dp),
-        drawKey = "dock_fx",
-        buildCmds = { w, _, _ ->
-            val u = w / 25f
-            fun addStar(cx: Float, cy: Float, r: Float, argb: Int) {
-                val xs = FloatArray(pts.size) { cx + pts[it].first * r }
-                val ys = FloatArray(pts.size) { cy + pts[it].second * r }
-                addFilledPolygon(xs, ys, pts.size, argb)
-            }
-            addStar(8.5f * u, 8.5f * u, 5.5f * u, Color(0xFF71717A).toArgb())
-            addStar(16f * u, 16f * u, 7.5f * u, Color(0xFFF4F4F5).toArgb())
-        },
-    )
-}
-
-/** The reference's text glyph: T strokes. */
-@Composable
-private fun DockTextGlyph() {
-    NativeVectorCanvas(
-        modifier = Modifier.size(15.dp),
-        drawKey = "dock_text",
-        buildCmds = { w, _, _ ->
-            val u = w / 24f
-            val cArgb = Color(0xFFD4D4D8).toArgb()
-            val sw = 2.3f * u
-            addLine(6f * u, 6f * u, 18f * u, 6f * u, sw, cArgb, capRound = true)
-            addLine(12f * u, 6f * u, 12f * u, 18f * u, sw, cArgb, capRound = true)
-            addLine(9.5f * u, 18f * u, 14.5f * u, 18f * u, sw, cArgb, capRound = true)
-        },
-    )
-}
-
-/** The reference's shapes glyph: a grey circle + a white rounded square. */
-@Composable
-private fun DockShapesGlyph() {
-    NativeVectorCanvas(
-        modifier = Modifier.size(16.dp),
-        drawKey = "dock_shapes",
-        buildCmds = { w, _, _ ->
-            val u = w / 25f
-            addCircle(9.8f * u, 9.8f * u, 5.2f * u, Color(0xFF71717A).toArgb())
-            addRoundRect(
-                cx = (9.8f + 5.4f) * u, cy = (9.8f + 5.4f) * u,
-                width = 10.8f * u, height = 10.8f * u,
-                cornerRadius = 2.6f * u,
-                fillArgb = Color(0xFFF4F4F5).toArgb()
-            )
-        },
-    )
-}
-
-/** The reference's null glyph: a centre square + four corner squares. */
-@Composable
-private fun DockNullGlyph() {
-    NativeVectorCanvas(
-        modifier = Modifier.size(16.dp),
-        drawKey = "dock_null",
-        buildCmds = { w, _, _ ->
-            val u = w / 25f
-            val cArgb = Color(0xFFE4E4E7).toArgb()
-            val bgArgb = com.example.ui.theme.RefSurface.toArgb()
-            addRoundRect(12.5f * u, 12.5f * u, 12f * u, 12f * u, 1.5f * u, cArgb)
-            listOf(4f to 4f, 17f to 4f, 4f to 17f, 17f to 17f).forEach { pt ->
-                addRoundRect(
-                    (pt.first + 2f) * u, (pt.second + 2f) * u,
-                    4f * u, 4f * u, 1f * u,
-                    fillArgb = bgArgb, strokeWidth = 1.5f * u, strokeArgb = cArgb
-                )
-            }
-        },
-    )
-}
-
-/** Build 218: the Vector tile's glyph — a node polyline (the Pen tool). */
-@Composable
-private fun DockVectorGlyph() {
-    val pts = remember { listOf(5f to 19f, 10f to 7.5f, 15f to 14.5f, 20f to 6f) }
-    NativeVectorCanvas(
-        modifier = Modifier.size(16.dp),
-        drawKey = "dock_vector",
-        buildCmds = { w, _, _ ->
-            val u = w / 25f
-            val cArgb = Color(0xFFE4E4E7).toArgb()
-            val xs = FloatArray(pts.size) { pts[it].first * u }
-            val ys = FloatArray(pts.size) { pts[it].second * u }
-            addPolyline(xs, ys, pts.size, false, 1.8f * u, cArgb, capRound = true)
-            for (i in pts.indices) addCircle(xs[i], ys[i], 2f * u, cArgb)
-        },
-    )
-}
-
-/** Build 218: the Drawing tile's glyph — a freehand scribble stroke. */
-@Composable
-private fun DockDrawingGlyph() {
-    NativeVectorCanvas(
-        modifier = Modifier.size(16.dp),
-        drawKey = "dock_drawing",
-        buildCmds = { w, _, _ ->
-            val u = w / 25f
-            val cArgb = Color(0xFFE4E4E7).toArgb()
-            val sw = 2f * u
-            addCubic(4f * u, 16f * u, 7f * u, 6f * u, 10.5f * u, 20f * u, 13.5f * u, 10.5f * u, sw, cArgb, capRound = true)
-            addCubic(13.5f * u, 10.5f * u, 15.5f * u, 5.5f * u, 18f * u, 13f * u, 21f * u, 9.5f * u, sw, cArgb, capRound = true)
-        },
-    )
-}
-
-/** Build 218: the Group tile's glyph — two overlapping rounded squares. */
-@Composable
-private fun DockGroupGlyph() {
-    NativeVectorCanvas(
-        modifier = Modifier.size(16.dp),
-        drawKey = "dock_group",
-        buildCmds = { w, _, _ ->
-            val u = w / 25f
-            val c = Color(0xFFE4E4E7)
-            val sw = 1.9f * u
-            addRoundRect(
-                cx = (4f + 6.75f) * u, cy = (4f + 6.75f) * u,
-                width = 13.5f * u, height = 13.5f * u,
-                cornerRadius = 3f * u, fillArgb = 0, strokeWidth = sw, strokeArgb = c.copy(alpha = 0.55f).toArgb()
-            )
-            addRoundRect(
-                cx = (8.5f + 6.25f) * u, cy = (8.5f + 6.25f) * u,
-                width = 12.5f * u, height = 12.5f * u,
-                cornerRadius = 3f * u, fillArgb = 0, strokeWidth = sw, strokeArgb = c.toArgb()
-            )
-        },
-    )
-}
-
-/** Build 218: the Chain tile's glyph — two interlocked rounded links. */
-@Composable
-private fun DockChainGlyph() {
-    NativeVectorCanvas(
-        modifier = Modifier.size(16.dp),
-        drawKey = "dock_chain",
-        buildCmds = { w, _, _ ->
-            val u = w / 25f
-            val cArgb = Color(0xFFE4E4E7).toArgb()
-            val sw = 2f * u
-            addRoundRect((3f + 5.25f) * u, (9.5f + 3.25f) * u, 10.5f * u, 6.5f * u, 3.25f * u, 0, sw, cArgb)
-            addRoundRect((11.5f + 5.25f) * u, (9.5f + 3.25f) * u, 10.5f * u, 6.5f * u, 3.25f * u, 0, sw, cArgb)
-        },
-    )
 }
 
 /**

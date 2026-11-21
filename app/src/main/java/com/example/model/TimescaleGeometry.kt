@@ -18,10 +18,10 @@ package com.example.model
  * sibling in the Compose layout).
  *
  * Build 249 (UI migration stage 2): the strip's timecode and total-duration
- * text runs move from Compose overlays into the GL stream as atlas blits
- * ([Op.Text]); [timecodeLayout] / [totalLayout] below reproduce the two
- * overlays' Compose placement (a TopCenter box under a 15 dp top padding;
- * a BottomEnd box with 6 dp end / 3 dp bottom padding) from the atlas
+ * text runs move from Compose overlays into the GL stream as atlas blits;
+ * [timecodeLayout] / [totalLayout] below reproduce the two overlays'
+ * Compose placement (a TopCenter box under a 15 dp top padding; a
+ * BottomEnd box with 6 dp end / 3 dp bottom padding) from the atlas
  * paints' own metrics. The layer-pill label stays a Compose overlay: the
  * pill is a composite (background, border, chevron, tap target) and only
  * its text moving would split one 19 dp pill across two renderers.
@@ -47,17 +47,6 @@ object TimescaleGeometry {
 
         /** A filled polygon (the keyframe diamonds). */
         data class FillPoly(val xs: FloatArray, val ys: FloatArray, val argb: Int) : Op
-
-        /**
-         * Build 249: one atlas blit — [entry]'s rect top-left lands at
-         * ([dstX], [dstY]); the src sub-rect is entry-relative px;
-         * [dstW]/[dstH] <= 0 draw at natural src size.
-         */
-        data class Text(
-            val entry: Int, val dstX: Float, val dstY: Float,
-            val srcDX: Float, val srcDY: Float, val srcW: Float, val srcH: Float,
-            val dstW: Float, val dstH: Float, val argb: Int
-        ) : Op
     }
 
     /**
