@@ -58,6 +58,7 @@ import kotlin.math.cos
 import kotlin.math.hypot
 import kotlin.math.roundToInt
 import kotlin.math.sin
+import androidx.compose.ui.text.style.TextAlign
 
 /**
  * The point-based Pen tool (build 177 — Sarowar's correction: real vector drawing is
@@ -265,7 +266,7 @@ fun PenToolPanel(
             text = "Tap to place a point — drag after a tap to bend the line. Tap the first point again to close the shape.",
             style = UiLabelStyle.SHEET_DESC,
             colorArgb = AmTextDim.toArgb(),
-            align = GlAlign.Start,
+            align = TextAlign.Start,
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(Modifier.height(7.dp))
@@ -293,7 +294,7 @@ fun PenToolPanel(
             },
             style = UiLabelStyle.TEXT_10,
             colorArgb = AmTextFaint.toArgb(),
-            align = GlAlign.Start,
+            align = TextAlign.Start,
             modifier = Modifier.fillMaxWidth()
         )
     }
@@ -623,7 +624,7 @@ fun NodeEditPanel(
             text = "Drag a point to move it. Drag a round handle to bend the curve. Tap a line to add a point.",
             style = UiLabelStyle.SHEET_DESC,
             colorArgb = AmTextDim.toArgb(),
-            align = GlAlign.Start,
+            align = TextAlign.Start,
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(Modifier.height(6.dp))

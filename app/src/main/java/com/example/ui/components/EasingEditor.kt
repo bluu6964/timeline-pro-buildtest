@@ -48,6 +48,7 @@ import com.example.model.PanelGeometry
 import com.example.model.Easing
 import com.example.ui.util.bouncyClickable
 import kotlin.math.hypot
+import androidx.compose.foundation.layout.height
 
 private val HandleColor = Color(0xFFEA1252)
 private val TileBg = Color(0xFF2E3033)

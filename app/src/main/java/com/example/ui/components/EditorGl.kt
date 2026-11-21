@@ -166,7 +166,7 @@ internal fun GlTextBlock(
     style: UiLabelStyle,
     colorArgb: Int,
     modifier: Modifier = Modifier,
-    align: GlAlign = GlAlign.Center,
+    align: GlAlign = TextAlign.Center,
     /** The Compose lineHeight, when the host Text set one (sp). */
     linePitchSp: Float? = null
 ) {
@@ -215,9 +215,9 @@ internal fun GlTextBlock(
                         if (e != null) {
                             val baseline = PanelGeometry.lineBaselinePx(lineTop, pitch, fm.ascent, fm.descent)
                             val originX = when (align) {
-                                GlAlign.Center -> EditorGeometry.centredOriginPx(w / 2f, e.advance)
-                                GlAlign.Start -> 0f
-                                GlAlign.End -> w - e.advance
+                                TextAlign.Center -> EditorGeometry.centredOriginPx(w / 2f, e.advance)
+                                TextAlign.Start -> 0f
+                                TextAlign.End -> w - e.advance
                             }
                             val (dstX, dstY) = EditorGeometry.textDst(originX, baseline, e.bearing, e.base, pad)
                             addText(
@@ -805,7 +805,12 @@ internal fun GlWidthRow(
         GlSlider(
             value = value,
             onValueChange = onValueChange,
-            valueRange = valueRange,
+            min = valueRange.start,
+            max = valueRange.endInclusive,
+            onValueChangeFinished = null,
+            thumbArgb = 0xFFF4F4F5.toInt(),
+            activeArgb = 0xFFF4F4F5.toInt(),
+            inactiveArgb = 0xFF202026.toInt(),
             modifier = Modifier
                 .weight(1f)
                 .testTag(sliderTag)

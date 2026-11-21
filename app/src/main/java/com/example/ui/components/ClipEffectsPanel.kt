@@ -946,7 +946,7 @@ private fun AppliedFxRow(
             val zone = leftWPx - 10f * density - 23f * density -
                 (if (!fx.enabled) 6f * density + (offEntry?.advance ?: 0f) else 0f)
             if (nameEntry != null && nameEntry.advance > zone) {
-                val shown = ChromeGeometry.ellipsize(def.name, zone, atlas, UiLabelStyle.SHEET_ITEM_SEMI)
+                val shown = ChromeGeometry.ellipsize(def.name, zone) { atlas.measure(it, UiLabelStyle.SHEET_ITEM_SEMI) }
                 if (shown != null && shown != def.name) {
                     atlas.resolve(shown, UiLabelStyle.SHEET_ITEM_SEMI) ?: nameEntry
                 } else {
@@ -1186,7 +1186,7 @@ private fun FxTileLabelGl(name: String, dimmed: Boolean) {
             val wrapped = PanelGeometry.wrapGreedy(name, wPx, Int.MAX_VALUE) { atlas.measure(it, style) }
             val lines = if (wrapped.size > 2) {
                 val rest = name.substring(wrapped[0].length).trimStart()
-                listOf(wrapped[0], ChromeGeometry.ellipsize(rest, wPx, atlas, style) ?: rest)
+                listOf(wrapped[0], ChromeGeometry.ellipsize(rest, wPx) { atlas.measure(it, style) })
             } else {
                 wrapped
             }

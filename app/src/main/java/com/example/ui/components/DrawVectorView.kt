@@ -39,6 +39,7 @@ import com.example.ui.theme.TextPrimary
 import com.example.ui.util.bouncyClickable
 import kotlin.math.hypot
 import kotlin.math.roundToInt
+import androidx.compose.ui.text.style.TextAlign
 
 /**
  * The freehand drawing tool (build 166, item 1): the canvas overlay that captures one
@@ -149,7 +150,7 @@ fun DrawVectorPanel(
             text = "Draw on the picture — one stroke becomes a path layer you can move, colour and effect like any shape.",
             style = UiLabelStyle.SHEET_DESC,
             colorArgb = AmTextDim.toArgb(),
-            align = GlAlign.Start,
+            align = TextAlign.Start,
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(Modifier.height(7.dp))
@@ -199,7 +200,7 @@ fun DrawVectorPanel(
                 text = "Nothing drawn yet",
                 style = UiLabelStyle.TEXT_10,
                 colorArgb = AmTextFaint.toArgb(),
-                align = GlAlign.Start,
+                align = TextAlign.Start,
                 modifier = Modifier.fillMaxWidth()
             )
         }

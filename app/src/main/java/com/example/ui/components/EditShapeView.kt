@@ -109,6 +109,7 @@ import com.example.ui.theme.RulerTickColor
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.ui.util.bouncyClickable
+import kotlin.math.roundToInt
 
 enum class ShapeType(val label: String) {
     WIDE_ROUNDED_RECT("Wide Rect"),
@@ -709,7 +710,7 @@ fun EditShapeView(
                                 text = "Animated corner radius — the radius is keyframed in Alight Motion, so it changes over time.",
                                 style = UiLabelStyle.NOTE_15,
                                 colorArgb = TextSecondary.toArgb(),
-                                align = GlAlign.Start,
+                                align = TextAlign.Start,
                                 modifier = Modifier.fillMaxWidth()
                             )
                             Spacer(modifier = Modifier.height(8.dp))
@@ -739,7 +740,7 @@ fun EditShapeView(
                         text = "Fill Color",
                         style = UiLabelStyle.ED_TEXT_MED,
                         colorArgb = TextPrimary.toArgb(),
-                        align = GlAlign.Start,
+                        align = TextAlign.Start,
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(6.dp))
@@ -789,7 +790,7 @@ fun EditShapeView(
                                 text = "Animated stroke trim — the trim is keyframed in Alight Motion, so it changes over time.",
                                 style = UiLabelStyle.SHEET_ITEM,
                                 colorArgb = TextSecondary.toArgb(),
-                                align = GlAlign.Start,
+                                align = TextAlign.Start,
                                 modifier = Modifier.fillMaxWidth()
                             )
                             Spacer(modifier = Modifier.height(8.dp))
@@ -1127,7 +1128,12 @@ private fun ShapeTransportGl(
         atlas.reset()
         transportEntries = resolveTransport()
     }
-    val (prevEntry, nextEntry, playEntry, pauseEntry, undoEntry, redoEntry) = transportEntries
+    val prevEntry = transportEntries[0]
+    val nextEntry = transportEntries[1]
+    val playEntry = transportEntries[2]
+    val pauseEntry = transportEntries[3]
+    val undoEntry = transportEntries[4]
+    val redoEntry = transportEntries[5]
     val scales = remember { List(3) { androidx.compose.animation.core.Animatable(1f) } }
 
     Box(modifier = modifier) {

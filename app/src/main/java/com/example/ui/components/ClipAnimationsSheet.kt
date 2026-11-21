@@ -99,6 +99,7 @@ import com.example.ui.theme.amCyanVioletBrush
 import com.example.ui.theme.amGlassBrush
 import com.example.ui.util.bouncyClickable
 import kotlin.math.roundToInt
+import androidx.compose.ui.text.style.TextAlign
 
 private const val MAX_SLIDER_MS = 4000L
 
@@ -229,7 +230,7 @@ fun ClipAnimationsPanel(
                         text = if (appliedPreset.id.startsWith("spin")) "Turn" else if (slot == AnimSlot.IN) "From" else "To",
                         style = UiLabelStyle.SHEET_DESC,
                         colorArgb = TextSecondary.toArgb(),
-                        align = GlAlign.Start,
+                        align = TextAlign.Start,
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(Modifier.height(3.dp))
@@ -265,7 +266,8 @@ fun ClipAnimationsPanel(
                         applyAnim(appliedPreset, dir, it.roundToInt().toLong(), easing)
                     },
                     onValueChangeFinished = { onPreview(slot, durMs.toLong()) },
-                    valueRange = ANIM_MIN_MS.toFloat()..sliderMax,
+                    min = ANIM_MIN_MS.toFloat(),
+                    max = sliderMax,
                     thumbArgb = AmCyan.toArgb(),
                     activeArgb = AmCyan.toArgb(),
                     inactiveArgb = EditorSurfaceVariant.toArgb(),
@@ -339,7 +341,7 @@ fun ClipAnimationsPanel(
                 text = "The animation is made of normal keyframes: edit them in Transform, Crop or Blend.",
                 style = UiLabelStyle.TEXT_10,
                 colorArgb = TextSecondary.toArgb(),
-                align = GlAlign.Start,
+                align = TextAlign.Start,
                 modifier = Modifier.fillMaxWidth()
             )
         } else if (!canAnimate) {
@@ -348,7 +350,7 @@ fun ClipAnimationsPanel(
                 text = "This layer is too short for another animation.",
                 style = UiLabelStyle.SHEET_DESC,
                 colorArgb = TextSecondary.toArgb(),
-                align = GlAlign.Start,
+                align = TextAlign.Start,
                 modifier = Modifier.fillMaxWidth()
             )
         }
@@ -819,7 +821,9 @@ private fun CurveChipGl(label: String, easing: Easing?, selected: Boolean, onCli
                         pts[i * 2] = left + x * gw
                         pts[i * 2 + 1] = top + gh - (y - (-0.3f)) / (1.3f - (-0.3f)) * gh
                     }
-                    addPolyline(pts, 25, false, 1.8f * dd, tint)
+                    val pxs = FloatArray(25) { pts[it * 2] }
+                    val pys = FloatArray(25) { pts[it * 2 + 1] }
+                    addPolyline(pxs, pys, 25, false, 1.8f * dd, tint)
                 }
                 if (labelEntry != null) {
                     val textH = atlas.textHeightPx(labelStyle)

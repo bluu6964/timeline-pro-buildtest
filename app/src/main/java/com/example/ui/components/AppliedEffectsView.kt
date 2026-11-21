@@ -102,6 +102,7 @@ import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.ui.util.bouncyClickable
 import java.util.UUID
+import kotlin.math.roundToInt
 
 enum class AppliedEffectsScreenMode {
     LIST,         // Shows Add effect button & applied list / empty text (Images 1 & 3)
@@ -550,7 +551,6 @@ fun AppliedEffectsView(
                 Spacer(modifier = Modifier.height(10.dp))
             }
         }
-        }
     }
 }
 
@@ -681,7 +681,12 @@ private fun AevTransportGl(
         atlas.reset()
         transportEntries = resolveTransport()
     }
-    val (prevEntry, nextEntry, playEntry, pauseEntry, undoEntry, redoEntry) = transportEntries
+    val prevEntry = transportEntries[0]
+    val nextEntry = transportEntries[1]
+    val playEntry = transportEntries[2]
+    val pauseEntry = transportEntries[3]
+    val undoEntry = transportEntries[4]
+    val redoEntry = transportEntries[5]
     val scales = remember { List(3) { androidx.compose.animation.core.Animatable(1f) } }
 
     Box(modifier = modifier) {
@@ -1014,7 +1019,7 @@ private fun AevRowGl(
         val shownNameEntry = run {
             val zone = eyeLeft - 38f * density
             if (nameEntry != null && nameEntry.advance > zone) {
-                val shown = ChromeGeometry.ellipsize(name, zone, atlas, UiLabelStyle.AEV_NAME)
+                val shown = ChromeGeometry.ellipsize(name, zone) { atlas.measure(it, UiLabelStyle.AEV_NAME) }
                 if (shown != null && shown != name) {
                     atlas.resolve(shown, UiLabelStyle.AEV_NAME) ?: nameEntry
                 } else {
@@ -1231,7 +1236,7 @@ private fun AevCardLabelGl(name: String) {
             val wrapped = PanelGeometry.wrapGreedy(name, wPx, Int.MAX_VALUE) { atlas.measure(it, style) }
             val lines = if (wrapped.size > 2) {
                 val rest = name.substring(wrapped[0].length).trimStart()
-                listOf(wrapped[0], ChromeGeometry.ellipsize(rest, wPx, atlas, style) ?: rest)
+                listOf(wrapped[0], ChromeGeometry.ellipsize(rest, wPx) { atlas.measure(it, style) })
             } else {
                 wrapped
             }

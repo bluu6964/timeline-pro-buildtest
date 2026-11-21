@@ -879,7 +879,12 @@ private fun CropTransportGl(
         atlas.reset()
         transportEntries = resolveTransport()
     }
-    val (prevEntry, nextEntry, playEntry, pauseEntry, undoEntry, redoEntry) = transportEntries
+    val prevEntry = transportEntries[0]
+    val nextEntry = transportEntries[1]
+    val playEntry = transportEntries[2]
+    val pauseEntry = transportEntries[3]
+    val undoEntry = transportEntries[4]
+    val redoEntry = transportEntries[5]
     val scales = remember { List(5) { androidx.compose.animation.core.Animatable(1f) } }
 
     Box(modifier = modifier) {

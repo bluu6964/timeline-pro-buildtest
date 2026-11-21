@@ -51,6 +51,7 @@ import com.example.ui.theme.AmTextDim
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import kotlin.math.roundToInt
+import androidx.compose.ui.text.style.TextAlign
 
 /** Width / height of the layer's picture (the mask boxes are square in pixels, so the panel must know it). */
 /**
@@ -118,7 +119,7 @@ fun ClipMasksPanel(
                 style = UiLabelStyle.ED_TEXT,
                 colorArgb = TextPrimary.toArgb(),
                 modifier = Modifier.fillMaxWidth(),
-                align = GlAlign.Start
+                align = TextAlign.Start
             )
             Spacer(Modifier.height(6.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -135,7 +136,7 @@ fun ClipMasksPanel(
             style = UiLabelStyle.MICRO,
             colorArgb = AmTextDim.toArgb(),
             modifier = Modifier.fillMaxWidth(),
-            align = GlAlign.Start
+            align = TextAlign.Start
         )
         Spacer(Modifier.height(4.dp))
         MaskTileStrip(onTile = { id ->
@@ -162,7 +163,7 @@ fun ClipMasksPanel(
             style = UiLabelStyle.MICRO,
             colorArgb = AmTextDim.toArgb(),
             modifier = Modifier.fillMaxWidth(),
-            align = GlAlign.Start
+            align = TextAlign.Start
         )
         Spacer(Modifier.height(4.dp))
         if (masks.isEmpty()) {
@@ -171,7 +172,7 @@ fun ClipMasksPanel(
                 style = UiLabelStyle.ED_TEXT,
                 colorArgb = TextSecondary.toArgb(),
                 modifier = Modifier.fillMaxWidth(),
-                align = GlAlign.Start
+                align = TextAlign.Start
             )
         }
         masks.forEachIndexed { idx, m ->
@@ -219,7 +220,7 @@ fun ClipMasksPanel(
                 style = UiLabelStyle.MICRO,
                 colorArgb = AmTextDim.toArgb(),
                 modifier = Modifier.fillMaxWidth(),
-                align = GlAlign.Start
+                align = TextAlign.Start
             )
             Spacer(Modifier.height(6.dp))
             Row(
@@ -227,9 +228,9 @@ fun ClipMasksPanel(
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 MaskMode.names.forEach { (mode, label) ->
-                    GlChip(label, selected.mode == mode, tag = "mask_mode_$mode") { replace(selected.copy(mode = mode)) }
+                    GlChip(label, selected.mode == mode, tag = "mask_mode_$mode", onClick = { replace(selected.copy(mode = mode)) })
                 }
-                GlChip("Invert", selected.inverted, tag = "mask_invert") { replace(selected.copy(inverted = !selected.inverted)) }
+                GlChip("Invert", selected.inverted, tag = "mask_invert", onClick = { replace(selected.copy(inverted = !selected.inverted)) })
             }
             Spacer(Modifier.height(8.dp))
 
@@ -258,17 +259,17 @@ fun ClipMasksPanel(
                     style = UiLabelStyle.SHEET_DESC,
                     colorArgb = TextSecondary.toArgb(),
                     modifier = Modifier.width(66.dp),
-                    align = GlAlign.Start
+                    align = TextAlign.Start
                 )
                 Row(
                     modifier = Modifier.horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    GlChip(if (tr == null) "Track object" else "Track again", tr != null, tag = "mask_track") { onTrackMask(selected.id) }
+                    GlChip(if (tr == null) "Track object" else "Track again", tr != null, tag = "mask_track", onClick = { onTrackMask(selected.id) })
                     if (tr != null) {
-                        GlChip("Rotate", tr.followRotation, tag = "mask_track_rot") { replace(selected.copy(track = tr.withFollow(!tr.followRotation, tr.followScale))) }
-                        GlChip("Scale", tr.followScale, tag = "mask_track_scale") { replace(selected.copy(track = tr.withFollow(tr.followRotation, !tr.followScale))) }
-                        GlChip("Clear", false, tag = "mask_track_clear") { replace(selected.copy(track = null)) }
+                        GlChip("Rotate", tr.followRotation, tag = "mask_track_rot", onClick = { replace(selected.copy(track = tr.withFollow(!tr.followRotation, tr.followScale))) })
+                        GlChip("Scale", tr.followScale, tag = "mask_track_scale", onClick = { replace(selected.copy(track = tr.withFollow(tr.followRotation, !tr.followScale))) })
+                        GlChip("Clear", false, tag = "mask_track_clear", onClick = { replace(selected.copy(track = null)) })
                     }
                 }
             }
@@ -299,7 +300,7 @@ fun ClipMasksPanel(
                 }
                 MaskShape.PATH -> {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 6.dp)) {
-                        GlChip("Smooth curve", selected.smooth, tag = "mask_smooth") { replace(selected.copy(smooth = !selected.smooth)) }
+                        GlChip("Smooth curve", selected.smooth, tag = "mask_smooth", onClick = { replace(selected.copy(smooth = !selected.smooth)) })
                         GlChip(
                             "Delete point", false,
                             enabled = selectedPoint in selected.points.indices && selected.points.size > ClipMaskLibrary.MIN_POINTS,
@@ -313,7 +314,7 @@ fun ClipMasksPanel(
                         modifier = Modifier
                             .padding(top = 4.dp)
                             .fillMaxWidth(),
-                        align = GlAlign.Start
+                        align = TextAlign.Start
                     )
                 }
             }
@@ -433,7 +434,9 @@ private fun MaskTileStrip(onTile: (String) -> Unit) {
                                 mapped[k] = glyphLeft + seg.pts[k] * glyphSize
                                 mapped[k + 1] = glyphTop + seg.pts[k + 1] * glyphSize
                             }
-                            addPolyline(mapped, seg.pts.size / 2, seg.closed, seg.strokeW, seg.argb)
+                            val mxs = FloatArray(seg.pts.size / 2) { mapped[it * 2] }
+                            val mys = FloatArray(seg.pts.size / 2) { mapped[it * 2 + 1] }
+                            addPolyline(mxs, mys, seg.pts.size / 2, seg.closed, seg.strokeW, seg.argb)
                         }
                         labels[i]?.let { e ->
                             val textH = atlas.textHeightPx(labelStyle)
@@ -544,7 +547,7 @@ private fun MaskRowGl(
                 val modeAdv = modeEntry?.advance ?: 0f
                 val maxW = wPx - 104f * density - modeAdv
                 if (nameEntry != null && nameEntry.advance > maxW) {
-                    val shown = ChromeGeometry.ellipsize(name, maxW, atlas, nameStyle)
+                    val shown = ChromeGeometry.ellipsize(name, maxW) { atlas.measure(it, nameStyle) }
                     if (shown != null && shown != name) atlas.resolve(shown, nameStyle) ?: nameEntry else nameEntry
                 } else {
                     nameEntry
@@ -736,7 +739,7 @@ private fun MaskAnimateRowGl(
                 if (filled) {
                     addFilledPolygon(xs, ys, xs.size, dArgb)
                 } else {
-                    addPolyline(poly, xs.size, true, 2.2f, dArgb)
+                    addPolyline(xs, ys, xs.size, true, 2.2f, dArgb)
                 }
                 clearTransform()
             }
