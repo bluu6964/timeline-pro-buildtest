@@ -691,11 +691,20 @@ fun ExportModalDialog(
 
                 when {
                     isCompleted -> {
-                        Text("Export Complete!", color = TextPrimary, fontSize = 22.sp,
-                            fontWeight = FontWeight.Black)
+                        // Build 253 (stage 6): the complete page's texts
+                        // and the Share pill draw in GL; Done is the
+                        // (already GL) PillActionButton.
+                        GlLabelLine(
+                            "Export Complete!", UiLabelStyle.TEXT_22_BLACK, TextPrimary.toArgb(),
+                            Modifier.fillMaxWidth(),
+                            align = androidx.compose.ui.text.style.TextAlign.Center
+                        )
                         Spacer(modifier = Modifier.height(6.dp))
-                        Text(savedToLabel, color = TextSecondary,
-                            fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                        GlTextBlock(
+                            savedToLabel, UiLabelStyle.TEXT_12_MED, TextSecondary.toArgb(),
+                            Modifier.fillMaxWidth(),
+                            align = androidx.compose.ui.text.style.TextAlign.Center
+                        )
                         Spacer(modifier = Modifier.height(18.dp))
                         // Pill actions (build 209, the redesign language): Done is the
                         // white pill, Share the filled grey pill — same row, same weights.
@@ -707,27 +716,16 @@ fun ExportModalDialog(
                                 contentColor = AmInk,
                                 modifier = Modifier.weight(1f).height(40.dp)
                             )
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(40.dp)
-                                    .clip(CircleShape)
-                                    .background(com.example.ui.theme.AmPanelElevated, CircleShape)
-                                    .bouncyClickable(pressedScale = 0.94f, onClick = onShare),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.Share, contentDescription = null,
-                                        tint = TextPrimary, modifier = Modifier.size(14.dp))
-                                    Spacer(modifier = Modifier.width(5.dp))
-                                    Text("Share", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
-                                }
-                            }
+                            SharePillGl(
+                                onClick = onShare,
+                                modifier = Modifier.weight(1f).height(40.dp)
+                            )
                         }
                     }
                     isExporting -> {
                         // Build 223: the progress ring in the unified language — a lime
                         // arc on the elevated-surface track, the % centred inside.
+                        // Build 253: the % and the two lines under it draw in GL.
                         Box(
                             modifier = Modifier.size(134.dp).testTag("export_progress_ring"),
                             contentAlignment = Alignment.Center
@@ -758,21 +756,26 @@ fun ExportModalDialog(
                                     }
                                 },
                             )
-                            Text(
-                                "${(progress * 100).toInt()}%", color = TextPrimary, fontSize = 30.sp,
-                                fontWeight = FontWeight.Black
+                            GlTextLine(
+                                "${(progress * 100).toInt()}%",
+                                UiLabelStyle.TEXT_30_BLACK,
+                                TextPrimary.toArgb(),
+                                Modifier.fillMaxSize(),
+                                align = androidx.compose.ui.text.style.TextAlign.Center
                             )
                         }
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text(
+                        GlLabelLine(
                             "Remaining time approximately ${formatRemaining(remainingMs)}",
-                            color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            UiLabelStyle.TEXT_13_SEMI, TextPrimary.toArgb(),
+                            Modifier.fillMaxWidth(),
+                            align = androidx.compose.ui.text.style.TextAlign.Center
                         )
-                        Text(
+                        GlTextBlock(
                             "Please do not exit the application or lock the screen",
-                            color = TextSecondary, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            UiLabelStyle.SEMI_125, TextSecondary.toArgb(),
+                            Modifier.fillMaxWidth(),
+                            align = androidx.compose.ui.text.style.TextAlign.Center
                         )
                     }
                 }
@@ -781,21 +784,128 @@ fun ExportModalDialog(
             }
 
             // Bottom pill tab with X: cancels a running export, otherwise closes the screen.
+            // Build 253: the tab draws in GL; a transparent clickable
+            // overlay keeps the stock ripple, tag and semantics.
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .navigationBarsPadding()
                     .width(74.dp)
                     .height(44.dp)
-                    .clip(CircleShape)
-                    .background(com.example.ui.theme.AmPanelElevated, CircleShape) // build 223: unified elevated surface
-                    .clickable { if (isExporting) onCancel() else onDismiss() }
-                    .testTag("export_close"),
-                contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.Close, contentDescription = "Close", tint = TextPrimary, modifier = Modifier.size(20.dp))
+                val closePainter = rememberVectorPainter(Icons.Default.Close)
+                val density = LocalDensity.current.density
+                val atlas = rememberUiAtlas()
+                val closePx = (20f * density).roundToInt()
+                fun resolveClose() =
+                    atlas.iconEntry("export:close", closePainter, closePx, density)
+                var closeE = resolveClose()
+                if (atlas.overflowed) {
+                    atlas.reset()
+                    closeE = resolveClose()
+                }
+                val ce = closeE
+                NativeVectorCanvas(
+                    modifier = Modifier.fillMaxSize(),
+                    clearArgb = 0,
+                    atlas = atlas,
+                    drawKey = listOf(ce, atlas.generation),
+                    buildCmds = { w, h, _ ->
+                        addRoundRect(
+                            w / 2f, h / 2f, w, h, h / 2f,
+                            com.example.ui.theme.AmPanelElevated.toArgb()
+                        )
+                        ce?.let { e ->
+                            addText(
+                                e.index,
+                                w / 2f - e.rectW / 2f, h / 2f - e.rectH / 2f,
+                                0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                                tintArgb = TextPrimary.toArgb()
+                            )
+                        }
+                    }
+                )
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .clip(CircleShape)
+                        .clickable { if (isExporting) onCancel() else onDismiss() }
+                        .testTag("export_close")
+                        .semantics { contentDescription = "Close" }
+                )
             }
         }
+    }
+}
+
+/**
+ * Build 253 (stage 6): the export-complete Share pill on one GL
+ * surface — the AmPanelElevated capsule (unscaled: it sat outside
+ * bouncyClickable's graphicsLayer) with the icon + label press-scaled
+ * about the centre, exactly like the build-252 Row inside the pill.
+ */
+@Composable
+private fun SharePillGl(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val sharePainter = rememberVectorPainter(Icons.Default.Share)
+    val density = LocalDensity.current.density
+    val atlas = rememberUiAtlas()
+    val pad = UiLabelAtlas.PAD.toFloat()
+    val textH = atlas.textHeightPx(UiLabelStyle.TEXT_125_BOLD)
+    fun resolveShare(): Pair<UiLabelAtlas.Entry?, UiLabelAtlas.Entry?> {
+        val t = atlas.resolve("Share", UiLabelStyle.TEXT_125_BOLD)
+        val iconPx = (14f * density).roundToInt()
+        val i = atlas.iconEntry("export:share", sharePainter, iconPx, density)
+        return t to i
+    }
+    var entries = resolveShare()
+    if (atlas.overflowed) {
+        atlas.reset()
+        entries = resolveShare()
+    }
+    val (textE, iconE) = entries
+    val scale = remember { Animatable(1f) }
+
+    Box(modifier = modifier) {
+        NativeVectorCanvas(
+            modifier = Modifier.fillMaxSize(),
+            clearArgb = 0,
+            atlas = atlas,
+            drawKey = listOf(textE, iconE, scale.value, atlas.generation),
+            buildCmds = { w, h, dd ->
+                addRoundRect(w / 2f, h / 2f, w, h, h / 2f, com.example.ui.theme.AmPanelElevated.toArgb())
+                setScaleAbout(w / 2f, h / 2f, scale.value)
+                val adv = textE?.advance ?: 0f
+                val iconW = iconE?.rectW?.toFloat() ?: 0f
+                val totalW = iconW + 5f * dd + adv
+                var x = (w - totalW) / 2f
+                iconE?.let { e ->
+                    addText(
+                        e.index, x, h / 2f - e.rectH / 2f,
+                        0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                        tintArgb = TextPrimary.toArgb()
+                    )
+                    x += e.rectW + 5f * dd
+                }
+                textE?.let { e ->
+                    val style = UiLabelStyle.TEXT_125_BOLD
+                    val fm = atlas.fontMetrics(style)
+                    val top = EditorGeometry.centredTextTopPx(0f, h, textH)
+                    val baseline = PanelGeometry.lineBaselinePx(top, textH, fm.ascent, fm.descent)
+                    val (dstX, dstY) = EditorGeometry.textDst(x - pad, baseline, e.bearing, e.base, pad)
+                    addText(
+                        e.index, dstX, dstY,
+                        0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                        tintArgb = TextPrimary.toArgb()
+                    )
+                }
+                clearTransform()
+            }
+        )
+        ChromePressBox(
+            scale, 0.94f, onClick,
+            Modifier.fillMaxSize(),
+            description = "Share"
+        )
     }
 }
 
@@ -838,9 +948,10 @@ private fun ColumnScope.ExportSettingsPage(
     ) {
         Spacer(modifier = Modifier.height(2.dp))
         ExportBadge(modifier = Modifier.fillMaxWidth().height(92.dp))
-        Text(
-            "Export settings", color = TextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(top = 2.dp)
+        // Build 253: the page title draws in GL.
+        GlLabelLine(
+            "Export settings", UiLabelStyle.TITLE_17, TextPrimary.toArgb(),
+            Modifier.padding(top = 2.dp)
         )
 
         ExportCard(
@@ -939,8 +1050,8 @@ private fun ColumnScope.ExportSettingsPage(
                     tag = "export_bitrate_slider"
                 ) { onBitrateChange(((it / 100f).toInt() * 100).coerceIn(500, 50_000)) }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("0.5 Mbps", color = TextTertiary, fontSize = 11.sp)
-                    Text("50 Mbps", color = TextTertiary, fontSize = 11.sp)
+                    GlLabelLine("0.5 Mbps", UiLabelStyle.TEXT_11, TextTertiary.toArgb())
+                    GlLabelLine("50 Mbps", UiLabelStyle.TEXT_11, TextTertiary.toArgb())
                 }
             }
         }
@@ -959,40 +1070,47 @@ private fun ColumnScope.ExportSettingsPage(
     Spacer(modifier = Modifier.height(54.dp))
 }
 
+/**
+ * Build 253 (stage 6): the export card is a GlPanelBody (the AmPanel
+ * fill + AmHairline ring drawn in GL) with its header texts as GL
+ * leaves; the card content (chips/sliders) is GL too.
+ */
 @Composable
 private fun ExportCard(title: String, value: String, hint: String, content: @Composable ColumnScope.() -> Unit) {
-    val cardShape = RoundedCornerShape(AmCornerCard)
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(cardShape)
-            .background(AmPanel)
-            .border(1.dp, AmHairline, cardShape)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+    GlPanelBody(
+        modifier = Modifier.fillMaxWidth(),
+        cornerDp = AmCornerCard.value,
+        fillArgb = AmPanel.toArgb(),
+        borderArgb = AmHairline.toArgb()
     ) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text(title, color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                Text(hint, color = TextTertiary, fontSize = 10.sp)
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    GlLabelLine(title, UiLabelStyle.TEXT_13_SEMI, TextPrimary.toArgb())
+                    GlLabelLine(hint, UiLabelStyle.TEXT_10, TextTertiary.toArgb())
+                }
+                GlLabelLine(value, UiLabelStyle.TEXT_145_BOLD, com.example.ui.theme.AmAccent.toArgb())
             }
-            Text(value, color = com.example.ui.theme.AmAccent, fontSize = 14.5.sp, fontWeight = FontWeight.Bold)
+            content()
         }
-        content()
     }
 }
 
+/** Build 253: the export slider is the stage-5 GlSlider with the lime palette. */
 @Composable
 private fun ExportSlider(value: Float, range: ClosedFloatingPointRange<Float>, tag: String, onChange: (Float) -> Unit) {
-    androidx.compose.material3.Slider(
+    GlSlider(
         value = value.coerceIn(range.start, range.endInclusive),
         onValueChange = onChange,
-        valueRange = range,
-        colors = androidx.compose.material3.SliderDefaults.colors(
-            thumbColor = com.example.ui.theme.AmAccent,
-            activeTrackColor = com.example.ui.theme.AmAccent,
-            inactiveTrackColor = com.example.ui.theme.AmPanelElevated
-        ),
+        min = range.start,
+        max = range.endInclusive,
+        onValueChangeFinished = null,
+        thumbArgb = com.example.ui.theme.AmAccent.toArgb(),
+        activeArgb = com.example.ui.theme.AmAccent.toArgb(),
+        inactiveArgb = com.example.ui.theme.AmPanelElevated.toArgb(),
         modifier = Modifier.fillMaxWidth().testTag(tag)
     )
 }
@@ -1006,24 +1124,25 @@ private fun ExportChipRow(content: @Composable androidx.compose.foundation.layou
     )
 }
 
+/** Build 253: the export chip is the stage-5 GlChip (30dp min height, 11dp side padding). */
 @Composable
 private fun ExportChip(text: String, selected: Boolean, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .heightIn(min = 30.dp)
-            .clip(CircleShape)
-            .background(if (selected) com.example.ui.theme.AmAccent else com.example.ui.theme.AmPanelElevated, CircleShape)
-            .bouncyClickable(pressedScale = 0.94f) { onClick() }
-            .padding(horizontal = 11.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = text,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = if (selected) AmInk else TextPrimary // build 223: ink on the lime chip
-        )
-    }
+    GlChip(
+        label = text,
+        selected = selected,
+        tag = "",
+        onClick = onClick,
+        padHDp = 11f,
+        padVDp = 0f,
+        pressScale = 0.94f,
+        styleOn = UiLabelStyle.TEXT_11_SEMI,
+        styleOff = UiLabelStyle.TEXT_11_SEMI,
+        fillOnArgb = com.example.ui.theme.AmAccent.toArgb(),
+        fillOffArgb = com.example.ui.theme.AmPanelElevated.toArgb(),
+        textOnArgb = AmInk.toArgb(), // build 223: ink on the lime chip
+        textOffArgb = TextPrimary.toArgb(),
+        minHDp = 30f
+    )
 }
 
 
@@ -1032,6 +1151,13 @@ private fun ExportChip(text: String, selected: Boolean, onClick: () -> Unit) {
  * in the middle, plus a big faint ring of text around it. Both rings turn slowly
  * (opposite directions). Build 223 restyled it onto the unified tokens and the
  * current app name (the build-220 rename had missed this Canvas-drawn artwork).
+ *
+ * Build 253 (stage 6): DELIBERATELY NOT migrated — the two rings are
+ * text laid out on a circular path (nativeCanvas drawTextOnPath) under
+ * continuous rotation; the GL command set has no text-on-path command
+ * and the label atlas blits axis-aligned rects only, so the rings
+ * cannot cross faithfully. The wavy seal itself is already drawn by
+ * NativeVectorCanvas. Documented in the final remaining-UI inventory.
  */
 @Composable
 private fun ExportBadge(modifier: Modifier = Modifier) {
@@ -1703,6 +1829,9 @@ fun FullscreenPlayerModal(
             )
 
             // Top Bar Overlay
+            // Build 253 (stage 6): both pills draw on GL surfaces;
+            // the exit pill keeps a transparent clickable overlay
+            // (stock ripple + the testTag).
             Row(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
@@ -1711,47 +1840,149 @@ fun FullscreenPlayerModal(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "${formatTimeCode(currentPlayheadMs)} / ${formatTimeCode(totalDurationMs)}",
-                    color = Color.White,
-                    fontSize = 11.5.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier
-                        .clip(CircleShape)
-                        .background(Color.Black.copy(alpha = 0.5f), CircleShape)
-                        .padding(horizontal = 10.dp, vertical = 5.dp)
-                )
+                val fsDensity = LocalDensity.current.density
+                val fsAtlas = rememberUiAtlas()
+                val fsPad = UiLabelAtlas.PAD.toFloat()
+                val timecodeText = "${formatTimeCode(currentPlayheadMs)} / ${formatTimeCode(totalDurationMs)}"
+                val tcStyle = UiLabelStyle.ED_TEXT_SEMI
+                val tcH = fsAtlas.textHeightPx(tcStyle)
+                fun resolveTc() = fsAtlas.resolve(timecodeText, tcStyle)
+                var tcE = resolveTc()
+                val exitStyle = UiLabelStyle.SMALL_BOLD
+                val exitH = fsAtlas.textHeightPx(exitStyle)
+                fun resolveExit() = fsAtlas.resolve("Exit Fullscreen", exitStyle)
+                var exitE = resolveExit()
+                if (fsAtlas.overflowed) {
+                    fsAtlas.reset()
+                    tcE = resolveTc()
+                    exitE = resolveExit()
+                }
+                val tcEntry = tcE
+                val exitEntry = exitE
+                val tcSize = SheetGeometry.FullscreenPill.timecodeSizePx(tcEntry?.advance ?: 0f, tcH, fsDensity)
+                Box(
+                    Modifier
+                        .width((tcSize.first / fsDensity).dp)
+                        .height((tcSize.second / fsDensity).dp)
+                ) {
+                    NativeVectorCanvas(
+                        modifier = Modifier.fillMaxSize(),
+                        clearArgb = 0,
+                        atlas = fsAtlas,
+                        drawKey = listOf(tcEntry, fsAtlas.generation),
+                        buildCmds = { w, h, _ ->
+                            addRoundRect(w / 2f, h / 2f, w, h, h / 2f, 0x80000000.toInt())
+                            tcEntry?.let { e ->
+                                val fm = fsAtlas.fontMetrics(tcStyle)
+                                val top = EditorGeometry.centredTextTopPx(0f, h, tcH)
+                                val baseline = PanelGeometry.lineBaselinePx(top, tcH, fm.ascent, fm.descent)
+                                val originX = EditorGeometry.centredOriginPx(w / 2f, e.advance)
+                                val (dstX, dstY) = EditorGeometry.textDst(originX, baseline, e.bearing, e.base, fsPad)
+                                addText(
+                                    e.index, dstX, dstY,
+                                    0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                                    tintArgb = 0xFFFFFFFF.toInt()
+                                )
+                            }
+                        }
+                    )
+                }
                 // Build 217 (the reference's fullscreen overlay): the
                 // "Exit Fullscreen" pill — dark glass fill, white-at-15%
                 // border, r10 — at the top right.
+                val exitSize = SheetGeometry.FullscreenPill.exitSizePx(exitEntry?.advance ?: 0f, exitH, fsDensity)
                 Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Color(0xFF202026).copy(alpha = 0.85f))
-                        .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
-                        .clickable(onClick = onDismiss)
-                        .padding(horizontal = 11.dp, vertical = 6.dp)
-                        .testTag("fullscreen_exit_button"),
-                    contentAlignment = Alignment.Center
+                    Modifier
+                        .width((exitSize.first / fsDensity).dp)
+                        .height((exitSize.second / fsDensity).dp)
                 ) {
-                    Text("Exit Fullscreen", color = Color.White, fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
+                    NativeVectorCanvas(
+                        modifier = Modifier.fillMaxSize(),
+                        clearArgb = 0,
+                        atlas = fsAtlas,
+                        drawKey = listOf(exitEntry, fsAtlas.generation),
+                        buildCmds = { w, h, dd ->
+                            addRoundRect(
+                                w / 2f, h / 2f, w, h,
+                                SheetGeometry.FullscreenPill.EXIT_CORNER_DP * dd,
+                                0xD9202026.toInt()
+                            )
+                            addRoundRect(
+                                w / 2f, h / 2f, w - 1f * dd, h - 1f * dd,
+                                SheetGeometry.FullscreenPill.EXIT_CORNER_DP * dd - 0.5f * dd,
+                                0, 1f * dd, 0x26FFFFFF
+                            )
+                            exitEntry?.let { e ->
+                                val fm = fsAtlas.fontMetrics(exitStyle)
+                                val top = EditorGeometry.centredTextTopPx(0f, h, exitH)
+                                val baseline = PanelGeometry.lineBaselinePx(top, exitH, fm.ascent, fm.descent)
+                                val originX = EditorGeometry.centredOriginPx(w / 2f, e.advance)
+                                val (dstX, dstY) = EditorGeometry.textDst(originX, baseline, e.bearing, e.base, fsPad)
+                                addText(
+                                    e.index, dstX, dstY,
+                                    0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                                    tintArgb = 0xFFFFFFFF.toInt()
+                                )
+                            }
+                        }
+                    )
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable(onClick = onDismiss)
+                            .testTag("fullscreen_exit_button")
+                            .semantics { contentDescription = "Exit Fullscreen" }
+                    )
                 }
             }
 
-            // Bottom Play Overlay
-            IconButton(
-                onClick = onTogglePlay,
+            // Bottom Play Overlay — build 253: the disc + glyph draw in
+            // GL. The build-252 IconButton had no press scale (ripple
+            // only); the press box uses 1.0 so only the tap remains.
+            Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 24.dp)
                     .size(44.dp)
-                    .background(Color.Black.copy(alpha = 0.5f), CircleShape)
             ) {
-                Icon(
-                    imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                    contentDescription = "Play/Pause",
-                    tint = Color.White,
-                    modifier = Modifier.size(28.dp)
+                val playPainter = rememberVectorPainter(
+                    if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow
+                )
+                val density = LocalDensity.current.density
+                val atlas = rememberUiAtlas()
+                val iconPx = (28f * density).roundToInt()
+                fun resolvePlay() = atlas.iconEntry(
+                    if (isPlaying) "fs:pause" else "fs:play", playPainter, iconPx, density
+                )
+                var playE = resolvePlay()
+                if (atlas.overflowed) {
+                    atlas.reset()
+                    playE = resolvePlay()
+                }
+                val pe = playE
+                val playScale = remember { Animatable(1f) }
+                NativeVectorCanvas(
+                    modifier = Modifier.fillMaxSize(),
+                    clearArgb = 0,
+                    atlas = atlas,
+                    drawKey = listOf(pe, isPlaying, atlas.generation),
+                    buildCmds = { w, h, _ ->
+                        addCircle(w / 2f, h / 2f, w / 2f, 0x80000000.toInt())
+                        pe?.let { e ->
+                            addText(
+                                e.index,
+                                w / 2f - e.rectW / 2f, h / 2f - e.rectH / 2f,
+                                0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                                tintArgb = 0xFFFFFFFF.toInt()
+                            )
+                        }
+                    }
+                )
+                ChromePressBox(
+                    playScale, 1f, onTogglePlay,
+                    Modifier.fillMaxSize(),
+                    description = "Play/Pause"
                 )
             }
         }

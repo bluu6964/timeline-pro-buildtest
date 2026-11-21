@@ -204,6 +204,7 @@ enum class UiLabelStyle(
     SHEET_TITLE_SEMI(14.5f, 600),
 
     /** Build 253 (stage 6): 13 sp family (export cards, audio readouts, hex readout). */
+    TEXT_11_SEMI(11f, 600),
     TEXT_13_SEMI(13f, 600),
     TEXT_13_BOLD(13f, 700),
     TEXT_13_MED(13f, 500),
