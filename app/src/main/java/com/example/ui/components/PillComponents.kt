@@ -41,6 +41,7 @@ import com.example.engine.rememberUiAtlas
 import com.example.model.EditorGeometry
 import com.example.model.PanelGeometry
 import com.example.model.SheetGeometry
+import com.example.ui.theme.AmAccentViolet
 import com.example.ui.theme.AmBarSurface
 import com.example.ui.theme.AmDanger
 import com.example.ui.theme.AmPanelHigh
