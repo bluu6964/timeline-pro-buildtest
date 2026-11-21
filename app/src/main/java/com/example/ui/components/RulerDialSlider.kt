@@ -1,6 +1,5 @@
 package com.example.ui.components
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
@@ -10,10 +9,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
-import androidx.compose.foundation.layout.size
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -24,18 +21,22 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.engine.UiGlRuntime
+import com.example.engine.UiLabelAtlas
+import com.example.engine.UiLabelStyle
 import com.example.engine.UiMathNative
+import com.example.engine.rememberUiAtlas
+import com.example.model.ChromeGeometry
+import com.example.model.EditorGeometry
+import com.example.model.PanelGeometry
 import com.example.ui.theme.AmFxAccent
+import com.example.ui.theme.AmHairline
+import com.example.ui.theme.AmPanelHigh
 import com.example.ui.theme.TextPrimary
 import java.util.Locale
 import kotlin.math.abs
@@ -201,64 +202,130 @@ fun RulerDialSlider(
         String.format(Locale.US, fmt, value)
     }
 
-    Row(
+    // Build 252 (UI migration stage 5): the label/icon and the value
+    // pill are drawn on one GL surface behind the row (EditorGeometry
+    // .SliderRow); the row keeps the exact layout — an empty label
+    // zone, the (already native) ruler, an empty pill zone — so the
+    // ruler's position and the drag contract are untouched. The
+    // readout format above is build 160's step-exact logic, untouched.
+    val density = androidx.compose.ui.platform.LocalDensity.current.density
+    val atlas = rememberUiAtlas()
+    val pad = UiLabelAtlas.PAD.toFloat()
+    val iconPainter = if (icon != null) rememberVectorPainter(icon) else null
+    val iconPx = (EditorGeometry.SliderRow.ICON_DP * density).roundToInt()
+    val labelWidthPx = labelWidth.value * density
+
+    fun resolveStrip(): Triple<UiLabelAtlas.Entry?, UiLabelAtlas.Entry?, UiLabelAtlas.Entry?> {
+        val iconEntry = if (icon != null && iconPainter != null) {
+            atlas.resolveIcon("rulerdial:${icon.name}", iconPx, iconPx) { cv, x, y ->
+                val b = rasterizePainterBitmap(iconPainter, iconPx, density)
+                cv.drawBitmap(b, x, y, null)
+                b.recycle()
+            }
+        } else null
+        val labelEntry = if (icon == null && label.isNotEmpty()) {
+            val drawn = ChromeGeometry.ellipsize(label, labelWidthPx) {
+                atlas.measure(it, UiLabelStyle.ED_LABEL)
+            }
+            atlas.resolve(drawn, UiLabelStyle.ED_LABEL)
+        } else null
+        val valueEntry = if (showValue) {
+            atlas.resolve(displayValue, UiLabelStyle.ED_VALUE_MONO)
+        } else null
+        return Triple(iconEntry, labelEntry, valueEntry)
+    }
+    var strip = resolveStrip()
+    if (atlas.overflowed) {
+        atlas.reset()
+        strip = resolveStrip()
+    }
+    val (iconEntry, labelEntry, valueEntry) = strip
+
+    Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(36.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .height(36.dp)
     ) {
-        // 1. Label on left (e.g., "Width", "Height", "Intensity", "Rotation", "Edge Hardness")
-        if (icon != null) {
-            Box(modifier = Modifier.width(labelWidth), contentAlignment = Alignment.CenterStart) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = label,
-                    tint = TextPrimary,
-                    modifier = Modifier.size(18.dp)
-                )
+        NativeVectorCanvas(
+            modifier = Modifier.fillMaxSize(),
+            clearArgb = 0,
+            atlas = atlas,
+            drawKey = listOf(iconEntry, labelEntry, valueEntry, atlas.generation),
+            buildCmds = { w, h, dd ->
+                val g = EditorGeometry.SliderRow
+                val cy = g.centreYPx(dd)
+                // 1. Label on left (or the icon that replaces it).
+                if (iconEntry != null) {
+                    addText(
+                        iconEntry.index,
+                        -pad, cy - iconPx / 2f - pad,
+                        0f, 0f, iconEntry.rectW.toFloat(), iconEntry.rectH.toFloat(),
+                        tintArgb = TextPrimary.toArgb()
+                    )
+                } else if (labelEntry != null) {
+                    val style = UiLabelStyle.ED_LABEL
+                    val textH = atlas.textHeightPx(style)
+                    val fm = atlas.fontMetrics(style)
+                    val top = EditorGeometry.centredTextTopPx(0f, h, textH)
+                    val baseline = PanelGeometry.lineBaselinePx(top, textH, fm.ascent, fm.descent)
+                    val (dstX, dstY) = EditorGeometry.textDst(0f, baseline, labelEntry.bearing, labelEntry.base, pad)
+                    addText(
+                        labelEntry.index, dstX, dstY,
+                        0f, 0f, labelEntry.rectW.toFloat(), labelEntry.rectH.toFloat(),
+                        tintArgb = TextPrimary.toArgb()
+                    )
+                }
+                // 3. The value pill on the right (FlatPill's form: a
+                // capsule of AmPanelHigh with a hairline edge).
+                if (showValue) {
+                    val pillCx = g.pillCentreXPx(w, dd)
+                    addRoundRect(
+                        pillCx, cy,
+                        g.PILL_W_DP * dd, g.PILL_H_DP * dd, g.PILL_H_DP * dd / 2f,
+                        AmPanelHigh.toArgb(), 1f * dd, AmHairline.toArgb()
+                    )
+                    if (valueEntry != null) {
+                        val style = UiLabelStyle.ED_VALUE_MONO
+                        val textH = atlas.textHeightPx(style)
+                        val fm = atlas.fontMetrics(style)
+                        val top = EditorGeometry.centredTextTopPx(0f, h, textH)
+                        val baseline = PanelGeometry.lineBaselinePx(top, textH, fm.ascent, fm.descent)
+                        val originX = EditorGeometry.centredOriginPx(pillCx, valueEntry.advance)
+                        val (dstX, dstY) = EditorGeometry.textDst(originX, baseline, valueEntry.bearing, valueEntry.base, pad)
+                        addText(
+                            valueEntry.index, dstX, dstY,
+                            0f, 0f, valueEntry.rectW.toFloat(), valueEntry.rectH.toFloat(),
+                            tintArgb = TextPrimary.toArgb()
+                        )
+                    }
+                }
             }
-        } else {
-            Text(
-                text = label,
-                color = TextPrimary,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.width(labelWidth)
-            )
-        }
-
-        // 2. Ruler with the center needle
-        RulerDial(
-            value = value,
-            onValueChange = onValueChange,
-            min = min,
-            max = max,
-            step = step,
-            accentNeedle = accentNeedle,
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight()
         )
-
-        // 3. Current value on the right (e.g., "20%", "45°", "0%") — in a small flat
-        // grey pill (the readout format is build 160's step-exact logic, untouched).
-        if (showValue) Box(
-            modifier = Modifier
-                .width(58.dp)
-                .height(24.dp),
-            contentAlignment = Alignment.Center
+        Row(
+            modifier = Modifier.fillMaxSize(),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            FlatPill(Modifier.matchParentSize())
-            Text(
-                text = displayValue,
-                color = TextPrimary,
-                fontSize = 11.5.sp,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-                maxLines = 1
+            // 1. Label zone (drawn in GL above).
+            Box(modifier = Modifier.width(labelWidth).fillMaxHeight())
+
+            // 2. Ruler with the center needle (native since build 241).
+            RulerDial(
+                value = value,
+                onValueChange = onValueChange,
+                min = min,
+                max = max,
+                step = step,
+                accentNeedle = accentNeedle,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+            )
+
+            // 3. Value pill zone (drawn in GL above).
+            if (showValue) Box(
+                modifier = Modifier
+                    .width(58.dp)
+                    .height(24.dp)
             )
         }
     }
