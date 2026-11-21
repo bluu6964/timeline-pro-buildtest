@@ -114,7 +114,8 @@ fun SaveTemplateDialog(
                         "Add → Templates → My Templates.",
                     UiLabelStyle.DLG_115, TextSecondary.toArgb(),
                     Modifier.fillMaxWidth(),
-                    linePitchSp = 18f
+                    linePitchSp = 18f,
+                    align = androidx.compose.ui.text.style.TextAlign.Start
                 )
                 Spacer(Modifier.height(8.dp))
                 PillTextField(

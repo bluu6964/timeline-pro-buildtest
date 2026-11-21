@@ -36,7 +36,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
-import com.example.engine.NativeVectorCanvas
 import com.example.engine.UiLabelAtlas
 import com.example.engine.UiLabelStyle
 import com.example.engine.rememberUiAtlas

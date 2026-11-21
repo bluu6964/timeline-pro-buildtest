@@ -20,7 +20,6 @@ import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
-import com.example.engine.NativeVectorCanvas
 import com.example.engine.UiLabelAtlas
 import com.example.engine.UiLabelStyle
 import com.example.engine.rememberUiAtlas
@@ -71,7 +70,8 @@ fun ParentSheet(
             GlTextBlock(
                 "The layer follows the move, turn and size of its parent (a Null). A Controller is not a parent: the layer is only connected to it, and whatever is done to the Controller is done to the connected layers too, each in its own place.",
                 UiLabelStyle.SHEET_DESC, TextSecondary.toArgb(),
-                Modifier.fillMaxWidth()
+                Modifier.fillMaxWidth(),
+                align = androidx.compose.ui.text.style.TextAlign.Start
             )
             Spacer(Modifier.height(10.dp))
             Row1("None", null, currentId == null) { onPick(null) }
@@ -84,7 +84,8 @@ fun ParentSheet(
                 GlTextBlock(
                     "No Null or Controller layer yet. Add one using the Null / Controller buttons in the bottom toolbar.",
                     UiLabelStyle.TEXT_11, TextSecondary.toArgb(),
-                    Modifier.fillMaxWidth()
+                    Modifier.fillMaxWidth(),
+                    align = androidx.compose.ui.text.style.TextAlign.Start
                 )
             }
         }

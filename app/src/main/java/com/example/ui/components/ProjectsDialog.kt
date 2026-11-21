@@ -62,7 +62,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.R
-import com.example.engine.NativeVectorCanvas
 import com.example.engine.UiLabelAtlas
 import com.example.engine.UiLabelStyle
 import com.example.engine.rememberUiAtlas
@@ -450,7 +449,8 @@ fun ProjectsDialog(
                     "\"${p.name}\" will be removed. This cannot be undone.",
                     UiLabelStyle.DLG_13, TextSecondary.toArgb(),
                     Modifier.fillMaxWidth(),
-                    linePitchSp = 18f
+                    linePitchSp = 18f,
+                    align = androidx.compose.ui.text.style.TextAlign.Start
                 )
             },
             confirmButton = {

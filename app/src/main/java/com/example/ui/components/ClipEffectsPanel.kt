@@ -1355,7 +1355,8 @@ fun FxInfoDialog(def: FxDef, onDismiss: () -> Unit) {
                     GlTextBlock(
                         def.blurb, UiLabelStyle.DLG_13, TextPrimary.toArgb(),
                         Modifier.fillMaxWidth(),
-                        linePitchSp = 18f
+                        linePitchSp = 18f,
+                        align = androidx.compose.ui.text.style.TextAlign.Start
                     )
                 }
                 if (def.params.isNotEmpty()) {
@@ -1365,7 +1366,8 @@ fun FxInfoDialog(def: FxDef, onDismiss: () -> Unit) {
                         UiLabelStyle.DLG_12,
                         com.example.ui.theme.AmTextDim.toArgb(),
                         Modifier.fillMaxWidth(),
-                        linePitchSp = 18f
+                        linePitchSp = 18f,
+                        align = androidx.compose.ui.text.style.TextAlign.Start
                     )
                 }
             }

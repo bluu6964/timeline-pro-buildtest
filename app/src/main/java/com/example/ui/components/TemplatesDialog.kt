@@ -63,7 +63,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
 import com.example.engine.CounterEval
-import com.example.engine.NativeVectorCanvas
 import com.example.engine.TemplateAssets
 import com.example.engine.UiLabelAtlas
 import com.example.engine.UiLabelStyle
@@ -393,7 +392,8 @@ fun TemplatesDialog(
                             "be added to any project.",
                         UiLabelStyle.DLG_11, TextSecondary.toArgb(),
                         Modifier.fillMaxWidth(),
-                        linePitchSp = 18f
+                        linePitchSp = 18f,
+                        align = androidx.compose.ui.text.style.TextAlign.Start
                     )
                 }
                 for (tpl in userTemplates) {
@@ -416,7 +416,8 @@ fun TemplatesDialog(
                                 "added as one group layer",
                             UiLabelStyle.DLG_11, TextSecondary.toArgb(),
                             Modifier.fillMaxWidth(),
-                            linePitchSp = 18f
+                            linePitchSp = 18f,
+                            align = androidx.compose.ui.text.style.TextAlign.Start
                         )
                         Spacer(Modifier.height(8.dp))
                         // The white pill (build 207 redesign), delete as a ghost pill.
@@ -459,7 +460,8 @@ fun TemplatesDialog(
                         "Groups you already added to projects are not changed.",
                     UiLabelStyle.DLG_115, TextSecondary.toArgb(),
                     Modifier.fillMaxWidth(),
-                    linePitchSp = 18f
+                    linePitchSp = 18f,
+                    align = androidx.compose.ui.text.style.TextAlign.Start
                 )
             },
             confirmButton = {
@@ -534,7 +536,8 @@ private fun ColumnScope.TemplateSection(
             description,
             UiLabelStyle.DLG_11, TextSecondary.toArgb(),
             Modifier.fillMaxWidth(),
-            linePitchSp = 18f
+            linePitchSp = 18f,
+            align = androidx.compose.ui.text.style.TextAlign.Start
         )
         settings?.invoke(this)
         Spacer(Modifier.height(7.dp))
@@ -549,7 +552,8 @@ private fun ColumnScope.TemplateSection(
             footnote,
             UiLabelStyle.DLG_10, TextSecondary.toArgb(),
             Modifier.fillMaxWidth(),
-            linePitchSp = 18f
+            linePitchSp = 18f,
+            align = androidx.compose.ui.text.style.TextAlign.Start
         )
     }
     Spacer(Modifier.height(8.dp))

@@ -22,7 +22,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.engine.MissingMedia
-import com.example.engine.NativeVectorCanvas
 import com.example.engine.UiLabelStyle
 import com.example.ui.theme.AmHairline
 import com.example.ui.theme.AmPanel
@@ -71,7 +70,8 @@ fun MissingMediaDialog(
                         "empty. Pick your own file for each one, or press Done and leave them empty.",
                     UiLabelStyle.DLG_11, TextSecondary.toArgb(),
                     Modifier.fillMaxWidth(),
-                    linePitchSp = 18f
+                    linePitchSp = 18f,
+                    align = androidx.compose.ui.text.style.TextAlign.Start
                 )
                 LazyColumn(
                     modifier = Modifier.fillMaxWidth().heightIn(max = 260.dp),
@@ -124,7 +124,8 @@ fun MissingMediaDialog(
                                             if (item.layerCount > 1) " · used by ${item.layerCount} layers" else "",
                                         UiLabelStyle.DLG_10, TextSecondary.toArgb(),
                                         Modifier.fillMaxWidth(),
-                                        linePitchSp = 18f
+                                        linePitchSp = 18f,
+                                        align = androidx.compose.ui.text.style.TextAlign.Start
                                     )
                                 }
                                 DialogSecondaryButton(

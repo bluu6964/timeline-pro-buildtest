@@ -28,7 +28,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
-import com.example.engine.NativeVectorCanvas
 import com.example.engine.UiLabelAtlas
 import com.example.engine.UiLabelStyle
 import com.example.engine.rememberUiAtlas
@@ -363,7 +362,8 @@ fun AudioDuckingSheet(
                 "Lower this layer's volume automatically while another layer is loud, " +
                     "and let it back up in the gaps.",
                 UiLabelStyle.TEXT_11, TextSecondary.toArgb(),
-                Modifier.fillMaxWidth()
+                Modifier.fillMaxWidth(),
+                align = androidx.compose.ui.text.style.TextAlign.Start
             )
             if (triggers.isEmpty()) {
                 Spacer(modifier = Modifier.height(8.dp))
@@ -371,7 +371,8 @@ fun AudioDuckingSheet(
                     "No other layer with sound yet. Add a voice or music layer first, " +
                         "then pick it here as the trigger.",
                     UiLabelStyle.SHEET_ITEM, TextSecondary.toArgb(),
-                    Modifier.fillMaxWidth()
+                    Modifier.fillMaxWidth(),
+                    align = androidx.compose.ui.text.style.TextAlign.Start
                 )
             } else if (enabled) {
                 Spacer(modifier = Modifier.height(10.dp))
@@ -479,7 +480,8 @@ fun AudioNoiseSheet(
                 "Remove the steady background noise of this layer — hiss, hum, fan " +
                     "noise — while keeping the voice or music on top of it.",
                 UiLabelStyle.TEXT_11, TextSecondary.toArgb(),
-                Modifier.fillMaxWidth()
+                Modifier.fillMaxWidth(),
+                align = androidx.compose.ui.text.style.TextAlign.Start
             )
             if (enabled) {
                 Spacer(modifier = Modifier.height(10.dp))
@@ -509,7 +511,8 @@ fun AudioNoiseSheet(
                         "its trim or speed changes — until the analysis lands, the layer " +
                         "plays unprocessed. Exports are always cleaned.",
                     UiLabelStyle.TEXT_11, TextSecondary.toArgb(),
-                    Modifier.fillMaxWidth()
+                    Modifier.fillMaxWidth(),
+                    align = androidx.compose.ui.text.style.TextAlign.Start
                 )
             }
         }

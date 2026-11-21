@@ -16,7 +16,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.engine.NativeVectorCanvas
 import com.example.engine.UiLabelStyle
 import com.example.ui.theme.AmAccentViolet
 import com.example.ui.theme.AmCardSurface

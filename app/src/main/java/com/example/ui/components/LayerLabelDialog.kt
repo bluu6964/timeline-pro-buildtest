@@ -22,7 +22,6 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.engine.NativeVectorCanvas
 import com.example.engine.UiLabelStyle
 import com.example.ui.theme.AmPanel
 import com.example.ui.theme.HeaderText

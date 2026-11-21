@@ -86,7 +86,8 @@ fun StickerPickerSheet(
                 GlTextBlock(
                     "No stickers found. Add folders to app/src/main/assets/stickers.",
                     UiLabelStyle.TEXT_12, 0xFFBBBBBB.toInt(),
-                    Modifier.fillMaxWidth()
+                    Modifier.fillMaxWidth(),
+                    align = androidx.compose.ui.text.style.TextAlign.Start
                 )
                 return@Column
             }
