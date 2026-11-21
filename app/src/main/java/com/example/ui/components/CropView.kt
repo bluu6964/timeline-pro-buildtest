@@ -67,8 +67,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import com.example.engine.UiGlRuntime
+import com.example.engine.UiLabelAtlas
+import com.example.engine.UiLabelStyle
 import com.example.engine.UiMathNative
+import com.example.engine.rememberUiAtlas
+import com.example.model.EditorGeometry
+import com.example.model.PanelGeometry
 import com.example.model.AnimProp
 import com.example.model.AspectRatio
 import com.example.model.Easing
@@ -301,62 +307,16 @@ fun CropView(
             )
         } else {
         // 1. Top Header: Down Arrow, "Crop", Done
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(42.dp)
-                .padding(horizontal = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(34.dp)
-                    .bouncyClickable(onClick = {
-                        emitCrop()
-                        onDismiss()
-                    })
-                    .testTag("crop_back_button"),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.KeyboardArrowDown,
-                    contentDescription = "Collapse Crop",
-                    tint = IconActive,
-                    modifier = Modifier.size(22.dp)
-                )
+        // Build 252 (stage 5): the standalone header is drawn in GL —
+        // back icon, the centred title (its centre is the midpoint of
+        // the free span, as the two weight spacers had it), and the
+        // white Done pill (fill static, label press-scales).
+        CropHeaderGl(
+            onBack = {
+                emitCrop()
+                onDismiss()
             }
-
-            Spacer(modifier = Modifier.weight(1f))
-
-            Text(
-                text = "Crop",
-                color = TextPrimary,
-                fontSize = 14.5.sp,
-                fontWeight = FontWeight.Bold
-            )
-
-            Spacer(modifier = Modifier.weight(1f))
-
-            Box(
-                modifier = Modifier
-                    .heightIn(min = 32.dp)
-                    .clip(CircleShape)
-                    .background(Color.White, CircleShape)
-                    .bouncyClickable(onClick = {
-                        emitCrop()
-                        onDismiss()
-                    })
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "Done",
-                    color = EditorBackground,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
+        )
 
         }
 
@@ -400,13 +360,26 @@ fun CropView(
                 contentAlignment = Alignment.Center
             ) {
                 Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clip(RectangleShape)
-                        .background(com.example.ui.theme.LocalCanvasColor.current)
-                        .border(1.dp, Color.White.copy(alpha = 0.15f), RectangleShape),
+                    modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
+                // Build 252 (stage 5): the frame's flat canvas colour +
+                // its white 15% inner border are drawn in GL.
+                val frameBgArgb = com.example.ui.theme.LocalCanvasColor.current.toArgb()
+                NativeVectorCanvas(
+                    modifier = Modifier.fillMaxSize(),
+                    clearArgb = 0,
+                    drawKey = frameBgArgb,
+                    buildCmds = { w, h, dd ->
+                        addRect(0f, 0f, w, h, frameBgArgb)
+                        val edge = Color.White.copy(alpha = 0.15f).toArgb()
+                        val bw = 1f * dd
+                        addRect(0f, 0f, w, bw, edge)
+                        addRect(0f, h - bw, w, bw, edge)
+                        addRect(0f, 0f, bw, h, edge)
+                        addRect(w - bw, 0f, bw, h, edge)
+                    }
+                )
                 // Background Layer (Video / Shape / Text Media)
                 if (clip != null && clip.type == LayerType.VIDEO && clip.uri != null && !isShapeLayer && !isTextLayer) {
                     // The edited layer alone, uncropped and untransformed (the crop box works on it).
@@ -554,242 +527,73 @@ fun CropView(
             chrome.layerRow()
         } else {
         // 3. Playback Controls Row: Skip Prev, Play/Pause, Skip Next, Undo, Redo
-        Row(
+        // Build 252 (stage 5): drawn in GL (CropTransportGl) with the
+        // ScreenChrome transport spacing law.
+        CropTransportGl(
+            isPlaying = isPlaying,
+            canUndo = canUndo,
+            canRedo = canRedo,
+            onPrevious = { onSeekTo(0L) },
+            onPlayPause = onTogglePlay,
+            onNext = { onSeekTo(totalDurationMs) },
+            onUndo = onUndo,
+            onRedo = onRedo,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 2.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Spacer(modifier = Modifier.width(30.dp))
-
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(30.dp)
-                        .bouncyClickable(onClick = { onSeekTo(0L) }),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.SkipPrevious,
-                        contentDescription = "Previous",
-                        tint = IconActive,
-                        modifier = Modifier.size(19.dp)
-                    )
-                }
-
-                Box(
-                    modifier = Modifier
-                        .size(34.dp)
-                        .bouncyClickable(onClick = onTogglePlay),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        contentDescription = "Play/Pause",
-                        tint = IconActive,
-                        modifier = Modifier.size(23.dp)
-                    )
-                }
-
-                Box(
-                    modifier = Modifier
-                        .size(30.dp)
-                        .bouncyClickable(onClick = { onSeekTo(totalDurationMs) }),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.SkipNext,
-                        contentDescription = "Next",
-                        tint = IconActive,
-                        modifier = Modifier.size(19.dp)
-                    )
-                }
-            }
-
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Box(
-                    modifier = Modifier
-                        .size(28.dp)
-                        .bouncyClickable(enabled = canUndo, onClick = onUndo),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.Undo,
-                        contentDescription = "Undo",
-                        tint = if (canUndo) IconActive else IconDisabled,
-                        modifier = Modifier.size(17.dp)
-                    )
-                }
-                Box(
-                    modifier = Modifier
-                        .size(28.dp)
-                        .bouncyClickable(enabled = canRedo, onClick = onRedo),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.Redo,
-                        contentDescription = "Redo",
-                        tint = if (canRedo) IconActive else IconDisabled,
-                        modifier = Modifier.size(17.dp)
-                    )
-                }
-            }
-        }
-
-        // 4. Timescale: 00:01 70 | 00:19 49 with ruler ticks
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 2.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Spacer(modifier = Modifier.weight(0.36f))
-            Text(
-                text = formatTimeCode(currentPlayheadMs),
-                color = TextPrimary,
-                fontSize = 10.5.sp,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold
-            )
-            Text(text = "  |  ", color = TextSecondary, fontSize = 10.5.sp)
-            Text(
-                text = formatTimeCode(totalDurationMs),
-                color = TextSecondary,
-                fontSize = 10.5.sp,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Medium
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-
-            val majorTickArgb = RulerTickColor.toArgb()
-            val subTickArgb = RulerSubTickColor.toArgb()
-            NativeVectorCanvas(
-                modifier = Modifier
-                    .weight(0.48f)
-                    .height(11.dp),
-                drawKey = majorTickArgb,
-                buildCmds = { w, h, d ->
-                    val tickSpacing = 7f * d
-                    val count = (w / tickSpacing).toInt()
-                    for (i in 0..count) {
-                        val isMajor = (i % 5 == 0)
-                        val tx = i * tickSpacing
-                        addLine(
-                            tx, 0f, tx, if (isMajor) h else h * 0.5f,
-                            1f * d, if (isMajor) majorTickArgb else subTickArgb, capRound = false
-                        )
-                    }
-                },
-            )
-        }
-
-        // 5. Mini Layer Strip: Reset Button on Left, Timeline Strip on Right
-        Row(
+                .padding(horizontal = 16.dp, vertical = 2.dp)
+        )
+        // 4. Timescale: current | total with ruler ticks
+        // Build 252 (stage 5): the texts are drawn in GL; the tick
+        // strip (already native) keeps its weight-0.48 slot, placed
+        // by the same weight law (CropTimecodeGl).
+        CropTimecodeGl(
+            currentText = formatTimeCode(currentPlayheadMs),
+            totalText = formatTimeCode(totalDurationMs),
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp, vertical = 2.dp)
-                .height(28.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            // Reset / Rotate Icon Button
-            Box(
-                modifier = Modifier
-                    .size(26.dp)
-                    .clip(CircleShape)
-                    .background(AmPanelElevated)
-                    .border(1.dp, AmHairlineStrong, CircleShape)
-                    .bouncyClickable(onClick = {
-                        activePreset = "Free"
-                        setRect(0f, 0f, 1f, 1f)
-                        emitCrop()
-                    }),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Refresh,
-                    contentDescription = "Reset Crop",
-                    tint = IconActive,
-                    modifier = Modifier.size(15.dp)
-                )
-            }
+        )
 
-            // Timeline Strip
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(24.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(AmPanelElevated)
-                    .border(1.dp, AmHairlineStrong, RoundedCornerShape(8.dp))
-                    .padding(horizontal = 6.dp),
-                contentAlignment = Alignment.CenterStart
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(16.dp)
-                            .graphicsLayer { rotationZ = 45f }
-                            .background(AmVioletDeep, RectangleShape)
-                            .bouncyClickable(onClick = {}),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = "Keyframe",
-                            tint = Color.White,
-                            modifier = Modifier
-                                .size(11.dp)
-                                .graphicsLayer { rotationZ = -45f }
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    Canvas(modifier = Modifier.size(15.dp)) {
-                        val path = Path().apply {
-                            moveTo(0f, size.height)
-                            cubicTo(size.width * 0.4f, size.height, size.width * 0.6f, 0f, size.width, 0f)
-                        }
-                        drawPath(path = path, color = Color(0xFF8E8E8E), style = Stroke(width = 1.8.dp.toPx()))
-                    }
-                }
-            }
-        }
+        // 5. Mini Layer Strip: Reset Button on Left, Timeline Strip on Right
+        // Build 252 (stage 5): drawn in GL (CropMiniStripGl).
+        CropMiniStripGl(
+            onReset = {
+                activePreset = "Free"
+                setRect(0f, 0f, 1f, 1f)
+                emitCrop()
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 2.dp)
+        )
 
         }
 
         // 6. Bottom Control Panel: Aspect Ratio Pills & Ruler Dial Sliders
-        Column(
+        // Build 252 (stage 5): the panel body (AmPanel fill, top
+        // corners, the AmPillSelected handle) is drawn in GL; the
+        // inner Column keeps the corner clip for its scroll content.
+        GlPanelBody(
             modifier = Modifier
                 .fillMaxWidth()
+                .then(if (chrome != null) Modifier.weight(1f) else Modifier),
+            cornerDp = AmCornerPanel.value,
+            fillArgb = AmPanel.toArgb(),
+            handleArgb = AmPillSelected.toArgb(),
+            handleTopDp = 4f,
+            topOnlyCorners = true
+        ) {
+        Column(
+            modifier = Modifier
                 .then(
-                    if (chrome != null) Modifier.weight(1f)
+                    if (chrome != null) Modifier
+                        .fillMaxSize()
                         .verticalScroll(androidx.compose.foundation.rememberScrollState())
-                    else Modifier
+                    else Modifier.fillMaxWidth()
                 )
                 .clip(RoundedCornerShape(topStart = AmCornerPanel, topEnd = AmCornerPanel))
-                .background(AmPanel)
-                .padding(horizontal = 12.dp, vertical = 4.dp)
+                .padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 4.dp)
         ) {
-            // Drag handle pill
-            Box(
-                modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .width(28.dp)
-                    .height(3.dp)
-                    .background(AmPillSelected, CircleShape)
-            )
-
-            Spacer(modifier = Modifier.height(3.dp))
 
             // Top card: back + live value + keyframe / easing (same as the Transform panel)
             if (chrome != null) {
@@ -824,31 +628,26 @@ fun CropView(
                 }
             } else {
             // Aspect Ratio Preset Pills Row (Free, Original, Project, 9:16, 16:9, 1:1, etc.)
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            // Build 252 (stage 5): GL pill strip.
+            GlPillStrip(
+                items = CROP_PRESETS.map { preset ->
+                    GlPillItem(
+                        label = preset,
+                        selected = preset == activePreset,
+                        onClick = { applyPresetRatio(preset) }
+                    )
+                },
+                labelStyle = { sel -> if (sel) UiLabelStyle.ED_TEXT_BOLD else UiLabelStyle.ED_TEXT_MED },
+                textArgb = { sel -> if (sel) AmInk.toArgb() else TextPrimary.toArgb() },
+                fillArgb = { sel -> if (sel) AmAccent.toArgb() else AmPanelElevated.toArgb() },
+                borderArgb = { sel -> if (sel) AmAccent.toArgb() else AmHairlineStrong.toArgb() },
+                padHDp = 12f,
+                padVDp = 6f,
+                gapDp = 6f,
+                minHDp = 32f,
+                scrollable = true,
                 modifier = Modifier.fillMaxWidth()
-            ) {
-                items(CROP_PRESETS) { preset ->
-                    val isSelected = (preset == activePreset)
-                    Box(
-                        modifier = Modifier
-                            .heightIn(min = 32.dp)
-                            .clip(CircleShape)
-                            .background(if (isSelected) AmAccent else AmPanelElevated, CircleShape)
-                            .border(1.dp, if (isSelected) AmAccent else AmHairlineStrong, CircleShape)
-                            .bouncyClickable(onClick = { applyPresetRatio(preset) })
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = preset,
-                            color = if (isSelected) AmInk else TextPrimary,
-                            fontSize = 11.5.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                        )
-                    }
-                }
-            }
+            )
 
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -904,6 +703,482 @@ fun CropView(
             )
             }
         }
+        }
+    }
+}
+
+/**
+ * Build 252 (stage 5): the standalone Crop header in GL — back
+ * chevron box, the title centred on the free span (the two weight
+ * spacers' midpoint), and the white Done pill (fill static, label
+ * press-scales, as its modifier chain had them).
+ */
+@Composable
+private fun CropHeaderGl(onBack: () -> Unit) {
+    val density = androidx.compose.ui.platform.LocalDensity.current.density
+    val atlas = rememberUiAtlas()
+    val pad = UiLabelAtlas.PAD.toFloat()
+    val backPainter = rememberVectorPainter(Icons.Default.KeyboardArrowDown)
+    val backPx = (22f * density).roundToInt()
+    fun resolveHeader(): Triple<UiLabelAtlas.Entry?, UiLabelAtlas.Entry?, UiLabelAtlas.Entry?> {
+        val back = atlas.resolveIcon("crop:back", backPx, backPx) { cv, x, y ->
+            val b = rasterizePainterBitmap(backPainter, backPx, density)
+            cv.drawBitmap(b, x, y, null)
+            b.recycle()
+        }
+        val title = atlas.resolve("Crop", UiLabelStyle.SCREEN_TITLE)
+        val done = atlas.resolve("Done", UiLabelStyle.SHEET_ITEM_BOLD)
+        return Triple(back, title, done)
+    }
+    var headerEntries = resolveHeader()
+    if (atlas.overflowed) {
+        atlas.reset()
+        headerEntries = resolveHeader()
+    }
+    val (backEntry, titleEntry, doneEntry) = headerEntries
+    val backScale = remember { androidx.compose.animation.core.Animatable(1f) }
+    val doneScale = remember { androidx.compose.animation.core.Animatable(1f) }
+    val pillWPx = 24f * density + (doneEntry?.advance ?: 0f)
+    val pillHPx = maxOf(32f * density, atlas.textHeightPx(UiLabelStyle.SHEET_ITEM_BOLD) + 12f * density)
+
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(42.dp)
+    ) {
+        val wPx = maxWidth.value * density
+        NativeVectorCanvas(
+            modifier = Modifier.fillMaxSize(),
+            clearArgb = 0,
+            atlas = atlas,
+            drawKey = listOf(headerEntries, backScale.value, doneScale.value, atlas.generation),
+            buildCmds = { w, h, dd ->
+                val cy = h / 2f
+                if (backEntry != null) {
+                    val cx = 27f * dd
+                    setScaleAbout(cx, cy, backScale.value)
+                    addText(
+                        backEntry.index,
+                        cx - backPx / 2f - pad, cy - backPx / 2f - pad,
+                        0f, 0f, backEntry.rectW.toFloat(), backEntry.rectH.toFloat(),
+                        tintArgb = IconActive.toArgb()
+                    )
+                    clearTransform()
+                }
+                val pillLeft = w - 10f * dd - pillWPx
+                addRoundRect(
+                    pillLeft + pillWPx / 2f, cy, pillWPx, pillHPx, pillHPx / 2f,
+                    Color.White.toArgb()
+                )
+                if (titleEntry != null) {
+                    val style = UiLabelStyle.SCREEN_TITLE
+                    val textH = atlas.textHeightPx(style)
+                    val fm = atlas.fontMetrics(style)
+                    val top = EditorGeometry.centredTextTopPx(0f, h, textH)
+                    val baseline = PanelGeometry.lineBaselinePx(top, textH, fm.ascent, fm.descent)
+                    val centre = (44f * dd + pillLeft) / 2f
+                    val (dstX, dstY) = EditorGeometry.textDst(
+                        EditorGeometry.centredOriginPx(centre, titleEntry.advance),
+                        baseline, titleEntry.bearing, titleEntry.base, pad
+                    )
+                    addText(
+                        titleEntry.index, dstX, dstY,
+                        0f, 0f, titleEntry.rectW.toFloat(), titleEntry.rectH.toFloat(),
+                        tintArgb = TextPrimary.toArgb()
+                    )
+                }
+                if (doneEntry != null) {
+                    val style = UiLabelStyle.SHEET_ITEM_BOLD
+                    val textH = atlas.textHeightPx(style)
+                    val fm = atlas.fontMetrics(style)
+                    val top = EditorGeometry.centredTextTopPx(0f, h, textH)
+                    val baseline = PanelGeometry.lineBaselinePx(top, textH, fm.ascent, fm.descent)
+                    val (dstX, dstY) = EditorGeometry.textDst(
+                        EditorGeometry.centredOriginPx(pillLeft + pillWPx / 2f, doneEntry.advance),
+                        baseline, doneEntry.bearing, doneEntry.base, pad
+                    )
+                    setScaleAbout(pillLeft + pillWPx / 2f, cy, doneScale.value)
+                    addText(
+                        doneEntry.index, dstX, dstY,
+                        0f, 0f, doneEntry.rectW.toFloat(), doneEntry.rectH.toFloat(),
+                        tintArgb = EditorBackground.toArgb()
+                    )
+                    clearTransform()
+                }
+            }
+        )
+        ChromePressBox(
+            backScale, 0.94f, onBack,
+            Modifier
+                .offset(x = 10.dp, y = 4.dp)
+                .size(34.dp),
+            tag = "crop_back_button",
+            description = "Collapse Crop"
+        )
+        ChromePressBox(
+            doneScale, 0.94f, onBack,
+            Modifier
+                .offset(
+                    x = ((wPx - pillWPx) / density - 10f).dp,
+                    y = ((42f * density - pillHPx) / 2f / density).dp
+                )
+                .width((pillWPx / density).dp)
+                .height((pillHPx / density).dp),
+            description = "Done"
+        )
+    }
+}
+
+/**
+ * Build 252 (stage 5): the standalone Crop transport row in GL —
+ * the ScreenChrome transport law (30 dp lead, the 118 dp centre
+ * group, the 62 dp undo group, SpaceBetween's equal gaps).
+ */
+@Composable
+private fun CropTransportGl(
+    isPlaying: Boolean,
+    canUndo: Boolean,
+    canRedo: Boolean,
+    onPrevious: () -> Unit,
+    onPlayPause: () -> Unit,
+    onNext: () -> Unit,
+    onUndo: () -> Unit,
+    onRedo: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val density = androidx.compose.ui.platform.LocalDensity.current.density
+    val atlas = rememberUiAtlas()
+    val pad = UiLabelAtlas.PAD.toFloat()
+    val prevPainter = rememberVectorPainter(Icons.Default.SkipPrevious)
+    val nextPainter = rememberVectorPainter(Icons.Default.SkipNext)
+    val playPainter = rememberVectorPainter(Icons.Default.PlayArrow)
+    val pausePainter = rememberVectorPainter(Icons.Default.Pause)
+    val undoPainter = rememberVectorPainter(Icons.AutoMirrored.Filled.Undo)
+    val redoPainter = rememberVectorPainter(Icons.AutoMirrored.Filled.Redo)
+    val smallPx = (19f * density).roundToInt()
+    val playPx = (23f * density).roundToInt()
+    val undoPx = (17f * density).roundToInt()
+    fun resolveTransport(): List<UiLabelAtlas.Entry?> {
+        fun icon(key: String, p: androidx.compose.ui.graphics.vector.VectorPainter, px: Int) =
+            atlas.resolveIcon(key, px, px) { cv, x, y ->
+                val b = rasterizePainterBitmap(p, px, density)
+                cv.drawBitmap(b, x, y, null)
+                b.recycle()
+            }
+        return listOf(
+            icon("crop:prev", prevPainter, smallPx),
+            icon("crop:next", nextPainter, smallPx),
+            icon("crop:play", playPainter, playPx),
+            icon("crop:pause", pausePainter, playPx),
+            icon("crop:undo", undoPainter, undoPx),
+            icon("crop:redo", redoPainter, undoPx)
+        )
+    }
+    var transportEntries = resolveTransport()
+    if (atlas.overflowed) {
+        atlas.reset()
+        transportEntries = resolveTransport()
+    }
+    val (prevEntry, nextEntry, playEntry, pauseEntry, undoEntry, redoEntry) = transportEntries
+    val scales = remember { List(5) { androidx.compose.animation.core.Animatable(1f) } }
+
+    Box(modifier = modifier) {
+        BoxWithConstraints(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(34.dp)
+        ) {
+            val wPx = maxWidth.value * density
+            val gapPx = (wPx - (30f + 118f + 62f) * density) / 2f
+            val centreLeft = 30f * density + gapPx
+            val undoLeft = wPx - 62f * density
+            NativeVectorCanvas(
+                modifier = Modifier.fillMaxSize(),
+                clearArgb = 0,
+                atlas = atlas,
+                drawKey = listOf(
+                    transportEntries, scales.map { it.value }, isPlaying, canUndo, canRedo, atlas.generation
+                ),
+                buildCmds = { w, h, dd ->
+                    val cy = h / 2f
+                    fun blit(e: UiLabelAtlas.Entry?, cx: Float, px: Int, scale: Float, tint: Int) {
+                        if (e == null) return
+                        setScaleAbout(cx, cy, scale)
+                        addText(
+                            e.index,
+                            cx - px / 2f - pad, cy - px / 2f - pad,
+                            0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                            tintArgb = tint
+                        )
+                        clearTransform()
+                    }
+                    blit(prevEntry, centreLeft + 15f * dd, smallPx, scales[0].value, IconActive.toArgb())
+                    blit(
+                        if (isPlaying) pauseEntry else playEntry,
+                        centreLeft + 59f * dd, playPx, scales[1].value, IconActive.toArgb()
+                    )
+                    blit(nextEntry, centreLeft + 103f * dd, smallPx, scales[2].value, IconActive.toArgb())
+                    blit(
+                        undoEntry, undoLeft + 14f * dd, undoPx, scales[3].value,
+                        (if (canUndo) IconActive else IconDisabled).toArgb()
+                    )
+                    blit(
+                        redoEntry, undoLeft + 48f * dd, undoPx, scales[4].value,
+                        (if (canRedo) IconActive else IconDisabled).toArgb()
+                    )
+                }
+            )
+            ChromePressBox(
+                scales[0], 0.94f, onPrevious,
+                Modifier
+                    .offset(x = (centreLeft / density).dp, y = 2.dp)
+                    .size(30.dp),
+                description = "Previous"
+            )
+            ChromePressBox(
+                scales[1], 0.94f, onPlayPause,
+                Modifier
+                    .offset(x = ((centreLeft + 42f * density) / density).dp)
+                    .size(34.dp),
+                description = "Play/Pause"
+            )
+            ChromePressBox(
+                scales[2], 0.94f, onNext,
+                Modifier
+                    .offset(x = ((centreLeft + 88f * density) / density).dp, y = 2.dp)
+                    .size(30.dp),
+                description = "Next"
+            )
+            ChromePressBox(
+                scales[3], 0.94f, onUndo,
+                Modifier
+                    .offset(x = (undoLeft / density).dp, y = 3.dp)
+                    .size(28.dp),
+                enabled = canUndo,
+                description = "Undo"
+            )
+            ChromePressBox(
+                scales[4], 0.94f, onRedo,
+                Modifier
+                    .offset(x = ((undoLeft + 34f * density) / density).dp, y = 3.dp)
+                    .size(28.dp),
+                enabled = canRedo,
+                description = "Redo"
+            )
+        }
+    }
+}
+
+/**
+ * Build 252 (stage 5): the standalone Crop timecode row — current
+ * (mono bold) | total (mono medium) in GL, the native tick strip
+ * keeping its weight slot by the ScreenChrome timecode law.
+ */
+@Composable
+private fun CropTimecodeGl(
+    currentText: String,
+    totalText: String,
+    modifier: Modifier = Modifier
+) {
+    val density = androidx.compose.ui.platform.LocalDensity.current.density
+    val atlas = rememberUiAtlas()
+    val pad = UiLabelAtlas.PAD.toFloat()
+    fun resolveTc(): Triple<UiLabelAtlas.Entry?, UiLabelAtlas.Entry?, UiLabelAtlas.Entry?> {
+        val cur = atlas.resolve(currentText, UiLabelStyle.TIMECODE_MONO)
+        val sep = atlas.resolve("  |  ", UiLabelStyle.SHEET_DESC)
+        val tot = atlas.resolve(totalText, UiLabelStyle.TIMECODE_MONO_MED)
+        return Triple(cur, sep, tot)
+    }
+    var tcEntries = resolveTc()
+    if (atlas.overflowed) {
+        atlas.reset()
+        tcEntries = resolveTc()
+    }
+    val (curEntry, sepEntry, totEntry) = tcEntries
+    val rowHDp = (atlas.textHeightPx(UiLabelStyle.TIMECODE_MONO) / density).dp
+
+    BoxWithConstraints(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(rowHDp)
+    ) {
+        val wPx = maxWidth.value * density
+        val curAdv = curEntry?.advance ?: 0f
+        val sepAdv = sepEntry?.advance ?: 0f
+        val totAdv = totEntry?.advance ?: 0f
+        val flex = wPx - curAdv - sepAdv - totAdv - 6f * density
+        val spacerW = flex * (0.36f / 0.84f)
+        val ticksW = flex * (0.48f / 0.84f)
+        val ticksX = spacerW + curAdv + sepAdv + totAdv + 6f * density
+        NativeVectorCanvas(
+            modifier = Modifier.fillMaxSize(),
+            clearArgb = 0,
+            atlas = atlas,
+            drawKey = listOf(tcEntries, atlas.generation),
+            buildCmds = { w, h, _ ->
+                fun line(e: UiLabelAtlas.Entry?, style: UiLabelStyle, originX: Float, tint: Int) {
+                    if (e == null) return
+                    val textH = atlas.textHeightPx(style)
+                    val fm = atlas.fontMetrics(style)
+                    val top = EditorGeometry.centredTextTopPx(0f, h, textH)
+                    val baseline = PanelGeometry.lineBaselinePx(top, textH, fm.ascent, fm.descent)
+                    val (dstX, dstY) = EditorGeometry.textDst(originX, baseline, e.bearing, e.base, pad)
+                    addText(
+                        e.index, dstX, dstY,
+                        0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                        tintArgb = tint
+                    )
+                }
+                line(curEntry, UiLabelStyle.TIMECODE_MONO, spacerW, TextPrimary.toArgb())
+                line(sepEntry, UiLabelStyle.SHEET_DESC, spacerW + curAdv, TextSecondary.toArgb())
+                line(totEntry, UiLabelStyle.TIMECODE_MONO_MED, spacerW + curAdv + sepAdv, TextSecondary.toArgb())
+            }
+        )
+        val majorTickArgb = RulerTickColor.toArgb()
+        val subTickArgb = RulerSubTickColor.toArgb()
+        NativeVectorCanvas(
+            modifier = Modifier
+                .offset(x = (ticksX / density).dp, y = ((rowHDp.value - 11f) / 2f).dp)
+                .width((ticksW / density).dp)
+                .height(11.dp),
+            drawKey = majorTickArgb,
+            buildCmds = { w, h, d ->
+                val tickSpacing = 7f * d
+                val count = (w / tickSpacing).toInt()
+                for (i in 0..count) {
+                    val isMajor = (i % 5 == 0)
+                    val tx = i * tickSpacing
+                    addLine(
+                        tx, 0f, tx, if (isMajor) h else h * 0.5f,
+                        1f * d, if (isMajor) majorTickArgb else subTickArgb, capRound = false
+                    )
+                }
+            }
+        )
+    }
+}
+
+/**
+ * Build 252 (stage 5): the standalone Crop mini strip in GL — the
+ * reset disc, the strip surface, the keyframe diamond (a rotated
+ * square with the upright Add) and the easing cubic.
+ */
+@Composable
+private fun CropMiniStripGl(onReset: () -> Unit, modifier: Modifier = Modifier) {
+    val density = androidx.compose.ui.platform.LocalDensity.current.density
+    val atlas = rememberUiAtlas()
+    val pad = UiLabelAtlas.PAD.toFloat()
+    val refreshPainter = rememberVectorPainter(Icons.Default.Refresh)
+    val addPainter = rememberVectorPainter(Icons.Default.Add)
+    val refreshPx = (15f * density).roundToInt()
+    val addPx = (11f * density).roundToInt()
+    fun resolveStrip(): Pair<UiLabelAtlas.Entry?, UiLabelAtlas.Entry?> {
+        val refresh = atlas.resolveIcon("crop:refresh", refreshPx, refreshPx) { cv, x, y ->
+            val b = rasterizePainterBitmap(refreshPainter, refreshPx, density)
+            cv.drawBitmap(b, x, y, null)
+            b.recycle()
+        }
+        val add = atlas.resolveIcon("crop:add", addPx, addPx) { cv, x, y ->
+            val b = rasterizePainterBitmap(addPainter, addPx, density)
+            cv.drawBitmap(b, x, y, null)
+            b.recycle()
+        }
+        return refresh to add
+    }
+    var stripEntries = resolveStrip()
+    if (atlas.overflowed) {
+        atlas.reset()
+        stripEntries = resolveStrip()
+    }
+    val (refreshEntry, addEntry) = stripEntries
+    val resetScale = remember { androidx.compose.animation.core.Animatable(1f) }
+    val diamondScale = remember { androidx.compose.animation.core.Animatable(1f) }
+
+    BoxWithConstraints(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(28.dp)
+    ) {
+        val wPx = maxWidth.value * density
+        NativeVectorCanvas(
+            modifier = Modifier.fillMaxSize(),
+            clearArgb = 0,
+            atlas = atlas,
+            drawKey = listOf(stripEntries, resetScale.value, diamondScale.value, atlas.generation),
+            buildCmds = { w, h, dd ->
+                val cy = h / 2f
+                // Reset disc.
+                addCircle(
+                    13f * dd, cy, 13f * dd - 0.5f * dd,
+                    AmPanelElevated.toArgb(), 1f * dd, AmHairlineStrong.toArgb()
+                )
+                if (refreshEntry != null) {
+                    setScaleAbout(13f * dd, cy, resetScale.value)
+                    addText(
+                        refreshEntry.index,
+                        13f * dd - refreshPx / 2f - pad, cy - refreshPx / 2f - pad,
+                        0f, 0f, refreshEntry.rectW.toFloat(), refreshEntry.rectH.toFloat(),
+                        tintArgb = IconActive.toArgb()
+                    )
+                    clearTransform()
+                }
+                // Strip surface.
+                val stripLeft = 32f * dd
+                addRoundRect(
+                    (stripLeft + w) / 2f, cy, w - stripLeft, 24f * dd, 8f * dd,
+                    AmPanelElevated.toArgb()
+                )
+                addRoundRect(
+                    (stripLeft + w) / 2f, cy, w - stripLeft - 1f * dd, 24f * dd - 1f * dd, 7.5f * dd,
+                    0, 1f * dd, AmHairlineStrong.toArgb()
+                )
+                // Keyframe diamond + upright Add.
+                val dcx = w - 37f * dd
+                setScaleAbout(dcx, cy, diamondScale.value)
+                val poly = EditorGeometry.roundedRectOutline(
+                    dcx, cy, 16f * dd, 16f * dd, 0f, 0f, 0f, 0f, 45f, 1
+                )
+                val xs = FloatArray(poly.size / 2)
+                val ys = FloatArray(poly.size / 2)
+                for (i in xs.indices) {
+                    xs[i] = poly[i * 2]
+                    ys[i] = poly[i * 2 + 1]
+                }
+                addFilledPolygon(xs, ys, xs.size, AmVioletDeep.toArgb())
+                if (addEntry != null) {
+                    addText(
+                        addEntry.index,
+                        dcx - addPx / 2f - pad, cy - addPx / 2f - pad,
+                        0f, 0f, addEntry.rectW.toFloat(), addEntry.rectH.toFloat(),
+                        tintArgb = Color.White.toArgb()
+                    )
+                }
+                clearTransform()
+                // Easing cubic (the old 15 dp canvas at the strip's right).
+                val cl = w - 21f * dd
+                addCubic(
+                    cl, cy + 7.5f * dd,
+                    cl + 6f * dd, cy + 7.5f * dd,
+                    cl + 9f * dd, cy - 7.5f * dd,
+                    cl + 15f * dd, cy - 7.5f * dd,
+                    1.8f * dd, 0xFF8E8E8E.toInt(), capRound = false
+                )
+            }
+        )
+        ChromePressBox(
+            resetScale, 0.94f, onReset,
+            Modifier
+                .offset(y = 1.dp)
+                .size(26.dp),
+            description = "Reset Crop"
+        )
+        ChromePressBox(
+            diamondScale, 0.94f, {},
+            Modifier
+                .offset(x = ((wPx - 45f * density) / density).dp, y = 6.dp)
+                .size(16.dp),
+            description = "Keyframe"
+        )
     }
 }
 

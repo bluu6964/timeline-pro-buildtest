@@ -151,6 +151,7 @@ enum class UiLabelStyle(
 
     /** Build 252 (stage 5): editor timecode rows: 10.5 sp Monospace Bold / Regular. */
     TIMECODE_MONO(10.5f, 700, mono = true),
+    TIMECODE_MONO_MED(10.5f, 500, mono = true),
     TIMECODE_MONO_N(10.5f, 400, mono = true),
 
     /** Build 252 (stage 5): blend header opacity value: 12 sp SemiBold, tabular figures. */
