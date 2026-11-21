@@ -141,6 +141,7 @@ enum class UiLabelStyle(
 
     /** Build 252 (stage 5): 10 sp plain text (strip labels). */
     TEXT_10(10f, 400),
+    TEXT_10_SEMI(10f, 600),
 
     /** Build 252 (stage 5): animation curve chips: 8.5 sp Regular / Bold. */
     CURVE(8.5f, 400),
