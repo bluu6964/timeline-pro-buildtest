@@ -4,24 +4,29 @@ import com.example.ui.theme.AmCornerCard
 
 import androidx.compose.foundation.shape.RoundedCornerShape
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.engine.NativeVectorCanvas
+import com.example.engine.UiLabelStyle
 import com.example.ui.theme.AmPanel
 import com.example.ui.theme.HeaderText
 import com.example.ui.theme.TextSecondary
-import com.example.ui.util.bouncyClickable
 
 /**
  * The layer colour-label picker (build 199, A2). Build 207 (frontend redesign):
@@ -43,23 +48,36 @@ fun LayerLabelDialog(
         onDismissRequest = onDismiss,
         containerColor = AmPanel,
         shape = RoundedCornerShape(AmCornerCard),
-        title = { Text("Layer label", color = HeaderText) },
+        // Build 253 (stage 6): the title, the swatch grid and the
+        // note draw in GL (shell stays). Flat colour fills are exact
+        // in GL — only atlas blits are alpha-only.
+        title = {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(with(LocalDensity.current) { 32.sp.toDp() })
+            ) {
+                GlTextLine(
+                    "Layer label", UiLabelStyle.DLG_TITLE, HeaderText.toArgb(),
+                    Modifier.fillMaxSize()
+                )
+            }
+        },
         text = {
             Column {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    LABEL_PALETTE.take(6).forEach { c -> Swatch(c, currentColor, onPick) }
-                }
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.padding(top = 8.dp)
+                SwatchGridGl(currentColor, onPick)
+                Box(
+                    Modifier
+                        .padding(top = 10.dp)
+                        .fillMaxWidth()
+                        .height(with(LocalDensity.current) { 18.sp.toDp() })
                 ) {
-                    LABEL_PALETTE.drop(6).forEach { c -> Swatch(c, currentColor, onPick) }
+                    GlTextLine(
+                        "The label colour tints the layer's timeline bar.",
+                        UiLabelStyle.DLG_13, TextSecondary.toArgb(),
+                        Modifier.fillMaxSize()
+                    )
                 }
-                Text(
-                    text = "The label colour tints the layer's timeline bar.",
-                    color = TextSecondary,
-                    modifier = Modifier.padding(top = 10.dp)
-                )
             }
         },
         confirmButton = {
@@ -71,19 +89,55 @@ fun LayerLabelDialog(
     )
 }
 
-/** One palette swatch: a flat square of the colour; the current one carries a white edge. */
+/**
+ * Build 253 (stage 6): the whole 2×6 swatch grid on one GL surface —
+ * each swatch a flat colour square (28dp, r8); the current one
+ * carries the 1.5dp white edge (an inside stroke, as Compose's
+ * border draws). In build 252 the fill + border sat outside
+ * bouncyClickable's graphicsLayer, so a press scaled nothing; the
+ * per-swatch press boxes keep the tap + semantics only.
+ */
 @Composable
-private fun Swatch(colorValue: Long, currentColor: Long, onPick: (Long) -> Unit) {
-    val selected = colorValue == currentColor
+private fun SwatchGridGl(currentColor: Long, onPick: (Long) -> Unit) {
+    val scales = remember { LABEL_PALETTE.map { Animatable(1f) } }
     Box(
-        modifier = Modifier
-            .size(28.dp)
-            .background(Color(colorValue), RoundedCornerShape(8.dp))
-            .then(
-                if (selected) Modifier.border(1.5.dp, Color.White, RoundedCornerShape(8.dp)) else Modifier
+        Modifier
+            .width(208.dp)
+            .height(64.dp)
+    ) {
+        NativeVectorCanvas(
+            modifier = Modifier.fillMaxSize(),
+            clearArgb = 0,
+            drawKey = currentColor,
+            buildCmds = { _, _, dd ->
+                LABEL_PALETTE.forEachIndexed { i, c ->
+                    val col = i % 6
+                    val row = i / 6
+                    val cx = (col * 36 + 14) * dd
+                    val cy = (row * 36 + 14) * dd
+                    addRoundRect(cx, cy, 28f * dd, 28f * dd, 8f * dd, Color(c).toArgb())
+                    if (c == currentColor) {
+                        addRoundRect(
+                            cx, cy, 28f * dd - 1.5f * dd, 28f * dd - 1.5f * dd,
+                            8f * dd - 0.75f * dd,
+                            0, 1.5f * dd, 0xFFFFFFFF.toInt()
+                        )
+                    }
+                }
+            }
+        )
+        LABEL_PALETTE.forEachIndexed { i, c ->
+            val col = i % 6
+            val row = i / 6
+            ChromePressBox(
+                scales[i], 0.94f, { onPick(c) },
+                Modifier
+                    .offset(x = (col * 36).dp, y = (row * 36).dp)
+                    .size(28.dp),
+                description = "Label colour"
             )
-            .bouncyClickable { onPick(colorValue) }
-    )
+        }
+    }
 }
 
 /** Label colours offered beside Default: vivid, mutually distinct, readable as bar tints. */

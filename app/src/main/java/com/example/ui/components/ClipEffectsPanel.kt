@@ -1320,22 +1320,52 @@ fun FxInfoDialog(def: FxDef, onDismiss: () -> Unit) {
         onDismissRequest = onDismiss,
         containerColor = com.example.ui.theme.AmPanel,
         shape = RoundedCornerShape(AmCornerCard),
+        // Build 253 (stage 6): the dialog's slot contents draw in GL
+        // (the AppAlertDialog shell stays). Dialog typography law:
+        // the title slot is headlineSmall (24sp, 32sp line box), the
+        // text slot's bodyMedium gives every line an 18sp pitch and
+        // 0.2sp tracking — the DLG_* atlas styles carry both.
         title = {
-            Text(def.name, color = TextPrimary, fontWeight = FontWeight.Bold)
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(with(LocalDensity.current) { 32.sp.toDp() })
+            ) {
+                GlTextLine(
+                    def.name, UiLabelStyle.DLG_TITLE_B, TextPrimary.toArgb(),
+                    Modifier.fillMaxSize()
+                )
+            }
         },
         text = {
             Column {
-                Text(def.category, color = AmTextDim, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(with(LocalDensity.current) { 18.sp.toDp() })
+                ) {
+                    GlTextLine(
+                        def.category, UiLabelStyle.DLG_12_SEMI,
+                        com.example.ui.theme.AmTextDim.toArgb(),
+                        Modifier.fillMaxSize()
+                    )
+                }
                 if (def.blurb.isNotBlank()) {
                     Spacer(Modifier.height(8.dp))
-                    Text(def.blurb, color = TextPrimary, fontSize = 13.sp)
+                    GlTextBlock(
+                        def.blurb, UiLabelStyle.DLG_13, TextPrimary.toArgb(),
+                        Modifier.fillMaxWidth(),
+                        linePitchSp = 18f
+                    )
                 }
                 if (def.params.isNotEmpty()) {
                     Spacer(Modifier.height(10.dp))
-                    Text(
+                    GlTextBlock(
                         "Parameters: " + def.params.joinToString(", ") { it.name },
-                        color = AmTextDim,
-                        fontSize = 12.sp
+                        UiLabelStyle.DLG_12,
+                        com.example.ui.theme.AmTextDim.toArgb(),
+                        Modifier.fillMaxWidth(),
+                        linePitchSp = 18f
                     )
                 }
             }
