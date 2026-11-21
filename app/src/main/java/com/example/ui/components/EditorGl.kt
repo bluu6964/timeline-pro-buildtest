@@ -182,7 +182,11 @@ internal fun GlPillStrip(
     modifier: Modifier = Modifier,
     minHDp: Float = 0f,
     pressScale: Float = 0.94f,
-    scrollable: Boolean = false
+    scrollable: Boolean = false,
+    /** Horizontal content padding inside the strip (the LazyRow hosts'
+     *  contentPadding): items start this far in, and it counts into
+     *  the strip's content width. */
+    contentPadHDp: Float = 0f
 ) {
     val density = LocalDensity.current.density
     val atlas = rememberUiAtlas()
@@ -200,13 +204,14 @@ internal fun GlPillStrip(
     val scaleValues = scales.map { it.value }
 
     val widths = EditorGeometry.PillStrip.itemWidthsPx(entries.map { it?.advance ?: 0f }, padHDp, density)
-    val lefts = EditorGeometry.PillStrip.itemLeftsPx(widths, gapDp, density)
+    val lefts = EditorGeometry.PillStrip.itemLeftsPx(widths, gapDp, density, startPx = contentPadHDp * density)
     val heights = items.mapIndexed { i, item ->
         val textH = atlas.textHeightPx(labelStyle(item.selected))
         EditorGeometry.PillStrip.itemHPx(textH, padVDp, minHDp, density)
     }
     val stripH = heights.maxOrNull() ?: 0f
-    val contentW = EditorGeometry.PillStrip.contentWPx(widths, gapDp, density)
+    val contentW = EditorGeometry.PillStrip.contentWPx(widths, gapDp, density) +
+        2f * contentPadHDp * density
 
     val surface: @Composable () -> Unit = {
         Box(
