@@ -13,13 +13,25 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.CornerRadius
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import com.example.ui.util.enterPop
 import com.example.ui.util.bouncyClickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.platform.LocalDensity
+import com.example.engine.UiLabelAtlas
+import com.example.engine.UiLabelStyle
+import com.example.engine.rememberUiAtlas
+import com.example.model.EditorGeometry
+import com.example.model.PanelGeometry
+import com.example.model.SheetGeometry
+import kotlin.math.roundToInt
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.horizontalScroll
@@ -160,6 +172,44 @@ fun AspectRatioSheet(
         shape = AmSheetShape,
         dragHandle = { SheetDragHandle() }
     ) {
+        // Build 253 (UI migration stage 6): the sheet's cards, swatches
+        // and chips draw on GL surfaces (SheetGeometry.Aspect); the
+        // three LazyRows become horizontal scroll rows of per-item
+        // surfaces (the stage-4 grid precedent — the sets are small
+        // and fixed). Fills sat outside the press layer in Compose;
+        // outlines, icons and labels press-scale via ChromePressBox.
+        val g = SheetGeometry.Aspect
+        val density = LocalDensity.current.density
+        val atlas = rememberUiAtlas()
+        val pad = UiLabelAtlas.PAD.toFloat()
+        val palettePainter = rememberVectorPainter(Icons.Default.Palette)
+        val ratioLabelH = atlas.textHeightPx(UiLabelStyle.TEXT_135_MED)
+        val resLabelH = atlas.textHeightPx(UiLabelStyle.TEXT_13_MED)
+        val resDetailH = atlas.textHeightPx(UiLabelStyle.SHEET_DESC)
+
+        fun resolveAspect(): AspectEntries {
+            val ratios = AspectRatio.values().map { atlas.resolve(it.label, UiLabelStyle.TEXT_135_MED) }
+            val resLabels = ExportResolutions.map { atlas.resolve(it.first, UiLabelStyle.TEXT_13_MED) }
+            val resDetails = ExportResolutions.map { atlas.resolve(it.second, UiLabelStyle.SHEET_DESC) }
+            val palettePx = (19f * density).roundToInt()
+            val palette = atlas.iconEntry("aspect:palette", palettePainter, palettePx, density)
+            return AspectEntries(ratios, resLabels, resDetails, palette)
+        }
+        var entries = resolveAspect()
+        if (atlas.overflowed) {
+            atlas.reset()
+            entries = resolveAspect()
+        }
+        val ratios = AspectRatio.values()
+        val cardScales = remember { ratios.map { Animatable(1f) } }
+        val cardScaleValues = cardScales.map { it.value }
+        val customScale = remember { Animatable(1f) }
+        val swatchScales = remember { CanvasSwatches.map { Animatable(1f) } }
+        val swatchScaleValues = swatchScales.map { it.value }
+        val chipScales = remember { ExportResolutions.map { Animatable(1f) } }
+        val chipScaleValues = chipScales.map { it.value }
+        val custom = CanvasSwatches.none { (it and 0xFFFFFFL) == (canvasColor and 0xFFFFFFL) }
+
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -168,112 +218,205 @@ fun AspectRatioSheet(
                 .testTag("aspect_ratio_sheet")
         ) {
             SheetTitle("Aspect Ratio")
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 12.dp),
+            Row(
+                modifier = Modifier
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(AspectRatio.values()) { ratio ->
+                ratios.forEachIndexed { i, ratio ->
                     val selected = ratio.label == currentRatio.label
                     val shape = if (ratio.isOriginal && originalAspect > 0.05f) originalAspect else ratio.ratioFloat
-                    Column(
-                        modifier = Modifier
-                            .width(78.dp)
-                            .height(78.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(if (selected) Color(0xFFE8E4E4) else Color(0xFF3A3A3D))
-                            .bouncyClickable(pressedScale = 0.94f) { onRatioSelected(ratio) }
-                            .testTag("aspect_${ratio.label}"),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
+                    val tint = if (selected) 0xFF1C1D20.toInt() else 0xFFE5E5E7.toInt()
+                    Box(
+                        Modifier
+                            .width(g.CARD_DP.dp)
+                            .height(g.CARD_DP.dp)
                     ) {
-                        val tint = if (selected) Color(0xFF1C1D20) else Color(0xFFE5E5E7)
-                        // A little outline with the real shape of the canvas.
-                        Box(
-                            modifier = Modifier.size(34.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            val w = if (shape >= 1f) 32.dp else 32.dp * shape
-                            val h = if (shape >= 1f) 32.dp / shape else 32.dp
-                            Box(
-                                Modifier
-                                    .size(width = w, height = h)
-                                    .border(2.dp, tint, RoundedCornerShape(2.5.dp))
-                            )
-                        }
-                        Spacer(Modifier.height(6.dp))
-                        Text(ratio.label, color = tint, fontSize = 13.5.sp, fontWeight = FontWeight.Medium)
+                        NativeVectorCanvas(
+                            modifier = Modifier.fillMaxSize(),
+                            clearArgb = 0,
+                            atlas = atlas,
+                            drawKey = listOf(entries.ratios[i], cardScaleValues[i], selected, shape, atlas.generation),
+                            buildCmds = { w, h, dd ->
+                                addRoundRect(
+                                    w / 2f, h / 2f, w, h, g.CARD_CORNER_DP * dd,
+                                    if (selected) 0xFFE8E4E4.toInt() else 0xFF3A3A3D.toInt()
+                                )
+                                setScaleAbout(w / 2f, h / 2f, cardScales[i].value)
+                                val stackTop = g.stackTopPx(ratioLabelH, dd)
+                                val (sw, sh) = g.shapeSizePx(shape, dd)
+                                addRoundRect(
+                                    w / 2f, stackTop + g.SHAPE_BOX_DP * dd / 2f,
+                                    sw, sh, 2.5f * dd,
+                                    0, 2f * dd, tint
+                                )
+                                entries.ratios[i]?.let { e ->
+                                    val style = UiLabelStyle.TEXT_135_MED
+                                    val fm = atlas.fontMetrics(style)
+                                    val labelTop = stackTop + (g.SHAPE_BOX_DP + g.SHAPE_GAP_DP) * dd
+                                    val baseline = PanelGeometry.lineBaselinePx(labelTop, ratioLabelH, fm.ascent, fm.descent)
+                                    val originX = EditorGeometry.centredOriginPx(w / 2f, e.advance)
+                                    val (dstX, dstY) = EditorGeometry.textDst(originX, baseline, e.bearing, e.base, pad)
+                                    addText(
+                                        e.index, dstX, dstY,
+                                        0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                                        tintArgb = tint
+                                    )
+                                }
+                                clearTransform()
+                            }
+                        )
+                        ChromePressBox(
+                            cardScales[i], 0.94f, { onRatioSelected(ratio) },
+                            Modifier.fillMaxSize(),
+                            tag = "aspect_${ratio.label}",
+                            description = ratio.label
+                        )
                     }
                 }
             }
 
             Spacer(Modifier.height(16.dp))
             SheetTitle("Canvas color")
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 12.dp),
+            Row(
+                modifier = Modifier
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                item {
-                    // Custom colour: shows the current colour when it is not one of the swatches.
-                    val custom = CanvasSwatches.none { (it and 0xFFFFFFL) == (canvasColor and 0xFFFFFFL) }
-                    Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(if (custom) Color(canvasColor) else Color(0xFF3A3A3D))
-                            .border(
-                                if (custom) 2.5.dp else 1.dp,
-                                if (custom) Color.White else Color.White.copy(alpha = 0.7f),
-                                CircleShape
+                Box(
+                    Modifier.size(g.SWATCH_DP.dp)
+                ) {
+                    NativeVectorCanvas(
+                        modifier = Modifier.fillMaxSize(),
+                        clearArgb = 0,
+                        atlas = atlas,
+                        drawKey = listOf(entries.palette, customScale.value, custom, canvasColor, atlas.generation),
+                        buildCmds = { w, h, dd ->
+                            val bw = if (custom) 2.5f else 1f
+                            addCircle(
+                                w / 2f, h / 2f, w / 2f,
+                                if (custom) Color(canvasColor).toArgb() else 0xFF3A3A3D.toInt()
                             )
-                            .bouncyClickable(pressedScale = 0.9f) { showPicker = true }
-                            .testTag("canvas_color_custom"),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Default.Palette, "Custom color", tint = Color.White, modifier = Modifier.size(19.dp))
-                    }
+                            addCircle(
+                                w / 2f, h / 2f, w / 2f - bw * dd / 2f,
+                                0, bw * dd,
+                                if (custom) 0xFFFFFFFF.toInt() else 0xB3FFFFFF.toInt()
+                            )
+                            setScaleAbout(w / 2f, h / 2f, customScale.value)
+                            entries.palette?.let { e ->
+                                addText(
+                                    e.index, (w - e.rectW) / 2f, (h - e.rectH) / 2f,
+                                    0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                                    tintArgb = 0xFFFFFFFF.toInt()
+                                )
+                            }
+                            clearTransform()
+                        }
+                    )
+                    ChromePressBox(
+                        customScale, 0.9f, { showPicker = true },
+                        Modifier.fillMaxSize(),
+                        tag = "canvas_color_custom",
+                        description = "Custom color"
+                    )
                 }
-                items(CanvasSwatches) { c ->
+                CanvasSwatches.forEachIndexed { i, c ->
                     val selected = (c and 0xFFFFFFL) == (canvasColor and 0xFFFFFFL)
                     Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(Color(c))
-                            .border(
-                                if (selected) 2.5.dp else 1.dp,
-                                if (selected) Color.White else Color.White.copy(alpha = 0.18f),
-                                CircleShape
-                            )
-                            .bouncyClickable(pressedScale = 0.88f) { onCanvasColor(c) }
-                    )
+                        Modifier.size(g.SWATCH_DP.dp)
+                    ) {
+                        NativeVectorCanvas(
+                            modifier = Modifier.fillMaxSize(),
+                            clearArgb = 0,
+                            drawKey = listOf(selected, c),
+                            buildCmds = { w, h, dd ->
+                                val bw = if (selected) 2.5f else 1f
+                                addCircle(w / 2f, h / 2f, w / 2f, Color(c).toArgb())
+                                addCircle(
+                                    w / 2f, h / 2f, w / 2f - bw * dd / 2f,
+                                    0, bw * dd,
+                                    if (selected) 0xFFFFFFFF.toInt() else 0x2EFFFFFF
+                                )
+                            }
+                        )
+                        ChromePressBox(
+                            swatchScales[i], 0.88f, { onCanvasColor(c) },
+                            Modifier.fillMaxSize(),
+                            description = "Canvas color"
+                        )
+                    }
                 }
             }
 
             Spacer(Modifier.height(16.dp))
             SheetTitle("Resolution")
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 12.dp),
+            Row(
+                modifier = Modifier
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(ExportResolutions) { (label, detail) ->
+                ExportResolutions.forEachIndexed { i, (label, detail) ->
                     val selected = label == resolution
-                    Column(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(11.dp))
-                            .background(if (selected) Color(0xFFE8E4E4) else Color(0xFF3A3A3D))
-                            .bouncyClickable(pressedScale = 0.94f) { onResolution(label) }
-                            .padding(horizontal = 13.dp, vertical = 8.dp)
-                            .testTag("resolution_$label"),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                    val chipW = g.resChipWidthPx(
+                        entries.resLabels[i]?.advance ?: 0f,
+                        entries.resDetails[i]?.advance ?: 0f,
+                        density
+                    )
+                    val chipH = g.resChipHeightPx(resLabelH, resDetailH, density)
+                    Box(
+                        Modifier
+                            .width((chipW / density).dp)
+                            .height((chipH / density).dp)
                     ) {
-                        Text(
-                            label, fontSize = 13.sp, fontWeight = FontWeight.Medium,
-                            color = if (selected) Color(0xFF1C1D20) else Color(0xFFE5E5E7)
+                        NativeVectorCanvas(
+                            modifier = Modifier.fillMaxSize(),
+                            clearArgb = 0,
+                            atlas = atlas,
+                            drawKey = listOf(entries.resLabels[i], entries.resDetails[i], chipScaleValues[i], selected, atlas.generation),
+                            buildCmds = { w, h, dd ->
+                                addRoundRect(
+                                    w / 2f, h / 2f, w, h, 11f * dd,
+                                    if (selected) 0xFFE8E4E4.toInt() else 0xFF3A3A3D.toInt()
+                                )
+                                setScaleAbout(w / 2f, h / 2f, chipScales[i].value)
+                                entries.resLabels[i]?.let { e ->
+                                    val style = UiLabelStyle.TEXT_13_MED
+                                    val fm = atlas.fontMetrics(style)
+                                    val top = g.CHIP_PAD_V_DP * dd
+                                    val baseline = PanelGeometry.lineBaselinePx(top, resLabelH, fm.ascent, fm.descent)
+                                    val originX = EditorGeometry.centredOriginPx(w / 2f, e.advance)
+                                    val (dstX, dstY) = EditorGeometry.textDst(originX, baseline, e.bearing, e.base, pad)
+                                    addText(
+                                        e.index, dstX, dstY,
+                                        0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                                        tintArgb = if (selected) 0xFF1C1D20.toInt() else 0xFFE5E5E7.toInt()
+                                    )
+                                }
+                                entries.resDetails[i]?.let { e ->
+                                    val style = UiLabelStyle.SHEET_DESC
+                                    val fm = atlas.fontMetrics(style)
+                                    val top = g.CHIP_PAD_V_DP * dd + resLabelH
+                                    val baseline = PanelGeometry.lineBaselinePx(top, resDetailH, fm.ascent, fm.descent)
+                                    val originX = EditorGeometry.centredOriginPx(w / 2f, e.advance)
+                                    val (dstX, dstY) = EditorGeometry.textDst(originX, baseline, e.bearing, e.base, pad)
+                                    addText(
+                                        e.index, dstX, dstY,
+                                        0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                                        tintArgb = if (selected) 0xFF55555A.toInt() else 0xFF9A9AA0.toInt()
+                                    )
+                                }
+                                clearTransform()
+                            }
                         )
-                        Text(
-                            detail, fontSize = 10.5.sp,
-                            color = if (selected) Color(0xFF55555A) else Color(0xFF9A9AA0)
+                        ChromePressBox(
+                            chipScales[i], 0.94f, { onResolution(label) },
+                            Modifier.fillMaxSize(),
+                            tag = "resolution_$label",
+                            description = label
                         )
                     }
                 }
@@ -290,16 +433,23 @@ fun AspectRatioSheet(
     }
 }
 
+/** Build 253: the sheet section title draws in GL (16 sp Bold). */
 @Composable
 private fun SheetTitle(text: String) {
-    Text(
+    GlLabelLine(
         text = text,
-        color = TextPrimary,
-        fontSize = 16.sp,
-        fontWeight = FontWeight.Bold,
+        style = UiLabelStyle.TITLE_16,
+        colorArgb = TextPrimary.toArgb(),
         modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 6.dp, bottom = 10.dp)
     )
 }
+
+private data class AspectEntries(
+    val ratios: List<UiLabelAtlas.Entry?>,
+    val resLabels: List<UiLabelAtlas.Entry?>,
+    val resDetails: List<UiLabelAtlas.Entry?>,
+    val palette: UiLabelAtlas.Entry?
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -314,66 +464,146 @@ fun ResolutionSheet(
         shape = AmSheetShape,
         dragHandle = { SheetDragHandle() }
     ) {
+        // Build 253 (stage 6): title and rows draw on GL surfaces
+        // (SheetGeometry.ListRow — the sheets' shared row form); the
+        // column's padding and the 4 dp row spacers are unchanged.
+        val g = SheetGeometry.ListRow
+        val density = LocalDensity.current.density
+        val atlas = rememberUiAtlas()
+        val pad = UiLabelAtlas.PAD.toFloat()
+        val checkPainter = rememberVectorPainter(Icons.Default.Check)
+        val titleH = atlas.textHeightPx(UiLabelStyle.SHEET_TITLE)
+        val labelH = atlas.textHeightPx(UiLabelStyle.SEMI_125)
+        val detailH = atlas.textHeightPx(UiLabelStyle.SHEET_DESC)
+        val rowH = g.twoLineHeightPx(labelH, detailH, density)
+
+        fun resolveRes(): ResEntries {
+            val title = atlas.resolve("Preview Resolution", UiLabelStyle.SHEET_TITLE)
+            val labels = PreviewResolution.values().map { atlas.resolve(it.label, UiLabelStyle.SEMI_125) }
+            val details = PreviewResolution.values().map { atlas.resolve(it.detail, UiLabelStyle.SHEET_DESC) }
+            val checkPx = (16f * density).roundToInt()
+            val check = atlas.iconEntry("sheet:check16", checkPainter, checkPx, density)
+            return ResEntries(title, labels, details, check)
+        }
+        var entries = resolveRes()
+        if (atlas.overflowed) {
+            atlas.reset()
+            entries = resolveRes()
+        }
+        val resolutions = PreviewResolution.values()
+        val rowScales = remember { resolutions.map { Animatable(1f) } }
+        val rowScaleValues = rowScales.map { it.value }
+
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 14.dp, vertical = 6.dp)
                 .padding(bottom = 18.dp)
         ) {
-            Text(
-                text = "Preview Resolution",
-                color = TextPrimary,
-                fontSize = 14.5.sp,
-                fontWeight = FontWeight.Bold
-            )
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height((titleH / density).dp)
+            ) {
+                NativeVectorCanvas(
+                    modifier = Modifier.fillMaxSize(),
+                    clearArgb = 0,
+                    atlas = atlas,
+                    drawKey = listOf(entries.title, atlas.generation),
+                    buildCmds = { _, _, _ ->
+                        entries.title?.let { e ->
+                            val style = UiLabelStyle.SHEET_TITLE
+                            val fm = atlas.fontMetrics(style)
+                            val baseline = PanelGeometry.lineBaselinePx(0f, titleH, fm.ascent, fm.descent)
+                            val (dstX, dstY) = EditorGeometry.textDst(0f, baseline, e.bearing, e.base, pad)
+                            addText(
+                                e.index, dstX, dstY,
+                                0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                                tintArgb = TextPrimary.toArgb()
+                            )
+                        }
+                    }
+                )
+            }
             Spacer(modifier = Modifier.height(10.dp))
 
-            PreviewResolution.values().forEach { res ->
+            resolutions.forEachIndexed { i, res ->
                 val isSelected = res == currentResolution
-                Row(
-                    modifier = Modifier
+                Box(
+                    Modifier
                         .fillMaxWidth()
-                        .background(
-                            if (isSelected) AmPillSelected else AmCardSurface,
-                            RoundedCornerShape(14.dp)
-                        )
-                        .clip(RoundedCornerShape(14.dp))
-                        .bouncyClickable {
+                        .height((rowH / density).dp)
+                ) {
+                    NativeVectorCanvas(
+                        modifier = Modifier.fillMaxSize(),
+                        clearArgb = 0,
+                        atlas = atlas,
+                        drawKey = listOf(entries.labels[i], entries.details[i], entries.check, rowScaleValues[i], isSelected, atlas.generation),
+                        buildCmds = { w, h, dd ->
+                            addRoundRect(
+                                w / 2f, h / 2f, w, h, g.CORNER_DP * dd,
+                                (if (isSelected) AmPillSelected else AmCardSurface).toArgb()
+                            )
+                            setScaleAbout(w / 2f, h / 2f, rowScales[i].value)
+                            val stackTop = g.stackTopPx(h, labelH + detailH)
+                            entries.labels[i]?.let { e ->
+                                val style = UiLabelStyle.SEMI_125
+                                val fm = atlas.fontMetrics(style)
+                                val baseline = PanelGeometry.lineBaselinePx(stackTop, labelH, fm.ascent, fm.descent)
+                                val (dstX, dstY) = EditorGeometry.textDst(11f * dd, baseline, e.bearing, e.base, pad)
+                                addText(
+                                    e.index, dstX, dstY,
+                                    0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                                    tintArgb = TextPrimary.toArgb()
+                                )
+                            }
+                            entries.details[i]?.let { e ->
+                                val style = UiLabelStyle.SHEET_DESC
+                                val fm = atlas.fontMetrics(style)
+                                val baseline = PanelGeometry.lineBaselinePx(stackTop + labelH, detailH, fm.ascent, fm.descent)
+                                val (dstX, dstY) = EditorGeometry.textDst(11f * dd, baseline, e.bearing, e.base, pad)
+                                addText(
+                                    e.index, dstX, dstY,
+                                    0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                                    tintArgb = TextSecondary.toArgb()
+                                )
+                            }
+                            if (isSelected) {
+                                entries.check?.let { e ->
+                                    addText(
+                                        e.index,
+                                        w - 11f * dd - e.rectW.toFloat() + pad,
+                                        (h - e.rectH) / 2f,
+                                        0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                                        tintArgb = com.example.ui.theme.AmAccent.toArgb()
+                                    )
+                                }
+                            }
+                            clearTransform()
+                        }
+                    )
+                    ChromePressBox(
+                        rowScales[i], 0.94f,
+                        {
                             onResolutionSelected(res)
                             onDismiss()
-                        }
-                        .padding(horizontal = 11.dp, vertical = 9.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column {
-                        Text(
-                            text = res.label,
-                            color = TextPrimary,
-                            fontSize = 12.5.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = res.detail,
-                            color = TextSecondary,
-                            fontSize = 10.5.sp
-                        )
-                    }
-
-                    if (isSelected) {
-                        Icon(
-                            imageVector = Icons.Default.Check,
-                            contentDescription = "Selected",
-                            tint = com.example.ui.theme.AmAccent, // build 223: unified accent (was NeonCyan)
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
+                        },
+                        Modifier.fillMaxSize(),
+                        description = res.label
+                    )
                 }
                 Spacer(modifier = Modifier.height(4.dp))
             }
         }
     }
 }
+
+private data class ResEntries(
+    val title: UiLabelAtlas.Entry?,
+    val labels: List<UiLabelAtlas.Entry?>,
+    val details: List<UiLabelAtlas.Entry?>,
+    val check: UiLabelAtlas.Entry?
+)
 
 /** Full-screen dark export screen (badge logo with "AM", big % and remaining time). */
 @Composable
@@ -932,7 +1162,8 @@ fun AddAudioSheet(
                 .padding(horizontal = 14.dp, vertical = 6.dp)
                 .padding(bottom = 18.dp)
         ) {
-            Text("Add Audio", color = TextPrimary, fontSize = 14.5.sp, fontWeight = FontWeight.Bold)
+            // Build 253: the title draws in GL.
+            GlLabelLine("Add Audio", UiLabelStyle.SHEET_TITLE, TextPrimary.toArgb())
             Spacer(modifier = Modifier.height(10.dp))
 
             AddAudioRow(
@@ -958,6 +1189,11 @@ fun AddAudioSheet(
     }
 }
 
+/**
+ * Build 253 (stage 6): one Add Audio row on a GL surface
+ * (SheetGeometry.ListRow): card fill, the icon rasterized into the
+ * atlas, the title/subtitle stack — one press target over it.
+ */
 @Composable
 private fun AddAudioRow(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
@@ -966,22 +1202,83 @@ private fun AddAudioRow(
     tag: String,
     onClick: () -> Unit
 ) {
-    Row(
-        modifier = Modifier
+    val g = SheetGeometry.ListRow
+    val density = LocalDensity.current.density
+    val atlas = rememberUiAtlas()
+    val pad = UiLabelAtlas.PAD.toFloat()
+    val painter = rememberVectorPainter(icon)
+    val titleH = atlas.textHeightPx(UiLabelStyle.SHEET_ITEM_SEMI)
+    val subH = atlas.textHeightPx(UiLabelStyle.SHEET_DESC)
+    val rowH = g.twoLineHeightPx(titleH, subH, density)
+
+    fun resolveRow(): Triple<UiLabelAtlas.Entry?, UiLabelAtlas.Entry?, UiLabelAtlas.Entry?> {
+        val t = atlas.resolve(title, UiLabelStyle.SHEET_ITEM_SEMI)
+        val s = atlas.resolve(subtitle, UiLabelStyle.SHEET_DESC)
+        val iconPx = (19f * density).roundToInt()
+        val ic = atlas.iconEntry("audio:$title", painter, iconPx, density)
+        return Triple(t, s, ic)
+    }
+    var rowEntries = resolveRow()
+    if (atlas.overflowed) {
+        atlas.reset()
+        rowEntries = resolveRow()
+    }
+    val (titleE, subE, iconE) = rowEntries
+    val scale = remember { Animatable(1f) }
+
+    Box(
+        Modifier
             .fillMaxWidth()
-            .background(AmCardSurface, RoundedCornerShape(14.dp))
-            .clip(RoundedCornerShape(14.dp))
-            .bouncyClickable(onClick = onClick)
-            .padding(vertical = 9.dp, horizontal = 12.dp)
-            .testTag(tag),
-        verticalAlignment = Alignment.CenterVertically
+            .height((rowH / density).dp)
     ) {
-        Icon(icon, contentDescription = null, tint = TextPrimary, modifier = Modifier.size(19.dp))
-        Spacer(modifier = Modifier.width(10.dp))
-        Column {
-            Text(title, color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-            Text(subtitle, color = TextSecondary, fontSize = 10.5.sp, maxLines = 1)
-        }
+        NativeVectorCanvas(
+            modifier = Modifier.fillMaxSize(),
+            clearArgb = 0,
+            atlas = atlas,
+            drawKey = listOf(titleE, subE, iconE, scale.value, atlas.generation),
+            buildCmds = { w, h, dd ->
+                addRoundRect(w / 2f, h / 2f, w, h, g.CORNER_DP * dd, AmCardSurface.toArgb())
+                setScaleAbout(w / 2f, h / 2f, scale.value)
+                iconE?.let { e ->
+                    addText(
+                        e.index,
+                        12f * dd - pad, (h - e.rectH) / 2f,
+                        0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                        tintArgb = TextPrimary.toArgb()
+                    )
+                }
+                val stackTop = g.stackTopPx(h, titleH + subH)
+                titleE?.let { e ->
+                    val style = UiLabelStyle.SHEET_ITEM_SEMI
+                    val fm = atlas.fontMetrics(style)
+                    val baseline = PanelGeometry.lineBaselinePx(stackTop, titleH, fm.ascent, fm.descent)
+                    val (dstX, dstY) = EditorGeometry.textDst(41f * dd, baseline, e.bearing, e.base, pad)
+                    addText(
+                        e.index, dstX, dstY,
+                        0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                        tintArgb = TextPrimary.toArgb()
+                    )
+                }
+                subE?.let { e ->
+                    val style = UiLabelStyle.SHEET_DESC
+                    val fm = atlas.fontMetrics(style)
+                    val baseline = PanelGeometry.lineBaselinePx(stackTop + titleH, subH, fm.ascent, fm.descent)
+                    val (dstX, dstY) = EditorGeometry.textDst(41f * dd, baseline, e.bearing, e.base, pad)
+                    addText(
+                        e.index, dstX, dstY,
+                        0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                        tintArgb = TextSecondary.toArgb()
+                    )
+                }
+                clearTransform()
+            }
+        )
+        ChromePressBox(
+            scale, 0.94f, onClick,
+            Modifier.fillMaxSize(),
+            tag = tag,
+            description = title
+        )
     }
 }
 
@@ -1006,7 +1303,9 @@ fun AddTextSheet(
                 .padding(horizontal = 14.dp, vertical = 6.dp)
                 .padding(bottom = 18.dp)
         ) {
-            Text("Add Text Layer", color = TextPrimary, fontSize = 14.5.sp, fontWeight = FontWeight.Bold)
+            // Build 253: title + preset label draw in GL; the text
+            // field itself stays Compose (text input never migrates).
+            GlLabelLine("Add Text Layer", UiLabelStyle.SHEET_TITLE, TextPrimary.toArgb())
             Spacer(modifier = Modifier.height(8.dp))
 
             PillTextField(
@@ -1017,21 +1316,46 @@ fun AddTextSheet(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            Text("Color Preset", color = TextSecondary, fontSize = 11.sp)
+            GlLabelLine("Color Preset", UiLabelStyle.TEXT_11, TextSecondary.toArgb())
             Spacer(modifier = Modifier.height(6.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(0xFFFFFFFF, 0xFF00F0FF, 0xFFFFEB3B, 0xFFFF4081, 0xFF00E676).forEach { colorValue ->
-                    Box(
-                        modifier = Modifier
-                            .size(28.dp)
-                            .clip(CircleShape)
-                            .background(Color(colorValue))
-                            .border(
-                                width = if (selectedColor == colorValue) 2.dp else 1.dp,
-                                color = if (selectedColor == colorValue) Color.White else Color.Transparent,
-                                shape = CircleShape
+            // The five preset discs on one GL surface; tap boxes over
+            // each (the selected disc's white ring is drawn, not bordered).
+            val presetColors = listOf(0xFFFFFFFF, 0xFF00F0FF, 0xFFFFEB3B, 0xFFFF4081, 0xFF00E676)
+            val presetScales = remember { presetColors.map { Animatable(1f) } }
+            val presetScaleValues = presetScales.map { it.value }
+            Box(
+                Modifier
+                    .width((28 * presetColors.size + 8 * (presetColors.size - 1)).dp)
+                    .height(28.dp)
+            ) {
+                NativeVectorCanvas(
+                    modifier = Modifier.fillMaxSize(),
+                    clearArgb = 0,
+                    drawKey = listOf(presetScaleValues, selectedColor),
+                    buildCmds = { _, _, dd ->
+                        presetColors.forEachIndexed { i, colorValue ->
+                            val cx = (i * 36 + 14) * dd
+                            val cy = 14f * dd
+                            // No press scale on the disc itself: in
+                            // Compose its background/border sat outside
+                            // bouncyClickable's graphicsLayer.
+                            addCircle(cx, cy, 14f * dd, Color(colorValue).toArgb())
+                            val bw = if (selectedColor == colorValue) 2f else 1f
+                            addCircle(
+                                cx, cy, 14f * dd - bw * dd / 2f,
+                                0, bw * dd,
+                                if (selectedColor == colorValue) 0xFFFFFFFF.toInt() else 0
                             )
-                            .bouncyClickable(pressedScale = 0.85f) { selectedColor = colorValue }
+                        }
+                    }
+                )
+                presetColors.forEachIndexed { i, colorValue ->
+                    ChromePressBox(
+                        presetScales[i], 0.85f, { selectedColor = colorValue },
+                        Modifier
+                            .offset(x = (i * 36).dp)
+                            .size(28.dp),
+                        description = "Color preset"
                     )
                 }
             }
@@ -1084,41 +1408,78 @@ fun AddShapeSheet(
                 .padding(horizontal = 12.dp)
                 .padding(bottom = 14.dp)
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = "Shapes",
-                    color = TextPrimary,
-                    fontSize = 14.5.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Box(
-                    modifier = Modifier
-                        .size(28.dp)
-                        .clip(CircleShape)
-                        .background(AmPanelHigh)
-                        .bouncyClickable(pressedScale = 0.88f) { onDismiss() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Default.Close,
-                        contentDescription = "Close",
-                        tint = TextSecondary,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
+            // Build 253 (stage 6): the header (title, close disc,
+            // hairline) draws on one GL surface; the close tap box
+            // sits over its disc.
+            val closePainter = rememberVectorPainter(Icons.Default.Close)
+            val density = LocalDensity.current.density
+            val atlas = rememberUiAtlas()
+            val pad = UiLabelAtlas.PAD.toFloat()
+            val titleH = atlas.textHeightPx(UiLabelStyle.SHEET_TITLE_SEMI)
+            fun resolveHeader(): Pair<UiLabelAtlas.Entry?, UiLabelAtlas.Entry?> {
+                val t = atlas.resolve("Shapes", UiLabelStyle.SHEET_TITLE_SEMI)
+                val closePx = (16f * density).roundToInt()
+                val c = atlas.iconEntry("shape:close", closePainter, closePx, density)
+                return t to c
             }
+            var headerEntries = resolveHeader()
+            if (atlas.overflowed) {
+                atlas.reset()
+                headerEntries = resolveHeader()
+            }
+            val (shapeTitleE, closeE) = headerEntries
+            val closeScale = remember { Animatable(1f) }
+            val headerH = maxOf(titleH / density, 28f) + 8f
+
             Box(
-                modifier = Modifier
+                Modifier
                     .fillMaxWidth()
-                    .height(1.dp)
-                    .background(AmHairline)
-            )
+                    .height(headerH.dp + 1.dp)
+            ) {
+                NativeVectorCanvas(
+                    modifier = Modifier.fillMaxSize(),
+                    clearArgb = 0,
+                    atlas = atlas,
+                    drawKey = listOf(shapeTitleE, closeE, closeScale.value, atlas.generation),
+                    buildCmds = { w, h, dd ->
+                        val rowH = h - 1f * dd
+                        shapeTitleE?.let { e ->
+                            val style = UiLabelStyle.SHEET_TITLE_SEMI
+                            val fm = atlas.fontMetrics(style)
+                            val top = EditorGeometry.centredTextTopPx(0f, rowH, titleH)
+                            val baseline = PanelGeometry.lineBaselinePx(top, titleH, fm.ascent, fm.descent)
+                            val (dstX, dstY) = EditorGeometry.textDst(0f, baseline, e.bearing, e.base, pad)
+                            addText(
+                                e.index, dstX, dstY,
+                                0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                                tintArgb = TextPrimary.toArgb()
+                            )
+                        }
+                        val discCx = w - 14f * dd
+                        val discCy = rowH / 2f
+                        addCircle(discCx, discCy, 14f * dd, AmPanelHigh.toArgb())
+                        setScaleAbout(discCx, discCy, closeScale.value)
+                        closeE?.let { e ->
+                            addText(
+                                e.index,
+                                discCx - e.rectW / 2f, discCy - e.rectH / 2f,
+                                0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                                tintArgb = TextSecondary.toArgb()
+                            )
+                        }
+                        clearTransform()
+                        addRect(0f, rowH, w, 1f * dd, AmHairline.toArgb())
+                    }
+                )
+                ChromePressBox(
+                    closeScale, 0.88f, { onDismiss() },
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .offset(y = ((headerH - 28f) / 2f).dp)
+                        .size(28.dp),
+                    description = "Close"
+                )
+            }
             Spacer(Modifier.height(10.dp))
 
             ShapeOptions.chunked(4).forEach { rowItems ->
@@ -1139,19 +1500,27 @@ fun AddShapeSheet(
                 Spacer(Modifier.height(8.dp))
             }
 
-            Text(
+            // Build 253: the footer note draws in GL.
+            GlLabelLine(
                 text = "Tap a shape to add it at the playhead",
-                color = TextTertiary,
-                fontSize = 10.sp,
+                style = UiLabelStyle.TEXT_10,
+                colorArgb = TextTertiary.toArgb(),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 2.dp),
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                align = androidx.compose.ui.text.style.TextAlign.Center
             )
         }
     }
 }
 
+/**
+ * Build 253 (stage 6): one shape picker card on a single GL surface —
+ * tile fill + hairline, the shape glyph (its build-252 command body,
+ * now emitted into the card's stream at the glyph's rect), and the
+ * name. The whole card was bouncyClickable content in Compose (the
+ * clickable sat on the outer Column), so the whole draw press-scales.
+ */
 @Composable
 private fun ShapePickerCard(
     name: String,
@@ -1159,29 +1528,57 @@ private fun ShapePickerCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val tile = RoundedCornerShape(12.dp)
-    Column(
-        modifier = modifier.bouncyClickable(pressedScale = 0.94f, hoverScale = 1.0f, onClick = onClick),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
+    val g = SheetGeometry.ShapeCard
+    val density = LocalDensity.current.density
+    val atlas = rememberUiAtlas()
+    val pad = UiLabelAtlas.PAD.toFloat()
+    val labelH = atlas.textHeightPx(UiLabelStyle.TEXT_95_MED)
+    fun resolveName() = atlas.resolve(name, UiLabelStyle.TEXT_95_MED)
+    var nameE = resolveName()
+    if (atlas.overflowed) {
+        atlas.reset()
+        nameE = resolveName()
+    }
+    val e = nameE
+    val scale = remember { Animatable(1f) }
+
+    BoxWithConstraints(modifier = modifier) {
+        val cardW = maxWidth.value * density
+        val cardH = g.cardHeightPx(cardW, labelH, density)
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(1f)
-                .clip(tile)
-                .background(AmPanelHigh)
-                .border(1.dp, AmHairline, tile),
-            contentAlignment = Alignment.Center
+            Modifier
+                .width(maxWidth)
+                .height((cardH / density).dp)
         ) {
             NativeVectorCanvas(
-                modifier = Modifier.fillMaxSize(0.48f),
-                drawKey = pattern,
-                buildCmds = { w, h, _ ->
+                modifier = Modifier.fillMaxSize(),
+                clearArgb = 0,
+                atlas = atlas,
+                drawKey = listOf(e, scale.value, pattern, atlas.generation),
+                buildCmds = { w, h, dd ->
+                    setScaleAbout(w / 2f, h / 2f, scale.value)
+                    // Tile: fill + the inside hairline.
+                    addRoundRect(
+                        w / 2f, w / 2f, w, w, g.TILE_CORNER_DP * dd,
+                        AmPanelHigh.toArgb()
+                    )
+                    addRoundRect(
+                        w / 2f, w / 2f, w - 1f * dd, w - 1f * dd,
+                        g.TILE_CORNER_DP * dd - 0.5f * dd,
+                        0, 1f * dd, AmHairline.toArgb()
+                    )
+                    // The glyph: the build-252 command body, placed in
+                    // the centred 0.48-fraction box of the tile.
+                    val gw = w * g.GLYPH_FRAC
+                    val gh = w * g.GLYPH_FRAC
+                    val gx = (w - gw) / 2f
+                    val gy = (w - gh) / 2f
+                    setTranslate(gx, gy)
                     val c = Color(0xFFEDEDED).toArgb()
                     fun addRegPoly(points: Int, innerRatio: Float) {
-                        val cx = w / 2f
-                        val cy = h / 2f
-                        val outer = minOf(w, h) / 2f
+                        val cx = gw / 2f
+                        val cy = gh / 2f
+                        val outer = minOf(gw, gh) / 2f
                         val total = if (innerRatio < 1f) points * 2 else points
                         val xs = FloatArray(total)
                         val ys = FloatArray(total)
@@ -1194,33 +1591,46 @@ private fun ShapePickerCard(
                         addFilledPolygon(xs, ys, total, c)
                     }
                     when (pattern) {
-                        "CIRCLE" -> addCircle(w / 2f, h / 2f, minOf(w, h) / 2f, c)
-                        "SQUARE" -> addRect(0f, 0f, w, h, c)
+                        "CIRCLE" -> addCircle(gw / 2f, gh / 2f, minOf(gw, gh) / 2f, c)
+                        "SQUARE" -> addRect(0f, 0f, gw, gh, c)
                         "ROUNDED_SQUARE", "ROUNDED_RECT" ->
-                            addRoundRect(w / 2f, h / 2f, w, h, minOf(w, h) * 0.24f, c)
+                            addRoundRect(gw / 2f, gh / 2f, gw, gh, minOf(gw, gh) * 0.24f, c)
                         "WIDE_ROUNDED_RECT" -> {
-                            val rh = h * 0.62f
-                            addRoundRect(w / 2f, h / 2f, w, rh, rh * 0.22f, c)
+                            val rh = gh * 0.62f
+                            addRoundRect(gw / 2f, gh / 2f, gw, rh, rh * 0.22f, c)
                         }
                         "OVAL" -> {
-                            val rh = h * 0.68f
-                            addArc(w / 2f, h / 2f, w / 2f, rh / 2f, 0f, 360f, fillArgb = c)
+                            val rh = gh * 0.68f
+                            addArc(gw / 2f, gh / 2f, gw / 2f, rh / 2f, 0f, 360f, fillArgb = c)
                         }
                         "STAR" -> addRegPoly(5, innerRatio = 0.45f)
                         "PENTAGON" -> addRegPoly(5, innerRatio = 1f)
-                        else -> addCircle(w / 2f, h / 2f, minOf(w, h) / 2f, c)
+                        else -> addCircle(gw / 2f, gh / 2f, minOf(gw, gh) / 2f, c)
                     }
-                },
+                    clearTransform()
+                    setScaleAbout(w / 2f, h / 2f, scale.value)
+                    e?.let { entry ->
+                        val style = UiLabelStyle.TEXT_95_MED
+                        val fm = atlas.fontMetrics(style)
+                        val labelTop = w + g.LABEL_GAP_DP * dd
+                        val baseline = PanelGeometry.lineBaselinePx(labelTop, labelH, fm.ascent, fm.descent)
+                        val originX = EditorGeometry.centredOriginPx(w / 2f, entry.advance)
+                        val (dstX, dstY) = EditorGeometry.textDst(originX, baseline, entry.bearing, entry.base, pad)
+                        addText(
+                            entry.index, dstX, dstY,
+                            0f, 0f, entry.rectW.toFloat(), entry.rectH.toFloat(),
+                            tintArgb = TextSecondary.toArgb()
+                        )
+                    }
+                    clearTransform()
+                }
+            )
+            ChromePressBox(
+                scale, 0.94f, onClick,
+                Modifier.fillMaxSize(),
+                description = name
             )
         }
-        Spacer(Modifier.height(4.dp))
-        Text(
-            name,
-            color = TextSecondary,
-            fontSize = 9.5.sp,
-            fontWeight = FontWeight.Medium,
-            maxLines = 1
-        )
     }
 }
 

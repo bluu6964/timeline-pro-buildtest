@@ -201,10 +201,12 @@ fun PillActionButton(
     } else {
         0.dp
     }
-    // The build-252 disabled colours verbatim: absolute alpha copies
-    // (0.45 on the fill, 0.55 on the label), not multiplications.
+    // The build-252 disabled colours verbatim: the fill takes an
+    // absolute 0.45 alpha copy; the label takes an absolute 0.55 copy
+    // and bouncyClickable's graphicsLayer then multiplies the content
+    // by a further 0.45 while disabled (0.55 * 0.45 = 0.2475).
     val fillArgb = (if (enabled) containerColor else containerColor.copy(alpha = 0.45f)).toArgb()
-    val textArgb = (if (enabled) contentColor else contentColor.copy(alpha = 0.55f)).toArgb()
+    val textArgb = (if (enabled) contentColor else contentColor.copy(alpha = 0.55f * 0.45f)).toArgb()
     Box(
         modifier
             .width(wDp)
