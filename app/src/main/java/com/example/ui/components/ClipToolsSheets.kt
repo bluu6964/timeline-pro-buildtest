@@ -2,6 +2,18 @@ package com.example.ui.components
 
 
 import androidx.compose.foundation.Image
+import androidx.compose.animation.core.Animatable
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.platform.LocalDensity
+import com.example.engine.UiLabelAtlas
+import com.example.engine.UiLabelStyle
+import com.example.engine.rememberUiAtlas
+import com.example.model.PanelGeometry
+import kotlin.math.roundToInt
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -139,48 +151,132 @@ fun ClipReplaceSheet(
         shape = AmSheetShape,
         dragHandle = { SheetDragHandle() }
     ) {
-        Column(
+        // Build 251 (UI migration stage 4): the title, row surfaces and
+        // texts draw on one GL surface (PanelGeometry.Sheets); the tap
+        // targets stay Compose (ChromePressBox, 0.94). The photo
+        // thumbnails stay Compose Images over the rows — the atlas blit
+        // reads only the texture's alpha (ui_gl_renderer), so a colour
+        // photo cannot pass through it; the stage-1 overlay precedent.
+        val g = PanelGeometry.Sheets
+        val density = LocalDensity.current.density
+        val atlas = rememberUiAtlas()
+        val pad = UiLabelAtlas.PAD.toFloat()
+        val titleH = atlas.textHeightPx(UiLabelStyle.SHEET_TITLE)
+        val titleAscent = atlas.fontMetrics(UiLabelStyle.SHEET_TITLE).ascent
+        val nameH = atlas.textHeightPx(UiLabelStyle.SHEET_ITEM_SEMI)
+        val nameAscent = atlas.fontMetrics(UiLabelStyle.SHEET_ITEM_SEMI).ascent
+        val descH = atlas.textHeightPx(UiLabelStyle.SHEET_DESC)
+        val descAscent = atlas.fontMetrics(UiLabelStyle.SHEET_DESC).ascent
+        val rowH = g.replaceRowHeightPx(nameH, descH, density)
+        val contentH = g.replaceContentHeightPx(titleH, rowH, mediaOptions.size, density)
+
+        fun resolveAll(): ReplaceEntries {
+            val title = atlas.resolve("Replace Media", UiLabelStyle.SHEET_TITLE)
+            val names = mediaOptions.map { atlas.resolve(it.second, UiLabelStyle.SHEET_ITEM_SEMI) }
+            val descs = mediaOptions.map { atlas.resolve(it.third, UiLabelStyle.SHEET_DESC) }
+            return ReplaceEntries(title, names, descs)
+        }
+        var entries = resolveAll()
+        if (atlas.overflowed) {
+            atlas.reset()
+            entries = resolveAll()
+        }
+        val scales = remember { mediaOptions.map { Animatable(1f) } }
+        val scaleValues = scales.map { it.value }
+
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 6.dp)
-                .padding(bottom = 16.dp)
+                .height((contentH / density).dp)
         ) {
-            Text("Replace Media", color = TextPrimary, fontSize = 14.5.sp, fontWeight = FontWeight.Bold)
-            Spacer(modifier = Modifier.height(10.dp))
-
-            mediaOptions.forEach { (res, name, desc) ->
-                // (card rows, spaced by the spacer after each row)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(AmCardSurface, RoundedCornerShape(14.dp))
-                        .clip(RoundedCornerShape(14.dp))
-                        .bouncyClickable(onClick = {
-                            onMediaSelected(res, name)
-                            onDismiss()
-                        })
-                        .padding(horizontal = 10.dp, vertical = 7.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Image(
-                        painter = painterResource(id = res),
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .size(42.dp)
-                            .clip(RoundedCornerShape(9.dp))
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Column {
-                        Text(name, color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                        Text(desc, color = TextSecondary, fontSize = 10.5.sp)
+            val sheetW = maxWidth.value * density
+            NativeVectorCanvas(
+                modifier = Modifier.fillMaxSize(),
+                clearArgb = 0,
+                atlas = atlas,
+                drawKey = listOf(entries, scaleValues, atlas.generation),
+                buildCmds = { w, _, dd ->
+                    entries.title?.let { e ->
+                        addText(
+                            e.index,
+                            g.COL_PAD_H_DP * dd + e.bearing - pad,
+                            g.COL_PAD_TOP_DP * dd - titleAscent - e.base,
+                            0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                            tintArgb = TextPrimary.toArgb()
+                        )
+                    }
+                    mediaOptions.forEachIndexed { i, _ ->
+                        val top = g.replaceRowTopPx(i, titleH, rowH, dd)
+                        val rowW = w - 2f * g.COL_PAD_H_DP * dd
+                        setScaleAbout(g.COL_PAD_H_DP * dd + rowW / 2f, top + rowH / 2f, scales[i].value)
+                        addRoundRect(
+                            g.COL_PAD_H_DP * dd + rowW / 2f, top + rowH / 2f,
+                            rowW, rowH, g.ROW_CORNER_DP * dd, AmCardSurface.toArgb()
+                        )
+                        val stackTop = top + (rowH - (nameH + descH)) / 2f
+                        entries.names[i]?.let { e ->
+                            addText(
+                                e.index,
+                                g.replaceTextLeftPx(dd) + e.bearing - pad,
+                                stackTop - nameAscent - e.base,
+                                0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                                tintArgb = TextPrimary.toArgb()
+                            )
+                        }
+                        entries.descs[i]?.let { e ->
+                            addText(
+                                e.index,
+                                g.replaceTextLeftPx(dd) + e.bearing - pad,
+                                stackTop + nameH - descAscent - e.base,
+                                0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                                tintArgb = TextSecondary.toArgb()
+                            )
+                        }
+                        clearTransform()
                     }
                 }
-                Spacer(modifier = Modifier.height(6.dp))
+            )
+            // The photo thumbnails (Compose overlays, see above).
+            mediaOptions.forEachIndexed { i, (res, _, _) ->
+                val top = g.replaceRowTopPx(i, titleH, rowH, density)
+                val imgTop = top + (rowH - g.REPLACE_IMG_DP * density) / 2f
+                Image(
+                    painter = painterResource(id = res),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .offset(
+                            x = (g.replaceImageLeftPx(density) / density).dp,
+                            y = (imgTop / density).dp
+                        )
+                        .size(g.REPLACE_IMG_DP.dp)
+                        .clip(RoundedCornerShape(g.REPLACE_IMG_CORNER_DP.dp))
+                )
+            }
+            // Tap targets at the rows' rects, invisible.
+            mediaOptions.forEachIndexed { i, (res, name, _) ->
+                val top = g.replaceRowTopPx(i, titleH, rowH, density)
+                ChromePressBox(
+                    scales[i], 0.94f,
+                    {
+                        onMediaSelected(res, name)
+                        onDismiss()
+                    },
+                    Modifier
+                        .offset(x = g.COL_PAD_H_DP.dp, y = (top / density).dp)
+                        .width(((sheetW - 2f * g.COL_PAD_H_DP * density) / density).dp)
+                        .height((rowH / density).dp)
+                )
             }
         }
     }
 }
+
+private data class ReplaceEntries(
+    val title: UiLabelAtlas.Entry?,
+    val names: List<UiLabelAtlas.Entry?>,
+    val descs: List<UiLabelAtlas.Entry?>
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -197,43 +293,125 @@ fun ClipBlendSheet(
         shape = AmSheetShape,
         dragHandle = { SheetDragHandle() }
     ) {
-        Column(
+        // Build 251 (UI migration stage 4): the title, rows, mode texts
+        // and the selected check draw on one GL surface
+        // (PanelGeometry.Sheets); the tap targets stay Compose
+        // (ChromePressBox, 0.94 — the rows' own bouncyClickable scale).
+        val g = PanelGeometry.Sheets
+        val density = LocalDensity.current.density
+        val atlas = rememberUiAtlas()
+        val pad = UiLabelAtlas.PAD.toFloat()
+        val checkPainter = rememberVectorPainter(Icons.Default.Check)
+        val titleH = atlas.textHeightPx(UiLabelStyle.SHEET_TITLE)
+        val titleAscent = atlas.fontMetrics(UiLabelStyle.SHEET_TITLE).ascent
+        val itemH = atlas.textHeightPx(UiLabelStyle.SHEET_ITEM)
+        val itemAscent = atlas.fontMetrics(UiLabelStyle.SHEET_ITEM).ascent
+        val rowH = g.blendRowHeightPx(itemH, density)
+        val contentH = g.blendContentHeightPx(titleH, rowH, blendModes.size, density)
+
+        fun resolveAll(): BlendEntries {
+            val title = atlas.resolve("Blending Mode", UiLabelStyle.SHEET_TITLE)
+            val modes = blendModes.map { mode ->
+                atlas.resolve(
+                    mode,
+                    if (mode == currentBlend) UiLabelStyle.SHEET_ITEM_BOLD else UiLabelStyle.SHEET_ITEM
+                )
+            }
+            val checkPx = (g.BLEND_CHECK_DP * density).roundToInt()
+            val check = atlas.resolveIcon("sheet:check", checkPx, checkPx) { cv, x, y ->
+                val b = rasterizePainterBitmap(checkPainter, checkPx, density)
+                cv.drawBitmap(b, x, y, null)
+                b.recycle()
+            }
+            return BlendEntries(title, modes, check)
+        }
+        var entries = resolveAll()
+        if (atlas.overflowed) {
+            atlas.reset()
+            entries = resolveAll()
+        }
+        val scales = remember { blendModes.map { Animatable(1f) } }
+        val scaleValues = scales.map { it.value }
+
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 6.dp)
-                .padding(bottom = 16.dp)
+                .height((contentH / density).dp)
         ) {
-            Text("Blending Mode", color = TextPrimary, fontSize = 14.5.sp, fontWeight = FontWeight.Bold)
-            Spacer(modifier = Modifier.height(10.dp))
-
-            blendModes.forEach { mode ->
-                val isSelected = mode == currentBlend
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(
-                            if (isSelected) AmPillSelected else AmCardSurface,
-                            RoundedCornerShape(14.dp)
+            val sheetW = maxWidth.value * density
+            NativeVectorCanvas(
+                modifier = Modifier.fillMaxSize(),
+                clearArgb = 0,
+                atlas = atlas,
+                drawKey = listOf(entries, scaleValues, atlas.generation),
+                buildCmds = { w, _, dd ->
+                    entries.title?.let { e ->
+                        addText(
+                            e.index,
+                            g.COL_PAD_H_DP * dd + e.bearing - pad,
+                            g.COL_PAD_TOP_DP * dd - titleAscent - e.base,
+                            0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                            tintArgb = TextPrimary.toArgb()
                         )
-                        .clip(RoundedCornerShape(14.dp))
-                        .bouncyClickable(onClick = {
-                            onBlendSelected(mode)
-                            onDismiss()
-                        })
-                        .padding(horizontal = 11.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(mode, color = TextPrimary, fontSize = 12.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
-                    if (isSelected) {
-                        Icon(Icons.Default.Check, contentDescription = null, tint = NeonCyan, modifier = Modifier.size(16.dp))
+                    }
+                    blendModes.forEachIndexed { i, mode ->
+                        val selected = mode == currentBlend
+                        val top = g.blendRowTopPx(i, titleH, rowH, dd)
+                        val rowW = w - 2f * g.COL_PAD_H_DP * dd
+                        setScaleAbout(g.COL_PAD_H_DP * dd + rowW / 2f, top + rowH / 2f, scales[i].value)
+                        addRoundRect(
+                            g.COL_PAD_H_DP * dd + rowW / 2f, top + rowH / 2f,
+                            rowW, rowH, g.ROW_CORNER_DP * dd,
+                            (if (selected) AmPillSelected else AmCardSurface).toArgb()
+                        )
+                        entries.modes[i]?.let { e ->
+                            addText(
+                                e.index,
+                                g.rowTextLeftPx(g.BLEND_ROW_PAD_H_DP, dd) + e.bearing - pad,
+                                top + (rowH - itemH) / 2f - itemAscent - e.base,
+                                0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                                tintArgb = TextPrimary.toArgb()
+                            )
+                        }
+                        if (selected) {
+                            entries.check?.let { e ->
+                                addText(
+                                    e.index,
+                                    g.blendCheckLeftPx(w, dd) - pad,
+                                    top + (rowH - g.BLEND_CHECK_DP * dd) / 2f - pad,
+                                    0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                                    tintArgb = NeonCyan.toArgb()
+                                )
+                            }
+                        }
+                        clearTransform()
                     }
                 }
-                Spacer(modifier = Modifier.height(5.dp))
+            )
+            // Tap targets at the rows' rects, invisible.
+            blendModes.forEachIndexed { i, mode ->
+                val top = g.blendRowTopPx(i, titleH, rowH, density)
+                ChromePressBox(
+                    scales[i], 0.94f,
+                    {
+                        onBlendSelected(mode)
+                        onDismiss()
+                    },
+                    Modifier
+                        .offset(x = g.COL_PAD_H_DP.dp, y = (top / density).dp)
+                        .width(((sheetW - 2f * g.COL_PAD_H_DP * density) / density).dp)
+                        .height((rowH / density).dp)
+                )
             }
         }
     }
 }
+
+private data class BlendEntries(
+    val title: UiLabelAtlas.Entry?,
+    val modes: List<UiLabelAtlas.Entry?>,
+    val check: UiLabelAtlas.Entry?
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
