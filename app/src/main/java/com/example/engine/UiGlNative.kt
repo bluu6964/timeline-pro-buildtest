@@ -22,6 +22,8 @@ object UiGlNative {
     const val CMD_DIMMER_HOLE = 9
     const val CMD_SHADER_QUAD = 10
     const val CMD_GRAD_RECT = 11
+    /** Build 249: one atlas blit (see [VectorCmdBuilder.addText]). */
+    const val CMD_TEXT = 12
 
     const val QUAD_CHECKER = 0f
     const val QUAD_HUE_WHEEL = 1f
@@ -95,6 +97,14 @@ object UiGlNative {
     @JvmStatic external fun nativeSelfTestOffscreen(
         handle: Long, w: Int, h: Int, outCounts: IntArray
     ): Boolean
+
+    /**
+     * Build 249: upload the shared UI label/icon atlas (the [UiLabelAtlas]
+     * bitmap + its entry rects, 4 ints per entry). GL thread only.
+     */
+    @JvmStatic external fun nativeSetUiAtlas(
+        handle: Long, bitmap: android.graphics.Bitmap, rects: IntArray
+    )
 }
 
 /** Immutable snapshot of packed 2D vector commands safe to hand off to [UiGlRuntime]'s GL thread. */
@@ -114,6 +124,34 @@ class VectorCmdBuilder(initialFloats: Int = 256, initialColors: Int = 64) {
     private var fLen = 0
     private var cBuf = IntArray(initialColors)
     private var cLen = 0
+
+    // Build 249: an optional affine transform — translate, then a uniform
+    // scale about a centre — applied to every coordinate and size as commands
+    // are added. Identity by default (and bit-exact when unset), so existing
+    // call sites are unaffected; the dock uses it to place glyph-local
+    // commands inside a tile and to press-scale the pressed tile, mirroring
+    // the graphicsLayer transform bouncyClickable applies in Compose.
+    private var trX = 0f
+    private var trY = 0f
+    private var trCx = 0f
+    private var trCy = 0f
+    private var trS = 1f
+
+    fun setTranslate(dx: Float, dy: Float) {
+        trX = dx; trY = dy
+    }
+
+    fun setScaleAbout(cx: Float, cy: Float, s: Float) {
+        trCx = cx; trCy = cy; trS = s
+    }
+
+    fun clearTransform() {
+        trX = 0f; trY = 0f; trCx = 0f; trCy = 0f; trS = 1f
+    }
+
+    private fun tx(x: Float): Float = if (trS == 1f) x + trX else trCx + (x + trX - trCx) * trS
+    private fun ty(y: Float): Float = if (trS == 1f) y + trY else trCy + (y + trY - trCy) * trS
+    private fun ts(v: Float): Float = v * trS
 
     private fun ensureFloats(extra: Int) {
         val need = fLen + extra
@@ -139,13 +177,13 @@ class VectorCmdBuilder(initialFloats: Int = 256, initialColors: Int = 64) {
         ensureFloats(9)
         ensureColors(1)
         fBuf[fLen++] = UiGlNative.CMD_LINE.toFloat()
-        fBuf[fLen++] = x0
-        fBuf[fLen++] = y0
-        fBuf[fLen++] = x1
-        fBuf[fLen++] = y1
-        fBuf[fLen++] = width
-        fBuf[fLen++] = dashOn
-        fBuf[fLen++] = dashOff
+        fBuf[fLen++] = tx(x0)
+        fBuf[fLen++] = ty(y0)
+        fBuf[fLen++] = tx(x1)
+        fBuf[fLen++] = ty(y1)
+        fBuf[fLen++] = ts(width)
+        fBuf[fLen++] = ts(dashOn)
+        fBuf[fLen++] = ts(dashOff)
         fBuf[fLen++] = if (capRound) 1f else 0f
         cBuf[cLen++] = argb
     }
@@ -160,14 +198,14 @@ class VectorCmdBuilder(initialFloats: Int = 256, initialColors: Int = 64) {
         ensureColors(1)
         fBuf[fLen++] = UiGlNative.CMD_POLYLINE.toFloat()
         fBuf[fLen++] = if (closed) 1f else 0f
-        fBuf[fLen++] = width
-        fBuf[fLen++] = dashOn
-        fBuf[fLen++] = dashOff
+        fBuf[fLen++] = ts(width)
+        fBuf[fLen++] = ts(dashOn)
+        fBuf[fLen++] = ts(dashOff)
         fBuf[fLen++] = if (capRound) 1f else 0f
         fBuf[fLen++] = count.toFloat()
         for (i in 0 until count) {
-            fBuf[fLen++] = xs[i]
-            fBuf[fLen++] = ys[i]
+            fBuf[fLen++] = tx(xs[i])
+            fBuf[fLen++] = ty(ys[i])
         }
         cBuf[cLen++] = argb
     }
@@ -179,10 +217,10 @@ class VectorCmdBuilder(initialFloats: Int = 256, initialColors: Int = 64) {
         ensureFloats(5)
         ensureColors(2)
         fBuf[fLen++] = UiGlNative.CMD_CIRCLE.toFloat()
-        fBuf[fLen++] = cx
-        fBuf[fLen++] = cy
-        fBuf[fLen++] = radius
-        fBuf[fLen++] = strokeWidth
+        fBuf[fLen++] = tx(cx)
+        fBuf[fLen++] = ty(cy)
+        fBuf[fLen++] = ts(radius)
+        fBuf[fLen++] = ts(strokeWidth)
         cBuf[cLen++] = fillArgb
         cBuf[cLen++] = strokeArgb
     }
@@ -195,12 +233,12 @@ class VectorCmdBuilder(initialFloats: Int = 256, initialColors: Int = 64) {
         ensureFloats(7)
         ensureColors(2)
         fBuf[fLen++] = UiGlNative.CMD_ROUND_RECT.toFloat()
-        fBuf[fLen++] = cx
-        fBuf[fLen++] = cy
-        fBuf[fLen++] = width
-        fBuf[fLen++] = height
-        fBuf[fLen++] = cornerRadius
-        fBuf[fLen++] = strokeWidth
+        fBuf[fLen++] = tx(cx)
+        fBuf[fLen++] = ty(cy)
+        fBuf[fLen++] = ts(width)
+        fBuf[fLen++] = ts(height)
+        fBuf[fLen++] = ts(cornerRadius)
+        fBuf[fLen++] = ts(strokeWidth)
         cBuf[cLen++] = fillArgb
         cBuf[cLen++] = strokeArgb
     }
@@ -209,10 +247,10 @@ class VectorCmdBuilder(initialFloats: Int = 256, initialColors: Int = 64) {
         ensureFloats(5)
         ensureColors(1)
         fBuf[fLen++] = UiGlNative.CMD_RECT.toFloat()
-        fBuf[fLen++] = x
-        fBuf[fLen++] = y
-        fBuf[fLen++] = width
-        fBuf[fLen++] = height
+        fBuf[fLen++] = tx(x)
+        fBuf[fLen++] = ty(y)
+        fBuf[fLen++] = ts(width)
+        fBuf[fLen++] = ts(height)
         cBuf[cLen++] = fillArgb
     }
 
@@ -224,15 +262,15 @@ class VectorCmdBuilder(initialFloats: Int = 256, initialColors: Int = 64) {
         ensureFloats(11)
         ensureColors(1)
         fBuf[fLen++] = UiGlNative.CMD_CUBIC.toFloat()
-        fBuf[fLen++] = x0
-        fBuf[fLen++] = y0
-        fBuf[fLen++] = c1x
-        fBuf[fLen++] = c1y
-        fBuf[fLen++] = c2x
-        fBuf[fLen++] = c2y
-        fBuf[fLen++] = x1
-        fBuf[fLen++] = y1
-        fBuf[fLen++] = width
+        fBuf[fLen++] = tx(x0)
+        fBuf[fLen++] = ty(y0)
+        fBuf[fLen++] = tx(c1x)
+        fBuf[fLen++] = ty(c1y)
+        fBuf[fLen++] = tx(c2x)
+        fBuf[fLen++] = ty(c2y)
+        fBuf[fLen++] = tx(x1)
+        fBuf[fLen++] = ty(y1)
+        fBuf[fLen++] = ts(width)
         fBuf[fLen++] = if (capRound) 1f else 0f
         cBuf[cLen++] = argb
     }
@@ -246,13 +284,13 @@ class VectorCmdBuilder(initialFloats: Int = 256, initialColors: Int = 64) {
         ensureFloats(10)
         ensureColors(2)
         fBuf[fLen++] = UiGlNative.CMD_ARC.toFloat()
-        fBuf[fLen++] = cx
-        fBuf[fLen++] = cy
-        fBuf[fLen++] = rx
-        fBuf[fLen++] = ry
+        fBuf[fLen++] = tx(cx)
+        fBuf[fLen++] = ty(cy)
+        fBuf[fLen++] = ts(rx)
+        fBuf[fLen++] = ts(ry)
         fBuf[fLen++] = startDeg
         fBuf[fLen++] = sweepDeg
-        fBuf[fLen++] = width
+        fBuf[fLen++] = ts(width)
         fBuf[fLen++] = if (capRound) 1f else 0f
         fBuf[fLen++] = if (closedPie) 1f else 0f
         cBuf[cLen++] = fillArgb
@@ -266,8 +304,8 @@ class VectorCmdBuilder(initialFloats: Int = 256, initialColors: Int = 64) {
         fBuf[fLen++] = UiGlNative.CMD_FILL_POLY.toFloat()
         fBuf[fLen++] = count.toFloat()
         for (i in 0 until count) {
-            fBuf[fLen++] = xs[i]
-            fBuf[fLen++] = ys[i]
+            fBuf[fLen++] = tx(xs[i])
+            fBuf[fLen++] = ty(ys[i])
         }
         cBuf[cLen++] = fillArgb
     }
@@ -280,12 +318,12 @@ class VectorCmdBuilder(initialFloats: Int = 256, initialColors: Int = 64) {
         ensureFloats(7)
         ensureColors(1)
         fBuf[fLen++] = UiGlNative.CMD_DIMMER_HOLE.toFloat()
-        fBuf[fLen++] = width
-        fBuf[fLen++] = height
-        fBuf[fLen++] = holeL
-        fBuf[fLen++] = holeT
-        fBuf[fLen++] = holeR
-        fBuf[fLen++] = holeB
+        fBuf[fLen++] = ts(width)
+        fBuf[fLen++] = ts(height)
+        fBuf[fLen++] = tx(holeL)
+        fBuf[fLen++] = ty(holeT)
+        fBuf[fLen++] = tx(holeR)
+        fBuf[fLen++] = ty(holeB)
         cBuf[cLen++] = dimArgb
     }
 
@@ -297,11 +335,11 @@ class VectorCmdBuilder(initialFloats: Int = 256, initialColors: Int = 64) {
         ensureFloats(13)
         ensureColors(2)
         fBuf[fLen++] = UiGlNative.CMD_SHADER_QUAD.toFloat()
-        fBuf[fLen++] = x
-        fBuf[fLen++] = y
-        fBuf[fLen++] = width
-        fBuf[fLen++] = height
-        fBuf[fLen++] = cornerRadius
+        fBuf[fLen++] = tx(x)
+        fBuf[fLen++] = ty(y)
+        fBuf[fLen++] = ts(width)
+        fBuf[fLen++] = ts(height)
+        fBuf[fLen++] = ts(cornerRadius)
         fBuf[fLen++] = mode
         fBuf[fLen++] = p0
         fBuf[fLen++] = p1
@@ -320,13 +358,45 @@ class VectorCmdBuilder(initialFloats: Int = 256, initialColors: Int = 64) {
         ensureFloats(6)
         ensureColors(2)
         fBuf[fLen++] = UiGlNative.CMD_GRAD_RECT.toFloat()
-        fBuf[fLen++] = x
-        fBuf[fLen++] = y
-        fBuf[fLen++] = width
-        fBuf[fLen++] = height
+        fBuf[fLen++] = tx(x)
+        fBuf[fLen++] = ty(y)
+        fBuf[fLen++] = ts(width)
+        fBuf[fLen++] = ts(height)
         fBuf[fLen++] = if (vertical) 1f else 0f
         cBuf[cLen++] = c0Argb
         cBuf[cLen++] = c1Argb
+    }
+
+    /**
+     * Build 249: blit one [UiLabelAtlas] entry. [dstX]/[dstY] are the entry
+     * rect's top-left in surface px; [srcDX]/[srcDY]/[srcW]/[srcH] select a
+     * sub-rect inside the entry (entry-relative px — the dock clips an
+     * over-wide label this way); [dstW]/[dstH] <= 0 draw at natural src size.
+     * The builder transform applies to the destination (position + size);
+     * the src rect is atlas space and is never transformed.
+     */
+    fun addText(
+        entry: Int,
+        dstX: Float, dstY: Float,
+        srcDX: Float, srcDY: Float, srcW: Float, srcH: Float,
+        dstW: Float = 0f, dstH: Float = 0f,
+        tintArgb: Int
+    ) {
+        ensureFloats(10)
+        ensureColors(1)
+        val effDstW = if (dstW > 0f) dstW else srcW
+        val effDstH = if (dstH > 0f) dstH else srcH
+        fBuf[fLen++] = UiGlNative.CMD_TEXT.toFloat()
+        fBuf[fLen++] = entry.toFloat()
+        fBuf[fLen++] = tx(dstX)
+        fBuf[fLen++] = ty(dstY)
+        fBuf[fLen++] = srcDX
+        fBuf[fLen++] = srcDY
+        fBuf[fLen++] = srcW
+        fBuf[fLen++] = srcH
+        fBuf[fLen++] = ts(effDstW)
+        fBuf[fLen++] = ts(effDstH)
+        cBuf[cLen++] = tintArgb
     }
 
     fun build(): VectorCmdSnapshot = VectorCmdSnapshot(
@@ -480,6 +550,34 @@ object UiGlRuntime {
             snapshot.floats, snapshot.floatCount,
             snapshot.colors, snapshot.colorCount
         )
+    }
+
+    // Build 249: atlas upload bookkeeping — GL-thread confined (only touched
+    // from inside post/callBlocking draw callbacks).
+    private var syncedAtlas: UiLabelAtlas? = null
+    private var syncedAtlasGen = -1
+    private var syncedAtlasCount = -1
+
+    /**
+     * Build 249: upload [atlas] to the renderer if it changed since the last
+     * sync (new instance, reset generation, or new entries rasterized). Call
+     * on the GL thread at the top of a draw callback, before drawing any
+     * command stream that references atlas entries; the atlas lock is held
+     * across the pixel copy so a concurrent UI-thread rasterize cannot tear
+     * the upload (uploads happen only when new labels appeared — rare).
+     */
+    fun syncUiAtlasOnGl(atlas: UiLabelAtlas) {
+        val hdl = handle
+        if (hdl == 0L) return
+        synchronized(atlas.lock) {
+            if (syncedAtlas === atlas && syncedAtlasGen == atlas.generation &&
+                syncedAtlasCount == atlas.entryCount
+            ) return
+            UiGlNative.nativeSetUiAtlas(hdl, atlas.bitmap, atlas.rectArray())
+            syncedAtlas = atlas
+            syncedAtlasGen = atlas.generation
+            syncedAtlasCount = atlas.entryCount
+        }
     }
 
     fun drawRulerDialOnGl(

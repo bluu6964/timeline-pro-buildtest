@@ -24,7 +24,14 @@ enum UiVectorCmd : int32_t {
     UI_CMD_FILL_POLY   = 8,  // floats: count, x0, y0, ... | colors: fillArgb
     UI_CMD_DIMMER_HOLE = 9,  // floats: w, h, l, t, r, b | colors: dimArgb
     UI_CMD_SHADER_QUAD = 10, // floats: x, y, w, h, cornerR, mode, p0, p1, p2, p3, p4, p5 | colors: c0Argb, c1Argb
-    UI_CMD_GRAD_RECT   = 11  // floats: x, y, w, h, vertical | colors: c0Argb, c1Argb
+    UI_CMD_GRAD_RECT   = 11, // floats: x, y, w, h, vertical | colors: c0Argb, c1Argb
+    // Build 249 (UI migration stage 2): one atlas blit. floats: entry, dstX, dstY,
+    // srcDX, srcDY, srcW, srcH, dstW, dstH (src* = sub-rect inside the atlas entry,
+    // entry-relative px; dstW/dstH <= 0 = natural src size) | colors: tintArgb.
+    // The atlas holds white glyphs / icon shapes (alpha = coverage); the tint
+    // supplies the colour. Skipped silently when no atlas is set or the entry
+    // index is out of range, so command streams stay valid before the first upload.
+    UI_CMD_TEXT        = 12
 };
 
 // Shared single-context OpenGL ES 3 renderer for high-FPS 2D vector, plot & UI widget surfaces.
@@ -95,6 +102,15 @@ public:
         const float* cmds, int cmdFloatCount,
         const int32_t* colors, int colorCount);
 
+    // Build 249: installs (or replaces) the shared UI label/icon atlas.
+    // [rgba] is the atlas bitmap's pixels (RGBA_8888, w * h * 4, row-major,
+    // top row first); [rects] holds 4 ints per entry (x, y, w, h inside the
+    // bitmap). Entries are clamped into the bitmap's bounds. Must be called
+    // on the GL thread (UiGlRuntime posts); the texture lives in the renderer's
+    // single EGL context, so every surface can blit from it. Passing
+    // entryCount <= 0 clears the entries (blits skip until the next upload).
+    void setAtlas(const uint8_t* rgba, int w, int h, const int32_t* rects, int entryCount);
+
     // Offscreen FBO self-test verifying GLES3 compilation and rasterization for:
     // outCounts[0] = histogram non-bg pixels
     // outCounts[1] = waveform + vectorscope phosphor pixels
@@ -136,6 +152,18 @@ private:
         float p4, p5;
         float c0r, c0g, c0b, c0a;
         float c1r, c1g, c1b, c1a;
+    };
+
+    // Build 249: one atlas-blit vertex (position + atlas UV + tint).
+    struct TexVertex {
+        float x, y;
+        float u, v;
+        float r, g, b, a;
+    };
+
+    // Build 249: one atlas entry — a rect inside the atlas bitmap (px).
+    struct AtlasEntry {
+        int32_t x = 0, y = 0, w = 0, h = 0;
     };
 
     struct SurfaceSlot {
@@ -182,6 +210,12 @@ private:
         float p0, float p1, float p2, float p3, float p4, float p5,
         Rgba c0, Rgba c1);
     void addPoint(float x, float y, float size, Rgba c);
+    // Build 249: queue one atlas blit (see UI_CMD_TEXT). No-op when the entry
+    // is out of range, no atlas is installed, or the src rect is empty.
+    void addTextBlit(
+        int entry, float dstX, float dstY,
+        float srcDX, float srcDY, float srcW, float srcH,
+        float dstW, float dstH, Rgba tint);
 
     void buildQuarterGraticule(int w, int h);
     void buildHistogramGeometry(
@@ -244,10 +278,22 @@ private:
     GLuint vaoQuad_ = 0;
     GLuint vboQuad_ = 0;
 
+    // Build 249: atlas-text program + the shared atlas texture/entries.
+    GLuint progTex_ = 0;
+    GLint uTexViewport_ = -1;
+    GLint uTexAtlas_ = -1;
+    GLuint vaoTex_ = 0;
+    GLuint vboTex_ = 0;
+    GLuint atlasTex_ = 0;
+    int atlasW_ = 0;
+    int atlasH_ = 0;
+    std::vector<AtlasEntry> atlasEntries_;
+
     std::vector<FlatVertex> flatVerts_;
     std::vector<SdfVertex> sdfVerts_;
     std::vector<PointVertex> pointVerts_;
     std::vector<QuadVertex> quadVerts_;
+    std::vector<TexVertex> texVerts_;
 };
 
 }  // namespace am

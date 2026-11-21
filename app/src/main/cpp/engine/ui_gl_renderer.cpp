@@ -141,6 +141,39 @@ void main() {
 }
 )";
 
+// Build 249: atlas text — the atlas holds white glyphs / icon shapes with
+// alpha = coverage; the per-blit tint supplies the colour. Output is
+// premultiplied like every other program (GL_ONE, GL_ONE_MINUS_SRC_ALPHA).
+static const char* kTexVs = R"(#version 300 es
+precision highp float;
+layout(location = 0) in vec2 aPos;
+layout(location = 1) in vec2 aUv;
+layout(location = 2) in vec4 aColor;
+uniform vec2 uViewport;
+out vec2 vUv;
+out vec4 vColor;
+void main() {
+    vec2 ndc = vec2((aPos.x / uViewport.x) * 2.0 - 1.0, 1.0 - (aPos.y / uViewport.y) * 2.0);
+    gl_Position = vec4(ndc, 0.0, 1.0);
+    vUv = aUv;
+    vColor = aColor;
+}
+)";
+
+static const char* kTexFs = R"(#version 300 es
+precision highp float;
+uniform sampler2D uAtlas;
+in vec2 vUv;
+in vec4 vColor;
+out vec4 fragColor;
+void main() {
+    float cov = texture(uAtlas, vUv).a;
+    float a = vColor.a * cov;
+    if (a < 0.001) discard;
+    fragColor = vec4(vColor.rgb * a, a);
+}
+)";
+
 static const char* kPointVs = R"(#version 300 es
 precision highp float;
 layout(location = 0) in vec2 aPos;
@@ -545,6 +578,21 @@ bool UiGlRenderer::init() {
     glVertexAttribPointer(6, 4, GL_FLOAT, GL_FALSE, sizeof(QuadVertex),
                           reinterpret_cast<const void*>(offsetof(QuadVertex, c1r)));
 
+    // Tex (atlas blit) VAO/VBO — build 249
+    glGenVertexArrays(1, &vaoTex_);
+    glGenBuffers(1, &vboTex_);
+    glBindVertexArray(vaoTex_);
+    glBindBuffer(GL_ARRAY_BUFFER, vboTex_);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(TexVertex),
+                          reinterpret_cast<const void*>(offsetof(TexVertex, x)));
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(TexVertex),
+                          reinterpret_cast<const void*>(offsetof(TexVertex, u)));
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(TexVertex),
+                          reinterpret_cast<const void*>(offsetof(TexVertex, r)));
+
     glBindVertexArray(0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
@@ -558,11 +606,14 @@ bool UiGlRenderer::compileShaders() {
     progSdf_ = linkProgram(kSdfVs, kSdfFs);
     progPoint_ = linkProgram(kPointVs, kPointFs);
     progQuad_ = linkProgram(kQuadVs, kQuadFs);
-    if (!progFlat_ || !progSdf_ || !progPoint_ || !progQuad_) return false;
+    progTex_ = linkProgram(kTexVs, kTexFs);
+    if (!progFlat_ || !progSdf_ || !progPoint_ || !progQuad_ || !progTex_) return false;
     uFlatViewport_ = glGetUniformLocation(progFlat_, "uViewport");
     uSdfViewport_ = glGetUniformLocation(progSdf_, "uViewport");
     uPointViewport_ = glGetUniformLocation(progPoint_, "uViewport");
     uQuadViewport_ = glGetUniformLocation(progQuad_, "uViewport");
+    uTexViewport_ = glGetUniformLocation(progTex_, "uViewport");
+    uTexAtlas_ = glGetUniformLocation(progTex_, "uAtlas");
     return true;
 }
 
@@ -587,12 +638,19 @@ void UiGlRenderer::release() {
         if (vaoPoint_) glDeleteVertexArrays(1, &vaoPoint_);
         if (vboQuad_) glDeleteBuffers(1, &vboQuad_);
         if (vaoQuad_) glDeleteVertexArrays(1, &vaoQuad_);
+        if (vboTex_) glDeleteBuffers(1, &vboTex_);
+        if (vaoTex_) glDeleteVertexArrays(1, &vaoTex_);
+        if (atlasTex_) glDeleteTextures(1, &atlasTex_);
         if (progFlat_) glDeleteProgram(progFlat_);
         if (progSdf_) glDeleteProgram(progSdf_);
         if (progPoint_) glDeleteProgram(progPoint_);
         if (progQuad_) glDeleteProgram(progQuad_);
+        if (progTex_) glDeleteProgram(progTex_);
         vboFlat_ = vaoFlat_ = vboSdf_ = vaoSdf_ = vboPoint_ = vaoPoint_ = vboQuad_ = vaoQuad_ = 0;
-        progFlat_ = progSdf_ = progPoint_ = progQuad_ = 0;
+        vboTex_ = vaoTex_ = atlasTex_ = 0;
+        progFlat_ = progSdf_ = progPoint_ = progQuad_ = progTex_ = 0;
+        atlasW_ = atlasH_ = 0;
+        atlasEntries_.clear();
         initialized_ = false;
     }
     egl_.release();
@@ -675,6 +733,7 @@ void UiGlRenderer::resetBatches() {
     sdfVerts_.clear();
     pointVerts_.clear();
     quadVerts_.clear();
+    texVerts_.clear();
 }
 
 void UiGlRenderer::flushBatches(int w, int h) {
@@ -734,8 +793,102 @@ void UiGlRenderer::flushBatches(int w, int h) {
         glDrawArrays(GL_POINTS, 0, static_cast<GLsizei>(pointVerts_.size()));
     }
 
+    // Atlas blits flush LAST: labels and icons always composite on top of the
+    // surface's own vector art (tile backgrounds, glyphs, the ruler needle).
+    if (!texVerts_.empty() && atlasTex_ != 0) {
+        glUseProgram(progTex_);
+        glUniform2f(uTexViewport_, fw, fh);
+        glUniform1i(uTexAtlas_, 0);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, atlasTex_);
+        glBindVertexArray(vaoTex_);
+        glBindBuffer(GL_ARRAY_BUFFER, vboTex_);
+        glBufferData(
+            GL_ARRAY_BUFFER,
+            static_cast<GLsizeiptr>(texVerts_.size() * sizeof(TexVertex)),
+            texVerts_.data(),
+            GL_STREAM_DRAW);
+        glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(texVerts_.size()));
+        glBindTexture(GL_TEXTURE_2D, 0);
+    }
+
     glBindVertexArray(0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
+}
+
+void UiGlRenderer::setAtlas(const uint8_t* rgba, int w, int h, const int32_t* rects, int entryCount) {
+    if (!initialized_) return;
+    atlasEntries_.clear();
+    if (rects && entryCount > 0) {
+        // Same hardening as the timeline atlas (build 227): cap the count and
+        // clamp every entry into the bitmap's bounds, so every blit is
+        // in-bounds by construction.
+        const int n = entryCount > (1 << 20) ? (1 << 20) : entryCount;
+        atlasEntries_.resize(static_cast<size_t>(n));
+        for (int i = 0; i < n; ++i) {
+            const int32_t ex = std::clamp<int32_t>(rects[i * 4], 0, w);
+            const int32_t ey = std::clamp<int32_t>(rects[i * 4 + 1], 0, h);
+            atlasEntries_[static_cast<size_t>(i)].x = ex;
+            atlasEntries_[static_cast<size_t>(i)].y = ey;
+            atlasEntries_[static_cast<size_t>(i)].w = std::clamp<int32_t>(rects[i * 4 + 2], 0, w - ex);
+            atlasEntries_[static_cast<size_t>(i)].h = std::clamp<int32_t>(rects[i * 4 + 3], 0, h - ey);
+        }
+    }
+    if (!rgba || w <= 0 || h <= 0) {
+        atlasW_ = 0;
+        atlasH_ = 0;
+        return;
+    }
+    // The texture lives in the renderer's one EGL context; make sure that
+    // context is current (between draws the bootstrap surface may be bound —
+    // beginSurface re-binds the target surface on the next draw regardless).
+    egl_.makeCurrent(egl_.bootstrapSurface());
+    currentSurf_ = egl_.bootstrapSurface();
+    if (atlasTex_ == 0) glGenTextures(1, &atlasTex_);
+    glBindTexture(GL_TEXTURE_2D, atlasTex_);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    atlasW_ = w;
+    atlasH_ = h;
+}
+
+void UiGlRenderer::addTextBlit(
+    int entry, float dstX, float dstY,
+    float srcDX, float srcDY, float srcW, float srcH,
+    float dstW, float dstH, Rgba tint) {
+    if (atlasTex_ == 0 || atlasW_ <= 0 || atlasH_ <= 0) return;
+    if (entry < 0 || entry >= static_cast<int>(atlasEntries_.size())) return;
+    const AtlasEntry& e = atlasEntries_[static_cast<size_t>(entry)];
+    if (e.w <= 0 || e.h <= 0 || srcW <= 0.0f || srcH <= 0.0f) return;
+    // Clamp the src sub-rect into the entry (callers pass entry-relative px).
+    const float sx = std::clamp(srcDX, 0.0f, static_cast<float>(e.w));
+    const float sy = std::clamp(srcDY, 0.0f, static_cast<float>(e.h));
+    const float sw = std::clamp(srcW, 0.0f, static_cast<float>(e.w) - sx);
+    const float sh = std::clamp(srcH, 0.0f, static_cast<float>(e.h) - sy);
+    if (sw <= 0.0f || sh <= 0.0f) return;
+    const float dw = dstW > 0.0f ? dstW : sw;
+    const float dh = dstH > 0.0f ? dstH : sh;
+    const float invW = 1.0f / static_cast<float>(atlasW_);
+    const float invH = 1.0f / static_cast<float>(atlasH_);
+    const float u0 = (static_cast<float>(e.x) + sx) * invW;
+    const float v0 = (static_cast<float>(e.y) + sy) * invH;
+    const float u1 = (static_cast<float>(e.x) + sx + sw) * invW;
+    const float v1 = (static_cast<float>(e.y) + sy + sh) * invH;
+    const float x0 = dstX;
+    const float y0 = dstY;
+    const float x1 = dstX + dw;
+    const float y1 = dstY + dh;
+    texVerts_.push_back({x0, y0, u0, v0, tint.r, tint.g, tint.b, tint.a});
+    texVerts_.push_back({x1, y0, u1, v0, tint.r, tint.g, tint.b, tint.a});
+    texVerts_.push_back({x1, y1, u1, v1, tint.r, tint.g, tint.b, tint.a});
+    texVerts_.push_back({x0, y0, u0, v0, tint.r, tint.g, tint.b, tint.a});
+    texVerts_.push_back({x1, y1, u1, v1, tint.r, tint.g, tint.b, tint.a});
+    texVerts_.push_back({x0, y1, u0, v1, tint.r, tint.g, tint.b, tint.a});
 }
 
 // ---- Geometry batch builders ----
@@ -1725,6 +1878,21 @@ void UiGlRenderer::buildVectorCmdGeometry(
                 addGradRect(gx, gy, gw, gh, vertical, c0, c1);
                 break;
             }
+            case UI_CMD_TEXT: {
+                if (p + 9 > cmdFloatCount || cp + 1 > colorCount) return;
+                const int entry = static_cast<int>(cmds[p++]);
+                const float dstX = cmds[p++];
+                const float dstY = cmds[p++];
+                const float srcDX = cmds[p++];
+                const float srcDY = cmds[p++];
+                const float srcW = cmds[p++];
+                const float srcH = cmds[p++];
+                const float dstW = cmds[p++];
+                const float dstH = cmds[p++];
+                const Rgba tint = argbToRgba(colors[cp++]);
+                addTextBlit(entry, dstX, dstY, srcDX, srcDY, srcW, srcH, dstW, dstH, tint);
+                break;
+            }
             default:
                 return;
         }
@@ -1948,6 +2116,14 @@ bool UiGlRenderer::runOffscreenSelfTest(int w, int h, int32_t outCounts[4]) {
         outCounts[2] = countNonTransparent();
 
         // 4. Vector command stream check (dashed quad + round rect + circle)
+        // Build 249: plus atlas text — a generated 64x64 all-coverage atlas
+        // with one entry; an out-of-range entry must skip, the valid blit
+        // must land (its pixels count toward outCounts[3] like the rest).
+        {
+            std::vector<uint8_t> px(64u * 64u * 4u, 255);
+            const int32_t rects[] = {0, 0, 64, 64};
+            setAtlas(px.data(), 64, 64, rects, 1);
+        }
         const float cmds[] = {
             static_cast<float>(UI_CMD_POLYLINE), 1.0f, 3.0f, 8.0f, 4.0f, 0.0f, 4.0f,
             16.0f, 16.0f, static_cast<float>(w - 16), 16.0f,
@@ -1955,12 +2131,17 @@ bool UiGlRenderer::runOffscreenSelfTest(int w, int h, int32_t outCounts[4]) {
             static_cast<float>(UI_CMD_ROUND_RECT),
             static_cast<float>(w) * 0.5f, static_cast<float>(h) * 0.5f, 20.0f, 20.0f, 4.0f, 3.0f,
             static_cast<float>(UI_CMD_CIRCLE),
-            static_cast<float>(w) * 0.5f, 10.0f, 8.0f, 2.0f
+            static_cast<float>(w) * 0.5f, 10.0f, 8.0f, 2.0f,
+            static_cast<float>(UI_CMD_TEXT),
+            99.0f, 4.0f, 4.0f, 0.0f, 0.0f, 64.0f, 64.0f, 0.0f, 0.0f,
+            static_cast<float>(UI_CMD_TEXT),
+            0.0f, 4.0f, 4.0f, 0.0f, 0.0f, 64.0f, 64.0f, 0.0f, 0.0f
         };
         const int32_t cols[] = {
             static_cast<int32_t>(0xFF3EB1F7),
             static_cast<int32_t>(0xFFFFFFFF), static_cast<int32_t>(0xFF1689F5),
-            static_cast<int32_t>(0xFFD2FC32), static_cast<int32_t>(0xFF111114)
+            static_cast<int32_t>(0xFFD2FC32), static_cast<int32_t>(0xFF111114),
+            static_cast<int32_t>(0xFFFFFFFF), static_cast<int32_t>(0xFFFFFFFF)
         };
         clearColor(0x00000000);
         resetBatches();

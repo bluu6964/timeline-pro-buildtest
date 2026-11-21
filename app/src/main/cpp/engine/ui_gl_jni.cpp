@@ -1,7 +1,10 @@
+#include <android/bitmap.h>
 #include <android/native_window_jni.h>
 #include <jni.h>
 
 #include <cstdint>
+#include <cstring>
+#include <vector>
 
 #include "ui_gl_renderer.h"
 
@@ -236,6 +239,40 @@ Java_com_example_engine_UiGlNative_nativeDrawEasingTile(
     return r->drawEasingTile(
         static_cast<int>(surfaceId), x1, y1, x2, y2,
         static_cast<int32_t>(strokeArgb), density) ? JNI_TRUE : JNI_FALSE;
+}
+
+// Build 249: the UI label/icon atlas upload. The bitmap's pixels are copied
+// (Kotlin keeps owning the bitmap), exactly like the timeline's
+// nativeSetAtlas; the renderer clamps the entry rects into bounds.
+JNIEXPORT void JNICALL
+Java_com_example_engine_UiGlNative_nativeSetUiAtlas(
+    JNIEnv* env, jclass, jlong handle, jobject bitmap, jintArray jRects) {
+    auto* r = asUiGl(handle);
+    if (!r || !bitmap) return;
+    AndroidBitmapInfo info;
+    if (AndroidBitmap_getInfo(env, bitmap, &info) != ANDROID_BITMAP_RESULT_SUCCESS) return;
+    if (info.format != ANDROID_BITMAP_FORMAT_RGBA_8888 || info.width == 0 || info.height == 0) return;
+    // Refuse absurd bitmap sizes rather than attempting a huge copy.
+    if (info.width > 8192 || info.height > 8192) return;
+    void* pixels = nullptr;
+    if (AndroidBitmap_lockPixels(env, bitmap, &pixels) != ANDROID_BITMAP_RESULT_SUCCESS || !pixels)
+        return;
+    std::vector<uint8_t> copy(static_cast<size_t>(info.width) * info.height * 4u);
+    const uint8_t* src = static_cast<const uint8_t*>(pixels);
+    for (uint32_t y = 0; y < info.height; ++y) {
+        memcpy(copy.data() + static_cast<size_t>(y) * info.width * 4u,
+               src + static_cast<size_t>(y) * info.stride,
+               static_cast<size_t>(info.width) * 4u);
+    }
+    AndroidBitmap_unlockPixels(env, bitmap);
+
+    const jsize nRect = jRects ? env->GetArrayLength(jRects) : 0;
+    const int entryCount = static_cast<int>(nRect / 4);
+    jint* rects = (jRects && entryCount > 0) ? env->GetIntArrayElements(jRects, nullptr) : nullptr;
+    if (jRects && entryCount > 0 && !rects) return;
+    r->setAtlas(copy.data(), static_cast<int>(info.width), static_cast<int>(info.height),
+                reinterpret_cast<const int32_t*>(rects), entryCount);
+    if (rects) env->ReleaseIntArrayElements(jRects, rects, JNI_ABORT);
 }
 
 JNIEXPORT jboolean JNICALL
