@@ -166,7 +166,9 @@ internal fun GlTextBlock(
     style: UiLabelStyle,
     colorArgb: Int,
     modifier: Modifier = Modifier,
-    align: GlAlign = GlAlign.Center
+    align: GlAlign = GlAlign.Center,
+    /** The Compose lineHeight, when the host Text set one (sp). */
+    linePitchSp: Float? = null
 ) {
     val density = LocalDensity.current.density
     val atlas = rememberUiAtlas()
@@ -186,7 +188,12 @@ internal fun GlTextBlock(
         }
         val entries = lineEntries
         val textH = atlas.textHeightPx(style)
-        val blockH = textH * entries.size
+        val pitch = if (linePitchSp != null) {
+            linePitchSp * density * LocalDensity.current.fontScale
+        } else {
+            textH.toFloat()
+        }
+        val blockH = pitch * entries.size
         // A wrap-height host (an old Text's place) sizes the block to
         // its lines; a bounded host centres the block inside itself.
         val bounded = maxHeight != androidx.compose.ui.unit.Dp.Infinity
@@ -206,7 +213,7 @@ internal fun GlTextBlock(
                     var lineTop = (h - blockH) / 2f
                     for (e in entries) {
                         if (e != null) {
-                            val baseline = PanelGeometry.lineBaselinePx(lineTop, textH, fm.ascent, fm.descent)
+                            val baseline = PanelGeometry.lineBaselinePx(lineTop, pitch, fm.ascent, fm.descent)
                             val originX = when (align) {
                                 GlAlign.Center -> EditorGeometry.centredOriginPx(w / 2f, e.advance)
                                 GlAlign.Start -> 0f
@@ -219,7 +226,7 @@ internal fun GlTextBlock(
                                 tintArgb = colorArgb
                             )
                         }
-                        lineTop += textH
+                        lineTop += pitch
                     }
                 }
             )

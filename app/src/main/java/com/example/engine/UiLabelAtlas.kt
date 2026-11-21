@@ -167,6 +167,8 @@ enum class UiLabelStyle(
     CONTROL_LABEL_BOLD(10f, 700, letterSpacingSp = 0.2f),
     SHAPE_STRIP_LABEL(10.5f, 500),
     NOTE_15(15f, 400),
+    AEV_NAME(12.5f, 600),
+    AEV_TILE(9.5f, 500),
 
     /** Build 252 (stage 5): effects editor title: 12.5 sp Bold. */
     TITLE_125(12.5f, 700),
