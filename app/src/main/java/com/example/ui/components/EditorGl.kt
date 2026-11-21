@@ -7,6 +7,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -21,6 +22,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
@@ -604,5 +606,230 @@ internal fun GlChip(
             tag = tag,
             description = label
         )
+    }
+}
+
+/**
+ * Build 252 (stage 5): the pen / draw panels' bare text button in
+ * GL (11.5 sp semibold, h8/v6 padding; disabled = faint, no click).
+ * The press scales the text — all the Compose box held.
+ */
+@Composable
+internal fun GlTextButton(
+    label: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val density = LocalDensity.current.density
+    val atlas = rememberUiAtlas()
+    val pad = UiLabelAtlas.PAD.toFloat()
+    val style = UiLabelStyle.ED_TEXT_SEMI
+    fun resolveBtn() = atlas.resolve(label, style)
+    var entry = resolveBtn()
+    if (atlas.overflowed) {
+        atlas.reset()
+        entry = resolveBtn()
+    }
+    val e = entry
+    val scale = remember { Animatable(1f) }
+    val wDp = ((e?.advance ?: 0f) / density + 16f).dp
+    val hDp = (atlas.textHeightPx(style) / density + 12f).dp
+    Box(
+        modifier
+            .width(wDp)
+            .height(hDp)
+    ) {
+        NativeVectorCanvas(
+            modifier = Modifier.fillMaxSize(),
+            clearArgb = 0,
+            atlas = atlas,
+            drawKey = listOf(e, scale.value, enabled, atlas.generation),
+            buildCmds = { w, h, _ ->
+                if (e != null) {
+                    val textH = atlas.textHeightPx(style)
+                    val fm = atlas.fontMetrics(style)
+                    val top = EditorGeometry.centredTextTopPx(0f, h, textH)
+                    val baseline = PanelGeometry.lineBaselinePx(top, textH, fm.ascent, fm.descent)
+                    val (dstX, dstY) = EditorGeometry.textDst(8f * density, baseline, e.bearing, e.base, pad)
+                    setScaleAbout(w / 2f, h / 2f, scale.value)
+                    addText(
+                        e.index, dstX, dstY,
+                        0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                        tintArgb = if (enabled) 0xFFF4F4F5.toInt() else 0xFF71717A.toInt()
+                    )
+                    clearTransform()
+                }
+            }
+        )
+        ChromePressBox(
+            scale, 0.94f, onClick,
+            Modifier.fillMaxSize(),
+            enabled = enabled,
+            description = label
+        )
+    }
+}
+
+/**
+ * Build 252 (stage 5): the white "Done" pill (GradientPillButton's
+ * shape) in GL — white capsule + hairline, ink label; the fill sat
+ * outside the press layer, the label scales.
+ */
+@Composable
+internal fun GlDonePill(
+    label: String,
+    tag: String?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val density = LocalDensity.current.density
+    val atlas = rememberUiAtlas()
+    val pad = UiLabelAtlas.PAD.toFloat()
+    val style = UiLabelStyle.SHEET_ITEM_BOLD
+    fun resolvePill() = atlas.resolve(label, style)
+    var entry = resolvePill()
+    if (atlas.overflowed) {
+        atlas.reset()
+        entry = resolvePill()
+    }
+    val e = entry
+    val scale = remember { Animatable(1f) }
+    val wDp = ((e?.advance ?: 0f) / density + 24f).dp
+    val hDp = (atlas.textHeightPx(style) / density).dp
+    Box(
+        modifier
+            .width(wDp)
+            .height(hDp)
+    ) {
+        NativeVectorCanvas(
+            modifier = Modifier.fillMaxSize(),
+            clearArgb = 0,
+            atlas = atlas,
+            drawKey = listOf(e, scale.value, atlas.generation),
+            buildCmds = { w, h, dd ->
+                addRoundRect(w / 2f, h / 2f, w, h, h / 2f, 0xFFFFFFFF.toInt())
+                addRoundRect(
+                    w / 2f, h / 2f, w - 1f * dd, h - 1f * dd, h / 2f - 0.5f * dd,
+                    0, 1f * dd, 0xFF1F1F26.toInt()
+                )
+                if (e != null) {
+                    val textH = atlas.textHeightPx(style)
+                    val fm = atlas.fontMetrics(style)
+                    val top = EditorGeometry.centredTextTopPx(0f, h, textH)
+                    val baseline = PanelGeometry.lineBaselinePx(top, textH, fm.ascent, fm.descent)
+                    val originX = EditorGeometry.centredOriginPx(w / 2f, e.advance)
+                    val (dstX, dstY) = EditorGeometry.textDst(originX, baseline, e.bearing, e.base, pad)
+                    setScaleAbout(w / 2f, h / 2f, scale.value)
+                    addText(
+                        e.index, dstX, dstY,
+                        0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                        tintArgb = 0xFF111114.toInt()
+                    )
+                    clearTransform()
+                }
+            }
+        )
+        ChromePressBox(
+            scale, 0.94f, onClick,
+            Modifier.fillMaxSize(),
+            tag = tag,
+            description = label
+        )
+    }
+}
+
+/**
+ * Build 252 (stage 5): the pen / draw panels' Width row in GL —
+ * semibold label, the shared GlSlider (default M3 colours, as the
+ * material3 Slider showed under this theme), and the value readout.
+ */
+@Composable
+internal fun GlWidthRow(
+    value: Float,
+    onValueChange: (Float) -> Unit,
+    valueRange: ClosedFloatingPointRange<Float>,
+    sliderTag: String,
+    modifier: Modifier = Modifier
+) {
+    val density = LocalDensity.current.density
+    val atlas = rememberUiAtlas()
+    val valueText = "${kotlin.math.round(value).toInt()}"
+    fun resolveW(): Pair<UiLabelAtlas.Entry?, UiLabelAtlas.Entry?> =
+        atlas.resolve("Width", UiLabelStyle.ED_TEXT_SEMI) to atlas.resolve(valueText, UiLabelStyle.TEXT_11)
+    var wEntries = resolveW()
+    if (atlas.overflowed) {
+        atlas.reset()
+        wEntries = resolveW()
+    }
+    val (labelEntry, valueEntry) = wEntries
+    Row(
+        modifier = modifier,
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+    ) {
+        Box(
+            Modifier
+                .width(((labelEntry?.advance ?: 0f) / density).dp)
+                .height(48.dp)
+        ) {
+            NativeVectorCanvas(
+                modifier = Modifier.fillMaxSize(),
+                clearArgb = 0,
+                atlas = atlas,
+                drawKey = listOf(labelEntry, atlas.generation),
+                buildCmds = { w, h, _ ->
+                    if (labelEntry != null) {
+                        val style = UiLabelStyle.ED_TEXT_SEMI
+                        val textH = atlas.textHeightPx(style)
+                        val fm = atlas.fontMetrics(style)
+                        val top = EditorGeometry.centredTextTopPx(0f, h, textH)
+                        val baseline = PanelGeometry.lineBaselinePx(top, textH, fm.ascent, fm.descent)
+                        val (dstX, dstY) = EditorGeometry.textDst(0f, baseline, labelEntry.bearing, labelEntry.base, UiLabelAtlas.PAD.toFloat())
+                        addText(
+                            labelEntry.index, dstX, dstY,
+                            0f, 0f, labelEntry.rectW.toFloat(), labelEntry.rectH.toFloat(),
+                            tintArgb = 0xFFF4F4F5.toInt()
+                        )
+                    }
+                }
+            )
+        }
+        Spacer(Modifier.width(10.dp))
+        GlSlider(
+            value = value,
+            onValueChange = onValueChange,
+            valueRange = valueRange,
+            modifier = Modifier
+                .weight(1f)
+                .testTag(sliderTag)
+        )
+        Spacer(Modifier.width(8.dp))
+        Box(
+            Modifier
+                .width(((valueEntry?.advance ?: 0f) / density).dp)
+                .height(48.dp)
+        ) {
+            NativeVectorCanvas(
+                modifier = Modifier.fillMaxSize(),
+                clearArgb = 0,
+                atlas = atlas,
+                drawKey = listOf(valueEntry, atlas.generation),
+                buildCmds = { w, h, _ ->
+                    if (valueEntry != null) {
+                        val style = UiLabelStyle.TEXT_11
+                        val textH = atlas.textHeightPx(style)
+                        val fm = atlas.fontMetrics(style)
+                        val top = EditorGeometry.centredTextTopPx(0f, h, textH)
+                        val baseline = PanelGeometry.lineBaselinePx(top, textH, fm.ascent, fm.descent)
+                        val (dstX, dstY) = EditorGeometry.textDst(0f, baseline, valueEntry.bearing, valueEntry.base, UiLabelAtlas.PAD.toFloat())
+                        addText(
+                            valueEntry.index, dstX, dstY,
+                            0f, 0f, valueEntry.rectW.toFloat(), valueEntry.rectH.toFloat(),
+                            tintArgb = 0xFFA1A1AA.toInt()
+                        )
+                    }
+                }
+            )
+        }
     }
 }

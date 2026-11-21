@@ -23,6 +23,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.toArgb
+import com.example.engine.UiLabelStyle
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -256,41 +258,43 @@ fun PenToolPanel(
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 8.dp)
     ) {
-        Text(
-            "Tap to place a point — drag after a tap to bend the line. Tap the first point again to close the shape.",
-            color = AmTextDim, fontSize = 10.5.sp
+        // Build 252 (stage 5): the panel's texts, width row and
+        // buttons are drawn in GL (GlTextBlock / GlWidthRow /
+        // GlTextButton / GlDonePill).
+        GlTextBlock(
+            text = "Tap to place a point — drag after a tap to bend the line. Tap the first point again to close the shape.",
+            style = UiLabelStyle.SHEET_DESC,
+            colorArgb = AmTextDim.toArgb(),
+            align = GlAlign.Start,
+            modifier = Modifier.fillMaxWidth()
         )
         Spacer(Modifier.height(7.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Width", color = TextPrimary, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.width(10.dp))
-            Slider(
-                value = widthDp,
-                onValueChange = onWidth,
-                valueRange = 1f..30f,
-                modifier = Modifier.weight(1f).testTag("pen_width_slider")
-            )
-            Spacer(Modifier.width(8.dp))
-            Text("${widthDp.roundToInt()}", color = AmTextDim, fontSize = 11.sp)
-        }
+        GlWidthRow(
+            value = widthDp,
+            onValueChange = onWidth,
+            valueRange = 1f..30f,
+            sliderTag = "pen_width_slider",
+            modifier = Modifier.fillMaxWidth()
+        )
         Spacer(Modifier.height(2.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            PenPanelButton("Undo point", enabled = anchorCount > 0, onClick = onUndoPoint)
+            GlTextButton("Undo point", enabled = anchorCount > 0, onClick = onUndoPoint)
             Spacer(Modifier.weight(1f))
-            PenPanelButton("Cancel", enabled = true, onClick = onCancel)
+            GlTextButton("Cancel", enabled = true, onClick = onCancel)
             Spacer(Modifier.width(8.dp))
-            GradientPillButton(onClick = onDone, tag = "pen_done_button") {
-                Text("Done", color = AmInk, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            }
+            GlDonePill(label = "Done", tag = "pen_done_button", onClick = onDone)
         }
         Spacer(Modifier.height(2.dp))
-        Text(
-            when {
+        GlTextBlock(
+            text = when {
                 closed -> "Closed shape — it will be filled"
                 anchorCount == 0 -> "No points yet"
                 else -> "$anchorCount points"
             },
-            color = AmTextFaint, fontSize = 10.sp
+            style = UiLabelStyle.TEXT_10,
+            colorArgb = AmTextFaint.toArgb(),
+            align = GlAlign.Start,
+            modifier = Modifier.fillMaxWidth()
         )
     }
 }
@@ -614,34 +618,19 @@ fun NodeEditPanel(
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 8.dp)
     ) {
-        Text(
-            "Drag a point to move it. Drag a round handle to bend the curve. Tap a line to add a point.",
-            color = AmTextDim, fontSize = 10.5.sp
+        // Build 252 (stage 5): GL hint + buttons (as PenToolPanel).
+        GlTextBlock(
+            text = "Drag a point to move it. Drag a round handle to bend the curve. Tap a line to add a point.",
+            style = UiLabelStyle.SHEET_DESC,
+            colorArgb = AmTextDim.toArgb(),
+            align = GlAlign.Start,
+            modifier = Modifier.fillMaxWidth()
         )
         Spacer(Modifier.height(6.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            PenPanelButton("Delete point", enabled = canDelete, onClick = onDeletePoint)
+            GlTextButton("Delete point", enabled = canDelete, onClick = onDeletePoint)
             Spacer(Modifier.weight(1f))
-            GradientPillButton(onClick = onDone, tag = "node_edit_done_button") {
-                Text("Done", color = AmInk, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            }
+            GlDonePill(label = "Done", tag = "node_edit_done_button", onClick = onDone)
         }
-    }
-}
-
-/** Small flat text button of the pen / node panels (the Draw panel's button, same language). */
-@Composable
-private fun PenPanelButton(label: String, enabled: Boolean, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .bouncyClickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 6.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            label,
-            color = if (enabled) TextPrimary else AmTextFaint,
-            fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold
-        )
     }
 }

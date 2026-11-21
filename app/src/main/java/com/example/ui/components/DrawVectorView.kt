@@ -21,6 +21,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.toArgb
+import com.example.engine.UiLabelStyle
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -140,61 +142,66 @@ fun DrawVectorPanel(
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 8.dp)
     ) {
-        Text(
-            "Draw on the picture — one stroke becomes a path layer you can move, colour and effect like any shape.",
-            color = AmTextDim, fontSize = 10.5.sp
+        // Build 252 (stage 5): the panel's texts, chips, width row
+        // and buttons are drawn in GL. The chips are the GlassChip
+        // pattern via GlChip (control-label styles, 0.95 press).
+        GlTextBlock(
+            text = "Draw on the picture — one stroke becomes a path layer you can move, colour and effect like any shape.",
+            style = UiLabelStyle.SHEET_DESC,
+            colorArgb = AmTextDim.toArgb(),
+            align = GlAlign.Start,
+            modifier = Modifier.fillMaxWidth()
         )
         Spacer(Modifier.height(7.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            GlassChip("Smooth", smooth, onClick = { onSmooth(!smooth) }, tag = "draw_smooth_chip")
-            GlassChip("Closed shape", closed, onClick = { onClosed(!closed) }, tag = "draw_closed_chip")
+            GlChip(
+                label = "Smooth",
+                selected = smooth,
+                tag = "draw_smooth_chip",
+                onClick = { onSmooth(!smooth) },
+                padVDp = 5f,
+                pressScale = 0.95f,
+                styleOn = UiLabelStyle.CONTROL_LABEL_BOLD,
+                styleOff = UiLabelStyle.CONTROL_LABEL,
+                textOffArgb = AmTextDim.toArgb()
+            )
+            GlChip(
+                label = "Closed shape",
+                selected = closed,
+                tag = "draw_closed_chip",
+                onClick = { onClosed(!closed) },
+                padVDp = 5f,
+                pressScale = 0.95f,
+                styleOn = UiLabelStyle.CONTROL_LABEL_BOLD,
+                styleOff = UiLabelStyle.CONTROL_LABEL,
+                textOffArgb = AmTextDim.toArgb()
+            )
         }
         Spacer(Modifier.height(4.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Width", color = TextPrimary, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.width(10.dp))
-            Slider(
-                value = widthDp,
-                onValueChange = onWidth,
-                valueRange = 1f..30f,
-                modifier = Modifier.weight(1f).testTag("draw_width_slider")
-            )
-            Spacer(Modifier.width(8.dp))
-            Text("${widthDp.roundToInt()}", color = AmTextDim, fontSize = 11.sp)
-        }
+        GlWidthRow(
+            value = widthDp,
+            onValueChange = onWidth,
+            valueRange = 1f..30f,
+            sliderTag = "draw_width_slider",
+            modifier = Modifier.fillMaxWidth()
+        )
         Spacer(Modifier.height(2.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box2Button("Clear", enabled = hasStroke, onClick = onClear)
+            GlTextButton("Clear", enabled = hasStroke, onClick = onClear)
             Spacer(Modifier.weight(1f))
-            Box2Button("Cancel", enabled = true, onClick = onCancel)
+            GlTextButton("Cancel", enabled = true, onClick = onCancel)
             Spacer(Modifier.width(8.dp))
-            GradientPillButton(onClick = onDone, tag = "draw_done_button") {
-                Text(
-                    "Done", color = AmInk,
-                    fontSize = 12.sp, fontWeight = FontWeight.Bold
-                )
-            }
+            GlDonePill(label = "Done", tag = "draw_done_button", onClick = onDone)
         }
         if (!hasStroke) {
             Spacer(Modifier.height(2.dp))
-            Text("Nothing drawn yet", color = AmTextFaint, fontSize = 10.sp)
+            GlTextBlock(
+                text = "Nothing drawn yet",
+                style = UiLabelStyle.TEXT_10,
+                colorArgb = AmTextFaint.toArgb(),
+                align = GlAlign.Start,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
-    }
-}
-
-/** Small flat text button of the draw panel. */
-@Composable
-private fun Box2Button(label: String, enabled: Boolean, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .bouncyClickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 6.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            label,
-            color = if (enabled) TextPrimary else AmTextFaint,
-            fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold
-        )
     }
 }
