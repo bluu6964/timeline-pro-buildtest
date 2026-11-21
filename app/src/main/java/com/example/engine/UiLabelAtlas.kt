@@ -160,7 +160,10 @@ enum class UiLabelStyle(
     CHIP_BIG(13f, 700),
 
     /** Build 252 (stage 5): effects editor title: 12.5 sp Bold. */
-    TITLE_125(12.5f, 700);
+    TITLE_125(12.5f, 700),
+
+    /** Build 252 (stage 5): transform rail axis badges: 8 sp Bold. */
+    ED_BADGE(8f, 700);
 
     companion object {
         /** The pager label style for an auto-fit size (7.5–10 sp in 0.5 steps). */

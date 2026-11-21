@@ -9,6 +9,8 @@ import androidx.compose.ui.graphics.toArgb
 import com.example.engine.UiGlRuntime
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.runtime.key
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.input.pointer.pointerInput
@@ -76,8 +78,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.example.engine.UiLabelAtlas
+import com.example.engine.UiLabelStyle
+import com.example.engine.rememberUiAtlas
 import com.example.model.AnimProp
 import com.example.model.DEPTH_HIDE_Z
+import com.example.model.EditorGeometry
+import com.example.model.PanelGeometry
 import com.example.model.depthFactorOf
 import com.example.model.AspectRatio
 import com.example.model.Easing
@@ -308,27 +315,27 @@ fun TransformView(
 
 
         // 6. Bottom Transform Panel (matching screenshot)
-        Column(
+        // Build 252 (stage 5): the panel body (flat AmPanel fill,
+        // hairline edge, drag handle) is drawn in GL behind the
+        // content; the layout is the old glassSurface column's.
+        GlPanelBody(
             modifier = Modifier
                 .fillMaxWidth()
                 // In the editor the panel takes all the space under the layer strip.
-                .then(if (panelOnly) Modifier.weight(1f) else Modifier)
-                .glassSurface(
-                    RoundedCornerShape(AmCornerPanel),
-                    fill = amGlassBrush()
-                )
+                .then(if (panelOnly) Modifier.weight(1f) else Modifier),
+            cornerDp = AmCornerPanel.value,
+            fillArgb = AmPanel.toArgb(),
+            borderArgb = AmHairline.toArgb(),
+            handleArgb = AmHairlineStrong.toArgb(),
+            handleTopDp = 4f
+        ) {
+        Column(
+            modifier = Modifier
+                .then(if (panelOnly) Modifier.fillMaxSize() else Modifier.fillMaxWidth())
                 .padding(horizontal = 12.dp, vertical = 4.dp)
         ) {
-            // Drag handle pill at top
-            Box(
-                modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .width(28.dp)
-                    .height(3.dp)
-                    .background(AmHairlineStrong, CircleShape)
-            )
-
-            Spacer(modifier = Modifier.height(2.dp))
+            // Drag handle pill space (the pill itself is drawn in GL).
+            Spacer(modifier = Modifier.height(5.dp))
 
             val headerText = when (activeTab) {
                 TransformTab.TWO_D -> when (part2d) {
@@ -540,36 +547,78 @@ fun TransformView(
             Spacer(modifier = Modifier.height(6.dp))
 
             // Bottom mode switcher tabs: [2D] [3D]
-            if (show3d) Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                TransformTab.values().forEach { tab ->
-                    val isSelected = tab == activeTab
-                    // BARE tabs (boxless order, build 183): the selected tab was a white
-                    // slab with black text, the other a grey tile — now the state is
-                    // white bold vs grey text alone.
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(30.dp)
-                            .bouncyClickable(
-                                pressedScale = 0.94f,
-                                onClick = { activeTab = tab }
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = tab.title,
-                            color = if (isSelected) TextPrimary else AmTextDim,
-                            fontSize = 12.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+            // Build 252 (stage 5): the bare tab labels are drawn in GL
+            // (white bold vs grey medium — the boxless build-183 look);
+            // the two weight-1 tap boxes and the 6 dp gap are the old
+            // row's geometry.
+            if (show3d) {
+                val tabAtlas = rememberUiAtlas()
+                val tabPad = UiLabelAtlas.PAD.toFloat()
+                val tabDensity = androidx.compose.ui.platform.LocalDensity.current.density
+                fun resolveTabs() = TransformTab.values().map { tab ->
+                    tabAtlas.resolve(
+                        tab.title,
+                        if (tab == activeTab) UiLabelStyle.SHEET_ITEM_BOLD else UiLabelStyle.SHEET_ITEM_MED
+                    )
+                }
+                var tabEntries = resolveTabs()
+                if (tabAtlas.overflowed) {
+                    tabAtlas.reset()
+                    tabEntries = resolveTabs()
+                }
+                val tabScales = remember { TransformTab.values().map { androidx.compose.animation.core.Animatable(1f) } }
+                BoxWithConstraints(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 4.dp)
+                        .height(30.dp)
+                ) {
+                    val tabBoxW = (maxWidth - 6.dp) / 2
+                    NativeVectorCanvas(
+                        modifier = Modifier.fillMaxSize(),
+                        clearArgb = 0,
+                        atlas = tabAtlas,
+                        drawKey = listOf(tabEntries, tabScales.map { it.value }, tabAtlas.generation),
+                        buildCmds = { w, h, dd ->
+                            val gapPx = 6f * dd
+                            val boxW = (w - gapPx) / 2f
+                            TransformTab.values().forEachIndexed { i, tab ->
+                                val left = i * (boxW + gapPx)
+                                val e = tabEntries[i] ?: return@forEachIndexed
+                                val style = if (tab == activeTab) {
+                                    UiLabelStyle.SHEET_ITEM_BOLD
+                                } else {
+                                    UiLabelStyle.SHEET_ITEM_MED
+                                }
+                                val textH = tabAtlas.textHeightPx(style)
+                                val fm = tabAtlas.fontMetrics(style)
+                                val top = EditorGeometry.centredTextTopPx(0f, h, textH)
+                                val baseline = PanelGeometry.lineBaselinePx(top, textH, fm.ascent, fm.descent)
+                                val originX = EditorGeometry.centredOriginPx(left + boxW / 2f, e.advance)
+                                val (dstX, dstY) = EditorGeometry.textDst(originX, baseline, e.bearing, e.base, tabPad)
+                                setScaleAbout(left + boxW / 2f, h / 2f, tabScales[i].value)
+                                addText(
+                                    e.index, dstX, dstY,
+                                    0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                                    tintArgb = (if (tab == activeTab) TextPrimary else AmTextDim).toArgb()
+                                )
+                                clearTransform()
+                            }
+                        }
+                    )
+                    TransformTab.values().forEachIndexed { i, tab ->
+                        ChromePressBox(
+                            tabScales[i], 0.94f, { activeTab = tab },
+                            Modifier
+                                .offset(x = (tabBoxW + 6.dp) * i)
+                                .width(tabBoxW)
+                                .fillMaxHeight(),
+                            description = tab.title
                         )
                     }
                 }
             }
+        }
         }
     }
 }
@@ -630,8 +679,6 @@ private fun PositionPad(
                 .weight(1f)
                 .fillMaxHeight()
                 .clip(RoundedCornerShape(10.dp))
-                .background(AmPanel)
-                .border(1.dp, AmHairline, RoundedCornerShape(10.dp))
                 .pointerInput(Unit) {
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false)
@@ -661,6 +708,19 @@ private fun PositionPad(
                     }
                 }
         ) {
+            // Build 252 (stage 5): the pad's flat fill + hairline edge
+            // are drawn in GL under the (already native) pad draw.
+            NativeVectorCanvas(
+                modifier = Modifier.fillMaxSize(),
+                clearArgb = 0,
+                drawKey = Unit,
+                buildCmds = { w, h, dd ->
+                    addRoundRect(
+                        w / 2f, h / 2f, w, h, 10f * dd,
+                        AmPanel.toArgb(), 1f * dd, AmHairline.toArgb()
+                    )
+                }
+            )
             val dotArgb = AmMint.toArgb()
             val gridArgb = AmTickMajor.toArgb()
             val xNorm = (0.5f + (x / visualRange) * 0.5f).coerceIn(0.04f, 0.96f)
@@ -684,39 +744,91 @@ private fun IconRail(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(
-        modifier = modifier.width(36.dp).fillMaxHeight(),
-        verticalArrangement = Arrangement.SpaceEvenly,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        items.forEachIndexed { i, item ->
-            val selected = i == selectedIndex
-            // BARE (boxless order, build 183): no tile behind the selected item —
-            // white vs grey carries the state (the two whites were indistinguishable).
-            val tint = if (selected) AmMint else AmTextDim
-            Box(
-                modifier = Modifier
-                    .size(width = 36.dp, height = 26.dp)
-                    .clip(RectangleShape)
-                    .bouncyClickable(onClick = { onSelect(i) }),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = item.icon,
-                    contentDescription = item.description,
-                    tint = tint,
-                    modifier = Modifier.size(18.dp)
-                )
-                if (item.badge != null) {
-                    Text(
-                        text = item.badge,
-                        color = tint,
-                        fontSize = 8.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.align(Alignment.BottomEnd).padding(end = 2.dp, bottom = 1.dp)
-                    )
+    // Build 252 (stage 5): the bare rail icons + axis badges are drawn
+    // in GL (white vs grey carries the state — the boxless build-183
+    // look); the SpaceEvenly geometry and the 36×26 tap boxes are the
+    // old column's.
+    val density = androidx.compose.ui.platform.LocalDensity.current.density
+    val atlas = rememberUiAtlas()
+    val pad = UiLabelAtlas.PAD.toFloat()
+    val painters = items.map { item -> key(item.icon.name) { rememberVectorPainter(item.icon) } }
+    val iconPx = (18f * density).roundToInt()
+
+    fun resolveRail(): Pair<List<UiLabelAtlas.Entry?>, List<UiLabelAtlas.Entry?>> {
+        val icons = items.mapIndexed { i, item ->
+            atlas.resolveIcon("rail:${item.icon.name}", iconPx, iconPx) { cv, x, y ->
+                val b = rasterizePainterBitmap(painters[i], iconPx, density)
+                cv.drawBitmap(b, x, y, null)
+                b.recycle()
+            }
+        }
+        val badges = items.map { item ->
+            item.badge?.let { atlas.resolve(it, UiLabelStyle.ED_BADGE) }
+        }
+        return icons to badges
+    }
+    var railEntries = resolveRail()
+    if (atlas.overflowed) {
+        atlas.reset()
+        railEntries = resolveRail()
+    }
+    val (iconEntries, badgeEntries) = railEntries
+    val scales = remember(items.size) { items.map { androidx.compose.animation.core.Animatable(1f) } }
+
+    BoxWithConstraints(modifier = modifier.width(36.dp).fillMaxHeight()) {
+        val hPx = maxHeight.value * density
+        val boxH = 26f * density
+        val gap = if (items.isNotEmpty()) {
+            (hPx - items.size * boxH) / (items.size + 1)
+        } else 0f
+        NativeVectorCanvas(
+            modifier = Modifier.fillMaxSize(),
+            clearArgb = 0,
+            atlas = atlas,
+            drawKey = listOf(iconEntries, badgeEntries, scales.map { it.value }, selectedIndex, hPx, atlas.generation),
+            buildCmds = { w, _, dd ->
+                items.forEachIndexed { i, item ->
+                    val top = gap * (i + 1) + boxH * i
+                    val cy = top + boxH / 2f
+                    // BARE (boxless order, build 183): no tile behind
+                    // the selected item — white vs grey carries it.
+                    val tint = (if (i == selectedIndex) AmMint else AmTextDim).toArgb()
+                    setScaleAbout(w / 2f, cy, scales[i].value)
+                    iconEntries[i]?.let { e ->
+                        addText(
+                            e.index,
+                            w / 2f - iconPx / 2f - pad, cy - iconPx / 2f - pad,
+                            0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                            tintArgb = tint
+                        )
+                    }
+                    badgeEntries[i]?.let { e ->
+                        val fm = atlas.fontMetrics(UiLabelStyle.ED_BADGE)
+                        // BottomEnd with 2 dp end / 1 dp bottom padding:
+                        // the layout box's bottom is the baseline +
+                        // descent.
+                        val baseline = top + boxH - 1f * dd - fm.descent
+                        val originX = w - 2f * dd - e.advance
+                        val (dstX, dstY) = EditorGeometry.textDst(originX, baseline, e.bearing, e.base, pad)
+                        addText(
+                            e.index, dstX, dstY,
+                            0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                            tintArgb = tint
+                        )
+                    }
+                    clearTransform()
                 }
             }
+        )
+        items.forEachIndexed { i, item ->
+            val topDp = (gap * (i + 1) + boxH * i) / density
+            ChromePressBox(
+                scales[i], 0.94f, { onSelect(i) },
+                Modifier
+                    .offset(y = topDp.dp)
+                    .size(width = 36.dp, height = 26.dp),
+                description = item.description
+            )
         }
     }
 }
@@ -744,87 +856,147 @@ internal fun TransformValueHeader(
     modifier: Modifier = Modifier
 ) {
     val accent = AmMint
-    Row(
-        modifier = modifier.fillMaxWidth().height(34.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        if (onBack != null) {
-            Box(
-                modifier = Modifier
-                    .size(32.dp)
-                    .clip(RectangleShape)
-                    .bouncyClickable(onClick = onBack)
-                    .testTag("panel_back_button"),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.KeyboardArrowDown,
-                    contentDescription = "Back",
-                    tint = IconActive,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-        } else {
-            Spacer(modifier = Modifier.width(32.dp))
+    // Build 252 (UI migration stage 5): the header is drawn on one GL
+    // surface (EditorGeometry.ValueHeader) — back icon, the centred
+    // monospace value, the rotated keyframe diamond and the easing
+    // button's open-state circle. The easing tile itself stays the
+    // build-241 native canvas, hosted over the surface with its press
+    // scale on a graphicsLayer fed by the same Animatable the tap box
+    // drives. Tap targets, tags and the disabled-diamond 0.35 alpha
+    // (folded into the drawn colours) are unchanged.
+    val density = androidx.compose.ui.platform.LocalDensity.current.density
+    val atlas = rememberUiAtlas()
+    val pad = UiLabelAtlas.PAD.toFloat()
+    val backPainter = rememberVectorPainter(Icons.Default.KeyboardArrowDown)
+    val addPainter = rememberVectorPainter(Icons.Default.Add)
+    val backPx = (EditorGeometry.ValueHeader.BACK_ICON_DP * density).roundToInt()
+    val addPx = (EditorGeometry.ValueHeader.ADD_ICON_DP * density).roundToInt()
+
+    fun resolveHeader(): Triple<UiLabelAtlas.Entry?, UiLabelAtlas.Entry?, UiLabelAtlas.Entry?> {
+        val back = atlas.resolveIcon("valueheader:back", backPx, backPx) { cv, x, y ->
+            val b = rasterizePainterBitmap(backPainter, backPx, density)
+            cv.drawBitmap(b, x, y, null)
+            b.recycle()
         }
+        val add = atlas.resolveIcon("valueheader:add", addPx, addPx) { cv, x, y ->
+            val b = rasterizePainterBitmap(addPainter, addPx, density)
+            cv.drawBitmap(b, x, y, null)
+            b.recycle()
+        }
+        val value = atlas.resolve(valueText, UiLabelStyle.VALUE_HEADER_MONO)
+        return Triple(back, add, value)
+    }
+    var headerEntries = resolveHeader()
+    if (atlas.overflowed) {
+        atlas.reset()
+        headerEntries = resolveHeader()
+    }
+    val (backEntry, addEntry, valueEntry) = headerEntries
 
-        Text(
-            text = valueText,
-            color = TextPrimary,
-            fontSize = 13.sp,
-            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-            fontWeight = FontWeight.Bold,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            modifier = Modifier.weight(1f)
-        )
+    val backScale = remember { androidx.compose.animation.core.Animatable(1f) }
+    val diamondScale = remember { androidx.compose.animation.core.Animatable(1f) }
+    val easingScale = remember { androidx.compose.animation.core.Animatable(1f) }
 
-        // Keyframe diamond
-        Box(
-            modifier = Modifier
-                .size(32.dp)
-                .graphicsLayer { alpha = if (keyframeEnabled) 1f else 0.35f }
-                .bouncyClickable(onClick = { if (keyframeEnabled) onKeyframe() })
-                .testTag("transform_keyframe_button"),
-            contentAlignment = Alignment.Center
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(17.dp)
-                    .graphicsLayer { rotationZ = 45f }
-                    .background(if (onKeyframeNow) accent else AmPanelHigh, RoundedCornerShape(3.dp))
-                    .then(
-                        if (hasKeyframes && !onKeyframeNow) Modifier.border(1.5.dp, accent, RoundedCornerShape(3.dp))
-                        else Modifier
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                if (!onKeyframeNow) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "Keyframe",
-                        tint = Color.White,
-                        modifier = Modifier
-                            .size(11.dp)
-                            .graphicsLayer { rotationZ = -45f }
+    val iconColor = when {
+        !easingEnabled -> AmTextFaint
+        easingOpen -> accent
+        else -> TextPrimary
+    }
+    val e = (if (easingEnabled) easing else null) ?: Easing(0.4f, 0f, 0.6f, 1f)
+
+    Box(modifier = modifier.fillMaxWidth().height(34.dp)) {
+        NativeVectorCanvas(
+            modifier = Modifier.fillMaxSize(),
+            clearArgb = 0,
+            atlas = atlas,
+            drawKey = listOf(
+                backEntry, addEntry, valueEntry,
+                backScale.value, diamondScale.value, easingScale.value,
+                onBack != null, keyframeEnabled, onKeyframeNow, hasKeyframes,
+                easingOpen, atlas.generation
+            ),
+            buildCmds = { w, h, dd ->
+                val g = EditorGeometry.ValueHeader
+                val cy = g.centreYPx(dd)
+                val boxPx = g.BOX_DP * dd
+                // Back icon, press-scaled about its box centre.
+                if (onBack != null && backEntry != null) {
+                    setScaleAbout(boxPx / 2f, cy, backScale.value)
+                    addText(
+                        backEntry.index,
+                        boxPx / 2f - backPx / 2f - pad, cy - backPx / 2f - pad,
+                        0f, 0f, backEntry.rectW.toFloat(), backEntry.rectH.toFloat(),
+                        tintArgb = IconActive.toArgb()
+                    )
+                    clearTransform()
+                }
+                // The value, centred in the weight-1 span.
+                if (valueEntry != null) {
+                    val style = UiLabelStyle.VALUE_HEADER_MONO
+                    val textH = atlas.textHeightPx(style)
+                    val fm = atlas.fontMetrics(style)
+                    val top = EditorGeometry.centredTextTopPx(0f, h, textH)
+                    val baseline = PanelGeometry.lineBaselinePx(top, textH, fm.ascent, fm.descent)
+                    val originX = EditorGeometry.centredOriginPx(g.valueCentreXPx(w, dd), valueEntry.advance)
+                    val (dstX, dstY) = EditorGeometry.textDst(originX, baseline, valueEntry.bearing, valueEntry.base, pad)
+                    addText(
+                        valueEntry.index, dstX, dstY,
+                        0f, 0f, valueEntry.rectW.toFloat(), valueEntry.rectH.toFloat(),
+                        tintArgb = TextPrimary.toArgb()
                     )
                 }
+                // The keyframe diamond: the rotated rounded square as a
+                // polygon (+ its outline state), the plus blitted
+                // upright (the Compose icon counter-rotated to the
+                // same result). The disabled 0.35 alpha folds into the
+                // drawn colours.
+                val dcx = g.diamondCentreXPx(w, dd)
+                val alphaMul = if (keyframeEnabled) 1f else 0.35f
+                setScaleAbout(dcx, cy, diamondScale.value)
+                val pts = g.diamondOutline(dcx, cy, dd)
+                val xs = FloatArray(pts.size / 2) { pts[it * 2] }
+                val ys = FloatArray(pts.size / 2) { pts[it * 2 + 1] }
+                val fillColor = if (onKeyframeNow) accent else AmPanelHigh
+                addFilledPolygon(
+                    xs, ys, xs.size,
+                    fillColor.copy(alpha = fillColor.alpha * alphaMul).toArgb()
+                )
+                if (hasKeyframes && !onKeyframeNow) {
+                    addPolyline(
+                        xs, ys, xs.size, true,
+                        g.DIAMOND_BORDER_DP * dd,
+                        accent.copy(alpha = accent.alpha * alphaMul).toArgb()
+                    )
+                }
+                if (!onKeyframeNow && addEntry != null) {
+                    addText(
+                        addEntry.index,
+                        dcx - addPx / 2f - pad, cy - addPx / 2f - pad,
+                        0f, 0f, addEntry.rectW.toFloat(), addEntry.rectH.toFloat(),
+                        tintArgb = Color.White.copy(alpha = alphaMul).toArgb()
+                    )
+                }
+                clearTransform()
+                // The easing button's open-state circle.
+                if (easingOpen) {
+                    val ecx = g.easingCentreXPx(w, dd)
+                    setScaleAbout(ecx, cy, easingScale.value)
+                    addCircle(ecx, cy, boxPx / 2f, AmPanelHigh.toArgb())
+                    clearTransform()
+                }
             }
-        }
+        )
 
-        // Easing curve (between two keyframes only)
-        val iconColor = when {
-            !easingEnabled -> AmTextFaint
-            easingOpen -> accent
-            else -> TextPrimary
-        }
-        val e = (if (easingEnabled) easing else null) ?: Easing(0.4f, 0f, 0.6f, 1f)
+        // The easing tile (native since build 241) over the surface.
         Box(
             modifier = Modifier
+                .align(Alignment.TopEnd)
+                .offset(y = 1.dp)
                 .size(32.dp)
-                .clip(CircleShape)
-                .background(if (easingOpen) AmPanelHigh else Color.Transparent, CircleShape)
-                .bouncyClickable(onClick = { if (easingEnabled) onEasing() })
-                .testTag("transform_easing_button"),
+                .graphicsLayer {
+                    scaleX = easingScale.value
+                    scaleY = easingScale.value
+                },
             contentAlignment = Alignment.Center
         ) {
             NativeGlDirectCanvas(
@@ -835,5 +1007,32 @@ internal fun TransformValueHeader(
                 },
             )
         }
+
+        // Tap targets at the old boxes (32 dp, centred in the 34 dp row).
+        if (onBack != null) {
+            ChromePressBox(
+                backScale, 0.94f, onBack,
+                Modifier.offset(y = 1.dp).size(32.dp),
+                tag = "panel_back_button",
+                description = "Back"
+            )
+        }
+        ChromePressBox(
+            diamondScale, 0.94f, { if (keyframeEnabled) onKeyframe() },
+            Modifier
+                .align(Alignment.TopEnd)
+                .offset(x = (-32).dp, y = 1.dp)
+                .size(32.dp),
+            tag = "transform_keyframe_button",
+            description = if (!onKeyframeNow) "Keyframe" else null
+        )
+        ChromePressBox(
+            easingScale, 0.94f, { if (easingEnabled) onEasing() },
+            Modifier
+                .align(Alignment.TopEnd)
+                .offset(y = 1.dp)
+                .size(32.dp),
+            tag = "transform_easing_button"
+        )
     }
 }
