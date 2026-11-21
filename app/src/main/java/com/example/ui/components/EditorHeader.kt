@@ -40,8 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.engine.NativeVectorCanvas
-import com.example.engine.UiGlNative.VectorCmdBuilder
+import com.example.engine.VectorCmdBuilder
 import com.example.engine.UiLabelAtlas
 import com.example.engine.UiLabelStyle
 import com.example.engine.rememberUiAtlas

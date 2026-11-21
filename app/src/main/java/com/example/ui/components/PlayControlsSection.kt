@@ -24,8 +24,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.example.engine.NativeVectorCanvas
-import com.example.engine.UiGlNative.VectorCmdBuilder
+import com.example.engine.VectorCmdBuilder
 import com.example.engine.UiLabelAtlas
 import com.example.engine.UiLabelStyle
 import com.example.engine.rememberUiAtlas

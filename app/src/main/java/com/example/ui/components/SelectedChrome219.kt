@@ -73,6 +73,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import com.example.engine.UiLabelAtlas
+import com.example.engine.UiLabelStyle
+import com.example.engine.VectorCmdBuilder
+import com.example.engine.rememberUiAtlas
+import com.example.model.ChromeGeometry
 import com.example.model.PagerGrid
 import com.example.ui.theme.AmAccent
 import com.example.ui.util.amChromeSpec
@@ -111,87 +119,86 @@ private val SelDot = AmHairlineStrong
 const val SELECTED_PAGER_HEIGHT_DP = 170
 
 /**
- * One header icon-button in the reference's style: a plain white glyph,
- * 4 dp padding, r6, pressed = opacity 0.6 (the reference's :active).
+ * One header icon-button's INVISIBLE tap target (build 250: the glyph
+ * is drawn on the header's GL surface; the pressed state is read by
+ * the header from the same [interaction] source and applied there as
+ * the reference's :active opacity 0.6). Same box as build 219's
+ * SelIconBtn: r6 clip, no indication, 4 dp padding around the glyph
+ * box, the original tag.
  */
 @Composable
-private fun SelIconBtn(
+private fun SelTouchBtn(
     tag: String,
+    interaction: MutableInteractionSource,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    glyph: @Composable () -> Unit
+    glyphSize: Dp,
+    description: String? = null,
+    modifier: Modifier = Modifier
 ) {
-    val interaction = remember { MutableInteractionSource() }
-    val pressed by interaction.collectIsPressedAsState()
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(6.dp))
-            .alpha(if (pressed) 0.6f else 1f)
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
             .padding(4.dp)
+            .then(
+                if (description != null) Modifier.semantics {
+                    contentDescription = description
+                } else Modifier
+            )
             .testTag(tag),
         contentAlignment = Alignment.Center
-    ) { glyph() }
+    ) { Spacer(Modifier.size(glyphSize)) }
 }
 
-/** The reference's Layers glyph: a dashed back rect, a filled front rect, and the cyan target badge. */
-@Composable
-private fun LayersGlyph219(modifier: Modifier = Modifier) {
-    NativeVectorCanvas(
-        modifier = modifier.size(19.dp),
-        drawKey = "layers_glyph_219",
-        buildCmds = { w, _, _ ->
-            val u = w / 24f
-            val strokeW = 1.7f * u
-            val whiteArgb = Color.White.toArgb()
-            // Back dashed rounded rect
-            val l = 1.5f * u
-            val t = 3.5f * u
-            val s = 13f * u
-            val r = 3f * u
-            val pts = mutableListOf<Pair<Float, Float>>()
-            fun addArcPts(cx: Float, cy: Float, startDeg: Float) {
-                for (i in 0..4) {
-                    val a = Math.toRadians((startDeg + i * 22.5))
-                    pts.add((cx + r * kotlin.math.cos(a).toFloat()) to (cy + r * kotlin.math.sin(a).toFloat()))
-                }
-            }
-            addArcPts(l + s - r, t + r, -90f)
-            addArcPts(l + s - r, t + s - r, 0f)
-            addArcPts(l + r, t + s - r, 90f)
-            addArcPts(l + r, t + r, 180f)
-            val xs = FloatArray(pts.size) { pts[it].first }
-            val ys = FloatArray(pts.size) { pts[it].second }
-            addPolyline(xs, ys, pts.size, true, strokeW, whiteArgb, dashOn = 3.2f * u, dashOff = 2.4f * u, capRound = false)
-            // Front rect
-            addRoundRect(
-                (6.5f + 6.5f) * u, (8.5f + 6.5f) * u,
-                13f * u, 13f * u, 3f * u,
-                fillArgb = SelBg.toArgb(), strokeWidth = strokeW, strokeArgb = whiteArgb
-            )
-            // Target badge
-            val accentArgb = SelAccent.toArgb()
-            addCircle(19.5f * u, 6.5f * u, 3.6f * u, 0, 1.3f * u, accentArgb)
-            addCircle(19.5f * u, 6.5f * u, 1.15f * u, accentArgb)
-        },
+/**
+ * The reference's Layers glyph: a dashed back rect, a filled front
+ * rect, and the cyan target badge. Build 250: the build-219 canvas
+ * body, ported command-for-command into the header's surface;
+ * [alpha] is the pressed state (the reference's :active 0.6).
+ */
+private fun VectorCmdBuilder.glyphLayers219Body(w: Float, alpha: Float) {
+    val u = w / 24f
+    val strokeW = 1.7f * u
+    val whiteArgb = Color.White.copy(alpha = alpha).toArgb()
+    // Back dashed rounded rect
+    val l = 1.5f * u
+    val t = 3.5f * u
+    val s = 13f * u
+    val r = 3f * u
+    val pts = mutableListOf<Pair<Float, Float>>()
+    fun addArcPts(cx: Float, cy: Float, startDeg: Float) {
+        for (i in 0..4) {
+            val a = Math.toRadians((startDeg + i * 22.5))
+            pts.add((cx + r * kotlin.math.cos(a).toFloat()) to (cy + r * kotlin.math.sin(a).toFloat()))
+        }
+    }
+    addArcPts(l + s - r, t + r, -90f)
+    addArcPts(l + s - r, t + s - r, 0f)
+    addArcPts(l + r, t + s - r, 90f)
+    addArcPts(l + r, t + r, 180f)
+    val xs = FloatArray(pts.size) { pts[it].first }
+    val ys = FloatArray(pts.size) { pts[it].second }
+    addPolyline(xs, ys, pts.size, true, strokeW, whiteArgb, dashOn = 3.2f * u, dashOff = 2.4f * u, capRound = false)
+    // Front rect
+    addRoundRect(
+        (6.5f + 6.5f) * u, (8.5f + 6.5f) * u,
+        13f * u, 13f * u, 3f * u,
+        fillArgb = SelBg.copy(alpha = alpha).toArgb(), strokeWidth = strokeW, strokeArgb = whiteArgb
     )
+    // Target badge
+    val accentArgb = SelAccent.copy(alpha = alpha).toArgb()
+    addCircle(19.5f * u, 6.5f * u, 3.6f * u, 0, 1.3f * u, accentArgb)
+    addCircle(19.5f * u, 6.5f * u, 1.15f * u, accentArgb)
 }
 
 /** The reference's More glyph: a circle outline with three dots inside. */
-@Composable
-private fun MoreGlyph219(modifier: Modifier = Modifier) {
-    NativeVectorCanvas(
-        modifier = modifier.size(19.dp),
-        drawKey = "more_glyph_219",
-        buildCmds = { w, _, _ ->
-            val u = w / 24f
-            addCircle(12f * u, 12f * u, 9.5f * u, 0, 1.7f * u, SelName.toArgb())
-            val whiteArgb = Color.White.toArgb()
-            for (dx in listOf(7f, 12f, 17f)) {
-                addCircle(dx * u, 12f * u, 1.55f * u, whiteArgb)
-            }
-        },
-    )
+private fun VectorCmdBuilder.glyphMore219Body(w: Float, alpha: Float) {
+    val u = w / 24f
+    addCircle(12f * u, 12f * u, 9.5f * u, 0, 1.7f * u, SelName.copy(alpha = alpha).toArgb())
+    val whiteArgb = Color.White.copy(alpha = alpha).toArgb()
+    for (dx in listOf(7f, 12f, 17f)) {
+        addCircle(dx * u, 12f * u, 1.55f * u, whiteArgb)
+    }
 }
 
 /**
@@ -202,6 +209,16 @@ private fun MoreGlyph219(modifier: Modifier = Modifier) {
  * rename. Right: Layers (the all-tools grid), Delete, More (the layer
  * menu — duplicate / parent / lock / visibility / label / copy-paste /
  * resets live here in this state).
+ *
+ * Build 250 (UI migration stage 3): the header is drawn on ONE native
+ * GL surface — positions from [ChromeGeometry.SelHeader] (the
+ * build-219 layout, host-tested), the name through the stage-2 atlas
+ * (ellipsized with the atlas paint, the Android rule), the Material
+ * arrows as atlas rasters, the Layers/More glyphs ported
+ * command-for-command, the pressed state applied as the reference's
+ * 0.6 alpha. Tap targets stay Compose with the original
+ * tags/descriptions; the More menu stays Compose, anchored to the
+ * More button's box. Behaviour and pixels are build 219's.
  */
 @Composable
 fun SelectedHeader219(
@@ -228,13 +245,128 @@ fun SelectedHeader219(
     modifier: Modifier = Modifier
 ) {
     var menuOpen by remember { mutableStateOf(false) }
-    Box(
+    val sg = ChromeGeometry.SelHeader
+    val density = LocalDensity.current.density
+    val atlas = rememberUiAtlas()
+    val backPainter = rememberVectorPainter(Icons.AutoMirrored.Filled.ArrowBack)
+    val deletePainter = rememberVectorPainter(Icons.Default.DeleteOutline)
+
+    val nameTextH = atlas.textHeightPx(UiLabelStyle.SEL_NAME)
+    val nameAscent = atlas.fontMetrics(UiLabelStyle.SEL_NAME).ascent
+
+    // The four buttons' pressed states (the reference's :active
+    // opacity), read here and applied in the GL draw.
+    val backInteraction = remember { MutableInteractionSource() }
+    val backPressed by backInteraction.collectIsPressedAsState()
+    val layersInteraction = remember { MutableInteractionSource() }
+    val layersPressed by layersInteraction.collectIsPressedAsState()
+    val deleteInteraction = remember { MutableInteractionSource() }
+    val deletePressed by deleteInteraction.collectIsPressedAsState()
+    val moreInteraction = remember { MutableInteractionSource() }
+    val morePressed by moreInteraction.collectIsPressedAsState()
+
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
             .height(height)
             .background(SelBg)
             .testTag("selected_header_219")
     ) {
+        // Full-width bar: the constraints give the surface width up
+        // front, so the name's ellipsized form is resolved against
+        // the same law the draw uses.
+        val slotWidthPx = maxWidth.value * density
+        fun resolveAll(): SelHeaderEntries {
+            val backPx = (19f * density).roundToInt()
+            val deletePx = (18f * density).roundToInt()
+            val back = atlas.resolveIcon("sel:back", backPx, backPx) { cv, x, y ->
+                val b = rasterizePainterBitmap(backPainter, backPx, density)
+                cv.drawBitmap(b, x, y, null)
+                b.recycle()
+            }
+            val delete = atlas.resolveIcon("sel:delete", deletePx, deletePx) { cv, x, y ->
+                val b = rasterizePainterBitmap(deletePainter, deletePx, density)
+                cv.drawBitmap(b, x, y, null)
+                b.recycle()
+            }
+            val cap = sg.columnWidthPx(slotWidthPx, density)
+            val shown = ChromeGeometry.ellipsize(layerName, cap) { s ->
+                atlas.measure(s, UiLabelStyle.SEL_NAME)
+            }
+            val nameEntry = atlas.resolve(shown, UiLabelStyle.SEL_NAME)
+            return SelHeaderEntries(nameEntry, shown, back, delete)
+        }
+        var entries = resolveAll()
+        if (atlas.overflowed) {
+            atlas.reset()
+            entries = resolveAll()
+        }
+        val pad = UiLabelAtlas.PAD.toFloat()
+        val columnWDp = (sg.columnWidthPx(slotWidthPx, density) / density).dp
+        val columnHDp = (sg.columnHeightPx(nameTextH, density) / density).dp
+
+        NativeVectorCanvas(
+            modifier = Modifier.fillMaxSize(),
+            clearArgb = 0,
+            atlas = atlas,
+            drawKey = listOf(
+                entries, backPressed, layersPressed, deletePressed, morePressed,
+                atlas.generation
+            ),
+            buildCmds = { w, h, dd ->
+                // Back (white arrow; pressed = 0.6 alpha).
+                entries.back?.let { e ->
+                    addText(
+                        e.index,
+                        sg.glyphLeftPx(sg.backLeftPx(dd), dd) - pad,
+                        sg.glyphTopPx(h, sg.BTN_GLYPH_DP, dd) - pad,
+                        0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                        tintArgb = Color.White.copy(alpha = if (backPressed) 0.6f else 1f).toArgb()
+                    )
+                }
+                // Name + its full-column-width underline.
+                entries.name?.let { e ->
+                    val nameLeft = sg.nameBoxLeftPx(dd)
+                    val colTop = sg.columnTopPx(h, nameTextH, dd)
+                    addText(
+                        e.index, nameLeft + e.bearing - pad, colTop - nameAscent - e.base,
+                        0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                        tintArgb = SelName.toArgb()
+                    )
+                    addRect(
+                        nameLeft, sg.underlineTopPx(h, nameTextH, dd),
+                        sg.columnWidthPx(w, dd), sg.UNDERLINE_H_DP * dd,
+                        SelUnderline.toArgb()
+                    )
+                }
+                // Layers glyph.
+                setTranslate(
+                    sg.glyphLeftPx(sg.layersLeftPx(w, dd), dd),
+                    sg.glyphTopPx(h, sg.BTN_GLYPH_DP, dd)
+                )
+                glyphLayers219Body(sg.BTN_GLYPH_DP * dd, if (layersPressed) 0.6f else 1f)
+                setTranslate(0f, 0f)
+                // Delete (name-coloured trash outline).
+                entries.delete?.let { e ->
+                    addText(
+                        e.index,
+                        sg.glyphLeftPx(sg.deleteLeftPx(w, dd), dd) - pad,
+                        sg.glyphTopPx(h, sg.DELETE_GLYPH_DP, dd) - pad,
+                        0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                        tintArgb = SelName.copy(alpha = if (deletePressed) 0.6f else 1f).toArgb()
+                    )
+                }
+                // More glyph.
+                setTranslate(
+                    sg.glyphLeftPx(sg.moreLeftPx(w, dd), dd),
+                    sg.glyphTopPx(h, sg.BTN_GLYPH_DP, dd)
+                )
+                glyphMore219Body(sg.BTN_GLYPH_DP * dd, if (morePressed) 0.6f else 1f)
+                setTranslate(0f, 0f)
+            }
+        )
+
+        // Tap targets: the build-219 Row layout, invisible.
         Row(
             modifier = Modifier
                 .fillMaxSize()
@@ -242,55 +374,35 @@ fun SelectedHeader219(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            SelIconBtn(tag = "sel_header_back", onClick = onBack) {
-                Icon(
-                    Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    tint = Color.White,
-                    modifier = Modifier.size(19.dp)
-                )
-            }
-            // The name wrap: flexes, caps at the reference's 180 dp,
-            // 1 dp underline under the name; tap = rename.
+            SelTouchBtn(
+                tag = "sel_header_back", interaction = backInteraction,
+                onClick = onBack, glyphSize = 19.dp, description = "Back"
+            )
+            // The name wrap: flexes, caps at the reference's 180 dp;
+            // tap = rename (the plain clickable keeps its ripple over
+            // the surface, as in build 219).
             Box(modifier = Modifier.weight(1f)) {
-                Column(
+                Box(
                     modifier = Modifier
-                        .widthIn(max = 180.dp)
+                        .width(columnWDp)
+                        .height(columnHDp)
                         .clickable(onClick = onRename)
                         .testTag("sel_header_name")
-                ) {
-                    Text(
-                        text = layerName,
-                        color = SelName,
-                        fontSize = 14.5.sp,
-                        letterSpacing = 0.15.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Spacer(Modifier.height(2.dp))
-                    Box(
-                        Modifier
-                            .fillMaxWidth()
-                            .height(1.dp)
-                            .background(SelUnderline)
-                    )
-                }
-            }
-            SelIconBtn(tag = "sel_header_layers", onClick = onLayers) {
-                LayersGlyph219()
-            }
-            SelIconBtn(tag = "sel_header_delete", onClick = onDelete) {
-                Icon(
-                    Icons.Default.DeleteOutline,
-                    contentDescription = "Delete layer",
-                    tint = SelName,
-                    modifier = Modifier.size(18.dp)
                 )
             }
+            SelTouchBtn(
+                tag = "sel_header_layers", interaction = layersInteraction,
+                onClick = onLayers, glyphSize = 19.dp
+            )
+            SelTouchBtn(
+                tag = "sel_header_delete", interaction = deleteInteraction,
+                onClick = onDelete, glyphSize = 18.dp, description = "Delete layer"
+            )
             Box {
-                SelIconBtn(tag = "sel_header_more", onClick = { menuOpen = true }) {
-                    MoreGlyph219()
-                }
+                SelTouchBtn(
+                    tag = "sel_header_more", interaction = moreInteraction,
+                    onClick = { menuOpen = true }, glyphSize = 19.dp
+                )
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     SelMenuItem("Duplicate", Icons.Default.ContentCopy, "sel_menu_duplicate") { menuOpen = false; onDuplicate() }
                     SelMenuItem("Rename", Icons.Default.Edit, "sel_menu_rename") { menuOpen = false; onRename() }
@@ -318,6 +430,13 @@ fun SelectedHeader219(
         }
     }
 }
+
+private data class SelHeaderEntries(
+    val name: UiLabelAtlas.Entry?,
+    val shownName: String,
+    val back: UiLabelAtlas.Entry?,
+    val delete: UiLabelAtlas.Entry?
+)
 
 /** One entry of the selected header's More menu. */
 @Composable
