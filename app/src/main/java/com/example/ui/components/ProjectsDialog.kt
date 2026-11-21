@@ -6,6 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -47,6 +49,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
@@ -57,7 +62,16 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.R
+import com.example.engine.NativeVectorCanvas
+import com.example.engine.UiLabelAtlas
+import com.example.engine.UiLabelStyle
+import com.example.engine.rememberUiAtlas
+import com.example.model.ChromeGeometry
+import com.example.model.EditorGeometry
+import com.example.model.PanelGeometry
 import com.example.model.ProjectMeta
+import com.example.model.SheetGeometry
+import kotlin.math.roundToInt
 import com.example.ui.theme.AmAccent
 import com.example.ui.theme.AmBase
 import com.example.ui.theme.AmCardSurface
@@ -146,9 +160,11 @@ fun ProjectsDialog(
                         .clip(RoundedCornerShape(9.dp))
                 )
                 Spacer(Modifier.width(9.dp))
+                // Build 253 (stage 6): the brand texts draw in GL
+                // (the logo image and the close button stay Compose).
                 Column {
-                    Text("Timeline Pro", color = TextPrimary, fontSize = 14.5.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                    Text("Projects", color = AmTextDim, fontSize = 10.sp, maxLines = 1)
+                    GlLabelLine("Timeline Pro", UiLabelStyle.SHEET_TITLE, TextPrimary.toArgb())
+                    GlLabelLine("Projects", UiLabelStyle.TEXT_10, AmTextDim.toArgb())
                 }
                 Spacer(Modifier.weight(1f))
                 IconButton(onClick = onDismiss, modifier = Modifier.size(36.dp).testTag("home_close_button")) {
@@ -157,6 +173,8 @@ fun ProjectsDialog(
             }
 
             // ── Search ─────────────────────────────────────────────
+            // Stays Compose (build 253): a text-input surface — the
+            // field, its placeholder and the IME never migrate.
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -190,30 +208,95 @@ fun ProjectsDialog(
             Spacer(Modifier.height(10.dp))
 
             // ── New Project hero ───────────────────────────────────
-            Row(
-                modifier = Modifier
+            // Build 253 (stage 6): the hero draws on one GL surface
+            // (build 217: LIME with dark content, the reference's
+            // primary); a transparent clickable overlay keeps the
+            // ripple + testTag.
+            val heroDensity0 = LocalDensity.current.density
+            val heroAtlas0 = rememberUiAtlas()
+            val heroStackDp = (heroAtlas0.textHeightPx(UiLabelStyle.TEXT_14_BOLD) +
+                heroAtlas0.textHeightPx(UiLabelStyle.SHEET_DESC)) / heroDensity0
+            Box(
+                Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(AmCornerCard))
-                    .background(com.example.ui.theme.RefLime) // build 217: the New Project hero is LIME with dark content (the reference's primary)
-                    .clickable { onNew() }
-                    .padding(horizontal = 14.dp, vertical = 12.dp)
-                    .testTag("home_new_project"),
-                verticalAlignment = Alignment.CenterVertically
+                    .height((maxOf(36f, heroStackDp) + 24f).dp)
             ) {
+                val heroPainter = rememberVectorPainter(Icons.Filled.Add)
+                val heroDensity = LocalDensity.current.density
+                val heroAtlas = rememberUiAtlas()
+                val heroPad = UiLabelAtlas.PAD.toFloat()
+                val heroTitleH = heroAtlas.textHeightPx(UiLabelStyle.TEXT_14_BOLD)
+                val heroSubH = heroAtlas.textHeightPx(UiLabelStyle.SHEET_DESC)
+                fun resolveHero(): Triple<UiLabelAtlas.Entry?, UiLabelAtlas.Entry?, UiLabelAtlas.Entry?> {
+                    val t = heroAtlas.resolve("New Project", UiLabelStyle.TEXT_14_BOLD)
+                    val s = heroAtlas.resolve("Start a fresh edit", UiLabelStyle.SHEET_DESC)
+                    val i = heroAtlas.iconEntry(
+                        "hero:add", heroPainter, (20f * heroDensity).roundToInt(), heroDensity
+                    )
+                    return Triple(t, s, i)
+                }
+                var heroEntries = resolveHero()
+                if (heroAtlas.overflowed) {
+                    heroAtlas.reset()
+                    heroEntries = resolveHero()
+                }
+                val (heroTitleE, heroSubE, heroIconE) = heroEntries
+                NativeVectorCanvas(
+                    modifier = Modifier.fillMaxSize(),
+                    clearArgb = 0,
+                    atlas = heroAtlas,
+                    drawKey = listOf(heroTitleE, heroSubE, heroIconE, heroAtlas.generation),
+                    buildCmds = { w, h, dd ->
+                        addRoundRect(
+                            w / 2f, h / 2f, w, h, AmCornerCard.value * dd,
+                            com.example.ui.theme.RefLime.toArgb()
+                        )
+                        val circleCx = 32f * dd
+                        val circleCy = h / 2f
+                        addCircle(circleCx, circleCy, 18f * dd, com.example.ui.theme.AmInk.toArgb())
+                        heroIconE?.let { e ->
+                            addText(
+                                e.index,
+                                circleCx - e.rectW / 2f, circleCy - e.rectH / 2f,
+                                0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                                tintArgb = com.example.ui.theme.RefLime.toArgb()
+                            )
+                        }
+                        val textX = 60f * dd
+                        val stackH = heroTitleH + heroSubH
+                        var top = (h - stackH) / 2f
+                        heroTitleE?.let { e ->
+                            val style = UiLabelStyle.TEXT_14_BOLD
+                            val fm = heroAtlas.fontMetrics(style)
+                            val baseline = PanelGeometry.lineBaselinePx(top, heroTitleH, fm.ascent, fm.descent)
+                            val (dstX, dstY) = EditorGeometry.textDst(textX, baseline, e.bearing, e.base, heroPad)
+                            addText(
+                                e.index, dstX, dstY,
+                                0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                                tintArgb = com.example.ui.theme.RefLimeInk.toArgb()
+                            )
+                        }
+                        top += heroTitleH
+                        heroSubE?.let { e ->
+                            val style = UiLabelStyle.SHEET_DESC
+                            val fm = heroAtlas.fontMetrics(style)
+                            val baseline = PanelGeometry.lineBaselinePx(top, heroSubH, fm.ascent, fm.descent)
+                            val (dstX, dstY) = EditorGeometry.textDst(textX, baseline, e.bearing, e.base, heroPad)
+                            addText(
+                                e.index, dstX, dstY,
+                                0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                                tintArgb = com.example.ui.theme.RefLimeInk.copy(alpha = 0.65f).toArgb()
+                            )
+                        }
+                    }
+                )
                 Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(com.example.ui.theme.AmInk),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Filled.Add, contentDescription = null, tint = com.example.ui.theme.RefLime, modifier = Modifier.size(20.dp))
-                }
-                Spacer(Modifier.width(10.dp))
-                Column {
-                    Text("New Project", color = com.example.ui.theme.RefLimeInk, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                    Text("Start a fresh edit", color = com.example.ui.theme.RefLimeInk.copy(alpha = 0.65f), fontSize = 10.5.sp, maxLines = 1)
-                }
+                    Modifier
+                        .fillMaxSize()
+                        .clip(RoundedCornerShape(AmCornerCard))
+                        .clickable { onNew() }
+                        .testTag("home_new_project")
+                )
             }
             Spacer(Modifier.height(8.dp))
 
@@ -236,18 +319,16 @@ fun ProjectsDialog(
             PanelSectionLabel("Recent")
 
             if (projects.isEmpty()) {
-                Text(
+                GlLabelLine(
                     "No projects yet. Start one with New Project above.",
-                    color = TextSecondary,
-                    fontSize = 11.sp,
-                    modifier = Modifier.padding(vertical = 6.dp)
+                    UiLabelStyle.TEXT_11, TextSecondary.toArgb(),
+                    Modifier.padding(vertical = 6.dp)
                 )
             } else if (shownProjects.isEmpty()) {
-                Text(
+                GlLabelLine(
                     "No projects match your search.",
-                    color = TextSecondary,
-                    fontSize = 11.sp,
-                    modifier = Modifier.padding(vertical = 6.dp)
+                    UiLabelStyle.TEXT_11, TextSecondary.toArgb(),
+                    Modifier.padding(vertical = 6.dp)
                 )
             } else {
                 LazyVerticalGrid(
@@ -260,109 +341,52 @@ fun ProjectsDialog(
                 ) {
                     items(shownProjects, key = { it.id }) { p ->
                         val isCurrent = p.id == currentId
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(AmCornerCard))
-                                .background(AmPanelHigh) // build 216: pill-surface cards on the white home
-                                .border(1.dp, com.example.ui.theme.AmHairline, RoundedCornerShape(AmCornerCard))
-                                .clickable { onOpen(p.id) }
-                                .testTag("project_card_${p.id}")
+                        // Build 253 (stage 6): the card draws on one GL
+                        // surface (fill + ring, the thumbnail block, the
+                        // initial, the OPEN + duration chips, name +
+                        // meta). A transparent clickable overlay keeps
+                        // the ripple + card tag; the ⋯ IconButton and
+                        // its DropdownMenu stay Compose overlays (menus
+                        // are platform popups).
+                        ProjectCardGl(
+                            name = p.name,
+                            meta = "${dateFmt.format(Date(p.updatedAt))} · ${p.layerCount} layers",
+                            duration = formatDuration(p.durationMs),
+                            isCurrent = isCurrent,
+                            onOpen = { onOpen(p.id) },
+                            cardTag = "project_card_${p.id}"
                         ) {
-                            // Thumbnail block (no stored thumbnail exists:
-                            // the project's initial on the raised surface,
-                            // with the duration badge and the OPEN chip).
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(58.dp)
-                                    .background(com.example.ui.theme.AmPanelElevated),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    p.name.trim().firstOrNull()?.uppercase() ?: "M",
-                                    color = AmTextDim,
-                                    fontSize = 22.sp,
-                                    fontWeight = FontWeight.ExtraBold
-                                )
-                                if (isCurrent) {
-                                    Box(
-                                        modifier = Modifier
-                                            .align(Alignment.TopStart)
-                                            .padding(6.dp)
-                                            .clip(CircleShape)
-                                            .background(AmAccent)
-                                            .padding(horizontal = 6.dp, vertical = 1.5.dp)
-                                    ) {
-                                        Text("OPEN", color = com.example.ui.theme.AmInk, fontSize = 8.sp, fontWeight = FontWeight.ExtraBold)
-                                    }
-                                }
-                                Box(
-                                    modifier = Modifier
-                                        .align(Alignment.BottomEnd)
-                                        .padding(6.dp)
-                                        .clip(CircleShape)
-                                        .background(Color.Black.copy(alpha = 0.55f))
-                                        .padding(horizontal = 6.dp, vertical = 1.5.dp)
+                            Box {
+                                IconButton(
+                                    onClick = { menuFor = p.id },
+                                    modifier = Modifier.size(30.dp).testTag("project_menu_${p.id}")
                                 ) {
-                                    Text(formatDuration(p.durationMs), color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.SemiBold)
+                                    Icon(Icons.Filled.MoreVert, contentDescription = "Project actions", tint = TextSecondary, modifier = Modifier.size(16.dp))
                                 }
-                            }
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(start = 10.dp, top = 6.dp, bottom = 7.dp, end = 2.dp),
-                                verticalAlignment = Alignment.Top
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        p.name,
-                                        color = TextPrimary, // build 216: the current project reads ink + bold, not lime text
-                                        fontSize = 12.sp,
-                                        fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.SemiBold,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
+                                DropdownMenu(
+                                    expanded = menuFor == p.id,
+                                    onDismissRequest = { menuFor = null },
+                                    modifier = Modifier.background(AmPanelHigh)
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Open", color = TextPrimary) },
+                                        onClick = { menuFor = null; onOpen(p.id) }
                                     )
-                                    Text(
-                                        "${dateFmt.format(Date(p.updatedAt))} · ${p.layerCount} layers",
-                                        color = TextSecondary,
-                                        fontSize = 9.5.sp,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
+                                    DropdownMenuItem(
+                                        text = { Text("Rename", color = TextPrimary) },
+                                        leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(18.dp)) },
+                                        onClick = { menuFor = null; renaming = p }
                                     )
-                                }
-                                Box {
-                                    IconButton(
-                                        onClick = { menuFor = p.id },
-                                        modifier = Modifier.size(30.dp).testTag("project_menu_${p.id}")
-                                    ) {
-                                        Icon(Icons.Filled.MoreVert, contentDescription = "Project actions", tint = TextSecondary, modifier = Modifier.size(16.dp))
-                                    }
-                                    DropdownMenu(
-                                        expanded = menuFor == p.id,
-                                        onDismissRequest = { menuFor = null },
-                                        modifier = Modifier.background(AmPanelHigh)
-                                    ) {
-                                        DropdownMenuItem(
-                                            text = { Text("Open", color = TextPrimary) },
-                                            onClick = { menuFor = null; onOpen(p.id) }
-                                        )
-                                        DropdownMenuItem(
-                                            text = { Text("Rename", color = TextPrimary) },
-                                            leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(18.dp)) },
-                                            onClick = { menuFor = null; renaming = p }
-                                        )
-                                        DropdownMenuItem(
-                                            text = { Text("Share project file", color = TextPrimary) },
-                                            leadingIcon = { Icon(Icons.Filled.Share, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(18.dp)) },
-                                            onClick = { menuFor = null; onExport(p) }
-                                        )
-                                        DropdownMenuItem(
-                                            text = { Text("Delete", color = AmDanger) },
-                                            leadingIcon = { Icon(Icons.Filled.Delete, contentDescription = null, tint = AmDanger, modifier = Modifier.size(18.dp)) },
-                                            onClick = { menuFor = null; deleting = p }
-                                        )
-                                    }
+                                    DropdownMenuItem(
+                                        text = { Text("Share project file", color = TextPrimary) },
+                                        leadingIcon = { Icon(Icons.Filled.Share, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(18.dp)) },
+                                        onClick = { menuFor = null; onExport(p) }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Delete", color = AmDanger) },
+                                        leadingIcon = { Icon(Icons.Filled.Delete, contentDescription = null, tint = AmDanger, modifier = Modifier.size(18.dp)) },
+                                        onClick = { menuFor = null; deleting = p }
+                                    )
                                 }
                             }
                         }
@@ -378,7 +402,19 @@ fun ProjectsDialog(
             onDismissRequest = { renaming = null },
             containerColor = DialogFill,
             shape = RoundedCornerShape(AmCornerCard),
-            title = { Text("Rename", color = HeaderText) },
+            // Build 253: the title draws in GL; the field stays Compose.
+            title = {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(with(LocalDensity.current) { 32.sp.toDp() })
+                ) {
+                    GlTextLine(
+                        "Rename", UiLabelStyle.DLG_TITLE, HeaderText.toArgb(),
+                        Modifier.fillMaxSize()
+                    )
+                }
+            },
             text = {
                 PillTextField(value = text, onValueChange = { text = it.take(60) })
             },
@@ -397,8 +433,26 @@ fun ProjectsDialog(
             onDismissRequest = { deleting = null },
             containerColor = DialogFill,
             shape = RoundedCornerShape(AmCornerCard),
-            title = { Text("Delete project?", color = HeaderText) },
-            text = { Text("\"${p.name}\" will be removed. This cannot be undone.", color = TextSecondary) },
+            title = {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(with(LocalDensity.current) { 32.sp.toDp() })
+                ) {
+                    GlTextLine(
+                        "Delete project?", UiLabelStyle.DLG_TITLE, HeaderText.toArgb(),
+                        Modifier.fillMaxSize()
+                    )
+                }
+            },
+            text = {
+                GlTextBlock(
+                    "\"${p.name}\" will be removed. This cannot be undone.",
+                    UiLabelStyle.DLG_13, TextSecondary.toArgb(),
+                    Modifier.fillMaxWidth(),
+                    linePitchSp = 18f
+                )
+            },
             confirmButton = {
                 DialogDangerButton(text = "Delete", onClick = {
                     onDelete(p.id)
@@ -407,6 +461,179 @@ fun ProjectsDialog(
             },
             dismissButton = { DialogSecondaryButton(text = "Cancel", onClick = { deleting = null }) }
         )
+    }
+}
+
+/**
+ * Build 253 (stage 6): one project card on a single GL surface.
+ * Thumbnail block (no stored thumbnail exists: the project's initial
+ * on the raised surface, with the duration badge and the OPEN chip),
+ * name + meta under it; the ⋯ menu is the caller's Compose overlay at
+ * the body's top end (its build-252 spot: 2dp from the end, 6dp
+ * below the thumbnail block).
+ */
+@Composable
+private fun ProjectCardGl(
+    name: String,
+    meta: String,
+    duration: String,
+    isCurrent: Boolean,
+    onOpen: () -> Unit,
+    cardTag: String,
+    menu: @Composable () -> Unit
+) {
+    val g = SheetGeometry.ProjectCard
+    val density = LocalDensity.current.density
+    val atlas = rememberUiAtlas()
+    val pad = UiLabelAtlas.PAD.toFloat()
+    val nameStyle = if (isCurrent) UiLabelStyle.SHEET_ITEM_BOLD else UiLabelStyle.SHEET_ITEM_SEMI
+    val nameH = atlas.textHeightPx(nameStyle)
+    val metaH = atlas.textHeightPx(UiLabelStyle.TEXT_95_MED)
+    val initialH = atlas.textHeightPx(UiLabelStyle.TEXT_22_XBOLD)
+    val openH = atlas.textHeightPx(UiLabelStyle.CHIP_8_XBOLD)
+    val durH = atlas.textHeightPx(UiLabelStyle.TEXT_9_SEMI)
+    val initial = name.trim().firstOrNull()?.uppercase() ?: "M"
+
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val wPx = maxWidth.value * density
+        val textMaxW = wPx - 42f * density
+        val nameShown = remember(name, textMaxW, nameStyle) {
+            ChromeGeometry.ellipsize(name, textMaxW) { atlas.measure(it, nameStyle) }
+        }
+        val metaShown = remember(meta, textMaxW) {
+            ChromeGeometry.ellipsize(meta, textMaxW) { atlas.measure(it, UiLabelStyle.TEXT_95_MED) }
+        }
+        fun resolveCard(): List<UiLabelAtlas.Entry?> {
+            val i = atlas.resolve(initial, UiLabelStyle.TEXT_22_XBOLD)
+            val n = atlas.resolve(nameShown, nameStyle)
+            val m = atlas.resolve(metaShown, UiLabelStyle.TEXT_95_MED)
+            val o = if (isCurrent) atlas.resolve("OPEN", UiLabelStyle.CHIP_8_XBOLD) else null
+            val d = atlas.resolve(duration, UiLabelStyle.TEXT_9_SEMI)
+            return listOf(i, n, m, o, d)
+        }
+        var entries = resolveCard()
+        if (atlas.overflowed) {
+            atlas.reset()
+            entries = resolveCard()
+        }
+        val (initialE, nameE, metaE, openE, durE) = entries
+        val cardH = g.cardHeightPx(nameH, metaH, density)
+
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height((cardH / density).dp)
+        ) {
+            NativeVectorCanvas(
+                modifier = Modifier.fillMaxSize(),
+                clearArgb = 0,
+                atlas = atlas,
+                drawKey = listOf(entries, isCurrent, atlas.generation),
+                buildCmds = { w, h, dd ->
+                    val corner = AmCornerCard.value * dd
+                    addRoundRect(w / 2f, h / 2f, w, h, corner, AmPanelHigh.toArgb())
+                    addRoundRect(
+                        w / 2f, h / 2f, w - 1f * dd, h - 1f * dd, corner - 0.5f * dd,
+                        0, 1f * dd, com.example.ui.theme.AmHairline.toArgb()
+                    )
+                    // Thumbnail block: top corners rounded, bottom square
+                    // (a round-rect cap unioned with a plain rect).
+                    val thumbH = g.THUMB_H_DP * dd
+                    addRoundRect(
+                        w / 2f, corner, w, corner * 2f, corner,
+                        com.example.ui.theme.AmPanelElevated.toArgb()
+                    )
+                    addRect(0f, corner, w, thumbH - corner, com.example.ui.theme.AmPanelElevated.toArgb())
+                    initialE?.let { e ->
+                        val style = UiLabelStyle.TEXT_22_XBOLD
+                        val fm = atlas.fontMetrics(style)
+                        val top = EditorGeometry.centredTextTopPx(0f, thumbH, initialH)
+                        val baseline = PanelGeometry.lineBaselinePx(top, initialH, fm.ascent, fm.descent)
+                        val originX = EditorGeometry.centredOriginPx(w / 2f, e.advance)
+                        val (dstX, dstY) = EditorGeometry.textDst(originX, baseline, e.bearing, e.base, pad)
+                        addText(
+                            e.index, dstX, dstY,
+                            0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                            tintArgb = AmTextDim.toArgb()
+                        )
+                    }
+                    openE?.let { e ->
+                        val chipW = e.advance + 12f * dd
+                        val chipH = openH + 3f * dd
+                        val cx = 6f * dd + chipW / 2f
+                        val cy = 6f * dd + chipH / 2f
+                        addRoundRect(cx, cy, chipW, chipH, chipH / 2f, AmAccent.toArgb())
+                        val style = UiLabelStyle.CHIP_8_XBOLD
+                        val fm = atlas.fontMetrics(style)
+                        val top = EditorGeometry.centredTextTopPx(cy - chipH / 2f, chipH, openH)
+                        val baseline = PanelGeometry.lineBaselinePx(top, openH, fm.ascent, fm.descent)
+                        val originX = EditorGeometry.centredOriginPx(cx, e.advance)
+                        val (dstX, dstY) = EditorGeometry.textDst(originX, baseline, e.bearing, e.base, pad)
+                        addText(
+                            e.index, dstX, dstY,
+                            0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                            tintArgb = com.example.ui.theme.AmInk.toArgb()
+                        )
+                    }
+                    durE?.let { e ->
+                        val chipW = e.advance + 12f * dd
+                        val chipH = durH + 3f * dd
+                        val cx = w - 6f * dd - chipW / 2f
+                        val cy = thumbH - 6f * dd - chipH / 2f
+                        addRoundRect(cx, cy, chipW, chipH, chipH / 2f, 0x8C000000.toInt())
+                        val style = UiLabelStyle.TEXT_9_SEMI
+                        val fm = atlas.fontMetrics(style)
+                        val top = EditorGeometry.centredTextTopPx(cy - chipH / 2f, chipH, durH)
+                        val baseline = PanelGeometry.lineBaselinePx(top, durH, fm.ascent, fm.descent)
+                        val originX = EditorGeometry.centredOriginPx(cx, e.advance)
+                        val (dstX, dstY) = EditorGeometry.textDst(originX, baseline, e.bearing, e.base, pad)
+                        addText(
+                            e.index, dstX, dstY,
+                            0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                            tintArgb = 0xFFFFFFFF.toInt()
+                        )
+                    }
+                    val textX = 10f * dd
+                    var top = thumbH + g.PAD_TOP_DP * dd
+                    nameE?.let { e ->
+                        val fm = atlas.fontMetrics(nameStyle)
+                        val baseline = PanelGeometry.lineBaselinePx(top, nameH, fm.ascent, fm.descent)
+                        val (dstX, dstY) = EditorGeometry.textDst(textX, baseline, e.bearing, e.base, pad)
+                        addText(
+                            e.index, dstX, dstY,
+                            0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                            tintArgb = TextPrimary.toArgb()
+                        )
+                    }
+                    top += nameH
+                    metaE?.let { e ->
+                        val style = UiLabelStyle.TEXT_95_MED
+                        val fm = atlas.fontMetrics(style)
+                        val baseline = PanelGeometry.lineBaselinePx(top, metaH, fm.ascent, fm.descent)
+                        val (dstX, dstY) = EditorGeometry.textDst(textX, baseline, e.bearing, e.base, pad)
+                        addText(
+                            e.index, dstX, dstY,
+                            0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                            tintArgb = TextSecondary.toArgb()
+                        )
+                    }
+                }
+            )
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(AmCornerCard))
+                    .clickable { onOpen() }
+                    .testTag(cardTag)
+            )
+            Box(
+                Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(x = (-2).dp, y = (g.THUMB_H_DP + g.PAD_TOP_DP).dp)
+            ) {
+                menu()
+            }
+        }
     }
 }
 
