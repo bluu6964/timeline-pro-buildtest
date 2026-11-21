@@ -20,20 +20,16 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import com.example.ui.theme.AmTextDim
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -41,11 +37,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.TIMELINE_PX_PER_MS
-import com.example.ui.theme.AmBaseDeep
+import com.example.model.TimescaleGeometry
 import com.example.ui.theme.AmBarSurface
 import com.example.ui.theme.AmHairline
 import com.example.ui.theme.AmCyanBright
-import com.example.ui.theme.AmOrange
 import com.example.ui.theme.AmTextFaint
 import com.example.ui.theme.RulerSubTickColor
 import com.example.ui.theme.RulerTickColor
@@ -71,6 +66,18 @@ private val TickSteps = longArrayOf(200L, 500L, 1000L, 2000L, 5000L, 10_000L, 30
  * Segmented ruler: rounded bars that scroll with the playhead (one bar per time step).
  * Bars before the playhead are orange, after it grey; the bar under the playhead is a mix and
  * both ends fade out. The current time sits in a pill on the left, the project length on the right.
+ *
+ * Build 248 (UI migration stage 1): the strip's drawing — ticks, export band,
+ * beat marks, keyframe diamonds, the playhead needle and the bottom hairline —
+ * is rasterized by the C++ GL vector renderer through [NativeVectorCanvas];
+ * the geometry law lives in [TimescaleGeometry] (a line-for-line port of the
+ * build-247 Compose Canvas block, harness-pinned). What stays in this thin
+ * Compose host: layout, the back chevron and layer pill (tap targets), and
+ * the three text runs (playhead timecode, total duration, pill label) as
+ * overlays — UI GL text arrives with the atlas stage (see
+ * CPP-UI-MIGRATION-MAP.md). The playhead is read in composition, exactly as
+ * the build-247 timecode Text read it, so the GL strip redraws on the same
+ * ticks the Canvas did.
  */
 @Composable
 fun TimescaleSection(
@@ -98,6 +105,22 @@ fun TimescaleSection(
     keyframeTimesMs: List<Long> = emptyList()
 ) {
     val backInset = if (onBack != null) 36.dp else 0.dp
+    // Read in composition (the build-247 timecode Text did the same): the
+    // strip recomposes on every playhead tick, and the GL snapshot below is
+    // rebuilt from this value.
+    val currentMs = playheadMs()
+    // The strip's colours, derived through the same Color.toArgb()
+    // conversions the build-247 Canvas block used (alpha rounding identical).
+    val tsColors = TimescaleGeometry.Colors(
+        tickArgb = RulerTickColor.toArgb(),
+        subTickArgb = RulerSubTickColor.toArgb(),
+        bandArgb = Color.White.copy(alpha = 0.07f).toArgb(),
+        bandEdgeArgb = Color.White.copy(alpha = 0.4f).toArgb(),
+        beatArgb = Color.White.copy(alpha = 0.5f).toArgb(),
+        diamondArgb = KeyframeDiamondColor.toArgb(),
+        needleArgb = Color.White.toArgb(),
+        hairlineArgb = AmHairline.toArgb()
+    )
     BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
@@ -105,6 +128,40 @@ fun TimescaleSection(
             .background(AmBarSurface) // build 214: the ruler strip shares the transport bar's surface — one merged slim bar
             .testTag("timescale_section")
     ) {
+        // ── Scrolling bars, band, marks, needle, hairline (C++ GL) ────
+        NativeVectorCanvas(
+            modifier = Modifier.fillMaxSize(),
+            clearArgb = 0,
+            drawKey = listOf(
+                currentMs, totalDurationMs, pxPerMs, backInset,
+                beatMarksMs, exportInMs, exportOutMs, keyframeTimesMs, tsColors
+            ),
+            buildCmds = { w, h, density ->
+                val ops = TimescaleGeometry.ops(
+                    widthPx = w, heightPx = h, density = density,
+                    currentMs = currentMs, pxPerMs = pxPerMs,
+                    totalDurationMs = totalDurationMs,
+                    backInsetDp = backInset.value,
+                    beatMarksMs = beatMarksMs,
+                    exportInMs = exportInMs, exportOutMs = exportOutMs,
+                    keyframeTimesMs = keyframeTimesMs,
+                    colors = tsColors
+                )
+                for (op in ops) {
+                    when (op) {
+                        is TimescaleGeometry.Op.Line ->
+                            addLine(op.x0, op.y0, op.x1, op.y1, op.widthPx, op.argb, capRound = op.capRound)
+                        is TimescaleGeometry.Op.Rect ->
+                            addRect(op.x, op.y, op.w, op.h, op.argb)
+                        is TimescaleGeometry.Op.RoundRect ->
+                            addRoundRect(op.cx, op.cy, op.w, op.h, op.radiusPx, op.argb)
+                        is TimescaleGeometry.Op.FillPoly ->
+                            addFilledPolygon(op.xs, op.ys, op.xs.size, op.argb)
+                    }
+                }
+            }
+        )
+
         if (onBack != null) {
             Box(
                 modifier = Modifier
@@ -129,128 +186,6 @@ fun TimescaleSection(
             }
         }
 
-        // ── Scrolling bars ─────────────────────────────────────────────
-        Canvas(
-            modifier = Modifier.fillMaxSize()
-        ) {
-            val currentMs = playheadMs()
-            val w = size.width
-            val centerPx = w / 2f
-            val pxPerMsPx = pxPerMs.dp.toPx()
-            // Build 216 (Sarowar's HTML reference): the ruler area is the
-            // full width (the old left/right time pills are gone — the
-            // playhead timecode sits CENTRED under the playhead cap, the
-            // total length is small muted text at the right end).
-            val areaStart = (backInset + 6.dp).toPx()
-            val areaEnd = w - 6.dp.toPx()
-
-            // Minor step: grows when zoomed out so ticks never crowd (~8 dp pitch).
-            var step = TickSteps.last()
-            for (s2 in TickSteps) {
-                if (s2 * pxPerMsPx >= MinBarPitch.toPx()) { step = s2; break }
-            }
-            val lastMs = if (totalDurationMs > 0L) totalDurationMs else Long.MAX_VALUE / 4
-            val halfSpanMs = (centerPx / pxPerMsPx).toLong() + step
-            val firstTick = (((currentMs - halfSpanMs).coerceAtLeast(0L)) / step) * step
-            val lastTick = currentMs + halfSpanMs
-            // Build 217 (reference): minor ticks are 1 x 7 dp white at
-            // 20%, majors 1.5 x 17 dp white at 34%, all from top 4 dp.
-            val tickTop = 3.dp.toPx()
-            val majorEvery = step * 5
-
-            var t = firstTick
-            while (t <= lastTick && t <= lastMs) {
-                val x = centerPx + (t - currentMs) * pxPerMsPx
-                if (x >= areaStart && x <= areaEnd) {
-                    val major = t % majorEvery == 0L
-                    drawLine(
-                        color = if (major) RulerTickColor else RulerSubTickColor,
-                        start = Offset(x, tickTop),
-                        end = Offset(x, tickTop + (if (major) 13.dp.toPx() else 6.dp.toPx())),
-                        strokeWidth = if (major) 1.2.dp.toPx() else 1.dp.toPx()
-                    )
-                }
-                t += step
-            }
-
-            // Export range (build 199, A10): on white the band is a soft
-            // black wash with ink edges (was white-on-black).
-            if (exportInMs != null && exportOutMs != null && exportOutMs > exportInMs) {
-                val xIn = centerPx + (exportInMs - currentMs) * pxPerMsPx
-                val xOut = centerPx + (exportOutMs - currentMs) * pxPerMsPx
-                val bandL = maxOf(xIn, areaStart)
-                val bandR = minOf(xOut, areaEnd)
-                if (bandR > bandL) {
-                    drawRect(
-                        color = Color.White.copy(alpha = 0.07f),
-                        topLeft = Offset(bandL, 0f),
-                        size = Size(bandR - bandL, size.height)
-                    )
-                }
-                val edgeW = 1.6.dp.toPx()
-                if (xIn >= areaStart && xIn <= areaEnd) {
-                    drawLine(Color.White.copy(alpha = 0.4f), Offset(xIn, 0f), Offset(xIn, size.height), edgeW)
-                }
-                if (xOut >= areaStart && xOut <= areaEnd) {
-                    drawLine(Color.White.copy(alpha = 0.4f), Offset(xOut, 0f), Offset(xOut, size.height), edgeW)
-                }
-            }
-
-            // Beat marks: white at 50%, taller than the ticks.
-            if (beatMarksMs.isNotEmpty()) {
-                val markW = 2.5.dp.toPx()
-                val markH = 15.dp.toPx()
-                for (m in beatMarksMs) {
-                    val x = centerPx + (m - currentMs) * pxPerMsPx
-                    if (x >= areaStart && x <= areaEnd) {
-                        drawRoundRect(
-                            color = Color.White.copy(alpha = 0.5f),
-                            topLeft = Offset(x - markW / 2f, tickTop),
-                            size = Size(markW, markH),
-                            cornerRadius = CornerRadius(markW / 2f)
-                        )
-                    }
-                }
-            }
-
-            if (keyframeTimesMs.isNotEmpty()) {
-                val half = 2.5.dp.toPx()
-                val cy = 10.dp.toPx()
-                for (kt in keyframeTimesMs) {
-                    val x = centerPx + (kt - currentMs) * pxPerMsPx
-                    if (x < areaStart || x > areaEnd) continue
-                    val d = Path().apply {
-                        moveTo(x, cy - half)
-                        lineTo(x + half, cy)
-                        lineTo(x, cy + half)
-                        lineTo(x - half, cy)
-                        close()
-                    }
-                    drawPath(d, KeyframeDiamondColor)
-                }
-            }
-
-            // The CENTRED playhead (build 217, the reference): a WHITE
-            // needle (2 x 15 dp, rounded) at the top centre from top
-            // 3 dp, and the 2 dp white line resuming BELOW the timecode
-            // (top 39 dp) to the ruler's bottom — the layer panel
-            // continues it through the tracks. Build 223 (Sarowar's
-            // order): the lime square that sat at the needle's top-right
-            // is REMOVED.
-            drawRoundRect(
-                color = Color.White,
-                topLeft = Offset(centerPx - 1.dp.toPx(), 2.dp.toPx()),
-                size = Size(2.dp.toPx(), 11.dp.toPx()),
-                cornerRadius = CornerRadius(1.dp.toPx())
-            )
-            drawLine(
-                Color.White,
-                Offset(centerPx, 29.dp.toPx()),
-                Offset(centerPx, size.height),
-                strokeWidth = 2.dp.toPx()
-            )
-        }
-
         Box(
             modifier = Modifier
                 .align(Alignment.TopCenter)
@@ -259,7 +194,7 @@ fun TimescaleSection(
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = formatTimeCode(playheadMs()),
+                text = formatTimeCode(currentMs),
                 color = TextPrimary,
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Bold,
@@ -321,15 +256,6 @@ fun TimescaleSection(
                 }
             }
         }
-
-        // The ruler row's bottom hairline (build 223: the family hairline token).
-        Box(
-            Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(AmHairline)
-        )
     }
 }
 
