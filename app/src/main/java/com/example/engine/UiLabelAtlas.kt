@@ -55,7 +55,56 @@ enum class UiLabelStyle(val sp: Float, val weight: Int, val letterSpacingSp: Flo
     MULTI_COUNT(11.5f, 600),
 
     /** Build 250 (stage 3): multi-select mini / boolean tile labels: 7.5 sp Medium. */
-    MINI_LABEL(7.5f, 500)
+    MINI_LABEL(7.5f, 500),
+
+    /** Build 251 (stage 4): tool tile / tools-grid labels: 9.5 sp Regular. */
+    TILE_LABEL(9.5f, 400),
+
+    /** Build 251 (stage 4): tool tile / tools-grid labels, used/active state: 9.5 sp Bold. */
+    TILE_LABEL_BOLD(9.5f, 700),
+
+    /** Build 251 (stage 4): tools-grid text glyphs (IN / OUT): 11 sp ExtraBold. */
+    GRID_MARK(11f, 800),
+
+    /** Build 251 (stage 4): tools-grid Preview text glyph: 10.5 sp ExtraBold. */
+    GRID_PREVIEW(10.5f, 800),
+
+    /** Build 251 (stage 4): pager tool labels at the auto-fit sizes: 7.5–10 sp Regular. */
+    PAGER_L75(7.5f, 400),
+    PAGER_L80(8f, 400),
+    PAGER_L85(8.5f, 400),
+    PAGER_L90(9f, 400),
+    PAGER_L95(9.5f, 400),
+    PAGER_L100(10f, 400),
+
+    /** Build 251 (stage 4): pager badge text: 8 sp Bold, 0.3 sp letter spacing. */
+    PAGER_BADGE(8f, 700, letterSpacingSp = 0.3f),
+
+    /** Build 251 (stage 4): group edit bar name: 10.5 sp Regular. */
+    GROUP_NAME(10.5f, 400),
+
+    /** Build 251 (stage 4): clip-sheet titles: 14.5 sp Bold. */
+    SHEET_TITLE(14.5f, 700),
+
+    /** Build 251 (stage 4): clip-sheet row text: 12 sp Regular / Medium / SemiBold. */
+    SHEET_ITEM(12f, 400),
+    SHEET_ITEM_MED(12f, 500),
+    SHEET_ITEM_SEMI(12f, 600),
+
+    /** Build 251 (stage 4): clip-sheet secondary text: 10.5 sp Regular. */
+    SHEET_DESC(10.5f, 400);
+
+    companion object {
+        /** The pager label style for an auto-fit size (7.5–10 sp in 0.5 steps). */
+        fun pagerLabel(sp: Float): UiLabelStyle = when (sp) {
+            7.5f -> PAGER_L75
+            8f -> PAGER_L80
+            8.5f -> PAGER_L85
+            9f -> PAGER_L90
+            9.5f -> PAGER_L95
+            else -> PAGER_L100
+        }
+    }
 }
 
 class UiLabelAtlas(
