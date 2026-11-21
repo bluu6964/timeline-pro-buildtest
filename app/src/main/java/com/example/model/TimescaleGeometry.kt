@@ -16,6 +16,15 @@ package com.example.model
  * Ops are in DRAW ORDER: ticks, export band, beat marks, keyframe diamonds,
  * the playhead needle, and the bottom hairline last (it was the topmost
  * sibling in the Compose layout).
+ *
+ * Build 249 (UI migration stage 2): the strip's timecode and total-duration
+ * text runs move from Compose overlays into the GL stream as atlas blits
+ * ([Op.Text]); [timecodeLayout] / [totalLayout] below reproduce the two
+ * overlays' Compose placement (a TopCenter box under a 15 dp top padding;
+ * a BottomEnd box with 6 dp end / 3 dp bottom padding) from the atlas
+ * paints' own metrics. The layer-pill label stays a Compose overlay: the
+ * pill is a composite (background, border, chevron, tap target) and only
+ * its text moving would split one 19 dp pill across two renderers.
  */
 object TimescaleGeometry {
 
@@ -38,6 +47,17 @@ object TimescaleGeometry {
 
         /** A filled polygon (the keyframe diamonds). */
         data class FillPoly(val xs: FloatArray, val ys: FloatArray, val argb: Int) : Op
+
+        /**
+         * Build 249: one atlas blit — [entry]'s rect top-left lands at
+         * ([dstX], [dstY]); the src sub-rect is entry-relative px;
+         * [dstW]/[dstH] <= 0 draw at natural src size.
+         */
+        data class Text(
+            val entry: Int, val dstX: Float, val dstY: Float,
+            val srcDX: Float, val srcDY: Float, val srcW: Float, val srcH: Float,
+            val dstW: Float, val dstH: Float, val argb: Int
+        ) : Op
     }
 
     /**
@@ -80,6 +100,67 @@ object TimescaleGeometry {
     private const val NEEDLE_LINE_TOP_DP = 29f
     private const val NEEDLE_LINE_W_DP = 2f
     private const val HAIRLINE_H_DP = 1f
+
+    // Build 249: the two text overlays' Compose paddings (dp).
+    private const val TIMECODE_TOP_DP = 15f
+    private const val TOTAL_END_DP = 6f
+    private const val TOTAL_BOTTOM_DP = 3f
+
+    /** One timecode character's blit origin: digit-table index + draw-origin x (px). */
+    data class CharBlit(val charIndex: Int, val originXPx: Float)
+
+    /** The timecode's placement: the shared baseline (px) + one blit per character. */
+    data class TimecodeLayout(val baselinePx: Float, val chars: List<CharBlit>)
+
+    /**
+     * Build 249: where the centred playhead timecode's characters land.
+     * [advances] is the TIMECODE digit table (indices 0..9 = '0'..'9',
+     * 10 = ':'); [ascentPx] is that paint's fontMetrics ascent (negative).
+     * The Compose overlay was a TopCenter box with a 15 dp top padding, so
+     * the text block is centred on the strip and its first baseline sits at
+     * top − ascent.
+     */
+    fun timecodeLayout(
+        widthPx: Float,
+        density: Float,
+        advances: FloatArray,
+        ascentPx: Float,
+        text: String
+    ): TimecodeLayout {
+        var totalW = 0f
+        for (ch in text) totalW += advances[charIndexOf(ch)]
+        var x = (widthPx - totalW) / 2f
+        val chars = ArrayList<CharBlit>(text.length)
+        for (ch in text) {
+            val idx = charIndexOf(ch)
+            chars += CharBlit(idx, x)
+            x += advances[idx]
+        }
+        return TimecodeLayout(
+            baselinePx = TIMECODE_TOP_DP * density - ascentPx,
+            chars = chars
+        )
+    }
+
+    /**
+     * Build 249: where the total-duration text lands — the Compose overlay
+     * was a BottomEnd box with 6 dp end / 3 dp bottom padding. Returns
+     * (boxLeftPx, baselinePx): the text block's left edge (its draw origin)
+     * and its baseline, from the TOTAL paint's [advancePx] / [descentPx].
+     */
+    fun totalLayout(
+        widthPx: Float,
+        heightPx: Float,
+        density: Float,
+        advancePx: Float,
+        descentPx: Float
+    ): Pair<Float, Float> {
+        val boxLeft = widthPx - TOTAL_END_DP * density - advancePx
+        val baseline = heightPx - TOTAL_BOTTOM_DP * density - descentPx
+        return boxLeft to baseline
+    }
+
+    private fun charIndexOf(ch: Char): Int = if (ch == ':') 10 else ch - '0'
 
     /**
      * The strip's full draw list for one frame.

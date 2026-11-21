@@ -181,4 +181,35 @@ class TimescaleGeometryTest {
         assertEquals(15, tickLines(result).size)
         assertEquals(18, result.size)
     }
+
+    // ── Build 249: the two text runs' atlas placement ──────────────────
+
+    @Test
+    fun timecodeLayout_centresTheBlockAndStepsByAdvances() {
+        val advances = FloatArray(11) { 10f }
+        val layout = TimescaleGeometry.timecodeLayout(
+            widthPx = 800f, density = 2f, advances = advances,
+            ascentPx = -27f, text = "01:23:45"
+        )
+        // 8 chars x 10 px = 80 px wide, centred in 800: first origin 360.
+        assertEquals(57f, layout.baselinePx, 0f) // 15 dp top (30 px) - (-27)
+        assertEquals(8, layout.chars.size)
+        assertEquals(360f, layout.chars.first().originXPx, 0f)
+        assertEquals(430f, layout.chars.last().originXPx, 0f)
+        // Digit-table indices: '0'->0, '1'->1, ':'->10, '2'->2 ...
+        assertEquals(
+            listOf(0, 1, 10, 2, 3, 10, 4, 5),
+            layout.chars.map { it.charIndex }
+        )
+    }
+
+    @Test
+    fun totalLayout_anchorsBottomEnd() {
+        val (boxLeft, baseline) = TimescaleGeometry.totalLayout(
+            widthPx = 800f, heightPx = 68f, density = 2f,
+            advancePx = 46f, descentPx = 6f
+        )
+        assertEquals(742f, boxLeft, 0f)   // 800 - 6 dp (12) - 46
+        assertEquals(56f, baseline, 0f)   // 68 - 3 dp (6) - descent 6
+    }
 }
