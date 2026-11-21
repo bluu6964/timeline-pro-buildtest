@@ -19,7 +19,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.VectorPainter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -35,7 +37,9 @@ import com.example.engine.rememberUiAtlas
 import com.example.model.ChromeGeometry
 import com.example.model.EditorGeometry
 import com.example.model.PanelGeometry
+import com.example.model.SheetGeometry
 import kotlin.math.abs
+import kotlin.math.max
 import kotlin.math.sign
 
 /**
@@ -554,7 +558,9 @@ internal fun GlChip(
     fillOffArgb: Int = 0xFF202026.toInt(),
     textOnArgb: Int = 0xFFF4F4F5.toInt(),
     textOffArgb: Int = 0xFFA1A1AA.toInt(),
-    textDisabledArgb: Int = 0xFFA1A1AA.toInt()
+    textDisabledArgb: Int = 0xFFA1A1AA.toInt(),
+    /** Build 253 (stage 6): a minimum chip height (the export chips' 30 dp). */
+    minHDp: Float = 0f
 ) {
     val density = LocalDensity.current.density
     val atlas = rememberUiAtlas()
@@ -575,7 +581,7 @@ internal fun GlChip(
     }
     val fillArgb = if (selected) fillOnArgb else fillOffArgb
     val wDp = if (e != null) (e.advance / density + 2f * padHDp).dp else 0.dp
-    val hDp = (atlas.textHeightPx(style) / density + 2f * padVDp).dp
+    val hDp = max(atlas.textHeightPx(style) / density + 2f * padVDp, minHDp).dp
     Box(
         modifier
             .width(wDp)
@@ -742,6 +748,240 @@ internal fun GlDonePill(
             Modifier.fillMaxSize(),
             tag = tag,
             description = label
+        )
+    }
+}
+
+/**
+ * Build 253 (UI migration stage 6): one GL text line sized to its
+ * style's font box — the wrap-height Compose Text's form, for leaf
+ * texts inside Compose layout skeletons (sheet titles, row labels,
+ * readouts). [GlTextLine] does the drawing; this wrapper only fixes
+ * the height the font box needs.
+ */
+@Composable
+internal fun GlLabelLine(
+    text: String,
+    style: UiLabelStyle,
+    colorArgb: Int,
+    modifier: Modifier = Modifier,
+    align: TextAlign = TextAlign.Start,
+    ellipsize: Boolean = false
+) {
+    val density = LocalDensity.current.density
+    val atlas = rememberUiAtlas()
+    val hDp = (atlas.textHeightPx(style) / density).dp
+    GlTextLine(text, style, colorArgb, modifier.height(hDp), align, ellipsize)
+}
+
+/**
+ * Build 253 (stage 6): rasterize a Material icon painter into this
+ * atlas (the stage-3/4 pattern: the vector's alpha carries the
+ * shape, the blit tint supplies the colour).
+ */
+internal fun UiLabelAtlas.iconEntry(
+    key: String,
+    painter: VectorPainter,
+    sizePx: Int,
+    density: Float
+): UiLabelAtlas.Entry? =
+    resolveIcon(key, sizePx, sizePx) { cv, x, y ->
+        val b = rasterizePainterBitmap(painter, sizePx, density)
+        cv.drawBitmap(b, x, y, null)
+        b.recycle()
+    }
+
+/**
+ * Build 253 (stage 6): the violet primary pill (PillComponents'
+ * VioletPillButton) in GL — the lime capsule centred in the caller's
+ * box, hug width per [SheetGeometry.VioletPill]; the fill sat
+ * outside the press layer in Compose, so only the label scales.
+ */
+@Composable
+internal fun GlVioletPill(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    tag: String? = null
+) {
+    val density = LocalDensity.current.density
+    val atlas = rememberUiAtlas()
+    val pad = UiLabelAtlas.PAD.toFloat()
+    val style = UiLabelStyle.CHIP_BIG
+    fun resolvePill() = atlas.resolve(label, style)
+    var entry = resolvePill()
+    if (atlas.overflowed) {
+        atlas.reset()
+        entry = resolvePill()
+    }
+    val e = entry
+    val scale = remember { Animatable(1f) }
+    val textH = atlas.textHeightPx(style)
+    val wDp = if (e != null) (SheetGeometry.VioletPill.widthPx(e.advance, density) / density).dp else 0.dp
+    val hDp = (SheetGeometry.VioletPill.heightPx(textH, density) / density).dp
+    Box(modifier, contentAlignment = Alignment.Center) {
+        Box(
+            Modifier
+                .width(wDp)
+                .height(hDp)
+        ) {
+            NativeVectorCanvas(
+                modifier = Modifier.fillMaxSize(),
+                clearArgb = 0,
+                atlas = atlas,
+                drawKey = listOf(e, scale.value, atlas.generation),
+                buildCmds = { w, h, _ ->
+                    addRoundRect(w / 2f, h / 2f, w, h, h / 2f, 0xFFD2FC32.toInt())
+                    if (e != null) {
+                        val fm = atlas.fontMetrics(style)
+                        val top = EditorGeometry.centredTextTopPx(0f, h, textH)
+                        val baseline = PanelGeometry.lineBaselinePx(top, textH, fm.ascent, fm.descent)
+                        val originX = EditorGeometry.centredOriginPx(w / 2f, e.advance)
+                        val (dstX, dstY) = EditorGeometry.textDst(originX, baseline, e.bearing, e.base, pad)
+                        setScaleAbout(w / 2f, h / 2f, scale.value)
+                        addText(
+                            e.index, dstX, dstY,
+                            0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                            tintArgb = 0xFF111114.toInt()
+                        )
+                        clearTransform()
+                    }
+                }
+            )
+            ChromePressBox(
+                scale, 0.94f, onClick,
+                Modifier.fillMaxSize(),
+                tag = tag,
+                description = label
+            )
+        }
+    }
+}
+
+/**
+ * Build 253 (stage 6): the white primary pill (GlassComponents'
+ * GradientPillButton) in GL — white capsule + hairline, ink label,
+ * hug size per [SheetGeometry.WhitePill], centred in the caller's
+ * box; the fill sat outside the press layer, only the label scales.
+ */
+@Composable
+internal fun GlWhitePill(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    tag: String? = null
+) {
+    val density = LocalDensity.current.density
+    val atlas = rememberUiAtlas()
+    val pad = UiLabelAtlas.PAD.toFloat()
+    val style = UiLabelStyle.PILL_BTN
+    fun resolvePill() = atlas.resolve(label, style)
+    var entry = resolvePill()
+    if (atlas.overflowed) {
+        atlas.reset()
+        entry = resolvePill()
+    }
+    val e = entry
+    val scale = remember { Animatable(1f) }
+    val textH = atlas.textHeightPx(style)
+    val wDp = if (e != null) (SheetGeometry.WhitePill.widthPx(e.advance, density) / density).dp else 0.dp
+    val hDp = (SheetGeometry.WhitePill.heightPx(textH, density) / density).dp
+    Box(modifier, contentAlignment = Alignment.Center) {
+        Box(
+            Modifier
+                .width(wDp)
+                .height(hDp)
+        ) {
+            NativeVectorCanvas(
+                modifier = Modifier.fillMaxSize(),
+                clearArgb = 0,
+                atlas = atlas,
+                drawKey = listOf(e, scale.value, atlas.generation),
+                buildCmds = { w, h, dd ->
+                    addRoundRect(w / 2f, h / 2f, w, h, h / 2f, 0xFFFFFFFF.toInt())
+                    addRoundRect(
+                        w / 2f, h / 2f, w - 1f * dd, h - 1f * dd, h / 2f - 0.5f * dd,
+                        0, 1f * dd, 0xFF1F1F26.toInt()
+                    )
+                    if (e != null) {
+                        val fm = atlas.fontMetrics(style)
+                        val top = EditorGeometry.centredTextTopPx(0f, h, textH)
+                        val baseline = PanelGeometry.lineBaselinePx(top, textH, fm.ascent, fm.descent)
+                        val originX = EditorGeometry.centredOriginPx(w / 2f, e.advance)
+                        val (dstX, dstY) = EditorGeometry.textDst(originX, baseline, e.bearing, e.base, pad)
+                        setScaleAbout(w / 2f, h / 2f, scale.value)
+                        addText(
+                            e.index, dstX, dstY,
+                            0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                            tintArgb = 0xFF111114.toInt()
+                        )
+                        clearTransform()
+                    }
+                }
+            )
+            ChromePressBox(
+                scale, 0.94f, onClick,
+                Modifier.fillMaxSize(),
+                tag = tag,
+                description = label
+            )
+        }
+    }
+}
+
+/**
+ * Build 253 (stage 6): the Material 3 switch in GL (the audio
+ * sheets' form; geometry per [SheetGeometry.Switch]). Colours are
+ * the build-252 defaults under this theme with the sheets' own
+ * override: on = white track + near-white thumb; off = panel track
+ * + hairline-strong border + dim thumb. A tap toggles (the library's
+ * drag-to-toggle and its pressed 28 dp thumb are gesture states,
+ * not replicated).
+ */
+@Composable
+internal fun GlSwitch(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    description: String,
+    modifier: Modifier = Modifier
+) {
+    val g = SheetGeometry.Switch
+    val scale = remember { Animatable(1f) }
+    Box(
+        modifier
+            .width(g.TRACK_W_DP.dp)
+            .height(g.TRACK_H_DP.dp)
+    ) {
+        NativeVectorCanvas(
+            modifier = Modifier.fillMaxSize(),
+            clearArgb = 0,
+            drawKey = checked,
+            buildCmds = { w, h, dd ->
+                if (checked) {
+                    addRoundRect(w / 2f, h / 2f, w, h, h / 2f, 0xFFFFFFFF.toInt())
+                    addCircle(
+                        g.thumbCentreXPx(true, dd), h / 2f,
+                        g.thumbRadiusPx(true, dd), 0xFFF4F4F5.toInt()
+                    )
+                } else {
+                    addRoundRect(w / 2f, h / 2f, w, h, h / 2f, 0xFF202026.toInt())
+                    addRoundRect(
+                        w / 2f, h / 2f,
+                        w - g.BORDER_W_DP * dd, h - g.BORDER_W_DP * dd,
+                        h / 2f - (g.BORDER_W_DP / 2f) * dd,
+                        0, g.BORDER_W_DP * dd, 0xFF2E2E38.toInt()
+                    )
+                    addCircle(
+                        g.thumbCentreXPx(false, dd), h / 2f,
+                        g.thumbRadiusPx(false, dd), 0xFFA1A1AA.toInt()
+                    )
+                }
+            }
+        )
+        ChromePressBox(
+            scale, 1f, { onCheckedChange(!checked) },
+            Modifier.fillMaxSize(),
+            description = description
         )
     }
 }

@@ -849,8 +849,10 @@ fun EditShapeView(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // The violet primary pill (build 207 redesign).
-            VioletPillButton(
+            // The violet primary pill (build 207 redesign; build 253:
+            // drawn in GL as GlVioletPill — same pill, same label).
+            GlVioletPill(
+                label = if (editing) "Save Shape" else "Add Shape to Timeline",
                 onClick = {
                     onSaveShape(
                         selectedShapeType,
@@ -868,16 +870,8 @@ fun EditShapeView(
                     )
                     onDismiss()
                 },
-                modifier = Modifier.fillMaxWidth(),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 9.dp)
-            ) {
-                Text(
-                    text = if (editing) "Save Shape" else "Add Shape to Timeline",
-                    color = com.example.ui.theme.AmInk, // build 216: ink on the lime pill
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
+                modifier = Modifier.fillMaxWidth()
+            )
 
             Spacer(modifier = Modifier.height(10.dp))
         }

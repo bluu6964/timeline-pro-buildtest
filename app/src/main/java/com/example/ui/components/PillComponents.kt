@@ -1,5 +1,6 @@
 package com.example.ui.components
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -7,9 +8,9 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -18,12 +19,15 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -31,7 +35,12 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.ui.theme.AmAccentViolet
+import com.example.engine.UiLabelAtlas
+import com.example.engine.UiLabelStyle
+import com.example.engine.rememberUiAtlas
+import com.example.model.EditorGeometry
+import com.example.model.PanelGeometry
+import com.example.model.SheetGeometry
 import com.example.ui.theme.AmBarSurface
 import com.example.ui.theme.AmDanger
 import com.example.ui.theme.AmPanelHigh
@@ -123,21 +132,30 @@ fun PillToolItem(
  * Build 207 — the centred drag-handle pill every bottom sheet carries:
  * a 36 x 5 dp capsule in the raised-surface grey, with breathing room above
  * and below. Pass it as an AppBottomSheet's `dragHandle`.
+ *
+ * Build 253 (UI migration stage 6): the capsule draws on a GL surface
+ * (SheetGeometry.Handle); the strip's size and the pill's place in it
+ * are unchanged.
  */
 @Composable
 fun SheetDragHandle() {
+    val g = SheetGeometry.Handle
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 7.dp, bottom = 4.dp),
-        contentAlignment = Alignment.Center
+            .height((g.PAD_TOP_DP + g.PILL_H_DP + g.PAD_BOTTOM_DP).dp)
     ) {
-        Box(
-            modifier = Modifier
-                .width(28.dp)
-                .height(3.dp)
-                .background(AmPillSelected, CircleShape)
-                .clip(CircleShape)
+        NativeVectorCanvas(
+            modifier = Modifier.fillMaxSize(),
+            clearArgb = 0,
+            drawKey = "sheet_drag_handle",
+            buildCmds = { w, _, dd ->
+                addRoundRect(
+                    w / 2f, g.pillCentreYPx(dd),
+                    g.PILL_W_DP * dd, g.PILL_H_DP * dd, g.PILL_H_DP * dd / 2f,
+                    AmPillSelected.toArgb()
+                )
+            }
         )
     }
 }
@@ -146,6 +164,13 @@ fun SheetDragHandle() {
  * Build 207 — the dialog / sheet action pill: a full capsule, at least
  * 40 dp tall, label centred. The colour pairing is the call site's choice
  * via the wrappers below (violet primary, ghost secondary, danger).
+ *
+ * Build 253 (UI migration stage 6): the pill draws on one GL surface
+ * (SheetGeometry.PillButton — hug width, the 32 dp floor); the fill
+ * sat outside bouncyClickable's graphicsLayer, so only the label
+ * press-scales, via ChromePressBox. A caller's own width/height in
+ * [modifier] still wins (the size is applied after it in the chain
+ * only as the hug default).
  */
 @Composable
 fun PillActionButton(
@@ -157,23 +182,63 @@ fun PillActionButton(
     enabled: Boolean = true,
     tag: String? = null
 ) {
-    var m = modifier
-    if (tag != null) m = m.testTag(tag)
+    val density = LocalDensity.current.density
+    val atlas = rememberUiAtlas()
+    val pad = UiLabelAtlas.PAD.toFloat()
+    val style = UiLabelStyle.PILL_BTN
+    fun resolveBtn() = atlas.resolve(text, style)
+    var entry = resolveBtn()
+    if (atlas.overflowed) {
+        atlas.reset()
+        entry = resolveBtn()
+    }
+    val e = entry
+    val scale = remember { Animatable(1f) }
+    val textH = atlas.textHeightPx(style)
+    val hDp = (SheetGeometry.PillButton.heightPx(textH, density) / density).dp
+    val wDp = if (e != null) {
+        (SheetGeometry.PillButton.hugWidthPx(e.advance, density) / density).dp
+    } else {
+        0.dp
+    }
+    // The build-252 disabled colours verbatim: absolute alpha copies
+    // (0.45 on the fill, 0.55 on the label), not multiplications.
+    val fillArgb = (if (enabled) containerColor else containerColor.copy(alpha = 0.45f)).toArgb()
+    val textArgb = (if (enabled) contentColor else contentColor.copy(alpha = 0.55f)).toArgb()
     Box(
-        m
-            .heightIn(min = 32.dp)
-            .background(if (enabled) containerColor else containerColor.copy(alpha = 0.45f), CircleShape)
-            .clip(CircleShape)
-            .bouncyClickable(enabled = enabled, pressedScale = 0.94f, onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 7.dp),
-        contentAlignment = Alignment.Center
+        modifier
+            .width(wDp)
+            .height(hDp)
     ) {
-        Text(
-            text,
-            color = if (enabled) contentColor else contentColor.copy(alpha = 0.55f),
-            fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1
+        NativeVectorCanvas(
+            modifier = Modifier.fillMaxSize(),
+            clearArgb = 0,
+            atlas = atlas,
+            drawKey = listOf(e, scale.value, fillArgb, textArgb, atlas.generation),
+            buildCmds = { w, h, _ ->
+                addRoundRect(w / 2f, h / 2f, w, h, h / 2f, fillArgb)
+                if (e != null) {
+                    val fm = atlas.fontMetrics(style)
+                    val top = EditorGeometry.centredTextTopPx(0f, h, textH)
+                    val baseline = PanelGeometry.lineBaselinePx(top, textH, fm.ascent, fm.descent)
+                    val originX = EditorGeometry.centredOriginPx(w / 2f, e.advance)
+                    val (dstX, dstY) = EditorGeometry.textDst(originX, baseline, e.bearing, e.base, pad)
+                    setScaleAbout(w / 2f, h / 2f, scale.value)
+                    addText(
+                        e.index, dstX, dstY,
+                        0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                        tintArgb = textArgb
+                    )
+                    clearTransform()
+                }
+            }
+        )
+        ChromePressBox(
+            scale, 0.94f, onClick,
+            Modifier.fillMaxSize(),
+            enabled = enabled,
+            tag = tag,
+            description = text
         )
     }
 }
@@ -265,29 +330,8 @@ fun PillTextField(
 }
 
 /**
- * The violet primary pill button (build 206): filled [AmAccentViolet],
- * white content — the references' primary action (New Project, the "+"
- * actions). Content colours are the call site's, and should be white.
+ * The violet primary pill button (build 206) — REMOVED in build 253
+ * (UI migration stage 6): both call sites (the shape editor's save
+ * pill, the Add Text sheet's add pill) carried a single text label,
+ * and now call [GlVioletPill], the GL-drawn form of the same pill.
  */
-@Composable
-fun VioletPillButton(
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    tag: String? = null,
-    contentPadding: PaddingValues = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
-    content: @Composable RowScope.() -> Unit
-) {
-    var m = modifier
-    if (tag != null) m = m.testTag(tag)
-    Box(m, contentAlignment = Alignment.Center) {
-        Row(
-            Modifier
-                .background(AmAccentViolet, CircleShape)
-                .clip(CircleShape)
-                .bouncyClickable(pressedScale = 0.94f, onClick = onClick)
-                .padding(contentPadding),
-            verticalAlignment = Alignment.CenterVertically,
-            content = content
-        )
-    }
-}

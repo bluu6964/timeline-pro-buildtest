@@ -1038,18 +1038,17 @@ fun AddTextSheet(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            VioletPillButton(
+            // Build 253: the violet pill draws in GL (GlVioletPill).
+            GlVioletPill(
+                label = "Add to Timeline",
                 onClick = {
                     if (textInput.isNotBlank()) {
                         onAddText(textInput, selectedColor)
                     }
                     onDismiss()
                 },
-                modifier = Modifier.fillMaxWidth(),
-                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 9.dp)
-            ) {
-                Text("Add to Timeline", color = AmInk, fontSize = 13.sp, fontWeight = FontWeight.Bold) // build 216: ink on the lime pill
-            }
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }

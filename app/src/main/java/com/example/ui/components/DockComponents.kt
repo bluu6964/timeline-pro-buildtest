@@ -21,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -28,6 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.engine.UiLabelStyle
 import com.example.ui.theme.AmCardSurface
 import com.example.ui.theme.AmHairline
 import com.example.ui.theme.AmTextDim
@@ -150,15 +152,19 @@ fun PanelStage(
     }
 }
 
-/** A grouped section's label inside a panel (small caps, dim). */
+/**
+ * A grouped section's label inside a panel (small caps, dim).
+ *
+ * Build 253 (UI migration stage 6): the label draws in GL
+ * (UiLabelStyle.SECTION_LABEL carries the 0.9 sp tracking); the
+ * padding and the uppercase rule are unchanged.
+ */
 @Composable
 fun PanelSectionLabel(text: String, modifier: Modifier = Modifier) {
-    Text(
-        text.uppercase(),
-        color = AmTextDim,
-        fontSize = 9.5.sp,
-        fontWeight = FontWeight.SemiBold,
-        letterSpacing = 0.9.sp,
+    GlLabelLine(
+        text = text.uppercase(),
+        style = UiLabelStyle.SECTION_LABEL,
+        colorArgb = AmTextDim.toArgb(),
         modifier = modifier.padding(top = 10.dp, bottom = 4.dp)
     )
 }
