@@ -166,7 +166,7 @@ internal fun GlTextBlock(
     style: UiLabelStyle,
     colorArgb: Int,
     modifier: Modifier = Modifier,
-    align: GlAlign = TextAlign.Center,
+    align: TextAlign = TextAlign.Center,
     /** The Compose lineHeight, when the host Text set one (sp). */
     linePitchSp: Float? = null
 ) {
