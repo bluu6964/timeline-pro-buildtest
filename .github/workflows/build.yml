@@ -79,6 +79,9 @@ jobs:
       # Migration stage 1 adds clip_algebra.cpp / clip_algebra_jni.cpp (the
       # TimelineClip keyframe algebra + the AnimPresets plans), compiled
       # without FP contraction for the same reason.
+      # Migration stage 2 adds clip_graph.cpp / clip_graph_jni.cpp (the
+      # clip-graph algebra: group/lane/multi-select/controller/solo/mask/
+      # track plans), also without FP contraction.
       - name: Build host JNI library for unit tests
         run: |
           set -e
@@ -110,6 +113,9 @@ jobs:
           g++ -std=c++17 -O2 -fPIC -ffp-contract=off \
             -I"$JAVA_HOME/include" -I"$JAVA_HOME/include/linux" -I$E \
             -c $E/clip_algebra.cpp -o /tmp/hostlib/clip_algebra.o
+          g++ -std=c++17 -O2 -fPIC -ffp-contract=off \
+            -I"$JAVA_HOME/include" -I"$JAVA_HOME/include/linux" -I$E \
+            -c $E/clip_graph.cpp -o /tmp/hostlib/clip_graph.o
           g++ -std=c++17 -O2 -fPIC -shared -Wall -Wextra \
             -I"$JAVA_HOME/include" -I"$JAVA_HOME/include/linux" -I$E \
             -o /tmp/hostlib/libam_engine.so \
@@ -126,6 +132,7 @@ jobs:
             $E/fx_defs.cpp $E/fx_defs_jni.cpp $E/fx_plan.cpp \
             /tmp/hostlib/model_logic.o $E/model_logic_jni.cpp \
             /tmp/hostlib/clip_algebra.o $E/clip_algebra_jni.cpp \
+            /tmp/hostlib/clip_graph.o $E/clip_graph_jni.cpp \
             -lm
 
       - name: Unit tests

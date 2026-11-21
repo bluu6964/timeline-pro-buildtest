@@ -1,5 +1,6 @@
 package com.example.model
 
+import com.example.engine.ClipGraphNative
 import kotlinx.serialization.Serializable
 import kotlin.math.abs
 import kotlin.math.cos
@@ -62,19 +63,8 @@ class TrackFollow(
      * [FRAME_TOL_MS] covers the whole-millisecond rounding of frame times. Before the first frame
      * the first entry is used; -1 only when the track is empty.
      */
-    fun indexAt(t: Long): Int {
-        val n = timesMs.size
-        if (n == 0) return -1
-        val key = t + FRAME_TOL_MS
-        if (key < timesMs[0]) return 0
-        var lo = 0
-        var hi = n - 1
-        while (lo < hi) {
-            val mid = (lo + hi + 1) ushr 1
-            if (timesMs[mid] <= key) lo = mid else hi = mid - 1
-        }
-        return lo
-    }
+    /** Native since migration stage 2 (clip_graph): the same upper-mid binary search. */
+    fun indexAt(t: Long): Int = ClipGraphNative.nativeTrackIndexAt(timesMs, t)
 
     companion object {
         const val FRAME_TOL_MS = 2L
@@ -286,22 +276,22 @@ object MotionTrackApply {
 fun TimelineClip.renderAt(timeMs: Long, trackMs: Long = timeMs): TimelineClip {
     val c = at(timeMs)
     val f = trackFollow ?: return c
-    val i = f.indexAt(trackMs)
-    if (i < 0) return c
-    var r = c.withProp(AnimProp.POSITION, c.transformX + f.dx[i], c.transformY + f.dy[i])
-    val rot = f.rotDeg
-    if (rot != null) r = r.copy(rotationDeg = r.rotationDeg + rot[i])
-    val k = f.scale
-    if (k != null) {
-        // multiply, so a shape that has its own size keeps it (shapes are sized by shapeScale, not scalePercent)
-        r = r.copy(scalePercent = r.scalePercent * k[i], shapeScaleX = r.shapeScaleX * k[i], shapeScaleY = r.shapeScaleY * k[i])
-    }
-    return r
+    // The follow index + the offset/turn/zoom arithmetic over the
+    // evaluated clip's transform are native since migration stage 2
+    // (clip_graph); the writes land through withProp / copy as before.
+    val r = ClipGraphNative.nativeTrackRender(
+        f.timesMs, f.dx, f.dy, f.rotDeg, f.scale,
+        c.transformX, c.transformY, c.rotationDeg, c.scalePercent,
+        c.shapeScaleX, c.shapeScaleY, trackMs
+    )
+    if (r[0] == 0f) return c
+    return c.withProp(AnimProp.POSITION, r[1], r[2])
+        .copy(rotationDeg = r[3], scalePercent = r[4], shapeScaleX = r[5], shapeScaleY = r[6])
 }
 
 /** Tracking offset (dx, dy) of the video frame shown at [trackMs]; zero when not tracked. */
 fun TimelineClip.trackOffsetAt(trackMs: Long): Pair<Float, Float> {
     val f = trackFollow ?: return 0f to 0f
-    val i = f.indexAt(trackMs)
-    return if (i < 0) 0f to 0f else f.dx[i] to f.dy[i]
+    val r = ClipGraphNative.nativeTrackOffset(f.timesMs, f.dx, f.dy, trackMs)
+    return r[0] to r[1]
 }

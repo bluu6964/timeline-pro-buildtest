@@ -1,5 +1,6 @@
 package com.example.model
 
+import com.example.engine.ClipGraphNative
 import com.example.engine.ModelLogicNative
 import java.util.UUID
 
@@ -46,21 +47,25 @@ object MultiSelectOps {
      * behind it (the rule of a Chain lane, see [LaneLayout.placeInChain]).
      */
     private fun chainSelected(tracks: List<TimelineTrack>, ids: Set<String>): List<TimelineTrack>? {
-        val sel = tracks.flatMap { it.clips }.filter { it.id in ids && it.type != LayerType.CHAIN }.sortedBy { it.startMs }
-        if (sel.isEmpty()) return null
+        // The selection order, the insertion position and the chain window
+        // are native since migration stage 2 (clip_graph); the lane
+        // assembly stays the original's own ops.
+        val pack = ClipGraphNative.packGraph(tracks)
+        val selected = BooleanArray(pack.clips.size) { pack.clips[it].id in ids }
+        val plan = ClipGraphNative.chainSelectedPlan(pack, selected)
+        if (plan.selOrder.isEmpty()) return null
+        val sel = plan.selOrder.map { pack.clips[it] }
         val selIds = sel.map { it.id }.toSet()
-        val topIdx = tracks.indexOfFirst { lane -> lane.clips.any { it.id in selIds } }
-        val insertAt = tracks.take(topIdx).count { lane -> lane.clips.any { it.id !in selIds } }
         val rest = tracks.map { lane -> lane.copy(clips = lane.clips.filter { it.id !in selIds }) }.filter { it.clips.isNotEmpty() }
         val chain = TimelineClip(
             id = UUID.randomUUID().toString(),
             name = "Chain",
             type = LayerType.CHAIN,
-            startMs = sel.first().startMs,
-            durationMs = (sel.maxOf { it.endMs } - sel.first().startMs).coerceAtLeast(100L),
+            startMs = plan.chainStart,
+            durationMs = plan.chainDur,
             color = 0xFF2FB5A8
         )
-        val withLane = rest.toMutableList().also { it.add(insertAt.coerceIn(0, it.size), LaneLayout.newLane(listOf(chain))) }
+        val withLane = rest.toMutableList().also { it.add(plan.insertAt.coerceIn(0, it.size), LaneLayout.newLane(listOf(chain))) }
         var out: List<TimelineTrack> = withLane
         for (c in sel) out = LaneLayout.placeInChain(out, chain.id, c.copy(chainId = null))
         return out
@@ -94,103 +99,61 @@ object MultiSelectOps {
 
             MultiAction.GROUP -> GroupOps.group(tracks, ids)?.tracks
 
-            MultiAction.DELETE_LEFT -> mapSelected(tracks, ids) { c ->
-                if (p > c.startMs && c.endMs - p >= MIN_LEN) {
-                    val d = p - c.startMs
-                    c.copy(
-                        startMs = p,
-                        durationMs = c.durationMs - d,
-                        trimStartMs = if (hasSource(c)) c.trimStartMs + (d * c.speed).toLong() else c.trimStartMs,
-                        fadeInMs = 0L
-                    ).withTrimmedStartKeyframes(d)
-                } else c
-            }
-
-            MultiAction.DELETE_RIGHT -> mapSelected(tracks, ids) { c ->
-                if (p - c.startMs >= MIN_LEN && p < c.endMs) {
-                    c.copy(durationMs = p - c.startMs, fadeOutMs = 0L).withEndMoved(p - c.endMs)
-                } else c
-            }
-
-            MultiAction.EXTEND_START -> mapSelected(tracks, ids) { c ->
-                if (c.startMs > p) {
-                    var d = c.startMs - p
-                    if (hasSource(c)) {
-                        // Media can only grow backwards as far as its in-point allows.
-                        val spd = c.speed.coerceAtLeast(0.01f)
-                        d = minOf(d, (c.trimStartMs / spd).toLong())
-                    }
-                    if (d <= 0L) c else c.copy(
-                        startMs = c.startMs - d,
-                        durationMs = c.durationMs + d,
-                        trimStartMs = if (hasSource(c)) (c.trimStartMs - (d * c.speed).toLong()).coerceAtLeast(0L) else c.trimStartMs
-                    ).withTrimmedStartKeyframes(-d)
-                } else c
-            }
-
-            MultiAction.MOVE_START -> mapSelected(tracks, ids) { c ->
-                if (c.startMs > p) c.copy(startMs = p) else c
-            }
-
-            MultiAction.EXTEND_END -> mapSelected(tracks, ids) { c ->
-                if (c.endMs < p) {
-                    var d = p - c.endMs
-                    if (hasSource(c) && c.sourceDurationMs > 0L) {
-                        val spd = c.speed.coerceAtLeast(0.01f)
-                        val maxLen = ((c.sourceDurationMs - c.trimStartMs) / spd).toLong()
-                        d = minOf(d, (maxLen - c.durationMs).coerceAtLeast(0L))
-                    }
-                    if (d <= 0L) c else c.copy(durationMs = c.durationMs + d).withEndMoved(d)
-                } else c
-            }
-
-            MultiAction.MOVE_END -> mapSelected(tracks, ids) { c ->
-                if (c.endMs < p) c.copy(startMs = (p - c.durationMs).coerceAtLeast(0L)) else c
-            }
-
-            MultiAction.ALIGN_START -> {
-                val target = selected.minOf { it.startMs }
-                mapSelected(tracks, ids) { c -> c.copy(startMs = target) }
-            }
-
-            MultiAction.ALIGN_END -> {
-                val target = selected.maxOf { it.endMs }
-                mapSelected(tracks, ids) { c ->
-                    c.copy(startMs = (target - c.durationMs).coerceAtLeast(0L))
-                }
-            }
-
-            MultiAction.SEQUENCE -> {
-                // One after another, in the order they currently start (top lane first on ties).
-                val laneOf = HashMap<String, Int>()
-                tracks.forEachIndexed { i, lane -> lane.clips.forEach { laneOf[it.id] = i } }
-                val ordered = selected.sortedWith(compareBy({ it.startMs }, { laneOf[it.id] ?: 0 }))
-                var cursor = ordered.first().startMs
-                val newStart = HashMap<String, Long>()
-                for (c in ordered) {
-                    newStart[c.id] = cursor
-                    cursor += c.durationMs
-                }
-                mapSelected(tracks, ids) { c -> c.copy(startMs = newStart[c.id] ?: c.startMs) }
-            }
+            // Every other action's per-clip transform (guards, source
+            // caps, speed floors, keyframe shift ops, the SEQUENCE cursor
+            // and the ALIGN targets) is native since migration stage 2
+            // (clip_graph); the edits are applied here with the original's
+            // own copy() ops and its changed-by-equality rule.
+            else -> applyNative(tracks, ids, action, p)
         }
     }
 
-    private fun hasSource(c: TimelineClip) = c.uri != null && !c.isImage
-
-    private fun mapSelected(
+    private fun applyNative(
         tracks: List<TimelineTrack>,
         ids: Set<String>,
-        edit: (TimelineClip) -> TimelineClip
+        action: MultiAction,
+        p: Long
     ): List<TimelineTrack>? {
+        val code = when (action) {
+            MultiAction.DELETE_LEFT -> ClipGraphNative.MultiCode.DELETE_LEFT
+            MultiAction.DELETE_RIGHT -> ClipGraphNative.MultiCode.DELETE_RIGHT
+            MultiAction.EXTEND_START -> ClipGraphNative.MultiCode.EXTEND_START
+            MultiAction.MOVE_START -> ClipGraphNative.MultiCode.MOVE_START
+            MultiAction.EXTEND_END -> ClipGraphNative.MultiCode.EXTEND_END
+            MultiAction.MOVE_END -> ClipGraphNative.MultiCode.MOVE_END
+            MultiAction.ALIGN_START -> ClipGraphNative.MultiCode.ALIGN_START
+            MultiAction.ALIGN_END -> ClipGraphNative.MultiCode.ALIGN_END
+            MultiAction.SEQUENCE -> ClipGraphNative.MultiCode.SEQUENCE
+            else -> return null
+        }
+        val pack = ClipGraphNative.packGraph(tracks)
+        val selected = BooleanArray(pack.clips.size) { pack.clips[it].id in ids }
+        val editByClip = ClipGraphNative.multiApplyPlan(pack, selected, code, p).associateBy { it.clip }
         var changed = false
+        var idx = 0
         val out = tracks.map { lane ->
             lane.copy(clips = lane.clips.map { c ->
-                if (c.id in ids) {
-                    val n = edit(c)
+                val e = editByClip[idx++]
+                if (e == null || e.code == 0) {
+                    c
+                } else {
+                    val n = if (e.code == 3) {
+                        c.copy(startMs = e.newStart)
+                    } else {
+                        var nc = c.copy(
+                            startMs = e.newStart,
+                            durationMs = e.newDur,
+                            trimStartMs = e.newTrim,
+                            fadeInMs = if (e.fadeMode == 1) 0L else c.fadeInMs,
+                            fadeOutMs = if (e.fadeMode == 2) 0L else c.fadeOutMs
+                        )
+                        if (e.kfOp == 1) nc = nc.withTrimmedStartKeyframes(e.kfDelta)
+                        else if (e.kfOp == 2) nc = nc.withEndMoved(e.kfDelta)
+                        nc
+                    }
                     if (n != c) changed = true
                     n
-                } else c
+                }
             })
         }
         return if (changed) out else null
@@ -198,17 +161,27 @@ object MultiSelectOps {
 
     /** Splits every selected layer that the playhead is inside. The right halves get their own new lanes. */
     private fun split(tracks: List<TimelineTrack>, ids: Set<String>, p: Long): List<TimelineTrack>? {
+        // Which layers split (and each second half's trim) is native since
+        // migration stage 2 (clip_graph); the halves are built and placed
+        // with the original's own ops.
+        val pack = ClipGraphNative.packGraph(tracks)
+        val selected = BooleanArray(pack.clips.size) { pack.clips[it].id in ids }
+        val editByClip = ClipGraphNative.multiApplyPlan(
+            pack, selected, ClipGraphNative.MultiCode.SPLIT, p
+        ).associateBy { it.clip }
         val rightHalves = mutableListOf<TimelineClip>()
+        var idx = 0
         val mapped = tracks.map { lane ->
             lane.copy(clips = lane.clips.map { c ->
-                if (c.id in ids && p - c.startMs >= MIN_LEN && c.endMs - p >= MIN_LEN) {
-                    val d1 = p - c.startMs
+                val e = editByClip[idx++]
+                if (e != null && e.code == 2) {
+                    val d1 = e.newDur
                     rightHalves += c.copy(
                         id = UUID.randomUUID().toString(),
                         name = "${c.name} (Split)",
                         startMs = p,
                         durationMs = c.endMs - p,
-                        trimStartMs = c.trimStartMs + (d1 * c.speed).toLong(),
+                        trimStartMs = e.half2Trim,
                         fadeInMs = 0L
                     ).withShiftedKeyframes(-d1).withoutClipAnim(AnimSlot.IN)
                     c.copy(durationMs = d1, fadeOutMs = 0L).withoutClipAnim(AnimSlot.OUT)

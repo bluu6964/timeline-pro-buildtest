@@ -1,5 +1,6 @@
 package com.example.model
 
+import com.example.engine.ClipGraphNative
 import com.example.engine.ModelLogicNative
 import java.util.UUID
 
@@ -94,17 +95,6 @@ object GroupOps {
         return idx.map { all[it] }
     }
 
-    /** True when [candidateId] is [ofId] itself or one of its parents (Null / group chain): linking would make a loop. */
-    private fun isSelfOrAncestor(all: Map<String, TimelineClip>, candidateId: String, ofId: String): Boolean {
-        var cur: String? = ofId
-        var n = 0
-        while (cur != null && n++ < 16) {
-            if (cur == candidateId) return true
-            cur = all[cur]?.parent?.id
-        }
-        return false
-    }
-
     /**
      * Groups the checked layers.
      * - Normal case: ONE new Group layer (own lane, right above the topmost checked layer); the checked layers get the
@@ -116,52 +106,49 @@ object GroupOps {
      * Returns null when there is nothing to group.
      */
     fun group(tracks: List<TimelineTrack>, ids: Set<String>, poseOf: (String) -> Pose? = { null }): Grouped? {
-        val all = tracks.flatMap { it.clips }
-        val byId = all.associateBy { it.id }
-        val sel = all.filter { it.id in ids && canGroup(it) }
-        if (sel.isEmpty()) return null
-
-        val groupsSelected = sel.filter { it.type == LayerType.GROUP }
-        val others = sel.filter { it.type != LayerType.GROUP }
-        if (groupsSelected.size == 1 && others.isNotEmpty()) {
-            val target = groupsSelected[0]
+        // The decision (which mode, who moves, the new group's window /
+        // outer group / lane) is native since migration stage 2
+        // (clip_graph): clips cross as identity keys + the fields the law
+        // reads; the assembly below is the original's own copy() / lane ops.
+        val pack = ClipGraphNative.packGraph(tracks)
+        val selected = BooleanArray(pack.clips.size) { pack.clips[it].id in ids }
+        val plan = ClipGraphNative.groupPlan(pack, selected)
+        if (plan.mode == 0) return null
+        if (plan.mode == 1) {
+            val target = pack.clips[plan.targetClip]
             val link = linkTo(target.id, poseOf(target.id) ?: Pose.REST)
-            val movers = others.filter { !isSelfOrAncestor(byId, it.id, target.id) }.map { it.id }.toSet()
-            if (movers.isEmpty()) return null
+            val movers = plan.movers.toSet()
+            var idx = 0
             val out = tracks.map { lane ->
                 lane.copy(clips = lane.clips.map { c ->
-                    if (c.id in movers) c.copy(groupId = target.id, parent = link) else c
+                    if (idx++ in movers) c.copy(groupId = target.id, parent = link) else c
                 })
             }
             return Grouped(fitGroups(out), target.id)
         }
-        if (sel.size == 1 && sel[0].type == LayerType.GROUP) return null  // a lone group: nothing to do
-
-        val start = sel.minOf { it.startMs }
-        val end = sel.maxOf { it.endMs }
-        // Grouping layers that are all inside one group (Edit Group): the new group sits inside that group too.
-        val outerId = sel.map { it.groupId }.distinct().singleOrNull()?.takeIf { byId[it]?.type == LayerType.GROUP }
+        val groupId = UUID.randomUUID().toString()
+        val outerId = if (plan.outerKey >= 0) pack.idForKey(plan.outerKey) else null
         val group = TimelineClip(
-            id = UUID.randomUUID().toString(),
-            name = "Group ${all.count { it.type == LayerType.GROUP } + 1}",
+            id = groupId,
+            name = "Group ${plan.groupCount + 1}",
             type = LayerType.GROUP,
-            startMs = start,
-            durationMs = (end - start).coerceAtLeast(100L),
+            startMs = plan.startMs,
+            durationMs = plan.durationMs,
             color = 0xFF5BB85D,
             groupId = outerId,
             parent = outerId?.let { linkTo(it, poseOf(it) ?: Pose.REST) }
         )
-        val link = linkTo(group.id, Pose.REST)
-        val selIds = sel.map { it.id }.toSet()
-        val topIdx = tracks.indexOfFirst { lane -> lane.clips.any { it.id in selIds } }.coerceAtLeast(0)
+        val link = linkTo(groupId, Pose.REST)
+        val sel = BooleanArray(pack.clips.size) { selected[it] && canGroup(pack.clips[it]) }
+        var idx = 0
         val moved = tracks.map { lane ->
             lane.copy(clips = lane.clips.map { c ->
-                if (c.id in selIds) c.copy(groupId = group.id, parent = link) else c
+                if (sel[idx++]) c.copy(groupId = groupId, parent = link) else c
             })
         }
         val out = moved.toMutableList()
-        out.add(topIdx, LaneLayout.newLane(listOf(group)))
-        return Grouped(fitGroups(out), group.id)
+        out.add(plan.topLaneIndex.coerceAtLeast(0), LaneLayout.newLane(listOf(group)))
+        return Grouped(fitGroups(out), groupId)
     }
 
     /**
@@ -177,13 +164,18 @@ object GroupOps {
         poseOf: (String) -> Pose? = { null }
     ): List<TimelineTrack> {
         val group = tracks.flatMap { it.clips }.firstOrNull { it.id == groupId && it.type == LayerType.GROUP } ?: return tracks
+        // The drop / relink decision per clip is native since migration
+        // stage 2 (clip_graph); bake + the link stay the caller's, as before.
+        val pack = ClipGraphNative.packGraph(tracks)
+        val codes = ClipGraphNative.ungroupPlan(pack, pack.keyOf(groupId))
         val outer = group.groupId
         val outerLink = outer?.let { linkTo(it, poseOf(it) ?: Pose.REST) }
+        var idx = 0
         val out = tracks.map { lane ->
             lane.copy(clips = lane.clips.mapNotNull { c ->
-                when {
-                    c.id == groupId -> null
-                    c.groupId == groupId -> bake(c).copy(groupId = outer, parent = outerLink)
+                when (codes[idx++]) {
+                    1 -> null
+                    2 -> bake(c).copy(groupId = outer, parent = outerLink)
                     else -> c
                 }
             })
@@ -199,22 +191,37 @@ object GroupOps {
         val group = tracks.flatMap { it.clips }.firstOrNull { it.id == groupId && it.type == LayerType.GROUP } ?: return null
         val inside = descendantsOf(tracks, groupId).map { it.id }.toSet()
         val originals = tracks.flatMap { it.clips }.filter { it.id == groupId || it.id in inside }  // top lane first
-        val newIds = originals.associate { it.id to UUID.randomUUID().toString() }
-        val copies = originals.map { c ->
-            val link = c.parent?.let { p -> newIds[p.id]?.let { p.copy(id = it) } ?: p }
+        // The link remapping (which of the copies' group / parent /
+        // controller links point at minted ids, which keep their target)
+        // is native since migration stage 2 (clip_graph); the ids are
+        // minted here, in originals order, exactly as the original did.
+        val pack = ClipGraphNative.packGraph(tracks)
+        val originalOrder = IntArray(originals.size) { pack.indexById.getValue(originals[it].id) }
+        val plan = ClipGraphNative.duplicatePlan(pack, originalOrder, pack.keyOf(groupId))
+        val mints = Array(originals.size) { UUID.randomUUID().toString() }
+        fun idForExtended(key: Int): String? = when {
+            key < 0 -> null
+            key >= pack.keyCount -> mints[key - pack.keyCount]
+            else -> pack.idForKey(key)
+        }
+        val copies = originals.mapIndexed { j, c ->
+            val e = plan[j]
             c.copy(
-                id = newIds.getValue(c.id),
-                name = if (c.id == groupId) "${c.name} (Copy)" else c.name,
-                groupId = if (c.id == groupId) c.groupId else c.groupId?.let { newIds[it] ?: it },
-                parent = link,
+                id = mints[j],
+                name = if (e.nameSuffix) "${c.name} (Copy)" else c.name,
+                groupId = idForExtended(e.groupKeyOut),
+                parent = c.parent?.let { p ->
+                    val nk = idForExtended(e.parentKeyOut)
+                    if (nk != null) p.copy(id = nk) else p
+                },
                 // A Controller connection inside the group is remapped like the parent link:
                 // the copy's layers connect to the copy's Controller, never the original's.
-                controllerId = c.controllerId?.let { newIds[it] ?: it },
+                controllerId = c.controllerId?.let { idForExtended(e.controllerKeyOut) ?: it },
                 chainId = null
             )
         }
         val newLanes = copies.map { LaneLayout.newLane(listOf(it)) }
-        return Grouped(newLanes + tracks, newIds.getValue(group.id))
+        return Grouped(newLanes + tracks, mints[originals.indexOfFirst { it === group }])
     }
 
     /**
@@ -228,13 +235,19 @@ object GroupOps {
     fun splitGroup(tracks: List<TimelineTrack>, groupId: String, playheadMs: Long): Grouped? {
         val all = tracks.flatMap { it.clips }
         val group = all.firstOrNull { it.id == groupId && it.type == LayerType.GROUP } ?: return null
-        if (playheadMs <= group.startMs + 500L || playheadMs >= group.endMs - 500L) return null
-        val kids = all.filter { it.groupId == groupId }
-        if (kids.isEmpty() || kids.any { it.type == LayerType.GROUP }) return null
+        // Validity + the per-kid classification (stays / moves / splits,
+        // with the split point and the relinked parent for everything that
+        // lands in the second group) are native since migration stage 2
+        // (clip_graph). The halves are built here with the original's own
+        // ops — the second half's trim delta still comes from
+        // sourceOffsetMs (stage 1), which integrates SPEED keyframes.
+        val pack = ClipGraphNative.packGraph(tracks)
+        val plan = ClipGraphNative.splitGroupPlan(pack, pack.keyOf(groupId), playheadMs)
+        if (!plan.ok) return null
 
         val d1 = playheadMs - group.startMs
         val newGroupId = UUID.randomUUID().toString()
-        val g1 = group.copy(durationMs = d1, fadeOutMs = 0L).withoutClipAnim(AnimSlot.OUT)
+        val g1 = group.copy(durationMs = plan.groupFirstDurMs, fadeOutMs = 0L).withoutClipAnim(AnimSlot.OUT)
         val g2 = group.copy(
             id = newGroupId,
             name = "${group.name} (Split)",
@@ -243,53 +256,51 @@ object GroupOps {
             fadeInMs = 0L
         ).withShiftedKeyframes(-d1).withoutClipAnim(AnimSlot.IN)
 
-        val firstHalves = HashMap<String, TimelineClip>()
-        val secondHalves = HashMap<String, TimelineClip>()
-        val movedWhole = HashSet<String>()
-        val splitMap = HashMap<String, String>()   // id of a cut layer -> id of its second half
-        for (c in kids) {
-            when {
-                c.endMs <= playheadMs -> Unit                      // stays in the first group as it is
-                c.startMs >= playheadMs -> movedWhole += c.id      // goes to the second group
-                else -> {
-                    val dd1 = playheadMs - c.startMs
-                    firstHalves[c.id] = c.copy(durationMs = dd1, fadeOutMs = 0L).withoutClipAnim(AnimSlot.OUT)
-                    val c2 = c.copy(
-                        id = UUID.randomUUID().toString(),
-                        name = "${c.name} (Split)",
-                        startMs = playheadMs,
-                        durationMs = c.endMs - playheadMs,
-                        trimStartMs = c.trimStartMs + c.sourceOffsetMs(dd1),
-                        fadeInMs = 0L,
-                        chainId = null
-                    ).withShiftedKeyframes(-dd1).withoutClipAnim(AnimSlot.IN)
-                    secondHalves[c.id] = c2
-                    splitMap[c.id] = c2.id
-                }
-            }
+        val splitKids = plan.kids.filter { it.cls == 2 }
+        val halfIds = HashMap<Int, String>()   // split kid's clip index -> its second half's id
+        for (kid in splitKids) halfIds[kid.clip] = UUID.randomUUID().toString()
+        fun idForExtended(key: Int): String? = when {
+            key < 0 -> null
+            key == pack.keyCount -> newGroupId
+            key > pack.keyCount -> halfIds[splitKids[key - pack.keyCount - 1].clip]
+            else -> pack.idForKey(key)
         }
+        val kidByClip = plan.kids.associateBy { it.clip }
 
         /** A layer that now belongs to the second group: follows it, and follows the second half of a cut parent. */
-        fun relink(c: TimelineClip): TimelineClip {
+        fun relink(c: TimelineClip, parentOut: Int): TimelineClip {
             val p = c.parent
             val np = when {
                 p == null -> null
-                p.id == groupId -> p.copy(id = newGroupId)
-                splitMap.containsKey(p.id) -> p.copy(id = splitMap.getValue(p.id))
-                else -> p
+                else -> idForExtended(parentOut)?.let { p.copy(id = it) } ?: p
             }
             return c.copy(groupId = newGroupId, parent = np)
         }
 
-        val out = ArrayList<TimelineTrack>(tracks.size + secondHalves.size + 1)
+        val out = ArrayList<TimelineTrack>(tracks.size + splitKids.size + 1)
+        var idx = 0
         for (lane in tracks) {
             val above = ArrayList<TimelineClip>()
             var holdsGroup = false
             val clips = lane.clips.map { c ->
+                val kid = kidByClip[idx++]
                 when {
                     c.id == groupId -> { holdsGroup = true; g1 }
-                    firstHalves.containsKey(c.id) -> { above += relink(secondHalves.getValue(c.id)); firstHalves.getValue(c.id) }
-                    c.id in movedWhole -> relink(c)
+                    kid != null && kid.cls == 2 -> {
+                        val dd1 = kid.d1
+                        val second = c.copy(
+                            id = halfIds.getValue(kid.clip),
+                            name = "${c.name} (Split)",
+                            startMs = playheadMs,
+                            durationMs = c.endMs - playheadMs,
+                            trimStartMs = c.trimStartMs + c.sourceOffsetMs(dd1),
+                            fadeInMs = 0L,
+                            chainId = null
+                        ).withShiftedKeyframes(-dd1).withoutClipAnim(AnimSlot.IN)
+                        above += relink(second, kid.parentOut)
+                        c.copy(durationMs = dd1, fadeOutMs = 0L).withoutClipAnim(AnimSlot.OUT)
+                    }
+                    kid != null && kid.cls == 1 -> relink(c, kid.parentOut)
                     else -> c
                 }
             }
@@ -307,42 +318,36 @@ object GroupOps {
      * ([TimelineClip.groupFreeLength]): the layers inside are then cut at its ends.
      */
     fun fitGroups(tracks: List<TimelineTrack>): List<TimelineTrack> {
+        // Each pass's decisions (stale-link clears + group refits, all read
+        // from the pass's input snapshot) are native since migration
+        // stage 2 (clip_graph); the pass loop and the copy()/keyframe-shift
+        // application stay here, as in the original.
         var cur = tracks
         var pass = 0
         while (pass++ < 4) {
-            val all = cur.flatMap { it.clips }
-            val groups = all.filter { it.type == LayerType.GROUP }.associateBy { it.id }
-            var changed = false
-            val out = cur.map { lane ->
-                var laneChanged = false
-                val clips = lane.clips.map { c ->
+            val pack = ClipGraphNative.packGraph(cur)
+            val plan = ClipGraphNative.fitGroupsPass(pack)
+            if (!plan.changed) return cur
+            val refitByClip = plan.refits.associateBy { it.clip }
+            var idx = 0
+            cur = cur.map { lane ->
+                lane.copy(clips = lane.clips.map { c ->
+                    val i = idx++
                     var r = c
                     // Stale link: the group of this layer does not exist (any more).
-                    if (r.groupId != null && r.groupId !in groups) {
-                        r = r.copy(groupId = null, parent = if (r.parent?.id == c.groupId) null else r.parent)
+                    if (plan.clearGroup[i]) {
+                        r = r.copy(groupId = null, parent = if (plan.clearParent[i]) null else r.parent)
                     }
                     // A group the person trimmed keeps its own length: the layers inside are cut at its ends.
-                    if (r.type == LayerType.GROUP && !r.groupFreeLength) {
-                        val kids = all.filter { it.groupId == r.id }
-                        if (kids.isNotEmpty()) {
-                            val start = kids.minOf { it.startMs }
-                            val end = kids.maxOf { it.endMs }
-                            if (r.startMs != start || r.endMs != end) {
-                                val oldStart = r.startMs
-                                val oldEnd = r.endMs
-                                r = r.copy(startMs = start, durationMs = (end - start).coerceAtLeast(100L))
-                                    .withTrimmedStartKeyframes(start - oldStart)
-                                    .withEndMoved(end - oldEnd)
-                            }
-                        }
+                    val refit = refitByClip[i]
+                    if (refit != null) {
+                        r = r.copy(startMs = refit.startMs, durationMs = refit.durationMs)
+                            .withTrimmedStartKeyframes(refit.trimDelta)
+                            .withEndMoved(refit.endDelta)
                     }
-                    if (r !== c) laneChanged = true
                     r
-                }
-                if (laneChanged) { changed = true; lane.copy(clips = clips) } else lane
+                })
             }
-            if (!changed) return cur
-            cur = out
         }
         return cur
     }

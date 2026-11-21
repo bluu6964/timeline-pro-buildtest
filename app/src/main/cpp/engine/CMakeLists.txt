@@ -27,6 +27,7 @@ add_library(am_engine SHARED
     fx_defs.cpp fx_defs_jni.cpp
     model_logic.cpp model_logic_jni.cpp
     clip_algebra.cpp clip_algebra_jni.cpp
+    clip_graph.cpp clip_graph_jni.cpp
     crash_handler.cpp)
 target_compile_features(am_engine PRIVATE cxx_std_17)
 target_compile_options(am_engine PRIVATE -O2 -Wall -Wextra)
@@ -48,6 +49,10 @@ set_source_files_properties(model_logic.cpp PROPERTIES COMPILE_OPTIONS -ffp-cont
 # frame_eval, saturating float->long time scaling), so it gets the same
 # treatment for the same reason.
 set_source_files_properties(clip_algebra.cpp PROPERTIES COMPILE_OPTIONS -ffp-contract=off)
+# Migration stage 2: clip_graph.cpp is the same kind of port (the clip-graph
+# algebra: strict-IEEE Kotlin float math in the fan-out and the multi-select
+# transforms, saturating float->long source offsets), same treatment.
+set_source_files_properties(clip_graph.cpp PROPERTIES COMPILE_OPTIONS -ffp-contract=off)
 # Native text layers (FreeType + HarfBuzz). The sources are downloaded by the GitHub workflow into
 # cpp/freetype and cpp/harfbuzz. Without them text_engine.cpp compiles to a stub,
 # available() is false and the exporter keeps drawing text with the Android Canvas.

@@ -1,5 +1,6 @@
 package com.example.model
 
+import com.example.engine.ClipGraphNative
 import com.example.engine.ModelLogicNative
 import com.example.engine.ProjectDocNative
 import java.util.UUID
@@ -115,29 +116,25 @@ object LaneLayout {
         // below condition for condition; the harness pins both the identity and that every
         // normalize output satisfies isNormalized.
         if (isNormalized(tracks)) return tracks
-        val singles = mutableListOf<TimelineTrack>()
-        val overflow = mutableListOf<TimelineClip>()
-
-        for (lane in tracks) {
-            val sorted = lane.clips.sortedBy { it.startMs }
-            if (sorted.isEmpty()) continue
-            val chain = sorted.firstOrNull { it.type == LayerType.CHAIN }
-            if (chain != null) {
-                val members = sorted.filter { it.id == chain.id || it.chainId == chain.id }
-                val rest = sorted.filter { it.id != chain.id && it.chainId != chain.id }
-                singles += lane.copy(clips = listOf(chain) + members.filter { it.id != chain.id })
-                overflow += rest.map { if (it.chainId != null) it.copy(chainId = null) else it }
-                continue
-            }
-            // Keep the first clip in this lane; any extras become their own lanes.
-            val first = sorted.first()
-            singles += lane.copy(clips = listOf(if (first.chainId != null) first.copy(chainId = null) else first))
-            if (sorted.size > 1) overflow += sorted.drop(1).map { if (it.chainId != null) it.copy(chainId = null) else it }
+        // The plan (per-lane kept clips in start order with the chain first,
+        // the overflow in processing order, the stale-chainId clears) is
+        // native since migration stage 2 (clip_graph); the lane assembly
+        // below is the original's own copy() / place() ops.
+        val pack = ClipGraphNative.packGraph(tracks)
+        val plan = ClipGraphNative.normalizePlan(pack)
+        fun cleared(i: Int): TimelineClip {
+            val c = pack.clips[i]
+            return if (plan.clearChain[i]) c.copy(chainId = null) else c
         }
-
+        val singles = mutableListOf<TimelineTrack>()
+        for ((li, lane) in tracks.withIndex()) {
+            val kept = plan.keptPerLane[li]
+            if (kept.isEmpty()) continue
+            singles += lane.copy(clips = kept.map { cleared(it) })
+        }
         var result: List<TimelineTrack> = singles
-        for (clip in overflow) {
-            result = place(result, clip)
+        for (oi in plan.overflow) {
+            result = place(result, cleared(oi))
         }
         return result
     }
@@ -152,7 +149,10 @@ object LaneLayout {
      * The chain then grows to cover its layers ([fitChains]). Without that chain: a normal new lane on top.
      */
     fun placeInChain(tracks: List<TimelineTrack>, chainId: String, clip: TimelineClip): List<TimelineTrack> {
-        val li = tracks.indexOfFirst { lane -> lane.clips.any { it.id == chainId && it.type == LayerType.CHAIN } }
+        // The lane search is native since migration stage 2 (clip_graph);
+        // the start solver stays with ProjectDocNative, as before.
+        val pack = ClipGraphNative.packGraph(tracks)
+        val li = ClipGraphNative.placeInChainLane(pack, pack.keyOf(chainId))
         if (li < 0) return place(tracks, clip.copy(chainId = null))
         val lane = tracks[li]
         val siblings = lane.clips.filter { it.chainId == chainId }
@@ -171,29 +171,29 @@ object LaneLayout {
 
     /** Every Chain layer covers exactly its layers (first start .. last end). A chain without layers keeps its own length. */
     fun fitChains(tracks: List<TimelineTrack>): List<TimelineTrack> {
-        var changed = false
-        val out = tracks.map { lane ->
-            val chain = lane.clips.firstOrNull { it.type == LayerType.CHAIN } ?: return@map lane
-            val kids = lane.clips.filter { it.chainId == chain.id }
-            if (kids.isEmpty()) return@map lane
-            val start = kids.minOf { it.startMs }
-            val end = kids.maxOf { it.endMs }
-            if (chain.startMs == start && chain.endMs == end) return@map lane
-            changed = true
-            lane.copy(clips = lane.clips.map { if (it.id == chain.id) it.copy(startMs = start, durationMs = end - start) else it })
+        // The per-chain window decisions are native since migration
+        // stage 2 (clip_graph); an unchanged project returns its input.
+        val pack = ClipGraphNative.packGraph(tracks)
+        val (changed, entries) = ClipGraphNative.fitChains(pack)
+        if (!changed) return tracks
+        val byClip = entries.associateBy { it.clip }
+        var idx = 0
+        return tracks.map { lane ->
+            lane.copy(clips = lane.clips.map { c ->
+                val e = byClip[idx++]
+                if (e != null) c.copy(startMs = e.startMs, durationMs = e.durationMs) else c
+            })
         }
-        return if (changed) out else tracks
     }
 
     /** Moves the lane at [fromIndex] to [toIndex] (stacking order). Indices are clamped. */
     fun reorder(tracks: List<TimelineTrack>, fromIndex: Int, toIndex: Int): List<TimelineTrack> {
-        if (tracks.isEmpty()) return tracks
-        val from = fromIndex.coerceIn(0, tracks.lastIndex)
-        val to = toIndex.coerceIn(0, tracks.lastIndex)
-        if (from == to) return tracks
+        // The clamp / identity decision is native since migration stage 2.
+        val plan = ClipGraphNative.nativeReorder(tracks.size, fromIndex, toIndex)
+        if (plan[0] != 0) return tracks
         val list = tracks.toMutableList()
-        val item = list.removeAt(from)
-        list.add(to, item)
+        val item = list.removeAt(plan[1])
+        list.add(plan[2], item)
         return list
     }
 

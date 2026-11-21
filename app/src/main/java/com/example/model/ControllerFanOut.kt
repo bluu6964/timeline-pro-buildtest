@@ -1,6 +1,6 @@
 package com.example.model
 
-import kotlin.math.abs
+import com.example.engine.ClipGraphNative
 
 /**
  * Controller fan-out (build 146 — Sarowar's Controller semantics v2, 2026-11-13).
@@ -60,11 +60,13 @@ import kotlin.math.abs
  */
 object ControllerFanOut {
 
-    private const val EPS = 0.0005f
-
     /** The layers of [clips] connected to the controller [controllerId] (never the controller itself). */
-    fun connected(clips: List<TimelineClip>, controllerId: String): List<TimelineClip> =
-        clips.filter { it.id != controllerId && (it.controllerId == controllerId || it.parent?.id == controllerId) }
+    fun connected(clips: List<TimelineClip>, controllerId: String): List<TimelineClip> {
+        // The membership scan is native since migration stage 2
+        // (clip_graph): the clips cross as a one-lane graph slice.
+        val pack = ClipGraphNative.packGraph(listOf(TimelineTrack(id = "fan", name = "Layer", clips = clips)))
+        return ClipGraphNative.connected(pack, pack.keyOf(controllerId)).map { clips[it] }
+    }
 
     /** True when [clip] is connected to the controller [controllerId] (see [connected]). */
     fun isConnected(clip: TimelineClip, controllerId: String): Boolean =
@@ -74,41 +76,27 @@ object ControllerFanOut {
      * [layer] rewritten with the fan-out of the Controller edit that took the Controller from
      * [before] to [after] (its stored states around the edit), the playhead at [timeMs].
      * Returns [layer] itself when nothing fanned out to it.
+     *
+     * The whole value plan — the three clips' at() evaluations, the delta /
+     * ratio / value rules with their EPS tests, the SCALE keyframe-b
+     * preservation, the colour-change detection over the evaluated colours
+     * and the stored gradient geometry, and the keyframe-rule mode of every
+     * write — is native since migration stage 2 (clip_graph). What stays
+     * here is the assembly: the plan's writes land through the stage-1
+     * withProp / withKeyframe ops in the original's order, and the blend /
+     * effects / fill-block copies (string and list equality + field
+     * copies, never computations) apply exactly where the original put
+     * them. The stored fillMode / fill image / fill video comparisons join
+     * the native colourChanged here, as those fields never cross.
      */
     fun fanned(layer: TimelineClip, before: TimelineClip, after: TimelineClip, timeMs: Long): TimelineClip {
         if (layer.id == before.id) return layer
-        val b = before.at(timeMs)
-        val a = after.at(timeMs)
-        val rel = (timeMs - layer.startMs).coerceIn(0L, layer.durationMs)
-        val resolved = layer.at(timeMs)
+        val plan = ClipGraphNative.fanPlan(before, after, layer, timeMs)
         var out = layer
-
-        // POSITION — delta: the layer moves by what the Controller moved, from its own place.
-        val dx = a.transformX - b.transformX
-        val dy = a.transformY - b.transformY
-        if (abs(dx) > EPS || abs(dy) > EPS) {
-            out = out.atPlayhead(AnimProp.POSITION, rel, resolved.transformX + dx, resolved.transformY + dy)
+        fun applyEntry(e: ClipGraphNative.FanEntryData) {
+            out = if (e.keyframe) out.withKeyframe(e.prop, plan.rel, e.a, e.b) else out.withProp(e.prop, e.a, e.b)
         }
-        // ROTATION — delta about the layer's OWN pivot: only its rotation value changes;
-        // its position is untouched, so the layer turns in place and never orbits.
-        val dr = a.rotationDeg - b.rotationDeg
-        if (abs(dr) > EPS) {
-            out = out.atPlayhead(AnimProp.ROTATION, rel, resolved.rotationDeg + dr, 0f)
-        }
-        // SCALE — relative about the layer's own pivot. The keyframe b (a separate height
-        // scale, importer form) is preserved from the layer's own track.
-        if (abs(b.scalePercent) > EPS) {
-            val ratio = a.scalePercent / b.scalePercent
-            if (abs(ratio - 1f) > EPS) {
-                val keys = layer.keyframes[AnimProp.SCALE].orEmpty()
-                val lb = if (keys.isEmpty()) 0f else keys.valueAt(rel).second
-                out = out.atPlayhead(AnimProp.SCALE, rel, resolved.scalePercent * ratio, lb)
-            }
-        }
-        // OPACITY — value: the Controller's opacity becomes the layer's.
-        if (abs(a.opacity - b.opacity) > EPS) {
-            out = out.atPlayhead(AnimProp.OPACITY, rel, a.opacity, 0f)
-        }
+        for (e in plan.entries) applyEntry(e)
         // BLEND MODE / EFFECTS — values (neither is keyframed): set on the layer outright.
         if (after.blendMode != before.blendMode) out = out.copy(blendMode = after.blendMode)
         if (after.effects != before.effects) out = out.copy(effects = after.effects)
@@ -119,15 +107,11 @@ object ControllerFanOut {
         // whose own fill was an image. The colours land at their playhead values by the
         // editor's keyframe rule. Other kinds have no colour concept: unaffected.
         if (layer.type == LayerType.SHAPE || layer.type == LayerType.TEXT) {
-            val colourChanged = after.fillMode != before.fillMode ||
-                after.gradType != before.gradType ||
-                after.gradX1 != before.gradX1 || after.gradY1 != before.gradY1 ||
-                after.gradX2 != before.gradX2 || after.gradY2 != before.gradY2 ||
+            val colourChanged = plan.colourScalarsChanged ||
+                after.fillMode != before.fillMode ||
                 after.fillImageUri != before.fillImageUri ||
                 after.fillImageMode != before.fillImageMode ||
-                after.fillVideoUri != before.fillVideoUri ||
-                a.textColor != b.textColor ||
-                a.gradColor1 != b.gradColor1 || a.gradColor2 != b.gradColor2
+                after.fillVideoUri != before.fillVideoUri
             if (colourChanged) {
                 out = out.copy(
                     fillMode = after.fillMode, gradType = after.gradType,
@@ -136,28 +120,9 @@ object ControllerFanOut {
                     fillImageUri = after.fillImageUri, fillImageMode = after.fillImageMode,
                     fillVideoUri = after.fillVideoUri
                 )
-                if (a.textColor != b.textColor) {
-                    val (pa, pb) = packColor(a.textColor)
-                    out = out.atPlayhead(AnimProp.FILL_COLOR, rel, pa, pb)
-                }
-                if (a.gradColor1 != b.gradColor1) {
-                    val (pa, pb) = packColor(a.gradColor1)
-                    out = out.atPlayhead(AnimProp.GRAD_COLOR_1, rel, pa, pb)
-                }
-                if (a.gradColor2 != b.gradColor2) {
-                    val (pa, pb) = packColor(a.gradColor2)
-                    out = out.atPlayhead(AnimProp.GRAD_COLOR_2, rel, pa, pb)
-                }
+                for (e in plan.colourEntries) applyEntry(e)
             }
         }
         return out
     }
-
-    /**
-     * The editor's keyframe rule for one fanned property: a layer that carries keyframes on
-     * [p] gets the value as a keyframe at [rel] (its stored fallback is untouched); a layer
-     * without them takes the value into its stored field.
-     */
-    private fun TimelineClip.atPlayhead(p: AnimProp, rel: Long, a: Float, b: Float): TimelineClip =
-        if (keyframes[p].isNullOrEmpty()) withProp(p, a, b) else withKeyframe(p, rel, a, b)
 }

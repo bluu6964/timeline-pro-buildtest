@@ -1,11 +1,20 @@
 package com.example.model
 
+import com.example.engine.ClipAlgebraNative
+import com.example.engine.ClipGraphNative
 import kotlinx.serialization.Serializable
 import java.util.UUID
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
+
+/** MaskState <-> the flat 8-float layout the native mask algebra uses. */
+internal fun MaskState.toMaskFloats(): FloatArray =
+    floatArrayOf(cx, cy, w, h, rot, feather, expand, opacity)
+
+internal fun maskStateFrom(f: FloatArray): MaskState =
+    MaskState(f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7])
 
 /** Shape of a mask. The numbers are am::MaskShape in cpp/engine/mask_plan.h. */
 object MaskShape {
@@ -57,11 +66,9 @@ data class MaskState(
     /** 0..100. */
     val opacity: Float = 100f
 ) {
-    fun lerp(o: MaskState, t: Float): MaskState = MaskState(
-        cx + (o.cx - cx) * t, cy + (o.cy - cy) * t, w + (o.w - w) * t, h + (o.h - h) * t,
-        rot + (o.rot - rot) * t, feather + (o.feather - feather) * t, expand + (o.expand - expand) * t,
-        opacity + (o.opacity - opacity) * t
-    )
+    /** Native since migration stage 2 (clip_graph): the per-field a + (b - a) * t law. */
+    fun lerp(o: MaskState, t: Float): MaskState =
+        maskStateFrom(ClipGraphNative.nativeMaskLerp(toMaskFloats(), o.toMaskFloats(), t))
 }
 
 /**
@@ -218,36 +225,29 @@ data class ClipMask(
         return withStateAt(relMs, t.unapply(shown, srcMs, scalesWithTrack))
     }
 
-    /** The animated look at [relMs] (ms after the layer start). */
+    /**
+     * The animated look at [relMs] (ms after the layer start). The segment
+     * walk, the easing test/apply and the lerp are native since migration
+     * stage 2 (clip_graph); the keys cross as parallel arrays.
+     */
     fun stateAt(relMs: Long): MaskState {
         if (keys.isEmpty()) return state
-        val first = keys.first()
-        if (relMs <= first.timeMs) return first.state
-        val last = keys.last()
-        if (relMs >= last.timeMs) return last.state
-        var i = 0
-        while (i < keys.size - 1 && keys[i + 1].timeMs <= relMs) i++
-        val k0 = keys[i]
-        val k1 = keys[i + 1]
-        val span = (k1.timeMs - k0.timeMs).coerceAtLeast(1L)
-        val t = (relMs - k0.timeMs).toFloat() / span
-        val e = if (k0.easing.isLinear) t else k0.easing.apply(t)
-        return k0.state.lerp(k1.state, e)
+        val times = LongArray(keys.size) { keys[it].timeMs }
+        val states = FloatArray(keys.size * 8)
+        val easings = FloatArray(keys.size * 4)
+        for ((i, k) in keys.withIndex()) {
+            k.state.toMaskFloats().copyInto(states, i * 8)
+            easings[i * 4] = k.easing.x1
+            easings[i * 4 + 1] = k.easing.y1
+            easings[i * 4 + 2] = k.easing.x2
+            easings[i * 4 + 3] = k.easing.y2
+        }
+        return maskStateFrom(ClipGraphNative.nativeMaskStateAt(state.toMaskFloats(), times, states, easings, relMs))
     }
 
-    /** Index of the key the time sits on (within [KEYFRAME_TOL_MS]), or -1. */
-    fun keyIndexAt(relMs: Long): Int {
-        var best = -1
-        var bestD = Long.MAX_VALUE
-        for (i in keys.indices) {
-            val d = abs(keys[i].timeMs - relMs)
-            if (d <= KEYFRAME_TOL_MS && d < bestD) {
-                best = i
-                bestD = d
-            }
-        }
-        return best
-    }
+    /** Index of the key the time sits on (within [KEYFRAME_TOL_MS]), or -1. Native since migration stage 2. */
+    fun keyIndexAt(relMs: Long): Int =
+        ClipGraphNative.nativeMaskKeyIndexAt(LongArray(keys.size) { keys[it].timeMs }, relMs)
 
     /** Edit: without keys the base state changes, with keys the key at [relMs] is replaced / added. */
     fun withStateAt(relMs: Long, s: MaskState): ClipMask {
@@ -276,12 +276,23 @@ data class ClipMask(
         return copy(keys = keys.toMutableList().also { it[index] = it[index].copy(easing = e) })
     }
 
-    fun withShiftedKeys(deltaMs: Long): ClipMask =
-        if (keys.isEmpty() || deltaMs == 0L) this else copy(keys = keys.map { it.copy(timeMs = it.timeMs + deltaMs) })
+    fun withShiftedKeys(deltaMs: Long): ClipMask {
+        if (keys.isEmpty() || deltaMs == 0L) return this
+        // The per-time law (wrapping add) is the stage-1 algebra native.
+        val times = LongArray(keys.size) { keys[it].timeMs }
+        val out = LongArray(keys.size)
+        ClipAlgebraNative.nativeShiftTimes(times, deltaMs, out)
+        return copy(keys = keys.mapIndexed { i, k -> if (out[i] == k.timeMs) k else k.copy(timeMs = out[i]) })
+    }
 
-    fun withScaledKeys(factor: Float): ClipMask =
-        if (keys.isEmpty() || abs(factor - 1f) < 1e-4f) this
-        else copy(keys = keys.map { it.copy(timeMs = (it.timeMs * factor).toLong()) })
+    fun withScaledKeys(factor: Float): ClipMask {
+        if (keys.isEmpty() || abs(factor - 1f) < 1e-4f) return this
+        // The per-time law ((timeMs * factor).toLong()) is the stage-1 algebra native.
+        val times = LongArray(keys.size) { keys[it].timeMs }
+        val out = LongArray(keys.size)
+        ClipAlgebraNative.nativeScaleTimes(times, factor, out)
+        return copy(keys = keys.mapIndexed { i, k -> if (out[i] == k.timeMs) k else k.copy(timeMs = out[i]) })
+    }
 }
 
 /** The masks of a layer, shifted / stretched together with the other keyframes (trim, split, speed change). */

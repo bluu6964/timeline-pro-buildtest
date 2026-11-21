@@ -1,5 +1,7 @@
 package com.example.model
 
+import com.example.engine.ClipGraphNative
+
 /**
  * Extract audio (build 203 — Sarowar's order 2026-11-15 ~10:37 + ~10:42: build
  * 203 carries TWO updates, detach from an existing video layer and Add Audio →
@@ -62,8 +64,22 @@ object ExtractAudio {
         isImage = false,
         sourceDurationMs = source.sourceDurationMs,
         trimStartMs = source.trimStartMs,
-        keyframes = source.keyframes.filterKeys { it == AnimProp.SPEED }
+        // Which keyframes ride along (the SPEED entry only) is decided
+        // natively since migration stage 2 (clip_graph), over the stage-1
+        // slice's prop counts; the field projection itself stays here.
+        keyframes = if (ClipGraphNative.nativeDetachedKeepSpeed(propCountsOf(source))) {
+            source.keyframes.filterKeys { it == AnimProp.SPEED }
+        } else {
+            emptyMap()
+        }
     )
+
+    /** The stage-1 slice's prop counts of [c] (-1 = absent, else the key count). */
+    private fun propCountsOf(c: TimelineClip): IntArray {
+        val counts = IntArray(AnimProp.values().size) { -1 }
+        for ((p, l) in c.keyframes) counts[p.ordinal] = l.size
+        return counts
+    }
 
     /**
      * The audio layer for Add Audio → "Extract from video": the picked video's
@@ -74,7 +90,8 @@ object ExtractAudio {
         id = newId,
         name = displayNameFor(item.name),
         type = LayerType.AUDIO,
-        startMs = startMs.coerceAtLeast(0L),
+        // The start coercion is native since migration stage 2 (clip_graph).
+        startMs = ClipGraphNative.nativeImportedStart(startMs),
         durationMs = item.durationMs,
         color = defaultClipColor(LayerType.AUDIO),
         uri = item.uri,
