@@ -29,7 +29,15 @@ import kotlin.math.ceil
  * for one snapshot, check [overflowed], and re-resolve after [reset]
  * (the two-pass pattern NativeTimelineEngine uses).
  */
-enum class UiLabelStyle(val sp: Float, val weight: Int, val letterSpacingSp: Float = 0f) {
+enum class UiLabelStyle(
+    val sp: Float,
+    val weight: Int,
+    val letterSpacingSp: Float = 0f,
+    /** Build 252 (stage 5): the monospace family (the editors' value readouts). */
+    val mono: Boolean = false,
+    /** Build 252 (stage 5): tabular figures (the blend header's opacity value). */
+    val tnum: Boolean = false
+) {
     /** Dock tile labels: 9.5 sp SemiBold. */
     DOCK(9.5f, 600),
 
@@ -93,7 +101,66 @@ enum class UiLabelStyle(val sp: Float, val weight: Int, val letterSpacingSp: Flo
     SHEET_ITEM_SEMI(12f, 600),
 
     /** Build 251 (stage 4): clip-sheet secondary text: 10.5 sp Regular. */
-    SHEET_DESC(10.5f, 400);
+    SHEET_DESC(10.5f, 400),
+
+    /** Build 252 (stage 5): editor row labels (RulerDialSlider): 12 sp Medium. */
+    ED_LABEL(12f, 500),
+
+    /** Build 252 (stage 5): slider value readouts: 11.5 sp Monospace Bold. */
+    ED_VALUE_MONO(11.5f, 700, mono = true),
+
+    /** Build 252 (stage 5): the shared value header's readout: 13 sp Monospace Bold. */
+    VALUE_HEADER_MONO(13f, 700, mono = true),
+
+    /** Build 252 (stage 5): editor screen titles: 14.5 sp Bold / 15 sp Bold (AppliedFx). */
+    SCREEN_TITLE(14.5f, 700),
+    SCREEN_TITLE_15(15f, 700),
+
+    /** Build 252 (stage 5): header pill labels (Done / Add): 12 sp Bold. */
+    PILL_TEXT(12f, 700),
+
+    /** Build 252 (stage 5): section micro-labels (AmMicroLabel): 9 sp SemiBold, 1 sp tracking. */
+    MICRO(9f, 600, letterSpacingSp = 1.0f),
+
+    /** Build 252 (stage 5): 11.5 sp editor text family (tabs, hints, bodies). */
+    ED_TEXT(11.5f, 400),
+    ED_TEXT_MED(11.5f, 500),
+    ED_TEXT_SEMI(11.5f, 600),
+    ED_TEXT_BOLD(11.5f, 700),
+
+    /** Build 252 (stage 5): 11 sp editor text family (chips, hints). */
+    TEXT_11(11f, 400),
+    TEXT_11_MED(11f, 500),
+    TEXT_11_SEMI(11f, 600),
+    TEXT_11_BOLD(11f, 700),
+
+    /** Build 252 (stage 5): 10.5 sp editor text family (small labels / hints). */
+    SMALL_MED(10.5f, 500),
+    SMALL_SEMI(10.5f, 600),
+    SMALL_BOLD(10.5f, 700),
+
+    /** Build 252 (stage 5): 10 sp plain text (strip labels). */
+    TEXT_10(10f, 400),
+
+    /** Build 252 (stage 5): animation curve chips: 8.5 sp Regular / Bold. */
+    CURVE(8.5f, 400),
+    CURVE_BOLD(8.5f, 700),
+
+    /** Build 252 (stage 5): colour header hex readout: 13.5 sp Medium. */
+    HEX_BIG(13.5f, 500),
+
+    /** Build 252 (stage 5): editor timecode rows: 10.5 sp Monospace Bold / Regular. */
+    TIMECODE_MONO(10.5f, 700, mono = true),
+    TIMECODE_MONO_N(10.5f, 400, mono = true),
+
+    /** Build 252 (stage 5): blend header opacity value: 12 sp SemiBold, tabular figures. */
+    BLEND_VALUE(12f, 600, tnum = true),
+
+    /** Build 252 (stage 5): big chip labels (shape editor): 13 sp Bold. */
+    CHIP_BIG(13f, 700),
+
+    /** Build 252 (stage 5): effects editor title: 12.5 sp Bold. */
+    TITLE_125(12.5f, 700);
 
     companion object {
         /** The pager label style for an auto-fit size (7.5–10 sp in 0.5 steps). */
@@ -158,21 +225,31 @@ class UiLabelAtlas(
         val p = TextPaint(Paint.ANTI_ALIAS_FLAG)
         p.color = Color.WHITE
         p.textSize = style.sp * density * fontScale
-        p.typeface = typefaceFor(style.weight)
+        p.typeface = typefaceFor(style)
         // Paint letter spacing is an em fraction of the text size.
         if (style.letterSpacingSp != 0f) p.letterSpacing = style.letterSpacingSp / style.sp
+        // Build 252: tabular figures for the readouts Compose marks "tnum".
+        if (style.tnum) p.fontFeatureSettings = "\"tnum\""
         p
     }
 
-    private fun typefaceFor(weight: Int): Typeface {
+    private fun typefaceFor(style: UiLabelStyle): Typeface {
         // Mirrors TlLabelAtlas: the classic create() overloads (the
         // (String, Int, Boolean) overload does not resolve in this project).
+        // Build 252: the monospace styles resolve in the monospace family,
+        // exactly as Compose's FontFamily.Monospace does.
+        if (style.mono) {
+            return Typeface.create(
+                "monospace",
+                if (style.weight >= 700) Typeface.BOLD else Typeface.NORMAL
+            )
+        }
         val family = when {
-            weight >= 700 -> "sans-serif"
-            weight >= 500 -> "sans-serif-medium"
+            style.weight >= 700 -> "sans-serif"
+            style.weight >= 500 -> "sans-serif-medium"
             else -> "sans-serif"
         }
-        val baseStyle = if (weight >= 700) Typeface.BOLD else Typeface.NORMAL
+        val baseStyle = if (style.weight >= 700) Typeface.BOLD else Typeface.NORMAL
         return Typeface.create(family, baseStyle)
     }
 
