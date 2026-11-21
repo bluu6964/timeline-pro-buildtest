@@ -131,7 +131,7 @@ enum class UiLabelStyle(
     /** Build 252 (stage 5): 11 sp editor text family (chips, hints). */
     TEXT_11(11f, 400),
     TEXT_11_MED(11f, 500),
-    TEXT_11_SEMI(11f, 600),
+    TEXT_12(12f, 400),
     TEXT_11_BOLD(11f, 700),
 
     /** Build 252 (stage 5): 10.5 sp editor text family (small labels / hints). */

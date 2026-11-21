@@ -36,7 +36,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.toArgb
 import com.example.engine.StickerLibrary
+import com.example.engine.UiLabelStyle
 import com.example.model.at
 import com.example.ui.theme.AmPanel
 import com.example.ui.theme.AmPanelElevated
@@ -72,48 +74,51 @@ fun StickerPickerSheet(
                 .padding(horizontal = 12.dp)
                 .padding(bottom = 16.dp)
         ) {
-            Text("Stickers", color = Color.White, fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold)
+            // Build 253 (stage 6): the title and the category tabs
+            // draw in GL (the tabs are a GlPillStrip; they used a plain
+            // clickable, so pressScale = 1). The sticker grid itself
+            // stays Compose: its tiles are bitmap thumbnails, which
+            // the alpha-only atlas cannot carry (stages 4–5 limit).
+            GlLabelLine("Stickers", UiLabelStyle.SHEET_TITLE_SEMI, 0xFFFFFFFF.toInt())
             Spacer(Modifier.height(8.dp))
 
             if (categories.isEmpty()) {
-                Text(
+                GlTextBlock(
                     "No stickers found. Add folders to app/src/main/assets/stickers.",
-                    color = Color(0xFFBBBBBB),
-                    fontSize = 12.sp
+                    UiLabelStyle.TEXT_12, 0xFFBBBBBB.toInt(),
+                    Modifier.fillMaxWidth()
                 )
                 return@Column
             }
 
-            // Category tabs
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                items(categories) { cat ->
-                    val on = cat == selected
-                    Box(
-                        modifier = Modifier
-                            .background(
-                                if (on) AmPillSelected else AmPanelHigh,
-                                androidx.compose.foundation.shape.CircleShape
-                            )
-                            .clip(androidx.compose.foundation.shape.CircleShape)
-                            .clickable { selected = cat }
-                            .padding(horizontal = 11.dp, vertical = 5.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        // Pill tab (build 207): selected = the filled pill.
-                        Text(
-                            cat.replaceFirstChar { it.uppercase() },
-                            color = if (on) Color.White else AmTextDim,
-                            fontSize = 11.5.sp,
-                            fontWeight = if (on) FontWeight.Bold else FontWeight.Medium
-                        )
-                    }
-                }
-            }
+            // Category tabs — pill tab (build 207): selected = the filled pill.
+            GlPillStrip(
+                items = categories.map { cat ->
+                    val label = cat.replaceFirstChar { it.uppercase() }
+                    GlPillItem(
+                        label = label,
+                        selected = cat == selected,
+                        tag = "",
+                        description = label,
+                        onClick = { selected = cat }
+                    )
+                },
+                labelStyle = { if (it) UiLabelStyle.ED_TEXT_BOLD else UiLabelStyle.ED_TEXT_MED },
+                textArgb = { if (it) 0xFFFFFFFF.toInt() else AmTextDim.toArgb() },
+                fillArgb = { if (it) AmPillSelected.toArgb() else AmPanelHigh.toArgb() },
+                borderArgb = { null },
+                padHDp = 11f,
+                padVDp = 5f,
+                gapDp = 6f,
+                modifier = Modifier.fillMaxWidth(),
+                pressScale = 1.0f,
+                scrollable = true
+            )
 
             Spacer(Modifier.height(10.dp))
 
             if (stickerItems.isEmpty()) {
-                Text("This category is empty.", color = Color(0xFFBBBBBB), fontSize = 12.sp)
+                GlLabelLine("This category is empty.", UiLabelStyle.TEXT_12, 0xFFBBBBBB.toInt())
             } else {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(5),
@@ -135,6 +140,12 @@ fun StickerPickerSheet(
     }
 }
 
+/**
+ * Build 253 (stage 6): STAYS Compose — the tile is a bitmap thumbnail
+ * (a colour image), which the alpha-only label atlas cannot carry
+ * (the stages 4–5 proven limit, same as the Replace-sheet photos).
+ * The "ANIM" badge stays with the tile it annotates.
+ */
 @Composable
 private fun StickerTile(item: StickerLibrary.Item, onClick: () -> Unit) {
     // Frame 0 is the thumbnail (cached by StickerLibrary).

@@ -6,23 +6,18 @@ import androidx.compose.runtime.LaunchedEffect
 import com.example.model.TimelineClip
 import com.example.model.MIN_SPEED
 import com.example.model.MAX_SPEED
-import androidx.compose.foundation.background
+import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -30,27 +25,92 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.example.engine.NativeVectorCanvas
+import com.example.engine.UiLabelAtlas
+import com.example.engine.UiLabelStyle
+import com.example.engine.rememberUiAtlas
+import com.example.model.ChromeGeometry
+import com.example.model.EditorGeometry
+import com.example.model.PanelGeometry
 import com.example.ui.theme.AmPanelHigh
-import com.example.ui.theme.EditorSurface
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
-import com.example.ui.util.bouncyClickable
 import java.util.Locale
 import kotlin.math.roundToInt
 
+// Build 253 (stage 6): the audio sheets draw in GL — their sliders
+// are the stage-5 GlSlider with the settled B/W palette (build 201:
+// white thumb + active track, 0xFF3A3A3A inactive), their switches
+// are GlSwitch, and every text is a GL leaf.
+private val AUDIO_THUMB_ARGB: Int = Color.White.toArgb()
+private val AUDIO_ACTIVE_ARGB: Int = Color.White.toArgb()
+private val AUDIO_INACTIVE_ARGB: Int = 0xFF3A3A3A.toInt()
+
+/**
+ * Build 253 (stage 6): one ducking trigger row — a full-width tap row
+ * whose single ellipsized name line draws in GL and press-scales
+ * about the row centre (the build-252 Text carried bouncyClickable +
+ * 6dp vertical padding itself).
+ */
 @Composable
-// Settled B/W tokens (build 201, audit cosmetic note: the sheets named the
-// legacy NeonCyan alias — same white value, wrong name — for thumbs, readouts
-// and switch tracks; they now use the tokens every other sheet uses).
-private fun sliderColors() = SliderDefaults.colors(
-    thumbColor = Color.White,
-    activeTrackColor = Color.White,
-    inactiveTrackColor = Color(0xFF3A3A3A)
-)
+private fun AudioTriggerRow(name: String, selected: Boolean, onClick: () -> Unit) {
+    val style = if (selected) UiLabelStyle.TEXT_125_BOLD else UiLabelStyle.TEXT_125
+    val colorArgb = if (selected) TextPrimary.toArgb() else TextSecondary.toArgb()
+    val density = LocalDensity.current.density
+    val atlas = rememberUiAtlas()
+    val pad = UiLabelAtlas.PAD.toFloat()
+    val textH = atlas.textHeightPx(style)
+    val scale = remember { Animatable(1f) }
+
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val wPx = maxWidth.value * density
+        val shown = remember(name, wPx, style) {
+            ChromeGeometry.ellipsize(name, wPx) { atlas.measure(it, style) }
+        }
+        fun resolveName() = atlas.resolve(shown, style)
+        var nameE = resolveName()
+        if (atlas.overflowed) {
+            atlas.reset()
+            nameE = resolveName()
+        }
+        val e = nameE
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(((textH + 12f * density) / density).dp)
+        ) {
+            NativeVectorCanvas(
+                modifier = Modifier.fillMaxSize(),
+                clearArgb = 0,
+                atlas = atlas,
+                drawKey = listOf(e, scale.value, atlas.generation),
+                buildCmds = { w, h, _ ->
+                    if (e != null) {
+                        setScaleAbout(w / 2f, h / 2f, scale.value)
+                        val fm = atlas.fontMetrics(style)
+                        val top = EditorGeometry.centredTextTopPx(0f, h, textH)
+                        val baseline = PanelGeometry.lineBaselinePx(top, textH, fm.ascent, fm.descent)
+                        val (dstX, dstY) = EditorGeometry.textDst(0f, baseline, e.bearing, e.base, pad)
+                        addText(
+                            e.index, dstX, dstY,
+                            0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                            tintArgb = colorArgb
+                        )
+                        clearTransform()
+                    }
+                }
+            )
+            ChromePressBox(
+                scale, 0.94f, onClick,
+                Modifier.fillMaxSize(),
+                description = name
+            )
+        }
+    }
+}
 
 /** Volume of one layer (audio or video), 0..200 %, plus a mute switch. Changes are applied live. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -74,22 +134,27 @@ fun AudioVolumeSheet(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Volume", color = TextPrimary, fontSize = 14.5.sp, fontWeight = FontWeight.Bold)
-                Text(
+                GlLabelLine("Volume", UiLabelStyle.SHEET_TITLE, TextPrimary.toArgb())
+                GlLabelLine(
                     if (muted) "Muted" else "${(volume * 100f).roundToInt()}%",
-                    color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold
+                    UiLabelStyle.TEXT_13_BOLD, TextPrimary.toArgb()
                 )
             }
             Spacer(modifier = Modifier.height(8.dp))
-            Slider(
+            GlSlider(
                 value = volume.coerceIn(0f, 2f),
                 onValueChange = {
                     onVolumeChange(it)
                     // Moving the slider means "I want to hear it": leave mute.
                     if (muted) onMutedChange?.invoke(false)
                 },
-                valueRange = 0f..2f,
-                colors = sliderColors()
+                min = 0f,
+                max = 2f,
+                onValueChangeFinished = null,
+                thumbArgb = AUDIO_THUMB_ARGB,
+                activeArgb = AUDIO_ACTIVE_ARGB,
+                inactiveArgb = AUDIO_INACTIVE_ARGB,
+                modifier = Modifier.fillMaxWidth()
             )
             if (onMutedChange != null) {
                 Spacer(modifier = Modifier.height(6.dp))
@@ -98,11 +163,11 @@ fun AudioVolumeSheet(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Mute this layer", color = TextSecondary, fontSize = 12.sp)
-                    Switch(
+                    GlLabelLine("Mute this layer", UiLabelStyle.SHEET_ITEM, TextSecondary.toArgb())
+                    GlSwitch(
                         checked = muted,
                         onCheckedChange = onMutedChange,
-                        colors = SwitchDefaults.colors(checkedTrackColor = Color.White)
+                        description = "Mute this layer"
                     )
                 }
             }
@@ -128,21 +193,29 @@ fun AudioFadeSheet(
                 .padding(horizontal = 14.dp, vertical = 6.dp)
                 .padding(bottom = 16.dp)
         ) {
-            Text("Fade", color = TextPrimary, fontSize = 14.5.sp, fontWeight = FontWeight.Bold)
+            GlLabelLine("Fade", UiLabelStyle.SHEET_TITLE, TextPrimary.toArgb())
             Spacer(modifier = Modifier.height(8.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("Fade in", color = TextSecondary, fontSize = 12.sp)
-                Text(String.format(Locale.US, "%.1fs", fadeInMs / 1000f), color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                GlLabelLine("Fade in", UiLabelStyle.SHEET_ITEM, TextSecondary.toArgb())
+                GlLabelLine(
+                    String.format(Locale.US, "%.1fs", fadeInMs / 1000f),
+                    UiLabelStyle.SHEET_ITEM_BOLD, TextPrimary.toArgb()
+                )
             }
-            Slider(
+            GlSlider(
                 value = fadeInMs.toFloat().coerceIn(0f, maxFade),
                 onValueChange = { onChange(it.toLong(), fadeOutMs) },
-                valueRange = 0f..maxFade,
-                colors = sliderColors()
+                min = 0f,
+                max = maxFade,
+                onValueChangeFinished = null,
+                thumbArgb = AUDIO_THUMB_ARGB,
+                activeArgb = AUDIO_ACTIVE_ARGB,
+                inactiveArgb = AUDIO_INACTIVE_ARGB,
+                modifier = Modifier.fillMaxWidth()
             )
 
             Spacer(modifier = Modifier.height(6.dp))
@@ -150,14 +223,22 @@ fun AudioFadeSheet(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("Fade out", color = TextSecondary, fontSize = 12.sp)
-                Text(String.format(Locale.US, "%.1fs", fadeOutMs / 1000f), color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                GlLabelLine("Fade out", UiLabelStyle.SHEET_ITEM, TextSecondary.toArgb())
+                GlLabelLine(
+                    String.format(Locale.US, "%.1fs", fadeOutMs / 1000f),
+                    UiLabelStyle.SHEET_ITEM_BOLD, TextPrimary.toArgb()
+                )
             }
-            Slider(
+            GlSlider(
                 value = fadeOutMs.toFloat().coerceIn(0f, maxFade),
                 onValueChange = { onChange(fadeInMs, it.toLong()) },
-                valueRange = 0f..maxFade,
-                colors = sliderColors()
+                min = 0f,
+                max = maxFade,
+                onValueChangeFinished = null,
+                thumbArgb = AUDIO_THUMB_ARGB,
+                activeArgb = AUDIO_ACTIVE_ARGB,
+                inactiveArgb = AUDIO_INACTIVE_ARGB,
+                modifier = Modifier.fillMaxWidth()
             )
         }
     }
@@ -203,12 +284,16 @@ fun AudioSpeedSheet(
                 .padding(bottom = 16.dp)
         ) {
             Spacer(modifier = Modifier.height(2.dp))
-            Slider(
+            GlSlider(
                 value = shown,
                 onValueChange = { v -> shown = v },
+                min = MIN_SPEED,
+                max = MAX_SPEED,
                 onValueChangeFinished = { onSpeedChange(shown) },
-                valueRange = MIN_SPEED..MAX_SPEED,
-                colors = sliderColors()
+                thumbArgb = AUDIO_THUMB_ARGB,
+                activeArgb = AUDIO_ACTIVE_ARGB,
+                inactiveArgb = AUDIO_INACTIVE_ARGB,
+                modifier = Modifier.fillMaxWidth()
             )
             Spacer(modifier = Modifier.height(6.dp))
             Row(
@@ -216,15 +301,19 @@ fun AudioSpeedSheet(
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 listOf(0.1f, 0.5f, 1f, 2f, 4f).forEach { preset ->
-                    Text(
-                        text = String.format(Locale.US, "%.1fx", preset),
-                        color = TextPrimary,
-                        fontSize = 11.5.sp,
-                        modifier = Modifier
-                            .clip(CircleShape)
-                            .background(AmPanelHigh)
-                            .bouncyClickable { applySpeed(preset) }
-                            .padding(horizontal = 10.dp, vertical = 5.dp)
+                    GlChip(
+                        label = String.format(Locale.US, "%.1fx", preset),
+                        selected = false,
+                        tag = "",
+                        onClick = { applySpeed(preset) },
+                        padHDp = 10f,
+                        padVDp = 5f,
+                        styleOn = UiLabelStyle.ED_TEXT,
+                        styleOff = UiLabelStyle.ED_TEXT,
+                        fillOnArgb = AmPanelHigh.toArgb(),
+                        fillOffArgb = AmPanelHigh.toArgb(),
+                        textOnArgb = TextPrimary.toArgb(),
+                        textOffArgb = TextPrimary.toArgb()
                     )
                 }
             }
@@ -263,48 +352,44 @@ fun AudioDuckingSheet(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Ducking", color = TextPrimary, fontSize = 14.5.sp, fontWeight = FontWeight.Bold)
-                Switch(
+                GlLabelLine("Ducking", UiLabelStyle.SHEET_TITLE, TextPrimary.toArgb())
+                GlSwitch(
                     checked = enabled,
                     onCheckedChange = { onChange(it, triggerId, amountDb, smoothness) },
-                    colors = SwitchDefaults.colors(checkedTrackColor = Color.White)
+                    description = "Ducking"
                 )
             }
-            Text(
+            GlTextBlock(
                 "Lower this layer's volume automatically while another layer is loud, " +
                     "and let it back up in the gaps.",
-                color = TextSecondary, fontSize = 11.sp
+                UiLabelStyle.TEXT_11, TextSecondary.toArgb(),
+                Modifier.fillMaxWidth()
             )
             if (triggers.isEmpty()) {
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(
+                GlTextBlock(
                     "No other layer with sound yet. Add a voice or music layer first, " +
                         "then pick it here as the trigger.",
-                    color = TextSecondary, fontSize = 12.sp
+                    UiLabelStyle.SHEET_ITEM, TextSecondary.toArgb(),
+                    Modifier.fillMaxWidth()
                 )
             } else if (enabled) {
                 Spacer(modifier = Modifier.height(10.dp))
-                Text("Duck under", color = TextSecondary, fontSize = 12.sp)
+                GlLabelLine("Duck under", UiLabelStyle.SHEET_ITEM, TextSecondary.toArgb())
                 Spacer(modifier = Modifier.height(4.dp))
                 triggers.forEach { trigger ->
                     val selected = trigger.id == triggerId
-                    Text(
-                        text = trigger.name,
-                        color = if (selected) TextPrimary else TextSecondary,
-                        fontSize = 12.5.sp,
-                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                        maxLines = 1,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .bouncyClickable { onChange(true, trigger.id, amountDb, smoothness) }
-                            .padding(vertical = 6.dp)
+                    AudioTriggerRow(
+                        name = trigger.name,
+                        selected = selected,
+                        onClick = { onChange(true, trigger.id, amountDb, smoothness) }
                     )
                 }
                 if (triggerId != null && triggers.none { it.id == triggerId }) {
-                    Text(
+                    GlLabelLine(
                         "The trigger layer was removed — pick another layer above.",
-                        color = TextSecondary, fontSize = 11.sp,
-                        modifier = Modifier.padding(vertical = 4.dp)
+                        UiLabelStyle.TEXT_11, TextSecondary.toArgb(),
+                        Modifier.padding(vertical = 4.dp)
                     )
                 }
                 Spacer(modifier = Modifier.height(6.dp))
@@ -312,33 +397,43 @@ fun AudioDuckingSheet(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text("Amount", color = TextSecondary, fontSize = 12.sp)
-                    Text(
+                    GlLabelLine("Amount", UiLabelStyle.SHEET_ITEM, TextSecondary.toArgb())
+                    GlLabelLine(
                         "−${amountDb.roundToInt()} dB",
-                        color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold
+                        UiLabelStyle.SHEET_ITEM_BOLD, TextPrimary.toArgb()
                     )
                 }
-                Slider(
+                GlSlider(
                     value = amountDb.coerceIn(0f, com.example.model.Ducking.MAX_AMOUNT_DB),
                     onValueChange = { onChange(true, triggerId, it, smoothness) },
-                    valueRange = 0f..com.example.model.Ducking.MAX_AMOUNT_DB,
-                    colors = sliderColors()
+                    min = 0f,
+                    max = com.example.model.Ducking.MAX_AMOUNT_DB,
+                    onValueChangeFinished = null,
+                    thumbArgb = AUDIO_THUMB_ARGB,
+                    activeArgb = AUDIO_ACTIVE_ARGB,
+                    inactiveArgb = AUDIO_INACTIVE_ARGB,
+                    modifier = Modifier.fillMaxWidth()
                 )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text("Smoothness", color = TextSecondary, fontSize = 12.sp)
-                    Text(
+                    GlLabelLine("Smoothness", UiLabelStyle.SHEET_ITEM, TextSecondary.toArgb())
+                    GlLabelLine(
                         "${(smoothness * 100f).roundToInt()}%",
-                        color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold
+                        UiLabelStyle.SHEET_ITEM_BOLD, TextPrimary.toArgb()
                     )
                 }
-                Slider(
+                GlSlider(
                     value = smoothness.coerceIn(0f, 1f),
                     onValueChange = { onChange(true, triggerId, amountDb, it) },
-                    valueRange = 0f..1f,
-                    colors = sliderColors()
+                    min = 0f,
+                    max = 1f,
+                    onValueChangeFinished = null,
+                    thumbArgb = AUDIO_THUMB_ARGB,
+                    activeArgb = AUDIO_ACTIVE_ARGB,
+                    inactiveArgb = AUDIO_INACTIVE_ARGB,
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
         }
@@ -373,17 +468,18 @@ fun AudioNoiseSheet(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Noise reduction", color = TextPrimary, fontSize = 14.5.sp, fontWeight = FontWeight.Bold)
-                Switch(
+                GlLabelLine("Noise reduction", UiLabelStyle.SHEET_TITLE, TextPrimary.toArgb())
+                GlSwitch(
                     checked = enabled,
                     onCheckedChange = { onChange(it, strength) },
-                    colors = SwitchDefaults.colors(checkedTrackColor = Color.White)
+                    description = "Noise reduction"
                 )
             }
-            Text(
+            GlTextBlock(
                 "Remove the steady background noise of this layer — hiss, hum, fan " +
                     "noise — while keeping the voice or music on top of it.",
-                color = TextSecondary, fontSize = 11.sp
+                UiLabelStyle.TEXT_11, TextSecondary.toArgb(),
+                Modifier.fillMaxWidth()
             )
             if (enabled) {
                 Spacer(modifier = Modifier.height(10.dp))
@@ -391,23 +487,29 @@ fun AudioNoiseSheet(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text("Strength", color = TextSecondary, fontSize = 12.sp)
-                    Text(
+                    GlLabelLine("Strength", UiLabelStyle.SHEET_ITEM, TextSecondary.toArgb())
+                    GlLabelLine(
                         "${(strength * 100f).roundToInt()}%",
-                        color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold
+                        UiLabelStyle.SHEET_ITEM_BOLD, TextPrimary.toArgb()
                     )
                 }
-                Slider(
+                GlSlider(
                     value = strength.coerceIn(0f, 1f),
                     onValueChange = { onChange(true, it) },
-                    valueRange = 0f..1f,
-                    colors = sliderColors()
+                    min = 0f,
+                    max = 1f,
+                    onValueChangeFinished = null,
+                    thumbArgb = AUDIO_THUMB_ARGB,
+                    activeArgb = AUDIO_ACTIVE_ARGB,
+                    inactiveArgb = AUDIO_INACTIVE_ARGB,
+                    modifier = Modifier.fillMaxWidth()
                 )
-                Text(
+                GlTextBlock(
                     "The layer's sound is analysed the first time it plays and after " +
                         "its trim or speed changes — until the analysis lands, the layer " +
                         "plays unprocessed. Exports are always cleaned.",
-                    color = TextSecondary, fontSize = 11.sp
+                    UiLabelStyle.TEXT_11, TextSecondary.toArgb(),
+                    Modifier.fillMaxWidth()
                 )
             }
         }

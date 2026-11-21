@@ -3,20 +3,17 @@ package com.example.ui.components
 import com.example.ui.theme.AmCardSurface
 import com.example.ui.theme.AmSheetShape
 
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.draw.clip
-
-import androidx.compose.foundation.background
+import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Brush
@@ -31,22 +28,26 @@ import androidx.compose.material.icons.filled.Polyline
 import androidx.compose.material.icons.filled.SentimentSatisfiedAlt
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.example.engine.NativeVectorCanvas
+import com.example.engine.UiLabelAtlas
+import com.example.engine.UiLabelStyle
+import com.example.engine.rememberUiAtlas
+import com.example.model.EditorGeometry
+import com.example.model.PanelGeometry
+import com.example.model.SheetGeometry
 import com.example.ui.theme.AmCyan
 import com.example.ui.theme.AmPanel
 import com.example.ui.theme.AmTextDim
 import com.example.ui.theme.TextPrimary
-import com.example.ui.util.bouncyClickable
+import kotlin.math.roundToInt
 
 /** Opened by the round "+" button and the add-layer icon: what kind of layer to add. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -82,7 +83,8 @@ fun AddLayerSheet(
                 .padding(horizontal = 12.dp)
                 .padding(bottom = 18.dp)
         ) {
-            Text("Add layer", color = TextPrimary, fontSize = 14.5.sp, fontWeight = FontWeight.Bold)
+            // Build 253 (stage 6): the title draws in GL.
+            GlLabelLine("Add layer", UiLabelStyle.SHEET_TITLE, TextPrimary.toArgb())
             Spacer(Modifier.height(10.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 Item("Media", Icons.Default.AddPhotoAlternate, "add_sheet_media") { onDismiss(); onMedia() }
@@ -114,26 +116,76 @@ fun AddLayerSheet(
     }
 }
 
+/**
+ * Build 253 (stage 6): one add-layer tile on a single GL surface — the
+ * card fill (unscaled: it sat outside bouncyClickable's graphicsLayer)
+ * with the icon + label press-scaled about the centre. A rounded card
+ * tile (build 207 redesign): the same tile language as the tools grid.
+ */
 @Composable
 private fun RowScope.Item(label: String, icon: ImageVector, tag: String, onClick: () -> Unit) {
+    val g = SheetGeometry.AddTile
+    val painter = rememberVectorPainter(icon)
+    val density = LocalDensity.current.density
+    val atlas = rememberUiAtlas()
+    val pad = UiLabelAtlas.PAD.toFloat()
+    val labelH = atlas.textHeightPx(UiLabelStyle.SMALL_MED)
+    fun resolveTile(): Pair<UiLabelAtlas.Entry?, UiLabelAtlas.Entry?> {
+        val t = atlas.resolve(label, UiLabelStyle.SMALL_MED)
+        val i = atlas.iconEntry("addtile:$label", painter, (g.ICON_DP * density).roundToInt(), density)
+        return t to i
+    }
+    var entries = resolveTile()
+    if (atlas.overflowed) {
+        atlas.reset()
+        entries = resolveTile()
+    }
+    val (labelE, iconE) = entries
+    val tileH = g.heightPx(labelH, density)
+    val scale = remember { Animatable(1f) }
+
     Box(
-        modifier = Modifier
+        Modifier
             .weight(1f)
-            .background(AmCardSurface, RoundedCornerShape(14.dp))
-            .clip(RoundedCornerShape(14.dp))
-            .bouncyClickable(onClick = onClick)
-            .testTag(tag),
-        contentAlignment = Alignment.Center
+            .height((tileH / density).dp)
     ) {
-        // A rounded card tile (build 207 redesign): icon + label on the card
-        // surface — the same tile language as the tools grid.
-        Column(
-            modifier = Modifier.padding(vertical = 10.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Icon(icon, label, tint = AmCyan, modifier = Modifier.size(20.dp))
-            Spacer(Modifier.height(4.dp))
-            Text(label, color = AmTextDim, fontSize = 10.5.sp, fontWeight = FontWeight.Medium)
-        }
+        NativeVectorCanvas(
+            modifier = Modifier.fillMaxSize(),
+            clearArgb = 0,
+            atlas = atlas,
+            drawKey = listOf(labelE, iconE, scale.value, atlas.generation),
+            buildCmds = { w, h, dd ->
+                addRoundRect(w / 2f, h / 2f, w, h, g.CORNER_DP * dd, AmCardSurface.toArgb())
+                setScaleAbout(w / 2f, h / 2f, scale.value)
+                iconE?.let { e ->
+                    addText(
+                        e.index,
+                        w / 2f - e.rectW / 2f, g.PAD_V_DP * dd - pad,
+                        0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                        tintArgb = AmCyan.toArgb()
+                    )
+                }
+                labelE?.let { e ->
+                    val style = UiLabelStyle.SMALL_MED
+                    val fm = atlas.fontMetrics(style)
+                    val top = (g.PAD_V_DP + g.ICON_DP + g.GAP_DP) * dd
+                    val baseline = PanelGeometry.lineBaselinePx(top, labelH, fm.ascent, fm.descent)
+                    val originX = EditorGeometry.centredOriginPx(w / 2f, e.advance)
+                    val (dstX, dstY) = EditorGeometry.textDst(originX, baseline, e.bearing, e.base, pad)
+                    addText(
+                        e.index, dstX, dstY,
+                        0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                        tintArgb = AmTextDim.toArgb()
+                    )
+                }
+                clearTransform()
+            }
+        )
+        ChromePressBox(
+            scale, 0.94f, onClick,
+            Modifier.fillMaxSize(),
+            tag = tag,
+            description = label
+        )
     }
 }
