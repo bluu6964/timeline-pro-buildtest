@@ -417,9 +417,16 @@ object ChromeGeometry {
         fun tileTopPx(centerYPx: Float, textHeightPx: Float, density: Float): Float =
             centerYPx - tileHeightPx(textHeightPx, density) / 2f
 
-        /** Mini tile lefts: Delete hugs the content's right edge, All sits 6 dp before it. */
-        fun deleteTileLeftPx(widthPx: Float, density: Float): Float =
+        /**
+         * Mini tile lefts (build 260: the bar gains a Done tile — it
+         * hugs the content's right edge, Delete sits 6 dp before it,
+         * All 6 dp before Delete).
+         */
+        fun doneTileLeftPx(widthPx: Float, density: Float): Float =
             contentLeftPx(density) + contentWidthPx(widthPx, density) - TILE_W_DP * density
+
+        fun deleteTileLeftPx(widthPx: Float, density: Float): Float =
+            doneTileLeftPx(widthPx, density) - (TILE_GAP_DP + TILE_W_DP) * density
 
         fun allTileLeftPx(widthPx: Float, density: Float): Float =
             deleteTileLeftPx(widthPx, density) - (TILE_GAP_DP + TILE_W_DP) * density

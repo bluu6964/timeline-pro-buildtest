@@ -234,9 +234,11 @@ class ChromeGeometryTest {
         // Label height 19 px (7.5 sp at d=2, rounded): tile = 40 + 19 = 59.
         assertEquals(59f, m.tileHeightPx(19f, d), 0f)
         assertEquals(14.5f, m.tileTopPx(44f, 19f, d), 0f)
-        // Delete tile hugs the right edge: 32 + 736 - 64 = 704; All at 704 - 76.
-        assertEquals(704f, m.deleteTileLeftPx(800f, d), 0f)
-        assertEquals(628f, m.allTileLeftPx(800f, d), 0f)
+        // Build 260: Done hugs the right edge: 32 + 736 - 64 = 704;
+        // Delete at 704 - 76 = 628; All at 628 - 76 = 552.
+        assertEquals(704f, m.doneTileLeftPx(800f, d), 0f)
+        assertEquals(628f, m.deleteTileLeftPx(800f, d), 0f)
+        assertEquals(552f, m.allTileLeftPx(800f, d), 0f)
         // Mini glyph (20 dp) centred in the 32 dp tile: +6 dp = 12 px.
         assertEquals(716f, m.glyphLeftPx(704f, 32f, 20f, d), 0f)
         assertEquals(18.5f, m.glyphTopPx(14.5f, d), 0f)

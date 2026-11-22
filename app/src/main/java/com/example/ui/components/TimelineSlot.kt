@@ -12,7 +12,6 @@ import com.example.model.ShapeBooleanOp
 import com.example.model.SpatialAction
 import com.example.model.TimelineTrack
 import com.example.model.keyframeTimes
-import com.example.ui.util.enterPop
 import com.example.viewmodel.VideoEditorViewModel
 
 /**
@@ -63,9 +62,11 @@ fun TimelineSlot(
     // switch ON, the ruler + lanes render on the C++ surface in
     // this same slot (ruler 44 dp + the layer panel's height);
     // the panel's non-drawing duties — build-211 publishing,
-    // the selected-layer bar, the multi-select bar, the group
-    // bar — are composed over it, unchanged. OFF = the Compose
-    // ruler + panel in the else branch, exactly as in build 223.
+    // the selected-layer bar, the group bar — are composed over
+    // it, unchanged. (Build 260: the multi-select bar is NOT one
+    // of them any more — it lives in the screen's footer slot.)
+    // OFF = the Compose ruler + panel in the else branch, exactly
+    // as in build 223.
     val showActionBarNative = multiSelectIds.isEmpty() && selectedClipId != null
     if (nativeTimeline) {
         Box(Modifier.fillMaxWidth().height(rulerH + layerPanelH)) {
@@ -140,23 +141,10 @@ fun TimelineSlot(
                     modifier = Modifier.align(Alignment.BottomCenter)
                 )
             }
-            if (multiSelectIds.isNotEmpty()) {
-                com.example.ui.components.TimelineMultiBarOverlay(
-                    tracks = restrictedTracks ?: shownTracks,
-                    multiSelectIds = multiSelectIds,
-                    playheadMs = playheadProvider,
-                    onAction = { viewModel.applyMultiAction(it) },
-                    onSpatialAction = onSpatialActionVal,
-                    onBooleanAction = onBooleanActionVal,
-                    onDeleteChecked = onDeleteCheckedLayersAction,
-                    onSelectAll = { viewModel.selectAllLayers() },
-                    toolsPanelOpen = toolsPanelOpen,
-                    barActionsPanel = barActionsState,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .enterPop(fromBottom = true)
-                )
-            }
+            // Build 260: no multi-select overlay here any more — the
+            // screen composes MultiBarHost in the FOOTER slot during
+            // multi-select (it replaces the dock automatically), and
+            // the host publishes the grid tiles from there too.
             val editingGroup = editingGroupId?.let { gid -> tracks.flatMap { it.clips }.firstOrNull { it.id == gid } }
             if (editingGroup != null) {
                 com.example.ui.components.GroupEditBar(

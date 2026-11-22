@@ -126,6 +126,7 @@ import androidx.compose.ui.unit.coerceAtLeast
 import androidx.compose.ui.unit.coerceAtMost
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.model.ChromeGeometry
 import com.example.model.LayerType
 import com.example.model.ScopeData
 import com.example.model.ScopeStats
@@ -2437,7 +2438,22 @@ fun VideoEditorScreen(
             // glyphs order; the footer still takes space from the lower
             // zone only (canvas law untouched).
             val dockH = if (toolbarH >= 60.dp) toolbarH else 60.dp
-            val renderedFooterH = if (selectedClipId == null) dockH else footerH
+            // Build 260 (Sarowar's order): while multi-select is active
+            // the footer slot belongs to the multi-select bar — it
+            // replaces the dock automatically, no tap. The slot budgets
+            // the bar's own height (ChromeGeometry.Multi's law, the
+            // boolean row included when the SAME eligibility rule the
+            // bar uses says so); while the tools panel is open the bar
+            // renders nowhere (build 211) and the slot collapses.
+            val multiFooterH = when {
+                multiSelectIds.isEmpty() -> 0.dp
+                toolsPanelOpen -> 0.dp
+                else -> ChromeGeometry.Multi.totalHeightDp(
+                    com.example.ui.components.multiBooleanReady(tracks, multiSelectIds, playheadState.value)
+                ).dp
+            }
+            val renderedFooterH = if (multiSelectIds.isNotEmpty()) multiFooterH
+                else if (selectedClipId == null) dockH else footerH
             val rulerH = 34.dp
             val workspaceH = 0.dp
             val contextualH = 0.dp
@@ -3272,9 +3288,16 @@ fun VideoEditorScreen(
                     }
                 }
 
-                // 6. Footer: Clip Edit Tools Panel if clip is selected, otherwise Main Bottom Toolbar
+                // 6. Footer: Clip Edit Tools Panel if clip is selected, otherwise Main Bottom Toolbar.
+                // Build 260: a third state — while multi-select is active
+                // the footer is the multi-select bar, swapped in
+                // automatically in the dock's place (Sarowar's order).
                 AnimatedContent(
-                    targetState = selectedClipId,
+                    targetState = when {
+                        selectedClipId != null -> "clip:$selectedClipId"
+                        multiSelectIds.isNotEmpty() -> "multi"
+                        else -> "dock"
+                    },
                     // Build 223: the standard chrome tween for the swap (was a spring):
                     // new bar slides up a little and fades in, the old one fades out.
                     transitionSpec = {
@@ -3286,8 +3309,30 @@ fun VideoEditorScreen(
                             fadeOut(amChromeSpec())
                     },
                     label = "toolbarTransition"
-                ) { targetClipId ->
-                    if (targetClipId != null) {
+                ) { targetKey ->
+                    val targetClipId = targetKey.removePrefix("clip:")
+                        .takeIf { targetKey.startsWith("clip:") }
+                    if (targetKey == "multi") {
+                        // The selection's toolbar, in the dock's place —
+                        // no tap needed; it also publishes the bar's
+                        // actions to the tools grid while that panel is
+                        // open (build 211), exactly as the timeline
+                        // overlay host did before build 260.
+                        com.example.ui.components.MultiBarHost(
+                            tracks = tracks,
+                            multiSelectIds = multiSelectIds,
+                            playheadMs = playheadProvider,
+                            onAction = { viewModel.applyMultiAction(it) },
+                            onSpatialAction = onSpatialActionVal,
+                            onBooleanAction = onBooleanActionVal,
+                            onDeleteChecked = onDeleteCheckedLayersAction,
+                            onSelectAll = { viewModel.selectAllLayers() },
+                            onExitMulti = { viewModel.exitMultiSelect() },
+                            toolsPanelOpen = toolsPanelOpen,
+                            barActionsPanel = barActionsState,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    } else if (targetClipId != null) {
                         val targetIsAudio = tracks.any { t ->
                             t.clips.any { it.id == targetClipId && it.type == LayerType.AUDIO }
                         }

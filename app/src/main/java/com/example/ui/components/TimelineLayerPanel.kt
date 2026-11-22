@@ -505,7 +505,7 @@ fun TimelineLayerPanel(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(verticalScrollState)
-                .padding(top = 3.dp, bottom = if (toolsPanelOpen && (isMulti || showActionBar)) 3.dp else if (isMulti) MultiSelectBarHeightWithBoolean + 3.dp else if (showActionBar) SelectedBarHeight + 3.dp else 3.dp)
+                .padding(top = 3.dp, bottom = if (!toolsPanelOpen && showActionBar) SelectedBarHeight + 3.dp else 3.dp)
         ) {
             // Timeline content, shifted so currentPlayheadMs sits under the center line.
             Box(
@@ -661,26 +661,12 @@ fun TimelineLayerPanel(
             onDeleteClip = onDeleteClip
         )
 
-        // 5. Multi-select bar (drawn after the playhead line so the line passes behind it).
-        //    Build 211: while the tools panel is open the host renders
-        //    nothing and publishes the bar's actions to the grid instead.
-        if (isMulti) {
-            MultiBarHost(
-                tracks = tracks,
-                multiSelectIds = multiSelectIds,
-                playheadMs = playheadMs,
-                onAction = onMultiAction,
-                onSpatialAction = onSpatialAction,
-                onBooleanAction = onBooleanAction,
-                onDeleteChecked = onDeleteCheckedLayers,
-                onSelectAll = onSelectAllLayers,
-                toolsPanelOpen = toolsPanelOpen,
-                barActionsPanel = barActionsPanel,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .enterPop(fromBottom = true)
-            )
-        }
+        // 5. Multi-select bar: build 260 moved it OUT of the timeline —
+        //    the screen composes MultiBarHost in the FOOTER slot, where
+        //    it automatically replaces the add-layer dock while
+        //    multi-select is active (Sarowar's order). The host still
+        //    publishes the bar's actions to the tools grid while the
+        //    tools panel is open (build 211), from the footer.
 
         // 6. Selected-layer action bar: full width, sits at the bottom of the layer panel
         //    (the top one of the two panels). Split / Copy / Flip / Replace / Delete.
@@ -845,52 +831,17 @@ internal fun TimelineSelectedBar(
 }
 
 /**
- * Build 224: the multi-select bar host, wrapped so the native timeline host
- * renders/publishes the identical bar (MultiBarHost itself stays private).
- */
-@Composable
-internal fun TimelineMultiBarOverlay(
-    tracks: List<TimelineTrack>,
-    multiSelectIds: Set<String>,
-    playheadMs: () -> Long,
-    onAction: (MultiAction) -> Unit,
-    onSpatialAction: (com.example.model.SpatialAction) -> Unit,
-    onBooleanAction: (com.example.model.ShapeBooleanOp) -> Unit,
-    onDeleteChecked: () -> Unit,
-    onSelectAll: () -> Unit,
-    toolsPanelOpen: Boolean,
-    barActionsPanel: BarActionsState?,
-    modifier: Modifier = Modifier
-) {
-    MultiBarHost(
-        tracks = tracks,
-        multiSelectIds = multiSelectIds,
-        playheadMs = playheadMs,
-        onAction = onAction,
-        onSpatialAction = onSpatialAction,
-        onBooleanAction = onBooleanAction,
-        onDeleteChecked = onDeleteChecked,
-        onSelectAll = onSelectAll,
-        toolsPanelOpen = toolsPanelOpen,
-        barActionsPanel = barActionsPanel,
-        modifier = modifier
-    )
-}
-
-/**
  * Build 224: the lanes column's bottom padding, exactly as the Compose
  * panel computes it (its vertical-scroll content padding) — the native
  * surface needs the same content height for its scroll range.
  *
- * Build 235: the multi-select reservation is the COMPACT bar's tallest
- * height (56 dp base + 46 dp boolean row = 102 dp) + the same 4 dp
- * margin the selected bar uses — the old 68 dp never matched the old
- * bar's 142–188 dp, so the last lanes could not scroll clear of it.
+ * Build 260: the multi-select bar no longer overlays the lanes (it
+ * lives in the footer slot), so the multi reservation is gone — only
+ * the selected-layer bar, still an in-panel overlay, keeps its
+ * reservation. [isMulti] stays a parameter for the call sites.
  */
 internal fun timelineBottomPadDp(toolsPanelOpen: Boolean, isMulti: Boolean, showActionBar: Boolean): Float =
-    if (toolsPanelOpen && (isMulti || showActionBar)) 3f
-    else if (isMulti) MultiSelectBarHeightWithBoolean.value + 3f
-    else if (showActionBar) SelectedBarHeight.value + 3f
+    if (!toolsPanelOpen && showActionBar) SelectedBarHeight.value + 3f
     else 3f
 
 private val SelectedBarHeight = 40.dp
@@ -957,11 +908,38 @@ private fun SelectedBarDrawnButton(
 
 
 /**
+ * The boolean row's eligibility rule (build 192), extracted in build
+ * 260 so the screen's footer layout math can budget the multi-select
+ * bar's height with the SAME rule the bar itself uses: exactly two
+ * checked layers, each a stored-fields boolean candidate (a visible,
+ * non-mask shape with a filled region), active at the playhead, and
+ * not pose-placed (the frame-space evaluation in the engine refuses
+ * those — the row must not promise what it cannot do).
+ */
+internal fun multiBooleanReady(
+    tracks: List<TimelineTrack>,
+    multiSelectIds: Set<String>,
+    playheadMs: Long
+): Boolean {
+    if (multiSelectIds.size != 2) return false
+    val checked = tracks.flatMap { it.clips }.filter { it.id in multiSelectIds }
+    return checked.size == 2 && checked.all {
+        it.isBooleanShapeCandidate && it.isActiveAt(playheadMs) &&
+            !com.example.engine.overlayNeedsPose(it)
+    }
+}
+
+/**
  * Reads the playhead itself, so while scrubbing only this small bar recomposes (not the whole
  * timeline) when the option group changes (split / start / end).
+ *
+ * Build 260: the host is composed by the SCREEN in the footer slot —
+ * entering multi-select swaps the add-layer dock for this bar
+ * automatically (Sarowar's order); the timeline panel no longer
+ * overlays it over the lanes.
  */
 @Composable
-private fun MultiBarHost(
+internal fun MultiBarHost(
     tracks: List<TimelineTrack>,
     multiSelectIds: Set<String>,
     playheadMs: () -> Long,
@@ -970,6 +948,8 @@ private fun MultiBarHost(
     onBooleanAction: (com.example.model.ShapeBooleanOp) -> Unit = {},
     onDeleteChecked: () -> Unit = {},
     onSelectAll: () -> Unit = {},
+    /** Build 260: the bar's Done tile — leaves multi-select. */
+    onExitMulti: () -> Unit = {},
     /** Build 211: while the tools panel is open, publish tiles instead of rendering the bar. */
     toolsPanelOpen: Boolean = false,
     /** The bar-actions bridge to the tools grid (build 211); null = nowhere to publish. */
@@ -982,22 +962,8 @@ private fun MultiBarHost(
             MultiSelectOps.barMode(checked, playheadMs())
         }
     }
-    // The boolean row (build 192) exists only for exactly two eligible shapes:
-    // stored-fields eligibility (a visible, non-mask shape with a filled region),
-    // active at the playhead, and not pose-placed (the frame-space evaluation in
-    // the engine refuses those — the row must not promise what it cannot do).
     val booleanReady by remember(tracks, multiSelectIds) {
-        derivedStateOf {
-            if (multiSelectIds.size != 2) false
-            else {
-                val t = playheadMs()
-                val checked = tracks.flatMap { it.clips }.filter { it.id in multiSelectIds }
-                checked.size == 2 && checked.all {
-                    it.isBooleanShapeCandidate && it.isActiveAt(t) &&
-                        !com.example.engine.overlayNeedsPose(it)
-                }
-            }
-        }
+        derivedStateOf { multiBooleanReady(tracks, multiSelectIds, playheadMs()) }
     }
     // Build 211 (NO STICKY TOOL LINES): while the tools panel is open
     // the bar renders nowhere — its actions are the grid's head tiles,
@@ -1019,7 +985,7 @@ private fun MultiBarHost(
         ) else null
     )
     if (!toolsPanelOpen) {
-        // Build 235: the on-timeline bar is compact (count + All / Delete
+        // Build 235: the bar is compact (count + All / Delete / Done
         // + the boolean row) — mode / time-align / spatial / Chain /
         // Group live in the tools grid tiles published above.
         MultiSelectBar(
@@ -1028,6 +994,7 @@ private fun MultiBarHost(
             onBooleanAction = onBooleanAction,
             onDeleteChecked = onDeleteChecked,
             onSelectAll = onSelectAll,
+            onExit = onExitMulti,
             modifier = modifier
         )
     }

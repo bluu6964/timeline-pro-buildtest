@@ -58,31 +58,26 @@ import kotlin.math.roundToInt
 private val IconColor = AmTextPrimary // build 223 (colour balance): light glyphs — the bar surface is the dark AmPanel (build 216's white bar is gone; its ink glyphs were invisible on dark)
 
 /**
- * Build 235: the compact bar's heights. The single row is 40 dp inside
- * 6 dp outer + 2 dp inner vertical padding = 56 dp total; the boolean
- * row adds 46 dp. The timeline's multi-select bottom reservation is
- * [MultiSelectBarHeightWithBoolean] + 4 dp (see timelineBottomPadDp),
- * so the last lane can always scroll fully clear of the bar.
- */
-internal val MultiSelectBarBaseHeight = 44.dp
-internal val MultiSelectBarBooleanRowHeight = 36.dp
-internal val MultiSelectBarHeightWithBoolean = MultiSelectBarBaseHeight + MultiSelectBarBooleanRowHeight
-
-/**
- * Bar shown at the bottom of the timeline while several layers are selected.
+ * Bar shown while several layers are selected.
  *
  * Build 235 (Sarowar's report): the old four-row bar (mode group + time
  * align, spatial align, distribute / Chain / Group, booleans) stood
  * 142–188 dp tall over the lanes — in multi-select he could no longer
- * SEE or TAP the other lanes to add/remove layers. The on-timeline bar
- * is now ONE compact row — the checked count and the labelled All /
- * Delete tiles — plus, only when [showBooleanRow] (exactly two eligible
+ * SEE or TAP the other lanes to add/remove layers. The bar is ONE
+ * compact row — the checked count and the labelled All / Delete /
+ * Done tiles — plus, only when [showBooleanRow] (exactly two eligible
  * shape layers checked, build 192), the boolean row under it
  * (Union / Subtract / Intersect / XOR; Subtract reads first-checked
  * minus second-checked). Every other action the old bar carried (mode
  * group, time align, spatial align / distribute, Chain, Group) lives
  * in the tools grid as head tiles via [multiBarActionTiles] (build
  * 211) — open the tools panel during multi-select to reach them.
+ *
+ * Build 260 (Sarowar's order): the bar no longer overlays the timeline
+ * — it lives in the FOOTER slot, automatically replacing the add-layer
+ * dock the moment multi-select starts (the screen's footer swap), and
+ * the dock returns when multi-select ends. The Done tile (build 260)
+ * is the visible exit; the system Back button exits too.
  */
 @Composable
 fun MultiSelectBar(
@@ -96,7 +91,9 @@ fun MultiSelectBar(
     /** Delete tile (build 199, A11): deletes ALL checked layers at once (one undo step; locked layers are skipped). */
     onDeleteChecked: () -> Unit = {},
     /** Select-all tile (build 199, A4): checks every layer of the current scope. */
-    onSelectAll: () -> Unit = {}
+    onSelectAll: () -> Unit = {},
+    /** Done tile (build 260): leaves multi-select (the dock returns). */
+    onExit: () -> Unit = {}
 ) {
     // Build 250 (UI migration stage 3): the bar is drawn on ONE native
     // GL surface — positions from ChromeGeometry.Multi (the build-249
@@ -129,6 +126,11 @@ fun MultiSelectBar(
             cv.drawBitmap(b, x, y, null)
             b.recycle()
         }
+        val done = atlas.resolveIcon("multi:done", glyphW, glyphH) { cv, x, y ->
+            val b = rasterizeDrawBitmap(glyphW, glyphH, density) { drawDoneGlyph() }
+            cv.drawBitmap(b, x, y, null)
+            b.recycle()
+        }
         val bools = if (showBooleanRow) ShapeBooleanOp.values().map { op ->
             atlas.resolveIcon("multi:bool:${op.name}", boolW, glyphH) { cv, x, y ->
                 val b = rasterizeDrawBitmap(boolW, glyphH, density) { drawBooleanGlyph(op) }
@@ -139,10 +141,11 @@ fun MultiSelectBar(
         val count = atlas.resolve(countText, UiLabelStyle.MULTI_COUNT)
         val allLabel = atlas.resolve("All", UiLabelStyle.MINI_LABEL)
         val deleteLabel = atlas.resolve("Delete", UiLabelStyle.MINI_LABEL)
+        val doneLabel = atlas.resolve("Done", UiLabelStyle.MINI_LABEL)
         val boolLabels = if (showBooleanRow) ShapeBooleanOp.values().map {
             atlas.resolve(it.displayName, UiLabelStyle.MINI_LABEL)
         } else emptyList()
-        return MultiEntries(count, selectAll, trash, allLabel, deleteLabel, bools, boolLabels)
+        return MultiEntries(count, selectAll, trash, done, allLabel, deleteLabel, doneLabel, bools, boolLabels)
     }
     var entries = resolveAll()
     if (atlas.overflowed) {
@@ -154,8 +157,8 @@ fun MultiSelectBar(
     val labelTextH = atlas.textHeightPx(UiLabelStyle.MINI_LABEL)
     val labelAscent = atlas.fontMetrics(UiLabelStyle.MINI_LABEL).ascent
 
-    // Press scales: All tile, Delete tile, then the boolean tiles.
-    val scales = remember { List(6) { Animatable(1f) } }
+    // Press scales: All tile, Delete tile, Done tile, then the boolean tiles.
+    val scales = remember { List(7) { Animatable(1f) } }
     val scaleValues = scales.map { it.value }
     val pad = UiLabelAtlas.PAD.toFloat()
     val tileHDp = (m.tileHeightPx(labelTextH, density) / density).dp
@@ -241,6 +244,12 @@ fun MultiSelectBar(
                         AmDanger.toArgb(), AmDanger.toArgb(),
                         scales[1].value
                     )
+                    drawTile(
+                        m.doneTileLeftPx(w, dd), row1Y, m.TILE_W_DP, m.GLYPH_W_DP,
+                        entries.done, entries.doneLabel,
+                        IconColor.toArgb(), AmTextPrimary.copy(alpha = 0.75f).toArgb(),
+                        scales[2].value
+                    )
                     if (showBooleanRow) {
                         val boolY = m.boolRowCenterYPx(dd)
                         ShapeBooleanOp.values().forEachIndexed { i, _ ->
@@ -248,7 +257,7 @@ fun MultiSelectBar(
                                 m.boolTileLeftPx(w, dd, i), boolY, m.BOOL_TILE_W_DP, m.BOOL_GLYPH_W_DP,
                                 entries.bools.getOrNull(i), entries.boolLabels.getOrNull(i),
                                 IconColor.toArgb(), AmTextPrimary.copy(alpha = 0.75f).toArgb(),
-                                scales[2 + i].value
+                                scales[3 + i].value
                             )
                         }
                     }
@@ -277,11 +286,21 @@ fun MultiSelectBar(
                     .width(m.TILE_W_DP.dp)
                     .height(tileHDp)
             )
+            ChromePressBox(
+                scales[2], 0.94f, onExit,
+                Modifier
+                    .offset(
+                        x = (m.doneTileLeftPx(widthPx, density) / density).dp,
+                        y = tileTop1Dp
+                    )
+                    .width(m.TILE_W_DP.dp)
+                    .height(tileHDp)
+            )
             if (showBooleanRow) {
                 val tileTopBDp = (m.tileTopPx(m.boolRowCenterYPx(density), labelTextH, density) / density).dp
                 ShapeBooleanOp.values().forEachIndexed { i, op ->
                     ChromePressBox(
-                        scales[2 + i], 0.94f, { onBooleanAction(op) },
+                        scales[3 + i], 0.94f, { onBooleanAction(op) },
                         Modifier
                             .offset(
                                 x = (m.boolTileLeftPx(widthPx, density, i) / density).dp,
@@ -300,8 +319,10 @@ private data class MultiEntries(
     val count: UiLabelAtlas.Entry?,
     val selectAll: UiLabelAtlas.Entry?,
     val trash: UiLabelAtlas.Entry?,
+    val done: UiLabelAtlas.Entry?,
     val allLabel: UiLabelAtlas.Entry?,
     val deleteLabel: UiLabelAtlas.Entry?,
+    val doneLabel: UiLabelAtlas.Entry?,
     val bools: List<UiLabelAtlas.Entry?>,
     val boolLabels: List<UiLabelAtlas.Entry?>
 )
@@ -514,6 +535,19 @@ private fun DrawScope.drawTrashGlyph() {
     drawPath(body, c, style = Stroke(width = sw, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
     drawLine(c, Offset(w * 0.44f, h * 0.45f), Offset(w * 0.46f, h * 0.78f), sw, StrokeCap.Round)
     drawLine(c, Offset(w * 0.56f, h * 0.45f), Offset(w * 0.54f, h * 0.78f), sw, StrokeCap.Round)
+}
+
+/** Done check (build 260): a plain bold tick — leaves multi-select. */
+private fun DrawScope.drawDoneGlyph() {
+    val w = size.width
+    val h = size.height
+    val sw = 2.dp.toPx()
+    val tick = Path().apply {
+        moveTo(w * 0.16f, h * 0.54f)
+        lineTo(w * 0.4f, h * 0.78f)
+        lineTo(w * 0.86f, h * 0.22f)
+    }
+    drawPath(tick, IconColor, style = Stroke(width = sw, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
 }
 
 /** Dashed selection square with a check (build 199, A4): select all layers. */
