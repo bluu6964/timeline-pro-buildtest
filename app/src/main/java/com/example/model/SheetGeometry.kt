@@ -215,6 +215,51 @@ object SheetGeometry {
             THUMB_H_DP * density + bodyHeightPx(nameHPx, metaHPx, density)
     }
 
+    /**
+     * Build 256 — the NEW shape picker's grid law (the build-253
+     * [ShapeCard] served the removed 7-kind picker; this serves the
+     * 100-kind catalog panel). Four columns, 8 dp gaps, the sheet's
+     * 12 dp side padding: a card is a square tile with the shape drawn
+     * from [ShapeCatalog]'s own points in a centred glyph box, then up
+     * to two label lines under it. The glyph maps the unit basis
+     * [-1, 1] onto the box scaled by [GLYPH_HALF] so a full-bleed shape
+     * keeps a margin inside the tile.
+     */
+    object ShapeGrid {
+        const val COLUMNS = 4
+        const val GAP_DP = 8f
+        const val SIDE_PAD_DP = 12f
+        const val TILE_CORNER_DP = 12f
+        const val LABEL_GAP_DP = 4f
+        const val LABEL_LINES = 2
+
+        /** Fraction of the glyph box's half size the unit basis maps to. */
+        const val GLYPH_HALF = 0.44f
+
+        /** The grid's content width: sheet width minus both side pads. */
+        fun contentWidthPx(sheetWPx: Float, density: Float): Float =
+            sheetWPx - 2f * SIDE_PAD_DP * density
+
+        /** One card's tile edge: columns across the content width, gaps between. */
+        fun tilePx(contentWPx: Float, density: Float): Float =
+            (contentWPx - (COLUMNS - 1) * GAP_DP * density) / COLUMNS
+
+        /** Card height: tile + label gap + [labelLines] label lines. */
+        fun cardHeightPx(tilePx: Float, labelHPx: Float, labelLines: Int, density: Float): Float =
+            tilePx + LABEL_GAP_DP * density + labelLines * labelHPx
+
+        /** Rows needed for [count] shapes. */
+        fun rowsFor(count: Int): Int =
+            if (count <= 0) 0 else (count + COLUMNS - 1) / COLUMNS
+
+        /** A unit-basis point -> glyph-box pixels (box origin [gx], [gy], edge [gs]). */
+        fun glyphX(gx: Float, gs: Float, unitX: Float): Float =
+            gx + gs * (0.5f + GLYPH_HALF * unitX)
+
+        fun glyphY(gy: Float, gs: Float, unitY: Float): Float =
+            gy + gs * (0.5f + GLYPH_HALF * unitY)
+    }
+
     /** The fullscreen player's two pills (timecode, exit). */
     object FullscreenPill {
         const val TIME_PAD_H_DP = 10f
