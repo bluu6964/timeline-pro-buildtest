@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -60,10 +61,8 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathMeasure
-import androidx.compose.ui.graphics.asAndroidPath
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
@@ -245,8 +244,20 @@ fun EditShapeView(
         mutableFloatStateOf(initialClip?.shapeOffsetY ?: 0f)
     }
 
+    // Build 257: the screen's two flexible heights (the live preview
+    // slot and the panel's scrollable content) come from
+    // ShapePreviewGeometry.budget over the height the host actually
+    // offers — explicit sizes, no weight(): the old preview's weighted
+    // slot collapsed to zero in this full-screen Dialog, which is why
+    // the phone showed no canvas at all.
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        val screenHDp = if (maxHeight.isFinite) maxHeight.value
+            else com.example.model.ShapePreviewGeometry.DEFAULT_SCREEN_DP
+        val (previewHDp, panelScrollHDp) = remember(screenHDp) {
+            com.example.model.ShapePreviewGeometry.budget(screenHDp)
+        }
     Column(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxSize()
             .background(AmBase) // build 223 (colour balance): the unified background (was build 216's white)
             .testTag("edit_shape_screen")
@@ -275,309 +286,7 @@ fun EditShapeView(
             }
         )
 
-        // 2. Video Preview Canvas with Shape & Coral Pink Bounding Box (Canvas ratio strictly locked)
-        BoxWithConstraints(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .padding(horizontal = 0.dp, vertical = 4.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            val maxW = maxWidth
-            val maxH = maxHeight
-            val targetRatio = aspectRatio.ratioFloat
-
-            val (frameW, frameH) = remember(maxW, maxH, targetRatio) {
-                if (maxW.value / maxH.value > targetRatio) {
-                    (maxH * targetRatio) to maxH
-                } else {
-                    maxW to (maxW / targetRatio)
-                }
-            }
-
-            // Centered video container strictly locked to project aspect ratio
-            Box(
-                modifier = Modifier
-                    .size(width = frameW, height = frameH)
-                    .clip(androidx.compose.ui.graphics.RectangleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                // Build 252 (stage 5): the frame's flat canvas colour in GL.
-                val shapeFrameBgArgb = com.example.ui.theme.LocalCanvasColor.current.toArgb()
-                NativeVectorCanvas(
-                    modifier = Modifier.fillMaxSize(),
-                    clearArgb = 0,
-                    drawKey = shapeFrameBgArgb,
-                    buildCmds = { w, h, _ ->
-                        addRect(0f, 0f, w, h, shapeFrameBgArgb)
-                    }
-                )
-                if (mediaLayers.isNotEmpty()) {
-                    MediaLayersStack(
-                        layers = mediaLayers,
-                        nativePreview = nativePreview,
-                        isPlaying = isPlaying
-                    )
-                } else {
-                    // Studio canvas with subtle alignment grid
-                    NativeVectorCanvas(
-                        modifier = Modifier.fillMaxSize(),
-                        drawKey = "edit_shape_grid",
-                        buildCmds = { w, h, d ->
-                            addRect(0f, 0f, w, h, CanvasBackground.toArgb())
-                            val lineArgb = Color.White.copy(alpha = 0.08f).toArgb()
-                            addLine(w / 2f, 0f, w / 2f, h, 1f * d, lineArgb, capRound = false)
-                            addLine(0f, h / 2f, w, h / 2f, 1f * d, lineArgb, capRound = false)
-                        },
-                    )
-                }
-
-                // Interactive Shape with Coral Bounding Box
-                val baseShapeSize = 135.dp
-                val shapeW = baseShapeSize * (widthPercent / 100f)
-                val shapeH = baseShapeSize * (heightPercent / 100f)
-                val pinkHandleColor = AmAccent // build 223: the handles carry the one lime accent
-
-                Box(
-                    modifier = Modifier
-                        .offset(x = shapeOffsetX.dp, y = shapeOffsetY.dp)
-                        .size(width = shapeW, height = shapeH)
-                        .pointerInput(Unit) {
-                            detectDragGestures { change, dragAmount ->
-                                change.consume()
-                                shapeOffsetX += dragAmount.x / 2.5f
-                                shapeOffsetY += dragAmount.y / 2.5f
-                            }
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    // Rendered Shape
-                    val blurModifier = if (featherPercent > 0f) {
-                        Modifier.blur((featherPercent / 8f).dp)
-                    } else Modifier
-
-                    NativeVectorCanvas(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .then(blurModifier),
-                        drawKey = listOf(
-                            selectedShapeType, initialClip?.shapePattern, fillColor, fillOpacity,
-                            strokeWidth, strokeColor, cornerRadiusDp,
-                            trimStartPercent, trimEndPercent
-                        ),
-                        buildCmds = { w, h, d ->
-                            val fillArgb = fillColor.copy(alpha = fillOpacity / 100f).toArgb()
-                            val swPx = strokeWidth * d
-                            val trimStart = (trimStartPercent / 100f).coerceIn(0f, 1f)
-                            val trimEnd = (trimEndPercent / 100f).coerceIn(0f, 1f)
-                            val hasFullStroke = strokeWidth > 0f && trimStart <= 0f && trimEnd >= 1f
-                            val hasTrimmedStroke = strokeWidth > 0f && trimEnd > trimStart && !hasFullStroke
-                            val strokeArgb = if (hasFullStroke) strokeColor.toArgb() else 0
-                            val fullSw = if (hasFullStroke) swPx else 0f
-
-                            var outlinePath: Path? = null
-                            // Build 256: the edited clip is a catalog shape (SH_*) — preview its
-                            // own points (selectedShapeType has no catalog entry and would fall
-                            // back to SQUARE). A hole subpath is punched with the frame's own
-                            // background colour; the canvas/export draw the true hole.
-                            val catalogDef = com.example.model.ShapeCatalog.byPattern(initialClip?.shapePattern)
-                            if (catalogDef != null) {
-                                var o = 0
-                                for (sub in catalogDef.subs) {
-                                    val xs = FloatArray(sub.count)
-                                    val ys = FloatArray(sub.count)
-                                    for (j in 0 until sub.count) {
-                                        xs[j] = (catalogDef.flat[o + j * 2] + 1f) * 0.5f * w
-                                        ys[j] = (catalogDef.flat[o + j * 2 + 1] + 1f) * 0.5f * h
-                                    }
-                                    if (sub.hole) {
-                                        addFilledPolygon(xs, ys, sub.count, CanvasBackground.toArgb())
-                                    } else {
-                                        addFilledPolygon(xs, ys, sub.count, fillArgb)
-                                        if (hasFullStroke) {
-                                            addPolyline(xs, ys, sub.count, true, fullSw, strokeArgb, capRound = true)
-                                        }
-                                    }
-                                    o += sub.count * 2
-                                }
-                                if (hasTrimmedStroke) {
-                                    outlinePath = Path().apply {
-                                        var oo = 0
-                                        for (count in catalogDef.counts) {
-                                            for (j in 0 until count) {
-                                                val px = (catalogDef.flat[oo + j * 2] + 1f) * 0.5f * w
-                                                val py = (catalogDef.flat[oo + j * 2 + 1] + 1f) * 0.5f * h
-                                                if (j == 0) moveTo(px, py) else lineTo(px, py)
-                                            }
-                                            close()
-                                            oo += count * 2
-                                        }
-                                    }
-                                }
-                            } else when (selectedShapeType) {
-                                ShapeType.CIRCLE -> {
-                                    addCircle(w / 2f, h / 2f, minOf(w, h) / 2f, fillArgb, fullSw, strokeArgb)
-                                    if (hasTrimmedStroke) {
-                                        outlinePath = Path().apply {
-                                            addOval(androidx.compose.ui.geometry.Rect(0f, 0f, w, h))
-                                        }
-                                    }
-                                }
-                                ShapeType.SQUARE, ShapeType.WIDE_ROUNDED_RECT -> {
-                                    val cr = if (selectedShapeType == ShapeType.WIDE_ROUNDED_RECT) cornerRadiusDp * d else 0f
-                                    addRoundRect(w / 2f, h / 2f, w, h, cr, fillArgb, fullSw, strokeArgb)
-                                    if (hasTrimmedStroke) {
-                                        outlinePath = Path().apply {
-                                            addRoundRect(
-                                                androidx.compose.ui.geometry.RoundRect(
-                                                    androidx.compose.ui.geometry.Rect(0f, 0f, w, h),
-                                                    androidx.compose.ui.geometry.CornerRadius(cr, cr)
-                                                )
-                                            )
-                                        }
-                                    }
-                                }
-                                ShapeType.ROUNDED_SQUARE -> {
-                                    val cr = cornerRadiusDp * d
-                                    addRoundRect(w / 2f, h / 2f, w, h, cr, fillArgb, fullSw, strokeArgb)
-                                    if (hasTrimmedStroke) {
-                                        outlinePath = Path().apply {
-                                            addRoundRect(
-                                                androidx.compose.ui.geometry.RoundRect(
-                                                    androidx.compose.ui.geometry.Rect(0f, 0f, w, h),
-                                                    androidx.compose.ui.geometry.CornerRadius(cr, cr)
-                                                )
-                                            )
-                                        }
-                                    }
-                                }
-                                ShapeType.OVAL -> {
-                                    addArc(
-                                        cx = w / 2f, cy = h / 2f, rx = w / 2f, ry = h / 2f,
-                                        startDeg = 0f, sweepDeg = 360f,
-                                        width = fullSw, fillArgb = fillArgb, strokeArgb = strokeArgb,
-                                        capRound = true, closedPie = false
-                                    )
-                                    if (hasTrimmedStroke) {
-                                        outlinePath = Path().apply {
-                                            addOval(androidx.compose.ui.geometry.Rect(0f, 0f, w, h))
-                                        }
-                                    }
-                                }
-                                ShapeType.PENTAGON, ShapeType.STAR -> {
-                                    val r = minOf(w, h) / 2f
-                                    val cX = w / 2f
-                                    val cY = h / 2f
-                                    val points = 5
-                                    val xs = FloatArray(points)
-                                    val ys = FloatArray(points)
-                                    for (i in 0 until points) {
-                                        val angle = Math.toRadians((i * 360.0 / points) - 90.0)
-                                        xs[i] = (cX + r * Math.cos(angle)).toFloat()
-                                        ys[i] = (cY + r * Math.sin(angle)).toFloat()
-                                    }
-                                    addFilledPolygon(xs, ys, points, fillArgb)
-                                    if (hasFullStroke) {
-                                        addPolyline(xs, ys, points, true, fullSw, strokeArgb, capRound = true)
-                                    } else if (hasTrimmedStroke) {
-                                        outlinePath = Path().apply {
-                                            for (i in 0 until points) {
-                                                if (i == 0) moveTo(xs[i], ys[i]) else lineTo(xs[i], ys[i])
-                                            }
-                                            close()
-                                        }
-                                    }
-                                }
-                            }
-
-                            val outline = outlinePath
-                            if (hasTrimmedStroke && outline != null) {
-                                val pm = android.graphics.PathMeasure(outline.asAndroidPath(), false)
-                                val totalLen = pm.length
-                                if (totalLen > 0f) {
-                                    val startD = totalLen * trimStart
-                                    val endD = totalLen * trimEnd
-                                    val samples = 72
-                                    val xs = FloatArray(samples + 1)
-                                    val ys = FloatArray(samples + 1)
-                                    val pos = FloatArray(2)
-                                    for (i in 0..samples) {
-                                        val dist = startD + (endD - startD) * (i / samples.toFloat())
-                                        pm.getPosTan(dist, pos, null)
-                                        xs[i] = pos[0]
-                                        ys[i] = pos[1]
-                                    }
-                                    addPolyline(xs, ys, samples + 1, false, swPx, strokeColor.toArgb(), capRound = false)
-                                }
-                            }
-                        },
-                    )
-
-                    // Coral/Pink Bounding Box & 8 Drag Handles (matching screenshot)
-                    // Build 252 (stage 5): border + handles drawn in GL
-                    // (handle centres sit 5 dp in from the edges, where
-                    // the aligned 10 dp boxes put them).
-                    NativeVectorCanvas(
-                        modifier = Modifier.fillMaxSize(),
-                        clearArgb = 0,
-                        drawKey = pinkHandleColor.toArgb(),
-                        buildCmds = { w, h, d ->
-                            addRoundRect(
-                                w / 2f, h / 2f, w - 1.5f * d, h - 1.5f * d, 1.25f * d,
-                                0, 1.5f * d, Color.White.copy(alpha = 0.85f).toArgb()
-                            )
-                            val pink = pinkHandleColor.toArgb()
-                            val centres = listOf(
-                                5f to 5f, 0.5f to 5f, 1f to 5f, 1f to 0.5f,
-                                1f to 1f, 0.5f to 1f, 5f to 1f, 5f to 0.5f
-                            )
-                            for ((fx, fy) in centres) {
-                                val cx = when (fx) {
-                                    0.5f -> w / 2f
-                                    1f -> w - 5f * d
-                                    else -> fx * d
-                                }
-                                val cy = when (fy) {
-                                    0.5f -> h / 2f
-                                    1f -> h - 5f * d
-                                    else -> fy * d
-                                }
-                                addCircle(cx, cy, 5f * d - 0.5f * d, pink, 1f * d, Color.White.toArgb())
-                            }
-                        }
-                    )
-
-                    // Bottom-left Grid Anchor Button (matching screenshot)
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.BottomStart)
-                            .offset(x = (-16).dp, y = 16.dp)
-                            .size(24.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        NativeVectorCanvas(
-                            modifier = Modifier.fillMaxSize(),
-                            clearArgb = 0,
-                            drawKey = pinkHandleColor,
-                            buildCmds = { w, h, d ->
-                                addCircle(w / 2f, h / 2f, w / 2f, Color.White.toArgb())
-                                val dotRadius = 1.2f * d
-                                val spacing = 4f * d
-                                val pad = 5f * d
-                                val argb = pinkHandleColor.toArgb()
-                                for (r in 0..2) {
-                                    for (c in 0..2) {
-                                        addCircle(c * spacing + pad, r * spacing + pad, dotRadius, argb)
-                                    }
-                                }
-                            },
-                        )
-                    }
-                }
-            }
-        }
-
-        // 3. Playback Controls & Timescale & Mini Layer Strip (matching screenshot)
+        // 2. Playback Controls & Timescale & Mini Layer Strip (matching screenshot)
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -637,6 +346,37 @@ fun EditShapeView(
             }
         }
 
+        // 3. Live preview (build 257): the shape being edited, drawn
+        // from the sheet's own live state over the project's frame —
+        // every slider drag and tab change redraws it (ShapeLivePreview
+        // below). This replaces the old weighted preview slot, which
+        // collapsed to zero height in this Dialog on device.
+        ShapeLivePreview(
+            aspectRatio = aspectRatio,
+            heightDp = previewHDp,
+            mediaLayers = mediaLayers,
+            nativePreview = nativePreview,
+            isPlaying = isPlaying,
+            catalogDef = com.example.model.ShapeCatalog.byPattern(initialClip?.shapePattern),
+            shapeType = selectedShapeType,
+            widthPercent = widthPercent,
+            heightPercent = heightPercent,
+            fillColor = fillColor,
+            fillOpacity = fillOpacity,
+            strokeWidth = strokeWidth,
+            strokeColor = strokeColor,
+            cornerRadiusDp = cornerRadiusDp,
+            trimStartPercent = trimStartPercent,
+            trimEndPercent = trimEndPercent,
+            featherPercent = featherPercent,
+            shapeOffsetX = shapeOffsetX,
+            shapeOffsetY = shapeOffsetY,
+            onDrag = { dx, dy ->
+                shapeOffsetX += dx / 2.5f
+                shapeOffsetY += dy / 2.5f
+            }
+        )
+
         // 4. Bottom Shape Editor Panel (matching screenshot)
         // Build 252 (stage 5): the panel body (AmPanel, sheet
         // corners, the AmTextFaint handle) is drawn in GL; the tab
@@ -677,6 +417,17 @@ fun EditShapeView(
 
             Spacer(modifier = Modifier.height(10.dp))
 
+            // Build 257: the tab content scrolls inside its budget
+            // height (ShapePreviewGeometry.budget), so every control
+            // stays reachable now that the live preview takes its slot
+            // above the panel; the tab strip and the save pill stay
+            // fixed outside the scroll.
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = panelScrollHDp.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
             // Tab Contents
             when (activeTab) {
                 ShapeEditTab.SHAPE -> {
@@ -884,6 +635,7 @@ fun EditShapeView(
                     )
                 }
             }
+            }
 
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -913,6 +665,252 @@ fun EditShapeView(
 
             Spacer(modifier = Modifier.height(10.dp))
         }
+        }
+    }
+    }
+}
+
+/**
+ * Build 257 — the Edit Shape screen's LIVE PREVIEW: the aspect-locked
+ * project frame (the engine's media stack when the project has media
+ * layers, the studio grid otherwise) with the shape being edited drawn
+ * over it from the sheet's own live state — every slider drag, swatch
+ * pick and tab change recomposes it, so the edit is never blind again.
+ *
+ * The shape is drawn on a Compose Canvas with the renderers' own
+ * geometry: a catalog kind (SH_*) replays [com.example.model.ShapeCatalog]
+ * points with the even-odd fill rule LayerPainter and the C++ POLY kind
+ * share; the legacy kinds use the sheet's box geometry, with the
+ * pentagon / star vertices from [com.example.model.ShapePreviewGeometry]
+ * (the C++ shape engine's proportions — the old GL preview drew the
+ * STAR as a pentagon and faked catalog holes with background-coloured
+ * polygons; both are fixed here). The stroke trim measures the outline
+ * with PathMeasure exactly like LayerPainter's fallback. Feather
+ * softens the fill + stroke paints with the sheet's own preview radius
+ * law (feather % / 8 dp); it is a preview-only effect — the saved clip
+ * carries no feather, shadow or glow field, so the preview invents no
+ * shadow / glow either (the Shadow / Glow tab sliders are not saved
+ * anywhere today; that is a pre-existing gap, not this preview's).
+ *
+ * The slot height is explicit ([heightDp] from
+ * [com.example.model.ShapePreviewGeometry.budget]) — never a weight —
+ * so the region cannot collapse the way the old weighted slot did in
+ * this Dialog. The white bounding box, lime handles and the drag
+ * (same /2.5 delta law) are the old preview's chrome, kept.
+ */
+@Composable
+private fun ShapeLivePreview(
+    aspectRatio: AspectRatio,
+    heightDp: Float,
+    mediaLayers: List<TimelineClip>,
+    nativePreview: com.example.engine.NativePreviewEngine,
+    isPlaying: Boolean,
+    catalogDef: com.example.model.ShapeCatalog.Def?,
+    shapeType: ShapeType,
+    widthPercent: Float,
+    heightPercent: Float,
+    fillColor: Color,
+    fillOpacity: Float,
+    strokeWidth: Float,
+    strokeColor: Color,
+    cornerRadiusDp: Float,
+    trimStartPercent: Float,
+    trimEndPercent: Float,
+    featherPercent: Float,
+    shapeOffsetX: Float,
+    shapeOffsetY: Float,
+    onDrag: (Float, Float) -> Unit
+) {
+    val frameBg = com.example.ui.theme.LocalCanvasColor.current
+    val (shapeWDp, shapeHDp) = com.example.model.ShapePreviewGeometry.shapeBoxDp(widthPercent, heightPercent)
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(heightDp.dp)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        BoxWithConstraints(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            val (frameW, frameH) = remember(maxWidth, maxHeight, aspectRatio) {
+                com.example.model.ShapePreviewGeometry.frameSize(
+                    maxWidth.value, maxHeight.value, aspectRatio.ratioFloat
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .size(width = frameW.dp, height = frameH.dp)
+                    .clip(androidx.compose.ui.graphics.RectangleShape)
+                    .background(frameBg),
+                contentAlignment = Alignment.Center
+            ) {
+                if (mediaLayers.isNotEmpty()) {
+                    MediaLayersStack(
+                        layers = mediaLayers,
+                        nativePreview = nativePreview,
+                        isPlaying = isPlaying
+                    )
+                }
+                androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+                    val d = density
+                    val w = size.width
+                    val h = size.height
+                    if (mediaLayers.isEmpty()) {
+                        drawRect(CanvasBackground)
+                        val line = Color.White.copy(alpha = 0.08f)
+                        drawLine(line, Offset(w / 2f, 0f), Offset(w / 2f, h), strokeWidth = 1f * d)
+                        drawLine(line, Offset(0f, h / 2f), Offset(w, h / 2f), strokeWidth = 1f * d)
+                    }
+                    val bw = shapeWDp * d
+                    val bh = shapeHDp * d
+                    val cx = w / 2f + shapeOffsetX * d
+                    val cy = h / 2f + shapeOffsetY * d
+                    val left = cx - bw / 2f
+                    val top = cy - bh / 2f
+
+                    // The outline, in frame coordinates (see the KDoc
+                    // for the geometry sources per kind).
+                    val path = android.graphics.Path()
+                    if (catalogDef != null) {
+                        path.fillType = android.graphics.Path.FillType.EVEN_ODD
+                        for (sub in catalogDef.subs) {
+                            for (j in 0 until sub.count) {
+                                val px = left + (sub.pts[j * 2] + 1f) * 0.5f * bw
+                                val py = top + (sub.pts[j * 2 + 1] + 1f) * 0.5f * bh
+                                if (j == 0) path.moveTo(px, py) else path.lineTo(px, py)
+                            }
+                            path.close()
+                        }
+                    } else when (shapeType) {
+                        ShapeType.CIRCLE ->
+                            path.addCircle(cx, cy, minOf(bw, bh) / 2f, android.graphics.Path.Direction.CW)
+                        ShapeType.OVAL ->
+                            path.addOval(
+                                android.graphics.RectF(left, top, left + bw, top + bh),
+                                android.graphics.Path.Direction.CW
+                            )
+                        ShapeType.SQUARE ->
+                            path.addRect(
+                                android.graphics.RectF(left, top, left + bw, top + bh),
+                                android.graphics.Path.Direction.CW
+                            )
+                        ShapeType.WIDE_ROUNDED_RECT, ShapeType.ROUNDED_SQUARE -> {
+                            val cr = cornerRadiusDp * d
+                            path.addRoundRect(
+                                android.graphics.RectF(left, top, left + bw, top + bh),
+                                cr, cr, android.graphics.Path.Direction.CW
+                            )
+                        }
+                        ShapeType.PENTAGON -> {
+                            val pts = com.example.model.ShapePreviewGeometry
+                                .polygonPoints(5, cx, cy, bw / 2f, bh / 2f)
+                            for (i in 0 until 5) {
+                                if (i == 0) path.moveTo(pts[0], pts[1])
+                                else path.lineTo(pts[i * 2], pts[i * 2 + 1])
+                            }
+                            path.close()
+                        }
+                        ShapeType.STAR -> {
+                            val pts = com.example.model.ShapePreviewGeometry
+                                .starPoints(cx, cy, bw / 2f, bh / 2f)
+                            for (i in 0 until 10) {
+                                if (i == 0) path.moveTo(pts[0], pts[1])
+                                else path.lineTo(pts[i * 2], pts[i * 2 + 1])
+                            }
+                            path.close()
+                        }
+                    }
+
+                    val featherPx = com.example.model.ShapePreviewGeometry
+                        .featherRadiusPx(featherPercent, d)
+                    val blur = if (featherPx > 0f) {
+                        android.graphics.BlurMaskFilter(
+                            featherPx, android.graphics.BlurMaskFilter.Blur.NORMAL
+                        )
+                    } else null
+                    val fillPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                        style = android.graphics.Paint.Style.FILL
+                        color = fillColor.copy(alpha = fillOpacity / 100f).toArgb()
+                        if (blur != null) maskFilter = blur
+                    }
+                    val trimStart = (trimStartPercent / 100f).coerceIn(0f, 1f)
+                    val trimEnd = (trimEndPercent / 100f).coerceIn(0f, 1f)
+                    val hasFullStroke = strokeWidth > 0f && trimStart <= 0f && trimEnd >= 1f
+                    val hasTrimmedStroke = strokeWidth > 0f && trimEnd > trimStart && !hasFullStroke
+                    val strokePaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                        style = android.graphics.Paint.Style.STROKE
+                        this.strokeWidth = strokeWidth * d
+                        color = strokeColor.toArgb()
+                        strokeJoin = android.graphics.Paint.Join.ROUND
+                        strokeCap = android.graphics.Paint.Cap.ROUND
+                        if (blur != null) maskFilter = blur
+                    }
+                    with(drawContext.canvas.nativeCanvas) {
+                        drawPath(path, fillPaint)
+                        if (hasFullStroke) {
+                            drawPath(path, strokePaint)
+                        } else if (hasTrimmedStroke) {
+                            // PathMeasure over the first contour, as
+                            // LayerPainter's stroke path does.
+                            val pm = android.graphics.PathMeasure(path, false)
+                            val len = pm.length
+                            if (len > 0f) {
+                                val seg = android.graphics.Path()
+                                if (pm.getSegment(len * trimStart, len * trimEnd, seg, true)) {
+                                    drawPath(seg, strokePaint)
+                                }
+                            }
+                        }
+                    }
+
+                    // Bounding box + 8 handles (the old preview's chrome).
+                    val inset = 0.75f * d
+                    drawRect(
+                        color = Color.White.copy(alpha = 0.85f),
+                        topLeft = Offset(left + inset, top + inset),
+                        size = Size(bw - 2f * inset, bh - 2f * inset),
+                        style = Stroke(width = 1.5f * d)
+                    )
+                    val handleR = 4.5f * d
+                    val hIn = 5f * d
+                    val centres = listOf(
+                        Offset(left + hIn, top + hIn), Offset(cx, top + hIn),
+                        Offset(left + bw - hIn, top + hIn), Offset(left + bw - hIn, cy),
+                        Offset(left + bw - hIn, top + bh - hIn), Offset(cx, top + bh - hIn),
+                        Offset(left + hIn, top + bh - hIn), Offset(left + hIn, cy)
+                    )
+                    for (c in centres) {
+                        drawCircle(AmAccent, handleR, c)
+                        drawCircle(Color.White, handleR, c, style = Stroke(width = 1f * d))
+                    }
+                    // The grid-anchor badge at the shape's bottom-left.
+                    val badgeC = Offset(left - 4f * d, top + bh + 4f * d)
+                    drawCircle(Color.White, 12f * d, badgeC)
+                    for (r in 0..2) {
+                        for (c in 0..2) {
+                            drawCircle(
+                                AmAccent, 1.2f * d,
+                                badgeC + Offset((c - 1) * 4f * d, (r - 1) * 4f * d)
+                            )
+                        }
+                    }
+                }
+                // Drag surface over the shape (the old preview's drag:
+                // the offset state moves by the pointer delta / 2.5).
+                Box(
+                    modifier = Modifier
+                        .offset(x = shapeOffsetX.dp, y = shapeOffsetY.dp)
+                        .size(width = shapeWDp.dp, height = shapeHDp.dp)
+                        .pointerInput(Unit) {
+                            detectDragGestures { change, dragAmount ->
+                                change.consume()
+                                onDrag(dragAmount.x, dragAmount.y)
+                            }
+                        }
+                )
+            }
         }
     }
 }
