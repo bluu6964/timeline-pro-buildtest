@@ -258,6 +258,74 @@ object SheetGeometry {
 
         fun glyphY(gy: Float, gs: Float, unitY: Float): Float =
             gy + gs * (0.5f + GLYPH_HALF * unitY)
+
+        /** Arc steps per corner of the flat tile outline (15° steps). */
+        const val TILE_ARC_STEPS = 6
+
+        /** One filled polygon of the card's flat-batch draw, in emission order. */
+        class Poly(val xs: FloatArray, val ys: FloatArray, val argb: Int)
+
+        /**
+         * The tile's rounded outline as ONE flat filled polygon (tile
+         * [tilePx] edge at the card origin, corner radius [cornerPx]).
+         * The GL renderer flushes its batches in a FIXED order (shader
+         * quads, flat triangles, SDF, points, atlas text), so a tile
+         * fill emitted as an SDF round rect paints OVER flat-batch
+         * glyph polygons no matter where it sits in the stream — the
+         * build-256 cards rendered exactly that way on device (tile +
+         * name visible, glyph gone). The tile therefore joins the flat
+         * batch as a polygon, FIRST in the emission order; the SDF
+         * hairline stroke (transparent fill) still frames it on top.
+         */
+        fun tileOutline(tilePx: Float, cornerPx: Float, argb: Int): Poly {
+            val r = minOf(cornerPx, tilePx / 2f)
+            val n = TILE_ARC_STEPS
+            val xs = FloatArray(4 * (n + 1))
+            val ys = FloatArray(4 * (n + 1))
+            // Corner centres + start angles (screen coords, y down):
+            // top-right -90°, bottom-right 0°, bottom-left 90°, top-left 180°.
+            val cx = floatArrayOf(tilePx - r, tilePx - r, r, r)
+            val cy = floatArrayOf(r, tilePx - r, tilePx - r, r)
+            var k = 0
+            for (c in 0 until 4) {
+                val start = -90.0 + c * 90.0
+                for (i in 0..n) {
+                    val a = Math.toRadians(start + i * (90.0 / n))
+                    xs[k] = cx[c] + (r * kotlin.math.cos(a)).toFloat()
+                    ys[k] = cy[c] + (r * kotlin.math.sin(a)).toFloat()
+                    k++
+                }
+            }
+            return Poly(xs, ys, argb)
+        }
+
+        /**
+         * The card's complete flat-batch emission IN ORDER: the tile
+         * outline ([tileArgb]) first, then the shape's own subpaths
+         * mapped by the glyph law — body subpaths in [glyphArgb], hole
+         * subpaths punched in [tileArgb]. The card feeds this list to
+         * the command builder verbatim; nothing SDF-filled may precede
+         * the glyph on the card surface (see [tileOutline]).
+         */
+        fun cardPolygons(
+            def: ShapeCatalog.Def, tilePx: Float, cornerPx: Float,
+            glyphArgb: Int, tileArgb: Int
+        ): List<Poly> {
+            val out = ArrayList<Poly>(def.subs.size + 1)
+            out += tileOutline(tilePx, cornerPx, tileArgb)
+            var o = 0
+            for (sub in def.subs) {
+                val xs = FloatArray(sub.count)
+                val ys = FloatArray(sub.count)
+                for (j in 0 until sub.count) {
+                    xs[j] = glyphX(0f, tilePx, def.flat[o + j * 2])
+                    ys[j] = glyphY(0f, tilePx, def.flat[o + j * 2 + 1])
+                }
+                out += Poly(xs, ys, if (sub.hole) tileArgb else glyphArgb)
+                o += sub.count * 2
+            }
+            return out
+        }
     }
 
     /** The fullscreen player's two pills (timecode, exit). */

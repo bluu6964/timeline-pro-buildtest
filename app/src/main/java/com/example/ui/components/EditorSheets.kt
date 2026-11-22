@@ -1670,6 +1670,10 @@ fun AddShapeSheet(
  * the tile colour), and the name wrapped by the greedy breaker to at
  * most two full-word lines under the tile. Card metrics are the
  * [SheetGeometry.ShapeGrid] law; the whole draw press-scales.
+ * Build 257: tile + glyph emit as ONE flat-batch polygon list
+ * ([SheetGeometry.ShapeGrid.cardPolygons]) — the renderer's fixed
+ * batch order (flat before SDF) had the SDF tile fill painting over
+ * the glyphs on device.
  */
 @Composable
 private fun ShapeGridCard(
@@ -1710,31 +1714,26 @@ private fun ShapeGridCard(
                 drawKey = listOf(lines, scale.value, def.pattern, atlas.generation),
                 buildCmds = { w, h, dd ->
                     setScaleAbout(w / 2f, h / 2f, scale.value)
-                    // Tile: fill + the inside hairline.
-                    addRoundRect(
-                        w / 2f, w / 2f, w, w, g.TILE_CORNER_DP * dd,
-                        AmPanelHigh.toArgb()
-                    )
+                    // Tile + glyph: ONE flat-batch emission in the
+                    // ShapeGrid order (tile outline first, then the
+                    // shape's own subpaths). The renderer flushes batches
+                    // in a fixed order — flat triangles BEFORE SDF — so
+                    // the build-256 SDF round-rect tile fill painted over
+                    // the flat glyph polygons and the glyphs were
+                    // invisible on device (build 257 fix).
+                    val glyphArgb = Color(0xFFEDEDED).toArgb()
+                    val tileArgb = AmPanelHigh.toArgb()
+                    for (poly in g.cardPolygons(def, w, g.TILE_CORNER_DP * dd, glyphArgb, tileArgb)) {
+                        addFilledPolygon(poly.xs, poly.ys, poly.xs.size, poly.argb)
+                    }
+                    // The inside hairline: an SDF stroke with a
+                    // transparent fill — it flushes after the flat batch
+                    // and frames the tile without covering the glyph.
                     addRoundRect(
                         w / 2f, w / 2f, w - 1f * dd, w - 1f * dd,
                         g.TILE_CORNER_DP * dd - 0.5f * dd,
                         0, 1f * dd, AmHairline.toArgb()
                     )
-                    // The glyph: the catalog's own subpaths mapped into the
-                    // tile by the ShapeGrid glyph law.
-                    val glyphArgb = Color(0xFFEDEDED).toArgb()
-                    val tileArgb = AmPanelHigh.toArgb()
-                    var o = 0
-                    for (sub in def.subs) {
-                        val xs = FloatArray(sub.count)
-                        val ys = FloatArray(sub.count)
-                        for (j in 0 until sub.count) {
-                            xs[j] = g.glyphX(0f, w, def.flat[o + j * 2])
-                            ys[j] = g.glyphY(0f, w, def.flat[o + j * 2 + 1])
-                        }
-                        addFilledPolygon(xs, ys, sub.count, if (sub.hole) tileArgb else glyphArgb)
-                        o += sub.count * 2
-                    }
                     // The name: up to two centred lines under the tile.
                     val fm = atlas.fontMetrics(labelStyle)
                     lines.forEachIndexed { i, entry ->
