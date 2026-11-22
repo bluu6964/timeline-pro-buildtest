@@ -1,7 +1,11 @@
 package com.example
 
+import com.example.model.LayerType
+import com.example.model.ShapeBoolean
 import com.example.model.ShapeCatalog
 import com.example.model.SheetGeometry
+import com.example.model.TimelineClip
+import com.example.model.primitiveShapeRings
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -188,6 +192,35 @@ class ShapeCatalogTest {
                 for (k in s.pts.indices) assertEquals(s.pts[k], def.flat[o + k])
                 o += s.pts.size
             }
+        }
+    }
+
+    @Test
+    fun booleanRingsFollowTheCatalog() {
+        fun clip(pattern: String) = TimelineClip(
+            id = "x", name = "x", type = LayerType.SHAPE,
+            startMs = 0L, durationMs = 1000L, color = 0xFFFF3377,
+            shapePattern = pattern
+        )
+        // Square: one positive ring of area 4.
+        val square = primitiveShapeRings(clip("SH_SQUARE"))
+        assertEquals(1, square.size)
+        assertEquals(4.0, ShapeBoolean.regionArea(square), 1e-9)
+        // Ring: outer positive, hole negative; net = the 64-gon annulus area.
+        val ring = primitiveShapeRings(clip("SH_RING"))
+        assertEquals(2, ring.size)
+        assertTrue(ShapeBoolean.signedArea(ring[0]) > 0)
+        assertTrue(ShapeBoolean.signedArea(ring[1]) < 0)
+        val want = Math.PI * (0.97 * 0.97 - 0.58 * 0.58)
+        assertEquals(want, ShapeBoolean.regionArea(ring), 0.02)
+        // Pause: two separate solid rings.
+        assertEquals(2, primitiveShapeRings(clip("SH_PAUSE")).size)
+        // Every kind yields rings whose net area matches its even-odd fill area.
+        for (def in ShapeCatalog.all) {
+            val rings = primitiveShapeRings(clip(def.pattern))
+            var filled = 0.0
+            for (s in def.subs) filled += if (s.hole) -abs(area(s.pts)) else abs(area(s.pts))
+            assertEquals("${def.pattern} boolean area", filled, ShapeBoolean.regionArea(rings), 1e-6)
         }
     }
 

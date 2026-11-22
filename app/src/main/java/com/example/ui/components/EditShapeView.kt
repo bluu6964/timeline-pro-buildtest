@@ -361,7 +361,7 @@ fun EditShapeView(
                             .fillMaxSize()
                             .then(blurModifier),
                         drawKey = listOf(
-                            selectedShapeType, fillColor, fillOpacity,
+                            selectedShapeType, initialClip?.shapePattern, fillColor, fillOpacity,
                             strokeWidth, strokeColor, cornerRadiusDp,
                             trimStartPercent, trimEndPercent
                         ),
@@ -376,7 +376,45 @@ fun EditShapeView(
                             val fullSw = if (hasFullStroke) swPx else 0f
 
                             var outlinePath: Path? = null
-                            when (selectedShapeType) {
+                            // Build 256: the edited clip is a catalog shape (SH_*) — preview its
+                            // own points (selectedShapeType has no catalog entry and would fall
+                            // back to SQUARE). A hole subpath is punched with the frame's own
+                            // background colour; the canvas/export draw the true hole.
+                            val catalogDef = com.example.model.ShapeCatalog.byPattern(initialClip?.shapePattern)
+                            if (catalogDef != null) {
+                                var o = 0
+                                for (sub in catalogDef.subs) {
+                                    val xs = FloatArray(sub.count)
+                                    val ys = FloatArray(sub.count)
+                                    for (j in 0 until sub.count) {
+                                        xs[j] = (catalogDef.flat[o + j * 2] + 1f) * 0.5f * w
+                                        ys[j] = (catalogDef.flat[o + j * 2 + 1] + 1f) * 0.5f * h
+                                    }
+                                    if (sub.hole) {
+                                        addFilledPolygon(xs, ys, sub.count, CanvasBackground.toArgb())
+                                    } else {
+                                        addFilledPolygon(xs, ys, sub.count, fillArgb)
+                                        if (hasFullStroke) {
+                                            addPolyline(xs, ys, sub.count, true, fullSw, strokeArgb, capRound = true)
+                                        }
+                                    }
+                                    o += sub.count * 2
+                                }
+                                if (hasTrimmedStroke) {
+                                    outlinePath = Path().apply {
+                                        var oo = 0
+                                        for (count in catalogDef.counts) {
+                                            for (j in 0 until count) {
+                                                val px = (catalogDef.flat[oo + j * 2] + 1f) * 0.5f * w
+                                                val py = (catalogDef.flat[oo + j * 2 + 1] + 1f) * 0.5f * h
+                                                if (j == 0) moveTo(px, py) else lineTo(px, py)
+                                            }
+                                            close()
+                                            oo += count * 2
+                                        }
+                                    }
+                                }
+                            } else when (selectedShapeType) {
                                 ShapeType.CIRCLE -> {
                                     addCircle(w / 2f, h / 2f, minOf(w, h) / 2f, fillArgb, fullSw, strokeArgb)
                                     if (hasTrimmedStroke) {

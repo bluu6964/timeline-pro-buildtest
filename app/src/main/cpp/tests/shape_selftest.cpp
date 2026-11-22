@@ -297,6 +297,65 @@ int main() {
         near(e.coverage(), 200.0 * 110.0, 200.0 * 110.0 * 0.015, "rect cut at the bottom edge: area");
         ok(e.at(200, 399)[3] == 255, "rect cut at the bottom edge reaches the last row");
     }
+    {   // Build 256: POLY — the catalog outline path. A triangle polygon covers half the box.
+        const float tri[] = {-100.f, 100.f, 100.f, 100.f, 0.f, -100.f};
+        const int cnt[] = {3};
+        Bmp b(400, 400);
+        Request r = base(POLY);
+        r.polyPts = tri; r.polyCounts = cnt; r.polySubs = 1;
+        ok(drawShape(b.px.data(), b.w, b.h, b.w * 4, r), "poly triangle drawn");
+        near(b.coverage(), 200.0 * 200.0 / 2.0, 200.0 * 200.0 * 0.01, "poly triangle area");
+        ok(b.at(200, 120)[3] == 255 && b.at(120, 120)[3] == 0, "poly triangle inside/outside");
+    }
+    {   // POLY ring: an outer disc with a nested subpath — even-odd punches the hole.
+        std::vector<float> pts;
+        std::vector<int> cnt;
+        for (int ring = 0; ring < 2; ++ring) {
+            const double rad = ring == 0 ? 97.0 : 58.0;
+            const int n = 64;
+            for (int i = 0; i < n; ++i) {
+                const double a = 2.0 * pi * i / n;
+                pts.push_back((float)(rad * std::cos(a)));
+                pts.push_back((float)(rad * std::sin(a)));
+            }
+            cnt.push_back(n);
+        }
+        Bmp b(400, 400);
+        Request r = base(POLY);
+        r.polyPts = pts.data(); r.polyCounts = cnt.data(); r.polySubs = 2;
+        drawShape(b.px.data(), b.w, b.h, b.w * 4, r);
+        const double area = pi * (97.0 * 97.0 - 58.0 * 58.0);
+        near(b.coverage(), area, area * 0.015, "poly ring area (hole punched)");
+        ok(b.at(200, 200)[3] == 0, "poly ring centre is the hole");
+        ok(b.at(200, 120)[3] == 255, "poly ring band is filled");
+    }
+    {   // POLY star: the 5-point star of the catalog (tips 1.0, valleys 0.45, first tip up).
+        std::vector<float> pts;
+        for (int i = 0; i < 10; ++i) {
+            const double a = (i * 36.0 - 90.0) * pi / 180.0;
+            const double rad = (i % 2 == 0) ? 100.0 : 45.0;
+            pts.push_back((float)(rad * std::cos(a)));
+            pts.push_back((float)(rad * std::sin(a)));
+        }
+        const int cnt[] = {10};
+        Bmp b(400, 400);
+        Request r = base(POLY);
+        r.polyPts = pts.data(); r.polyCounts = cnt; r.polySubs = 1;
+        drawShape(b.px.data(), b.w, b.h, b.w * 4, r);
+        // Shoelace area of that star, computed independently here.
+        double want = 0;
+        for (int i = 0; i < 10; ++i) {
+            const int j = (i + 1) % 10;
+            want += (double)pts[i * 2] * pts[j * 2 + 1] - (double)pts[j * 2] * pts[i * 2 + 1];
+        }
+        want = std::fabs(want) / 2.0;
+        near(b.coverage(), want, want * 0.015, "poly star area");
+    }
+    {   // POLY refuses a request without its outline.
+        Bmp b(8, 8);
+        Request r = base(POLY);
+        ok(!drawShape(b.px.data(), 8, 8, 32, r), "poly without points refused");
+    }
     ok(!drawShape(nullptr, 1, 1, 4, base(CIRCLE)), "null target refused");
     Request z = base(CIRCLE); z.base = 0.f;
     Bmp t(8, 8);

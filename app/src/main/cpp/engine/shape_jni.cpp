@@ -23,6 +23,36 @@ struct Locked {
     ~Locked() { if (ok) AndroidBitmap_unlockPixels(env, bmp); }
 };
 
+// Unpacks the shared p[29] / c[4] parameter blocks into a Request (see nativeDrawShape for the layout).
+void fillRequest(const float* p, int pn, const jint* c, am::shape::Request& r) {
+    r.kind = (int)p[0]; r.base = p[1]; r.cx = p[2]; r.cy = p[3]; r.scale = p[4]; r.rotationDeg = p[5];
+    if (pn >= 28) r.scaleY = p[27];
+    if (pn >= 29) r.cornerY = p[28];
+    r.flipX = p[6] < 0 ? -1.f : 1.f; r.flipY = p[7] < 0 ? -1.f : 1.f; r.alpha = p[8];
+    for (int i = 0; i < 4; ++i) r.crop[i] = p[9 + i];
+    r.hasCrop = p[13] > 0.5f;
+    r.fillOn = p[14] > 0.5f; r.strokeW = p[15];
+    r.fillKind = (int)p[16]; r.gradType = (int)p[17];
+    r.gx1 = p[18]; r.gy1 = p[19]; r.gx2 = p[20]; r.gy2 = p[21]; r.fillImgMode = (int)p[22]; r.corner = p[23];
+    r.fillArgb = (uint32_t)c[0]; r.strokeArgb = (uint32_t)c[1]; r.grad1 = (uint32_t)c[2]; r.grad2 = (uint32_t)c[3];
+    if (pn >= 27) {
+        r.trimStart = p[24];
+        r.trimEnd = p[25];
+        r.trimFill = p[26] > 0.5f;
+    }
+}
+
+bool drawInto(JNIEnv* env, jobject bitmap, jobject fillBitmap, am::shape::Request& r) {
+    Locked dst(env, bitmap);
+    if (!dst.ok) return false;
+    Locked fill(env, fillBitmap);
+    if (fill.ok) {
+        r.fillPix = (const uint8_t*)fill.px;
+        r.fillW = (int)fill.info.width; r.fillH = (int)fill.info.height; r.fillStride = (int)fill.info.stride;
+    }
+    return am::shape::drawShape((uint8_t*)dst.px, (int)dst.info.width, (int)dst.info.height, (int)dst.info.stride, r);
+}
+
 }  // namespace
 
 extern "C" {
@@ -45,31 +75,43 @@ JNIEXPORT jboolean JNICALL Java_com_example_engine_ShapeNative_nativeDrawShape(
     env->GetIntArrayRegion(cA, 0, 4, c);
 
     am::shape::Request r;
-    r.kind = (int)p[0]; r.base = p[1]; r.cx = p[2]; r.cy = p[3]; r.scale = p[4]; r.rotationDeg = p[5];
-    if (pn >= 28) r.scaleY = p[27];
-    if (pn >= 29) r.cornerY = p[28];
-    r.flipX = p[6] < 0 ? -1.f : 1.f; r.flipY = p[7] < 0 ? -1.f : 1.f; r.alpha = p[8];
-    for (int i = 0; i < 4; ++i) r.crop[i] = p[9 + i];
-    r.hasCrop = p[13] > 0.5f;
-    r.fillOn = p[14] > 0.5f; r.strokeW = p[15];
-    r.fillKind = (int)p[16]; r.gradType = (int)p[17];
-    r.gx1 = p[18]; r.gy1 = p[19]; r.gx2 = p[20]; r.gy2 = p[21]; r.fillImgMode = (int)p[22]; r.corner = p[23];
-    r.fillArgb = (uint32_t)c[0]; r.strokeArgb = (uint32_t)c[1]; r.grad1 = (uint32_t)c[2]; r.grad2 = (uint32_t)c[3];
-    if (pn >= 27) {
-        r.trimStart = p[24];
-        r.trimEnd = p[25];
-        r.trimFill = p[26] > 0.5f;
-    }
+    fillRequest(p, pn, c, r);
+    return drawInto(env, bitmap, fillBitmap, r) ? JNI_TRUE : JNI_FALSE;
+}
 
-    Locked dst(env, bitmap);
-    if (!dst.ok) return JNI_FALSE;
-    Locked fill(env, fillBitmap);
-    if (fill.ok) {
-        r.fillPix = (const uint8_t*)fill.px;
-        r.fillW = (int)fill.info.width; r.fillH = (int)fill.info.height; r.fillStride = (int)fill.info.stride;
+// Build 256: a catalog shape (Kind POLY). Same p[29] / c[4] blocks as nativeDrawShape (the kind slot is
+// ignored — POLY is forced), plus the outline itself: pts = flattened x,y pairs in LOCAL units,
+// counts = points per subpath. The arrays are held only for the synchronous draw.
+JNIEXPORT jboolean JNICALL Java_com_example_engine_ShapeNative_nativeDrawShapePoly(
+    JNIEnv* env, jclass, jobject bitmap, jfloatArray pA, jintArray cA, jobject fillBitmap,
+    jfloatArray ptsA, jintArray countsA) {
+    if (!bitmap || !pA || !cA || !ptsA || !countsA) return JNI_FALSE;
+    if (env->GetArrayLength(pA) < 24 || env->GetArrayLength(cA) < 4) return JNI_FALSE;
+    const int subs = env->GetArrayLength(countsA);
+    if (subs <= 0) return JNI_FALSE;
+    float p[29] = {};
+    jint c[4];
+    const int pn = env->GetArrayLength(pA) < 29 ? env->GetArrayLength(pA) : 29;
+    env->GetFloatArrayRegion(pA, 0, pn, p);
+    env->GetIntArrayRegion(cA, 0, 4, c);
+
+    jfloat* pts = env->GetFloatArrayElements(ptsA, nullptr);
+    jint* counts = env->GetIntArrayElements(countsA, nullptr);
+    if (!pts || !counts) {
+        if (pts) env->ReleaseFloatArrayElements(ptsA, pts, JNI_ABORT);
+        if (counts) env->ReleaseIntArrayElements(countsA, counts, JNI_ABORT);
+        return JNI_FALSE;
     }
-    return am::shape::drawShape((uint8_t*)dst.px, (int)dst.info.width, (int)dst.info.height, (int)dst.info.stride, r)
-               ? JNI_TRUE : JNI_FALSE;
+    am::shape::Request r;
+    fillRequest(p, pn, c, r);
+    r.kind = am::shape::POLY;
+    r.polyPts = pts;
+    r.polyCounts = counts;
+    r.polySubs = subs;
+    const bool drawn = drawInto(env, bitmap, fillBitmap, r);
+    env->ReleaseFloatArrayElements(ptsA, pts, JNI_ABORT);
+    env->ReleaseIntArrayElements(countsA, counts, JNI_ABORT);
+    return drawn ? JNI_TRUE : JNI_FALSE;
 }
 
 // p[9]: 0 halfW, 1 halfH, 2 cx, 3 cy, 4 scale, 5 rotationDeg, 6 flipX, 7 flipY, 8 alpha

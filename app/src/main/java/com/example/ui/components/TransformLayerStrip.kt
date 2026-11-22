@@ -458,6 +458,24 @@ private fun ShapeStripContent(clip: TimelineClip) {
 }
 
 private fun DrawScope.drawStripShape(pattern: String, color: Color, topLeft: Offset, side: Float) {
+    // Build 256: a catalog shape (SH_*) tiles the strip with the catalog's own points.
+    val catalogDef = com.example.model.ShapeCatalog.byPattern(pattern)
+    if (catalogDef != null) {
+        val path = Path()
+        path.fillType = androidx.compose.ui.graphics.PathFillType.EvenOdd
+        var o = 0
+        for (count in catalogDef.counts) {
+            for (j in 0 until count) {
+                val px = topLeft.x + (catalogDef.flat[o + j * 2] + 1f) * 0.5f * side
+                val py = topLeft.y + (catalogDef.flat[o + j * 2 + 1] + 1f) * 0.5f * side
+                if (j == 0) path.moveTo(px, py) else path.lineTo(px, py)
+            }
+            path.close()
+            o += count * 2
+        }
+        drawPath(path, color)
+        return
+    }
     when (pattern) {
         "SQUARE" -> drawRect(color, topLeft, Size(side, side))
         "ROUNDED_SQUARE", "ROUNDED_RECT", "WIDE_ROUNDED_RECT" ->

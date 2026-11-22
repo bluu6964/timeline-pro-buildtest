@@ -428,7 +428,24 @@ fun CropView(
                             drawKey = pattern to shapeColor.toArgb(),
                             buildCmds = { w, h, d ->
                                 val colArgb = shapeColor.toArgb()
-                                when (pattern) {
+                                // Build 256: a catalog shape (SH_*) previews from the catalog's
+                                // own points (hole subpaths filled in this small framing preview,
+                                // as approximate as the legacy kinds are here — a triangle showed
+                                // as a circle; the canvas and export draw the true outline).
+                                val catalogDef = com.example.model.ShapeCatalog.byPattern(pattern)
+                                if (catalogDef != null) {
+                                    var o = 0
+                                    for (count in catalogDef.counts) {
+                                        val xs = FloatArray(count)
+                                        val ys = FloatArray(count)
+                                        for (j in 0 until count) {
+                                            xs[j] = (catalogDef.flat[o + j * 2] + 1f) * 0.5f * w
+                                            ys[j] = (catalogDef.flat[o + j * 2 + 1] + 1f) * 0.5f * h
+                                        }
+                                        addFilledPolygon(xs, ys, count, colArgb)
+                                        o += count * 2
+                                    }
+                                } else when (pattern) {
                                     "SQUARE" -> addRect(0f, 0f, w, h, colArgb)
                                     "ROUNDED_SQUARE", "ROUNDED_RECT" ->
                                         addRoundRect(w * 0.5f, h * 0.5f, w, h, 16f * d, colArgb)

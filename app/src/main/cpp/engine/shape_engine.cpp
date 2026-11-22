@@ -115,6 +115,60 @@ float polygonDistance(const Poly& p, float x, float y) {
     return inside ? -d : d;
 }
 
+// POLY (build 256): exact signed distance to the request's polygon subpaths — the same edge walk as
+// polygonDistance, generalised: minimum edge distance over every subpath, inside = EVEN-ODD parity over
+// ALL edges of ALL subpaths (a nested subpath therefore punches a hole). Negative inside.
+float polySetDistance(const Request& rq, float x, float y) {
+    float d2 = 1e30f;
+    bool inside = false;
+    const float* p = rq.polyPts;
+    for (int s = 0; s < rq.polySubs; ++s) {
+        const int n = rq.polyCounts[s];
+        if (n >= 3) {
+            for (int i = 0, j = n - 1; i < n; j = i++) {
+                const float ax = p[(size_t)j * 2], ay = p[(size_t)j * 2 + 1];
+                const float bx = p[(size_t)i * 2], by = p[(size_t)i * 2 + 1];
+                const float ex = bx - ax, ey = by - ay, wx = x - ax, wy = y - ay;
+                const float ee = ex * ex + ey * ey;
+                const float t = ee > 0.f ? std::min(1.f, std::max(0.f, (wx * ex + wy * ey) / ee)) : 0.f;
+                const float dx = wx - ex * t, dy = wy - ey * t;
+                d2 = std::min(d2, dx * dx + dy * dy);
+                if (((ay > y) != (by > y)) && (x < (bx - ax) * (y - ay) / (by - ay) + ax)) inside = !inside;
+            }
+        }
+        p += (size_t)n * 2;
+    }
+    const float d = std::sqrt(d2);
+    return inside ? -d : d;
+}
+
+// POLY stroke-trim parameter: arc-length fraction of the closest outline point, walking the subpaths
+// in order (each closed), exactly the STAR case generalised to many subpaths.
+float polySetParam(const Request& rq, float x, float y) {
+    float bestD2 = 1e30f, bestS = 0.f, acc = 0.f, total = 0.f;
+    const float* p = rq.polyPts;
+    for (int s = 0; s < rq.polySubs; ++s) {
+        const int n = rq.polyCounts[s];
+        if (n >= 2) {
+            for (int i = 0; i < n; ++i) {
+                const int j = (i + 1) % n;
+                const float ax = p[(size_t)i * 2], ay = p[(size_t)i * 2 + 1];
+                const float bx = p[(size_t)j * 2], by = p[(size_t)j * 2 + 1];
+                const float ex = bx - ax, ey = by - ay, wx = x - ax, wy = y - ay;
+                const float len = std::hypot(ex, ey);
+                const float t = len > 0.f ? std::min(1.f, std::max(0.f, (wx * ex + wy * ey) / (len * len))) : 0.f;
+                const float ddx = wx - ex * t, ddy = wy - ey * t;
+                const float d2 = ddx * ddx + ddy * ddy;
+                if (d2 < bestD2) { bestD2 = d2; bestS = acc + t * len; }
+                acc += len;
+            }
+        }
+        p += (size_t)n * 2;
+    }
+    total = acc;
+    return total > 0.f ? bestS / total : 0.f;
+}
+
 // ROUNDED corner radii (local units): the X radius, and the Y radius (cornerY <= 0 = the X one).
 // Both are clamped to the box, like the historical single radius.
 inline void cornerRadii(float base, float corner, float cornerY, float& rx, float& ry) {
@@ -333,6 +387,7 @@ inline void overPx(uint8_t* d, float r, float g, float b, float a) {  // premult
 
 bool drawShape(uint8_t* dst, int dstW, int dstH, int dstStride, const Request& rq) {
     if (!dst || dstW <= 0 || dstH <= 0 || !(rq.base > 0.f) || !(rq.scale > 0.f)) return false;
+    if (rq.kind == POLY && (!rq.polyPts || !rq.polyCounts || rq.polySubs <= 0)) return false;
     if (rq.alpha <= 0.f) return true;
     const float alpha = std::min(1.f, rq.alpha);
     const float sw = std::max(0.f, rq.strokeW);
@@ -373,6 +428,16 @@ bool drawShape(uint8_t* dst, int dstW, int dstH, int dstStride, const Request& r
     Poly polyStore;
     const Poly* poly = nullptr;
     if (rq.kind == STAR) { polyStore = regularPolygon(STAR, base); poly = &polyStore; }
+    // Distance / trim-parameter dispatch: POLY reads the request's subpaths, every other kind the
+    // analytic outlines above.
+    const auto distAt = [&rq, base, poly](float qx, float qy) -> float {
+        return rq.kind == POLY ? polySetDistance(rq, qx, qy)
+                               : outlineDistance(rq.kind, base, rq.corner, rq.cornerY, poly, qx, qy);
+    };
+    const auto paramAt = [&rq, base, poly](float qx, float qy) -> float {
+        return rq.kind == POLY ? polySetParam(rq, qx, qy)
+                               : outlineParam(rq.kind, base, rq.corner, rq.cornerY, poly, qx, qy);
+    };
     const Rgba fillStraight = fromArgb(rq.fillArgb);
     const Rgba strokeStraight = fromArgb(rq.strokeArgb);
     const float sk = strokeStraight.a / 255.f;
@@ -395,7 +460,7 @@ bool drawShape(uint8_t* dst, int dstW, int dstH, int dstStride, const Request& r
                           cover((ct - ly) * sy) * cover((ly - cb) * sy);
                 if (clipCov <= 0.f) continue;
             }
-            const float s = outlineDistance(rq.kind, base, rq.corner, rq.cornerY, poly, lx, ly);
+            const float s = distAt(lx, ly);
             // Frame px per local unit along the outline normal: with a non-uniform scale the same
             // local distance covers sx px in x and sy in y, so the factor follows the SDF gradient
             // (1 / |(gx/sx, gy/sy)|). Outside the anti-aliasing band every cover is saturated and a
@@ -406,8 +471,8 @@ bool drawShape(uint8_t* dst, int dstW, int dstH, int dstStride, const Request& r
                 pxK = std::sqrt(sx * sy);
                 if (std::fabs(s) < sw * 0.5f + 2.5f / minK) {
                     const float e = 0.75f;
-                    const float gx = (outlineDistance(rq.kind, base, rq.corner, rq.cornerY, poly, lx + e, ly) - s) / e;
-                    const float gy = (outlineDistance(rq.kind, base, rq.corner, rq.cornerY, poly, lx, ly + e) - s) / e;
+                    const float gx = (distAt(lx + e, ly) - s) / e;
+                    const float gy = (distAt(lx, ly + e) - s) / e;
                     const float n = std::sqrt((gx / sx) * (gx / sx) + (gy / sy) * (gy / sy));
                     if (n > 1e-9f) pxK = 1.f / n;
                 }
@@ -433,7 +498,7 @@ bool drawShape(uint8_t* dst, int dstW, int dstH, int dstStride, const Request& r
             if (strokeOn) {
                 float cstroke = cover((std::fabs(s) - sw * 0.5f) * pxK);
                 if (cstroke > 0.f && trimActive && !rq.trimFill) {
-                    const float u = outlineParam(rq.kind, base, rq.corner, rq.cornerY, poly, lx, ly);
+                    const float u = paramAt(lx, ly);
                     if (u < rq.trimStart || u > rq.trimEnd) cstroke = 0.f;
                 }
                 if (cstroke > 0.f) {

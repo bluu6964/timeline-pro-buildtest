@@ -5,6 +5,7 @@ import com.example.model.FILL_GRADIENT
 import com.example.model.FILL_IMAGE
 import com.example.model.FILL_VIDEO
 import com.example.model.FILL_NONE
+import com.example.model.ShapeCatalog
 import com.example.model.TimelineClip
 import com.example.model.depthX
 import com.example.model.depthY
@@ -20,6 +21,9 @@ internal object ShapeNative {
 
     /** p = 29 floats, c = 4 ARGB ints; see shape_jni.cpp. Draws onto an ARGB_8888 bitmap, false = not drawn. */
     @JvmStatic external fun nativeDrawShape(bitmap: Bitmap, p: FloatArray, c: IntArray, fillBitmap: Bitmap?): Boolean
+
+    /** Build 256: a catalog shape (Kind POLY) — same p/c blocks plus the outline points in local units. */
+    @JvmStatic external fun nativeDrawShapePoly(bitmap: Bitmap, p: FloatArray, c: IntArray, fillBitmap: Bitmap?, pts: FloatArray, counts: IntArray): Boolean
 
     /** p = 9 floats; see shape_jni.cpp. */
     @JvmStatic external fun nativeDrawSticker(bitmap: Bitmap, sticker: Bitmap, p: FloatArray): Boolean
@@ -41,6 +45,8 @@ internal class NativeShapePainter(
     private val p = FloatArray(29)
     private val c = IntArray(4)
     private val sp = FloatArray(9)
+    /** Build 256: scratch for a catalog shape's points scaled into local units (grows to the largest kind). */
+    private var polyPts = FloatArray(0)
 
     fun drawShape(
         bmp: Bitmap, clip: TimelineClip, frameW: Int, frameH: Int, k: Float, density: Float,
@@ -50,6 +56,9 @@ internal class NativeShapePainter(
         // A freehand path has no SDF kind (it would read as a circle below): LayerPainter's Canvas
         // version draws it from its stored segments instead.
         if ((clip.shapePattern ?: "").uppercase() == "PATH") return false
+        // Build 256: a catalog shape (SH_*) draws through the POLY kind with the catalog's own points;
+        // the parameter packing below is shared, only the final call differs.
+        val catalogDef = ShapeCatalog.byPattern(clip.shapePattern)
         val base = 65f * density * k
         // Same shapes as the editor canvas (Compose, CanvasArea.kt) draws them: the editor's "OVAL" and any unknown
         // pattern are circles, "Wide Rect" is the full box with 10 dp corners, rounded = 16 dp corners.
@@ -130,7 +139,13 @@ internal class NativeShapePainter(
             else -> p[16] = 0f
         }
         return try {
-            ShapeNative.nativeDrawShape(bmp, p, c, fillBmp)
+            if (catalogDef != null) {
+                if (polyPts.size < catalogDef.flat.size) polyPts = FloatArray(catalogDef.flat.size)
+                for (i in catalogDef.flat.indices) polyPts[i] = catalogDef.flat[i] * base
+                ShapeNative.nativeDrawShapePoly(bmp, p, c, fillBmp, polyPts, catalogDef.counts)
+            } else {
+                ShapeNative.nativeDrawShape(bmp, p, c, fillBmp)
+            }
         } catch (_: Throwable) {
             false
         }

@@ -189,6 +189,19 @@ private const val CORNER_ARC_SAMPLES = 16
  * Rings come back wound positive (their interior fills +1).
  */
 fun primitiveShapeRings(clip: TimelineClip): List<List<BoolPt>> {
+    // Build 256: a catalog shape's rings are its own subpaths, each re-wound to the region
+    // convention (solids positive, holes against them). The boolean engine's non-zero rule
+    // then reads them exactly as the painters' even-odd fill does, because the catalog's
+    // subpaths never overlap — they only nest or sit apart.
+    ShapeCatalog.byPattern(clip.shapePattern)?.let { def ->
+        return def.subs.map { s ->
+            val ring = (0 until s.count).map { i ->
+                BoolPt(s.pts[i * 2].toDouble(), s.pts[i * 2 + 1].toDouble())
+            }
+            val a = ShapeBoolean.signedArea(ring)
+            if (if (s.hole) a > 0 else a < 0) ring.reversed() else ring
+        }
+    }
     fun ringOf(pts: List<Pair<Double, Double>>): List<BoolPt> = pts.map { BoolPt(it.first, it.second) }
     fun ellipse(rx: Double, ry: Double): List<BoolPt> {
         val out = ArrayList<BoolPt>(PRIMITIVE_CURVE_SAMPLES)

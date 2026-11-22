@@ -267,7 +267,27 @@ internal class LayerPainter(
         }
 
         val pattern = clip.shapePattern ?: "CIRCLE"
-        when (pattern.uppercase()) {
+        // Build 256: a catalog shape (SH_*) — the SAME generated points the C++ POLY kind draws
+        // (ShapeCatalog), so this Canvas fallback and the native painter agree by construction.
+        // Even-odd fill matches the native side; a stroke trim measures the first contour only
+        // (PathMeasure's limit) — the native painter is authoritative there.
+        val catalogDef = com.example.model.ShapeCatalog.byPattern(pattern)
+        if (catalogDef != null) {
+            val outline = Path()
+            outline.fillType = Path.FillType.EVEN_ODD
+            var o = 0
+            for (count in catalogDef.counts) {
+                for (j in 0 until count) {
+                    val x = catalogDef.flat[o + j * 2] * base
+                    val y = catalogDef.flat[o + j * 2 + 1] * base
+                    if (j == 0) outline.moveTo(x, y) else outline.lineTo(x, y)
+                }
+                outline.close()
+                o += count * 2
+            }
+            canvas.drawPath(outline, paint)
+            drawStrokePath(outline)
+        } else when (pattern.uppercase()) {
             "RECT", "RECTANGLE", "SQUARE" -> {
                 val r = RectF(-base, -base, base, base)
                 canvas.drawRect(r, paint)

@@ -12,7 +12,7 @@ namespace shape {
 // OVAL = 2.4 : 1.5 ellipse (what the old export drew); the editor's "OVAL" is drawn as a circle by Compose, so Kotlin maps it to CIRCLE.
 // ROUNDED: rectangle with corner radii [Request::corner] / [Request::cornerY] (one per axis: a frame-space
 // circular arc is an ellipse in the anisotropically scaled local space). PENTAGON / STAR: regular polygon, outer radius = base, first tip up.
-enum Kind { CIRCLE = 0, RECT = 1, ROUNDED = 2, OVAL = 3, TRIANGLE = 4, PENTAGON = 5, STAR = 6 };
+enum Kind { CIRCLE = 0, RECT = 1, ROUNDED = 2, OVAL = 3, TRIANGLE = 4, PENTAGON = 5, STAR = 6, POLY = 7 };
 
 struct Request {
     int kind = CIRCLE;
@@ -42,6 +42,13 @@ struct Request {
     float trimEnd = 1.f;               // .. to trimEnd, as fractions of the outline length (0, 1 = whole)
     bool trimFill = false;             // the paint IS the path (an imported line): the trim gates the RECT fill
                                        // along local x instead of gating a stroke
+    // POLY (build 256): the outline as polygon subpaths in LOCAL units (the unit basis x base, y down),
+    // supplied by com.example.model.ShapeCatalog. polyPts is the flattened x,y pairs of all subpaths,
+    // polyCounts the point count of each; the fill rule is EVEN-ODD across all subpaths, so a subpath
+    // nested inside another punches a hole. Points are borrowed for the duration of the draw call.
+    const float* polyPts = nullptr;
+    const int* polyCounts = nullptr;
+    int polySubs = 0;
 };
 
 /** Draws one shape onto a premultiplied RGBA8888 bitmap (source-over). False = invalid request, nothing drawn. */
