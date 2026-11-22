@@ -106,9 +106,12 @@ import com.example.model.AspectRatio
 import com.example.model.LayerType
 import com.example.model.PreviewResolution
 import com.example.model.TimelineTrack
+import com.example.ui.theme.AmAccent
 import com.example.ui.theme.AmHairline
+import com.example.ui.theme.AmHairlineStrong
 import com.example.ui.theme.AmCardSurface
 import com.example.ui.theme.AmPanel
+import com.example.ui.theme.AmPanelElevated
 import com.example.ui.theme.AmPillSelected
 import com.example.ui.theme.AmSheetShape
 import com.example.ui.theme.AmPanelHigh
