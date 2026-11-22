@@ -251,7 +251,7 @@ fun EditShapeView(
     // slot collapsed to zero in this full-screen Dialog, which is why
     // the phone showed no canvas at all.
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
-        val screenHDp = if (maxHeight.isFinite) maxHeight.value
+        val screenHDp = if (maxHeight != androidx.compose.ui.unit.Dp.Infinity) maxHeight.value
             else com.example.model.ShapePreviewGeometry.DEFAULT_SCREEN_DP
         val (previewHDp, panelScrollHDp) = remember(screenHDp) {
             com.example.model.ShapePreviewGeometry.budget(screenHDp)
