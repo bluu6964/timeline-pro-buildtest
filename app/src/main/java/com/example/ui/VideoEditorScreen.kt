@@ -2429,7 +2429,12 @@ fun VideoEditorScreen(
             val lowerZoneH = totalHeight - headerH - canvasH - playControlsH
             val footerH = if (sel219) com.example.ui.components.SELECTED_PAGER_HEIGHT_DP.dp
                 else if (toolbarH >= 70.dp) toolbarH else 70.dp
-            val dockH = if (toolbarH >= 56.dp) toolbarH else 56.dp
+            // Build 257: the dock floor grows 56 -> 60 dp for the bigger
+            // dock column (44 dp tile + 2 dp gap + ~11.5 dp label + the
+            // 1 dp divider ~= 58.5 dp) — Sarowar's 44 dp tiles / +40%
+            // glyphs order; the footer still takes space from the lower
+            // zone only (canvas law untouched).
+            val dockH = if (toolbarH >= 60.dp) toolbarH else 60.dp
             val renderedFooterH = if (selectedClipId == null) dockH else footerH
             val rulerH = 34.dp
             val workspaceH = 0.dp

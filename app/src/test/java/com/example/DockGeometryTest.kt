@@ -8,10 +8,13 @@ import org.junit.Test
  * Build 249 (UI migration stage 2) — pins the dock's layout law
  * ([DockGeometry]) against fixtures hand-derived from BottomToolbar's
  * build-248 Compose layout: content width, tile pitch, column centring,
- * glyph centring, the label baseline, the label box/clip rule (including
- * an over-wide label clipped at the column's right edge) and the
- * press-scale centre. Fixtures use density 2 so every expected value is
- * exact in float arithmetic.
+ * glyph centring, the label baseline and the press-scale centre.
+ * Build 257 updates the fixtures to Sarowar's exact dock numbers —
+ * tiles 36 → 44 dp, glyphs +40% (15 → 21, 16 → 22.4) — and replaces
+ * the label box/clip rule with the auto-fit rule: an over-wide label
+ * shrinks to fit its tile, it is never clipped mid-word again.
+ * Fixtures use density 2 so every expected value is exact in float
+ * arithmetic (except where a delta is noted).
  */
 class DockGeometryTest {
 
@@ -20,71 +23,75 @@ class DockGeometryTest {
 
     @Test
     fun contentWidthCoversTwelveTiles() {
-        assertEquals(536f, DockGeometry.contentWidthDp(), 0f)
-        assertEquals(96f, DockGeometry.contentWidthDp(2), 0f)
+        assertEquals(632f, DockGeometry.contentWidthDp(), 0f)
+        assertEquals(112f, DockGeometry.contentWidthDp(2), 0f)
         assertEquals(0f, DockGeometry.contentWidthDp(0), 0f)
     }
 
     @Test
     fun tilePitchIsTilePlusGap() {
         assertEquals(16f, DockGeometry.tileLeftPx(0, d), 0f)
-        assertEquals(280f, DockGeometry.tileLeftPx(3, d), 0f)
-        assertEquals(984f, DockGeometry.tileLeftPx(11, d), 0f)
+        assertEquals(328f, DockGeometry.tileLeftPx(3, d), 0f)
+        assertEquals(1160f, DockGeometry.tileLeftPx(11, d), 0f)
     }
 
     @Test
     fun columnIsCentredVertically() {
-        assertEquals(99f, DockGeometry.columnHeightPx(labelH, d), 0f)
-        assertEquals(20.5f, DockGeometry.columnTopPx(140f, labelH, d), 0f)
+        assertEquals(115f, DockGeometry.columnHeightPx(labelH, d), 0f)
+        assertEquals(12.5f, DockGeometry.columnTopPx(140f, labelH, d), 0f)
     }
 
     @Test
     fun glyphIsCentredInTileBox() {
-        // 15 dp glyph in the first tile (left edge 16 px, column top 20.5 px).
-        assertEquals(37f, DockGeometry.glyphLeftPx(16f, 15f, d), 0f)
-        // 16 dp glyph box top.
-        assertEquals(40.5f, DockGeometry.glyphTopPx(20.5f, 16f, d), 0f)
+        // 21 dp glyph in the first tile (left edge 16 px, column top 12.5 px).
+        assertEquals(39f, DockGeometry.glyphLeftPx(16f, 21f, d), 0f)
+        // 22.4 dp glyph box top.
+        assertEquals(34.1f, DockGeometry.glyphTopPx(12.5f, 22.4f, d), 0.001f)
     }
 
     @Test
     fun labelBaselineSitsUnderTilePlusGap() {
-        assertEquals(118.5f, DockGeometry.labelBaselinePx(20.5f, d, -22f), 0f)
+        assertEquals(126.5f, DockGeometry.labelBaselinePx(12.5f, d, -22f), 0f)
     }
 
     @Test
     fun fittingLabelIsCentredAndFullyVisible() {
-        // advance 40 px in a 72 px column: box centred, whole rect drawn.
-        val (rectLeft, srcW) = DockGeometry.labelBlit(
+        // advance 40 px in an 88 px column: scale 1, box centred, whole rect drawn.
+        assertEquals(1f, DockGeometry.labelFitScale(40f, d), 0f)
+        val (rectLeft, dstW, dstH) = DockGeometry.labelBlit(
             tileLeftPx = 16f, advancePx = 40f, bearingPx = 1f,
-            padPx = 2f, rectWPx = 44f, density = d
+            padPx = 2f, rectWPx = 44f, rectHPx = 30f, density = d
         )
-        assertEquals(31f, rectLeft, 0f)
-        assertEquals(44f, srcW, 0f)
+        assertEquals(39f, rectLeft, 0f)
+        assertEquals(44f, dstW, 0f)
+        assertEquals(30f, dstH, 0f)
     }
 
     @Test
-    fun overWideLabelStartsAtColumnLeftAndClipsAtRightEdge() {
-        // "Video/Photo"-class label: advance 110 px > 72 px column.
-        val (rectLeft, srcW) = DockGeometry.labelBlit(
+    fun overWideLabelShrinksToFitInsteadOfClipping() {
+        // "Video/Photo"-class label: advance 110 px > 88 px tile.
+        assertEquals(0.8f, DockGeometry.labelFitScale(110f, d), 0.001f)
+        val (rectLeft, dstW, dstH) = DockGeometry.labelBlit(
             tileLeftPx = 16f, advancePx = 110f, bearingPx = 0f,
-            padPx = 2f, rectWPx = 114f, density = d
+            padPx = 2f, rectWPx = 114f, rectHPx = 30f, density = d
         )
-        assertEquals(14f, rectLeft, 0f)
-        assertEquals(74f, srcW, 0f) // 14 + 74 = 88 = the column's right edge
+        assertEquals(14.4f, rectLeft, 0.01f)
+        assertEquals(91.2f, dstW, 0.01f) // the FULL rect, shrunk — nothing clipped
+        assertEquals(24f, dstH, 0.01f)
     }
 
     @Test
     fun pressCentreIsColumnCentre() {
-        assertEquals(52f, DockGeometry.pressCenterXPx(16f, d), 0f)
-        assertEquals(70f, DockGeometry.pressCenterYPx(20.5f, labelH, d), 0f)
+        assertEquals(60f, DockGeometry.pressCenterXPx(16f, d), 0f)
+        assertEquals(70f, DockGeometry.pressCenterYPx(12.5f, labelH, d), 0f)
     }
 
     @Test
-    fun glyphTableMatchesBuild248Sizes() {
+    fun glyphTableScalesBuild248SizesByFortyPercent() {
         assertEquals(12, DockGeometry.GLYPH_DP.size)
-        assertEquals(15f, DockGeometry.GLYPH_DP[0], 0f)  // media
-        assertEquals(16f, DockGeometry.GLYPH_DP[2], 0f)  // fx
-        assertEquals(15f, DockGeometry.GLYPH_DP[9], 0f)  // camera (icon)
-        assertEquals(16f, DockGeometry.GLYPH_DP[11], 0f) // chain
+        assertEquals(21f, DockGeometry.GLYPH_DP[0], 0f)    // media: 15 x 1.4
+        assertEquals(22.4f, DockGeometry.GLYPH_DP[2], 0.001f) // fx: 16 x 1.4
+        assertEquals(21f, DockGeometry.GLYPH_DP[9], 0f)    // camera (icon): 15 x 1.4
+        assertEquals(22.4f, DockGeometry.GLYPH_DP[11], 0.001f) // chain: 16 x 1.4
     }
 }

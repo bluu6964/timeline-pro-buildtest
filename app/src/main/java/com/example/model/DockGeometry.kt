@@ -8,38 +8,44 @@ package com.example.model
  * glyph TextureView.
  *
  * The build-248 layout being mirrored: a horizontally scrolling row with
- * 8 dp horizontal padding and 8 dp gaps; each tile is a 36 dp column — a
- * 36 dp square box (corner 8 dp, 1 dp border) with the glyph centred, a
+ * 8 dp horizontal padding and 8 dp gaps; each tile is a square column —
+ * the tile box (corner 8 dp, 1 dp border) with the glyph centred, a
  * 2 dp spacer, then the label (9.5 sp SemiBold, single line) — and the
  * column is centred vertically in the dock's row area. The press scale
  * (bouncyClickable, 0.94) transforms the whole column about its centre.
  *
+ * Build 257 (Sarowar's order, his exact numbers): the tile grows from
+ * build 240's compacted 36 dp to **44 dp** and every glyph grows **40%**
+ * (15 → 21 dp, 16 → 22.4 dp). Labels are NEVER clipped any more: a
+ * label whose advance exceeds the tile width is auto-fit — its atlas
+ * blit shrinks by [labelFitScale] until the whole word fits (the two
+ * over-wide labels are "Video/Photo" and "3D Camera").
+ *
  * All functions work in raw pixels; [density] converts the dp constants
- * exactly as Compose's `Dp.toPx()` did. Label placement reproduces
- * Compose's single-line Text layout inside the fixed-width column: the
- * text box is min(advance, column width) wide and centred in the column,
- * ink starts at boxLeft + bearing, and ink past the column's right edge
- * is clipped (the paragraph's own clip) — which is what the two over-wide
- * labels ("Video/Photo", "3D Camera") do in build 248.
+ * exactly as Compose's `Dp.toPx()` did.
  */
 object DockGeometry {
 
     const val TILE_COUNT = 12
-    const val TILE_DP = 36f
+    const val TILE_DP = 44f
     const val GAP_DP = 8f
     const val PAD_DP = 8f
     const val LABEL_GAP_DP = 2f
     const val CORNER_DP = 8f
     const val BORDER_DP = 1f
 
+    /** Floor for the label auto-fit scale (no current label reaches it). */
+    const val LABEL_MIN_SCALE = 0.6f
+
     /**
-     * Glyph box size per tile (dp), in dock order — build 248's sizes:
-     * the vector glyphs draw in a 15 or 16 dp box, the three Material
-     * icons (music, sticker, camera) are 15 dp.
+     * Glyph box size per tile (dp), in dock order — build 248's sizes
+     * (15 / 16 dp) scaled by build 257's ordered +40%: 21 / 22.4 dp.
+     * The three Material icons (music, sticker, camera) are the 21 dp
+     * entries.
      * Order: media, music, fx, text, shapes, sticker, vector, drawing,
      * null, camera, group, chain.
      */
-    val GLYPH_DP = floatArrayOf(15f, 15f, 16f, 15f, 16f, 15f, 16f, 16f, 16f, 15f, 16f, 16f)
+    val GLYPH_DP = floatArrayOf(21f, 21f, 22.4f, 21f, 22.4f, 21f, 22.4f, 22.4f, 22.4f, 21f, 22.4f, 22.4f)
 
     /** The scrolling content's total width (dp): both paddings + tiles + gaps. */
     fun contentWidthDp(tileCount: Int = TILE_COUNT): Float =
@@ -57,11 +63,11 @@ object DockGeometry {
     fun columnTopPx(surfaceHeightPx: Float, labelHeightPx: Float, density: Float): Float =
         (surfaceHeightPx - columnHeightPx(labelHeightPx, density)) / 2f
 
-    /** Glyph box left edge (px): centred inside the 36 dp tile box. */
+    /** Glyph box left edge (px): centred inside the tile box. */
     fun glyphLeftPx(tileLeftPx: Float, glyphDp: Float, density: Float): Float =
         tileLeftPx + (TILE_DP - glyphDp) * density / 2f
 
-    /** Glyph box top edge (px): centred inside the 36 dp tile box. */
+    /** Glyph box top edge (px): centred inside the tile box. */
     fun glyphTopPx(columnTopPx: Float, glyphDp: Float, density: Float): Float =
         columnTopPx + (TILE_DP - glyphDp) * density / 2f
 
@@ -70,20 +76,35 @@ object DockGeometry {
         columnTopPx + (TILE_DP + LABEL_GAP_DP) * density - ascentPx
 
     /**
-     * The label blit's horizontal placement. [advancePx] / [bearingPx] are
-     * the atlas entry's measured advance and left bearing; [padPx] is the
-     * atlas entry padding; [rectWPx] the entry rect's full width. Returns
-     * (rectLeftPx, srcWPx): where the entry rect's left edge lands in
-     * surface px, and how much of the rect is visible before the column's
-     * right-edge clip.
+     * The label's auto-fit scale (build 257): 1 while the label's
+     * advance fits the tile width, else tileWidth / advance, floored at
+     * [LABEL_MIN_SCALE]. Replaces the build-248/249 clip rule — a dock
+     * label is never cut off mid-word again ("Video/P…").
      */
-    fun labelBlit(tileLeftPx: Float, advancePx: Float, bearingPx: Float, padPx: Float, rectWPx: Float, density: Float): Pair<Float, Float> {
+    fun labelFitScale(advancePx: Float, density: Float): Float {
         val tileWPx = TILE_DP * density
-        val boxW = minOf(advancePx, tileWPx)
-        val boxLeft = tileLeftPx + (tileWPx - boxW) / 2f
-        val rectLeft = boxLeft + bearingPx - padPx
-        val srcW = minOf(rectWPx, tileLeftPx + tileWPx - rectLeft)
-        return rectLeft to maxOf(0f, srcW)
+        if (advancePx <= tileWPx) return 1f
+        return maxOf(LABEL_MIN_SCALE, tileWPx / advancePx)
+    }
+
+    /**
+     * The label blit's placement WITH auto-fit. [advancePx] / [bearingPx]
+     * are the atlas entry's measured advance and left bearing; [padPx]
+     * is the atlas entry padding; [rectWPx] / [rectHPx] the entry rect's
+     * full size. Returns (rectLeftPx, dstWPx, dstHPx): where the entry
+     * rect's left edge lands in surface px, and the rect's destination
+     * size when the FULL rect (srcW = rectWPx, srcH = rectHPx) is blitted
+     * at [labelFitScale] — the scaled advance centres in the tile, ink
+     * starts at boxLeft + bearing·scale, the rect's padding scales with
+     * the ink. The caller anchors the baseline the same way: dstY =
+     * baseline − base·scale.
+     */
+    fun labelBlit(tileLeftPx: Float, advancePx: Float, bearingPx: Float, padPx: Float, rectWPx: Float, rectHPx: Float, density: Float): Triple<Float, Float, Float> {
+        val tileWPx = TILE_DP * density
+        val s = labelFitScale(advancePx, density)
+        val boxLeft = tileLeftPx + (tileWPx - advancePx * s) / 2f
+        val rectLeft = boxLeft + (bearingPx - padPx) * s
+        return Triple(rectLeft, rectWPx * s, rectHPx * s)
     }
 
     /** Press-scale centre (px): the column's centre, bouncyClickable's transform origin. */

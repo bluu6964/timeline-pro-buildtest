@@ -71,7 +71,7 @@ import kotlin.math.roundToInt
  * of a graphicsLayer.
  *
  * What did NOT change: the tile order, labels, tags and actions; the
- * horizontal scroll (the GL surface is the full 536 dp content width and
+ * horizontal scroll (the GL surface is the full content width (632 dp since build 257) and
  * scrolls with its container, like the Compose row did); the Chain
  * section — [ChainAddPanel] still replaces this row wholesale while a
  * Chain layer is selected, untouched.
@@ -230,7 +230,7 @@ private fun VectorCmdBuilder.buildDockCommands(
         )
         // Tile box: the SDF stroke is centred on the primitive's edge, so
         // the box is inset by half the border width to put the 1 dp border
-        // fully inside the 36 dp box, where Compose's border modifier drew it.
+        // fully inside the tile box, where Compose's border modifier drew it.
         addRoundRect(
             cx = tileLeft + tilePx / 2f,
             cy = colTop + tilePx / 2f,
@@ -270,18 +270,23 @@ private fun VectorCmdBuilder.buildDockCommands(
             }
             setTranslate(0f, 0f)
         }
-        // Label: the atlas blit, placed by the Compose text-layout rule.
+        // Label: the atlas blit with build 257's auto-fit — the FULL
+        // rect is always drawn; an over-wide label shrinks to fit its
+        // tile instead of clipping mid-word.
         labelEntries[i]?.let { e ->
-            val (rectLeft, srcW) = DockGeometry.labelBlit(
+            val fit = DockGeometry.labelFitScale(e.advance, density)
+            val (rectLeft, dstW, dstH) = DockGeometry.labelBlit(
                 tileLeftPx = tileLeft, advancePx = e.advance, bearingPx = e.bearing,
-                padPx = padPx, rectWPx = e.rectW.toFloat(), density = density
+                padPx = padPx, rectWPx = e.rectW.toFloat(), rectHPx = e.rectH.toFloat(),
+                density = density
             )
             addText(
                 entry = e.index,
                 dstX = rectLeft,
-                dstY = DockGeometry.labelBaselinePx(colTop, density, labelAscentPx) - e.base,
+                dstY = DockGeometry.labelBaselinePx(colTop, density, labelAscentPx) - e.base * fit,
                 srcDX = 0f, srcDY = 0f,
-                srcW = srcW, srcH = e.rectH.toFloat(),
+                srcW = e.rectW.toFloat(), srcH = e.rectH.toFloat(),
+                dstW = dstW, dstH = dstH,
                 tintArgb = labelArgb
             )
         }
