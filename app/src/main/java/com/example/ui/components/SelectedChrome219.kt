@@ -134,7 +134,7 @@ private fun SelTouchBtn(
         modifier = modifier
             .clip(RoundedCornerShape(6.dp))
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
-            .padding(4.dp)
+            .padding(ChromeGeometry.SelHeader.BTN_PAD_DP.dp)
             .then(
                 if (description != null) Modifier.semantics {
                     contentDescription = description
@@ -272,8 +272,8 @@ fun SelectedHeader219(
         // the same law the draw uses.
         val slotWidthPx = maxWidth.value * density
         fun resolveAll(): SelHeaderEntries {
-            val backPx = (19f * density).roundToInt()
-            val deletePx = (18f * density).roundToInt()
+            val backPx = (sg.BTN_GLYPH_DP * density).roundToInt()
+            val deletePx = (sg.DELETE_GLYPH_DP * density).roundToInt()
             val back = atlas.resolveIcon("sel:back", backPx, backPx) { cv, x, y ->
                 val b = rasterizePainterBitmap(backPainter, backPx, density)
                 cv.drawBitmap(b, x, y, null)
@@ -371,7 +371,7 @@ fun SelectedHeader219(
         ) {
             SelTouchBtn(
                 tag = "sel_header_back", interaction = backInteraction,
-                onClick = onBack, glyphSize = 19.dp, description = "Back"
+                onClick = onBack, glyphSize = sg.BTN_GLYPH_DP.dp, description = "Back"
             )
             // The name wrap: flexes, caps at the reference's 180 dp;
             // tap = rename (the plain clickable keeps its ripple over
@@ -387,16 +387,16 @@ fun SelectedHeader219(
             }
             SelTouchBtn(
                 tag = "sel_header_layers", interaction = layersInteraction,
-                onClick = onLayers, glyphSize = 19.dp
+                onClick = onLayers, glyphSize = sg.BTN_GLYPH_DP.dp
             )
             SelTouchBtn(
                 tag = "sel_header_delete", interaction = deleteInteraction,
-                onClick = onDelete, glyphSize = 18.dp, description = "Delete layer"
+                onClick = onDelete, glyphSize = sg.DELETE_GLYPH_DP.dp, description = "Delete layer"
             )
             Box {
                 SelTouchBtn(
                     tag = "sel_header_more", interaction = moreInteraction,
-                    onClick = { menuOpen = true }, glyphSize = 19.dp
+                    onClick = { menuOpen = true }, glyphSize = sg.BTN_GLYPH_DP.dp
                 )
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     SelMenuItem("Duplicate", Icons.Default.ContentCopy, "sel_menu_duplicate") { menuOpen = false; onDuplicate() }

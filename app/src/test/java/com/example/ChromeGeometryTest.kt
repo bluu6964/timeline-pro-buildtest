@@ -109,29 +109,30 @@ class ChromeGeometryTest {
     @Test
     fun headerRightGroupMirrorsBuild249() {
         val h = ChromeGeometry.Header
-        // Bar 800x64 px (32 dp slot at d=2 → buttons fill it: top 0).
-        assertEquals(0f, h.btnTopPx(64f, d), 0f)
+        // Build 260: buttons ×1.2 (38.4 dp). Bar 800x88 px (the 44 dp
+        // header slot at d=2): button top = (88 - 76.8) / 2 = 5.6.
+        assertEquals(5.6f, h.btnTopPx(88f, d), 0.001f)
         assertEquals(20f, h.closeLeftPx(d), 0f)
-        assertEquals(716f, h.exportLeftPx(800f, d), 0f) // 800 - 42*2
-        // Pill: advance 50 px → width 50 + 31*2 = 112.
-        assertEquals(112f, h.pillWidthPx(50f, d), 0f)
-        assertEquals(590f, h.pillLeftPx(800f, 112f, d), 0f) // 716 - 14 - 112
-        assertEquals(512f, h.ratioLeftPx(590f, d), 0f) // 590 - 39*2
-        assertEquals(610f, h.pillTextLeftPx(590f, d), 0f)
-        assertEquals(668f, h.triLeftPx(590f, 50f, d), 0f) // 590 + 28 + 50
-        assertEquals(24f, h.triTopPx(64f, d), 0f) // (32-8)/2 * 2
+        assertEquals(703.2f, h.exportLeftPx(800f, d), 0.001f) // 800 - 48.4*2
+        // Pill: advance 50 px → width 50 + 32.6*2 = 115.2.
+        assertEquals(115.2f, h.pillWidthPx(50f, d), 0.001f)
+        assertEquals(574f, h.pillLeftPx(800f, 115.2f, d), 0.001f) // 703.2 - 14 - 115.2
+        assertEquals(483.2f, h.ratioLeftPx(574f, d), 0.001f) // 574 - 45.4*2
+        assertEquals(594f, h.pillTextLeftPx(574f, d), 0f)
+        assertEquals(652f, h.triLeftPx(574f, 50f, d), 0f) // 574 + 28 + 50
+        assertEquals(34.4f, h.triTopPx(88f, d), 0.001f) // 5.6 + (38.4-9.6)
     }
 
     @Test
     fun headerFaceAndGlyphInsets() {
         val h = ChromeGeometry.Header
-        assertEquals(62f, h.faceSizePx(d), 0f) // (32-1) * 2
-        assertEquals(17f, h.faceRadiusPx(d), 0f) // (9-0.5) * 2
-        // 16 dp glyph in a 32 dp button: inset 16 px at d=2.
-        assertEquals(528f, h.glyphLeftPx(512f, 16f, d), 0f)
-        assertEquals(16f, h.glyphTopPx(64f, 16f, d), 0f)
-        // 12 dp close glyph: inset 20 px.
-        assertEquals(40f, h.glyphLeftPx(20f, 12f, d), 0f)
+        assertEquals(74.8f, h.faceSizePx(d), 0.001f) // (38.4-1) * 2
+        assertEquals(20.6f, h.faceRadiusPx(d), 0.001f) // (10.8-0.5) * 2
+        // 16 dp glyph in a 38.4 dp button: inset 22.4 px at d=2.
+        assertEquals(534.4f, h.glyphLeftPx(512f, 16f, d), 0.001f)
+        assertEquals(28f, h.glyphTopPx(88f, 16f, d), 0.001f) // 5.6 + 22.4
+        // 12 dp glyph: inset 26.4 px.
+        assertEquals(46.4f, h.glyphLeftPx(20f, 12f, d), 0.001f)
     }
 
     // ── Layer header ────────────────────────────────────────────────
@@ -139,19 +140,20 @@ class ChromeGeometryTest {
     @Test
     fun layerHeaderZonesAndColumn() {
         val l = ChromeGeometry.LayerHeader
-        // Slot 96 px tall (48 dp) → zone = 36 dp = 72 px, top = 12.
-        assertEquals(36f, l.zoneDp(48f), 0f)
-        assertEquals(12f, l.zoneTopPx(96f, d), 0f)
+        // Build 260: zone ×1.2 = 43.2 dp. Slot 96 px tall (48 dp) →
+        // zone = 43.2 dp = 86.4 px, top = 4.8.
+        assertEquals(43.2f, l.zoneDp(48f), 0.001f)
+        assertEquals(4.8f, l.zoneTopPx(96f, d), 0.001f)
         assertEquals(8f, l.backLeftPx(d), 0f)
-        assertEquals(80f, l.slotLeftPx(d, 96f), 0f) // (4+36)*2
-        // W=800, 3 icon zones: slot = 800 - 16 - 72*4 = 496.
-        assertEquals(496f, l.slotWidthPx(800f, 96f, d, 3), 0f)
-        assertEquals(84f, l.contentLeftPx(d, 96f), 0f)
-        assertEquals(476f, l.contentWidthPx(800f, 96f, d, 3), 0f) // 496 - 20
+        assertEquals(94.4f, l.slotLeftPx(d, 96f), 0.001f) // (4+43.2)*2
+        // W=800, 3 icon zones: slot = 800 - 16 - 86.4*4 = 438.4.
+        assertEquals(438.4f, l.slotWidthPx(800f, 96f, d, 3), 0.001f)
+        assertEquals(98.4f, l.contentLeftPx(d, 96f), 0.001f)
+        assertEquals(418.4f, l.contentWidthPx(800f, 96f, d, 3), 0.001f) // 438.4 - 20
         // Trailing zones start right after the slot.
-        assertEquals(576f, l.zoneLeftPx(800f, 96f, d, 3, 0), 0f)
-        assertEquals(648f, l.zoneLeftPx(800f, 96f, d, 3, 1), 0f)
-        assertEquals(720f, l.zoneLeftPx(800f, 96f, d, 3, 2), 0f)
+        assertEquals(532.8f, l.zoneLeftPx(800f, 96f, d, 3, 0), 0.001f)
+        assertEquals(619.2f, l.zoneLeftPx(800f, 96f, d, 3, 1), 0.001f)
+        assertEquals(705.6f, l.zoneLeftPx(800f, 96f, d, 3, 2), 0.001f)
     }
 
     @Test
@@ -162,8 +164,8 @@ class ChromeGeometryTest {
         assertEquals(40f, l.columnHeightPx(40f, d, false), 0f)
         assertEquals(25f, l.columnTopPx(96f, 40f, d, true), 0f)
         assertEquals(69f, l.underlineTopPx(96f, 40f, d), 0f) // 25 + 40 + 4
-        // Tools circle: (22 - 1.2) / 2 * 2 = 20.8 px radius.
-        assertEquals(20.8f, l.toolsCircleRadiusPx(d), 0.001f)
+        // Tools circle: (26.4 - 1.2) / 2 * 2 = 25.2 px radius.
+        assertEquals(25.2f, l.toolsCircleRadiusPx(d), 0.001f)
     }
 
     @Test
@@ -179,15 +181,17 @@ class ChromeGeometryTest {
     fun selHeaderFixedSumAndNameCap() {
         val s = ChromeGeometry.SelHeader
         assertEquals(20f, s.backLeftPx(d), 0f)
-        assertEquals(94f, s.nameBoxLeftPx(d), 0f) // (10 + 27 + 10) * 2
-        // W=800: name wrap = 800 - 167*2 = 466 → capped at 180 dp = 360.
-        assertEquals(466f, s.nameBoxWidthPx(800f, d), 0f)
+        // Build 260: buttons ×1.2 — btn = 22.8 + 2*4.8 = 32.4 dp,
+        // delete btn = 21.6 + 9.6 = 31.2; fixed sum = 188.4 dp.
+        assertEquals(104.8f, s.nameBoxLeftPx(d), 0.001f) // (10 + 32.4 + 10) * 2
+        // W=800: name wrap = 800 - 188.4*2 = 423.2 → capped at 180 dp = 360.
+        assertEquals(423.2f, s.nameBoxWidthPx(800f, d), 0.001f)
         assertEquals(360f, s.columnWidthPx(800f, d), 0f)
-        assertEquals(580f, s.layersLeftPx(800f, d), 0f) // 94 + 466 + 20
-        assertEquals(654f, s.deleteLeftPx(800f, d), 0f) // 580 + 37*2
-        assertEquals(726f, s.moreLeftPx(800f, d), 0f) // 654 + 36*2
-        // Narrow screen W=500: wrap = 500-334 = 166 < cap.
-        assertEquals(166f, s.columnWidthPx(500f, d), 0f)
+        assertEquals(548f, s.layersLeftPx(800f, d), 0.001f) // 104.8 + 423.2 + 20
+        assertEquals(632.8f, s.deleteLeftPx(800f, d), 0.001f) // 548 + 42.4*2
+        assertEquals(715.2f, s.moreLeftPx(800f, d), 0.001f) // 632.8 + 41.2*2
+        // Narrow screen W=500: wrap = 500-376.8 = 123.2 < cap.
+        assertEquals(123.2f, s.columnWidthPx(500f, d), 0.001f)
     }
 
     @Test
@@ -197,11 +201,12 @@ class ChromeGeometryTest {
         assertEquals(46f, s.columnHeightPx(40f, d), 0f)
         assertEquals(35f, s.columnTopPx(116f, 40f, d), 0f)
         assertEquals(79f, s.underlineTopPx(116f, 40f, d), 0f) // 35 + 40 + 4
-        // Buttons: back/layers/more 27 dp (54 px) → top 31; delete 26 dp → 32.
-        assertEquals(31f, s.btnTopPx(116f, 19f, d), 0f)
-        assertEquals(32f, s.btnTopPx(116f, 18f, d), 0f)
+        // Buttons at pad 4.8: a 19 dp glyph's btn = 28.6 dp (57.2 px)
+        // → top 29.4; an 18 dp glyph's btn = 27.6 dp → top 30.4.
+        assertEquals(29.4f, s.btnTopPx(116f, 19f, d), 0.001f)
+        assertEquals(30.4f, s.btnTopPx(116f, 18f, d), 0.001f)
         assertEquals(39f, s.glyphTopPx(116f, 19f, d), 0f) // (116 - 38) / 2
-        assertEquals(102f, s.glyphLeftPx(94f, d), 0f) // + 4 dp
+        assertEquals(103.6f, s.glyphLeftPx(94f, d), 0.001f) // + 4.8 dp
     }
 
     // ── Multi-select bar ────────────────────────────────────────────

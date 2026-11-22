@@ -149,11 +149,19 @@ object ChromeGeometry {
     // ── App header (EditorHeader) ───────────────────────────────────
 
     object Header {
-        const val BTN_DP = 32f
-        const val CORNER_DP = 9f
+        // Build 260 (Sarowar's order): the header buttons grow ×1.2 —
+        // box 32 → 38.4 dp, corner 9 → 10.8, glyphs 12 → 14.4 (close)
+        // and 16 → 19.2 (ratio / export), pill triangle 8 → 9.6.
+        // Pads and gaps keep their build-249 sizes.
+        const val BTN_DP = 38.4f
+        const val CORNER_DP = 10.8f
         const val BORDER_DP = 1f
         const val PAD_DP = 10f
         const val GAP_DP = 7f
+        const val GLYPH_CLOSE_DP = 14.4f
+        const val GLYPH_RATIO_DP = 19.2f
+        const val GLYPH_EXPORT_DP = 19.2f
+        const val TRI_DP = 9.6f
 
         fun btnTopPx(heightPx: Float, density: Float): Float =
             (heightPx - BTN_DP * density) / 2f
@@ -163,9 +171,9 @@ object ChromeGeometry {
         fun exportLeftPx(widthPx: Float, density: Float): Float =
             widthPx - (PAD_DP + BTN_DP) * density
 
-        /** Pill width: start padding 10 + text advance + gap 4 + triangle 8 + end padding 9. */
+        /** Pill width: start padding 10 + text advance + gap 4 + triangle [TRI_DP] + end padding 9. */
         fun pillWidthPx(advancePx: Float, density: Float): Float =
-            advancePx + 31f * density
+            advancePx + (10f + 4f + TRI_DP + 9f) * density
 
         fun pillLeftPx(widthPx: Float, pillWidthPx: Float, density: Float): Float =
             exportLeftPx(widthPx, density) - GAP_DP * density - pillWidthPx
@@ -180,12 +188,12 @@ object ChromeGeometry {
         fun pillTextTopPx(heightPx: Float, textHeightPx: Float, density: Float): Float =
             btnTopPx(heightPx, density) + (BTN_DP * density - textHeightPx) / 2f
 
-        /** The dropdown triangle's 8 dp box: after text + 4 dp gap, centred vertically. */
+        /** The dropdown triangle's [TRI_DP] box: after text + 4 dp gap, centred vertically. */
         fun triLeftPx(pillLeftPx: Float, advancePx: Float, density: Float): Float =
             pillLeftPx + 14f * density + advancePx
 
         fun triTopPx(heightPx: Float, density: Float): Float =
-            btnTopPx(heightPx, density) + (BTN_DP - 8f) * density / 2f
+            btnTopPx(heightPx, density) + (BTN_DP - TRI_DP) * density / 2f
 
         /** A button glyph's box (centred in the 32 dp button). */
         fun glyphLeftPx(btnLeftPx: Float, glyphDp: Float, density: Float): Float =
@@ -208,11 +216,20 @@ object ChromeGeometry {
         const val NAME_PAD_END_DP = 8f
         const val UNDERLINE_GAP_DP = 2f
         const val UNDERLINE_H_DP = 1f
-        const val TOOLS_CIRCLE_DP = 22f
+        // Build 260 (Sarowar's order): the layer header's buttons grow
+        // ×1.2 — zone 36 → 43.2 dp, tools circle 22 → 26.4, glyphs
+        // back 13 → 15.6, copy 16 → 19.2, delete 17 → 20.4, more
+        // 14 → 16.8.
+        const val TOOLS_CIRCLE_DP = 26.4f
         const val TOOLS_CIRCLE_STROKE_DP = 1.2f
+        const val ZONE_MAX_DP = 43.2f
+        const val GLYPH_BACK_DP = 15.6f
+        const val GLYPH_COPY_DP = 19.2f
+        const val GLYPH_DELETE_DP = 20.4f
+        const val GLYPH_MORE_DP = 16.8f
 
-        /** Icon zone edge: 36 dp, never taller than the slot itself. */
-        fun zoneDp(heightDp: Float): Float = minOf(36f, heightDp)
+        /** Icon zone edge: [ZONE_MAX_DP], never taller than the slot itself. */
+        fun zoneDp(heightDp: Float): Float = minOf(ZONE_MAX_DP, heightDp)
 
         fun zoneTopPx(heightPx: Float, density: Float): Float =
             (heightPx - zoneDp(heightPx / density) * density) / 2f
@@ -262,7 +279,7 @@ object ChromeGeometry {
         fun glyphTopPx(heightPx: Float, glyphDp: Float, density: Float): Float =
             (heightPx - glyphDp * density) / 2f
 
-        /** Tools circle: the 1.2 dp ring sits inside the 22 dp disc (dock stroke rule). */
+        /** Tools circle: the 1.2 dp ring sits inside the [TOOLS_CIRCLE_DP] disc (dock stroke rule). */
         fun toolsCircleRadiusPx(density: Float): Float =
             (TOOLS_CIRCLE_DP - TOOLS_CIRCLE_STROKE_DP) * density / 2f
     }
@@ -272,14 +289,17 @@ object ChromeGeometry {
     object SelHeader {
         const val PAD_DP = 10f
         const val GAP_DP = 10f
-        const val BTN_GLYPH_DP = 19f
-        const val DELETE_GLYPH_DP = 18f
-        const val BTN_PAD_DP = 4f
+        // Build 260 (Sarowar's order): the selected header's buttons
+        // grow ×1.2 — glyphs 19 → 22.8 (back / layers / more) and
+        // 18 → 21.6 (delete), button padding 4 → 4.8.
+        const val BTN_GLYPH_DP = 22.8f
+        const val DELETE_GLYPH_DP = 21.6f
+        const val BTN_PAD_DP = 4.8f
         const val NAME_MAX_DP = 180f
         const val UNDERLINE_GAP_DP = 2f
         const val UNDERLINE_H_DP = 1f
 
-        /** A SelIconBtn's edge: glyph + 4 dp padding on both sides. */
+        /** A SelIconBtn's edge: glyph + [BTN_PAD_DP] padding on both sides. */
         fun btnSizeDp(glyphDp: Float): Float = glyphDp + 2f * BTN_PAD_DP
 
         fun backLeftPx(density: Float): Float = PAD_DP * density
@@ -287,9 +307,14 @@ object ChromeGeometry {
         fun nameBoxLeftPx(density: Float): Float =
             (PAD_DP + btnSizeDp(BTN_GLYPH_DP) + GAP_DP) * density
 
-        /** The name wrap's width: the row's fixed parts total 167 dp (see SelectedChrome219). */
+        /**
+         * The name wrap's width: the row's fixed parts — 2 pads +
+         * 4 gaps + the back / layers / more buttons + the delete
+         * button (188.4 dp since build 260; 167 dp before).
+         */
         fun nameBoxWidthPx(widthPx: Float, density: Float): Float =
-            widthPx - 167f * density
+            widthPx - (2f * PAD_DP + 4f * GAP_DP +
+                3f * btnSizeDp(BTN_GLYPH_DP) + btnSizeDp(DELETE_GLYPH_DP)) * density
 
         /** The name column's width: the wrap's width capped at the reference's 180 dp. */
         fun columnWidthPx(widthPx: Float, density: Float): Float =

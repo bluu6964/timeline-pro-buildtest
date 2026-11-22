@@ -146,9 +146,9 @@ fun EditorHeader(
             Spacer(Modifier.weight(1f))
             Box(
                 Modifier
-                    .size(32.dp)
+                    .size(hg.BTN_DP.dp)
                     .shadow(
-                        elevation = 5.dp, shape = RoundedCornerShape(9.dp), clip = false,
+                        elevation = 5.dp, shape = RoundedCornerShape(hg.CORNER_DP.dp), clip = false,
                         ambientColor = RefLime.copy(alpha = 0.25f),
                         spotColor = RefLime.copy(alpha = 0.25f)
                     )
@@ -174,10 +174,10 @@ fun EditorHeader(
                     setScaleAbout(cx, cy, scales[0].value)
                     addRoundRect(cx, cy, faceSize, faceSize, faceRadius, faceFill, dd, faceBorder)
                     setTranslate(
-                        hg.glyphLeftPx(left, 12f, dd),
-                        hg.glyphTopPx(h, 12f, dd)
+                        hg.glyphLeftPx(left, hg.GLYPH_CLOSE_DP, dd),
+                        hg.glyphTopPx(h, hg.GLYPH_CLOSE_DP, dd)
                     )
-                    glyphCloseXBody(12f * dd, 12f * dd, dd)
+                    glyphCloseXBody(hg.GLYPH_CLOSE_DP * dd, hg.GLYPH_CLOSE_DP * dd, dd)
                     clearTransform()
                 }
 
@@ -191,10 +191,10 @@ fun EditorHeader(
                     setScaleAbout(cx, cy, scales[1].value)
                     addRoundRect(cx, cy, faceSize, faceSize, faceRadius, faceFill, dd, faceBorder)
                     setTranslate(
-                        hg.glyphLeftPx(left, 16f, dd),
-                        hg.glyphTopPx(h, 16f, dd)
+                        hg.glyphLeftPx(left, hg.GLYPH_RATIO_DP, dd),
+                        hg.glyphTopPx(h, hg.GLYPH_RATIO_DP, dd)
                     )
-                    glyphRatioBody(16f * dd)
+                    glyphRatioBody(hg.GLYPH_RATIO_DP * dd)
                     clearTransform()
                 }
 
@@ -213,7 +213,7 @@ fun EditorHeader(
                         tintArgb = TextPrimary.toArgb()
                     )
                     setTranslate(hg.triLeftPx(pillLeft, e.advance, dd), hg.triTopPx(h, dd))
-                    glyphTriangleBody(8f * dd)
+                    glyphTriangleBody(hg.TRI_DP * dd)
                     clearTransform()
                 }
 
@@ -224,10 +224,10 @@ fun EditorHeader(
                     setScaleAbout(cx, cy, scales[3].value)
                     addRoundRect(cx, cy, btnPx, btnPx, hg.CORNER_DP * dd, RefLime.toArgb())
                     setTranslate(
-                        hg.glyphLeftPx(left, 16f, dd),
-                        hg.glyphTopPx(h, 16f, dd)
+                        hg.glyphLeftPx(left, hg.GLYPH_EXPORT_DP, dd),
+                        hg.glyphTopPx(h, hg.GLYPH_EXPORT_DP, dd)
                     )
-                    glyphDownloadBody(16f * dd, RefLimeInk.toArgb())
+                    glyphDownloadBody(hg.GLYPH_EXPORT_DP * dd, RefLimeInk.toArgb())
                     clearTransform()
                 }
             }
@@ -242,7 +242,7 @@ fun EditorHeader(
             verticalAlignment = Alignment.CenterVertically
         ) {
             ChromePressBox(
-                scales[0], 0.92f, onBackClick, Modifier.size(32.dp),
+                scales[0], 0.92f, onBackClick, Modifier.size(hg.BTN_DP.dp),
                 tag = "header_back_button", description = "Back to projects"
             )
             Spacer(Modifier.weight(1f))
@@ -254,7 +254,7 @@ fun EditorHeader(
                     ChromePressBox(
                         scales[1], 0.92f,
                         { if (ratioOptions.isNotEmpty()) ratioMenuOpen = true else onAspectRatioClick() },
-                        Modifier.size(32.dp),
+                        Modifier.size(hg.BTN_DP.dp),
                         tag = "header_ratio_button", description = "Aspect ratio"
                     )
                     DropdownMenu(
@@ -290,7 +290,7 @@ fun EditorHeader(
                     ChromePressBox(
                         scales[2], 0.95f, { resMenuOpen = true },
                         Modifier
-                            .height(32.dp)
+                            .height(hg.BTN_DP.dp)
                             .width(pillWidthDp),
                         tag = "header_resolution_pill", description = "Export resolution"
                     )
@@ -324,7 +324,7 @@ fun EditorHeader(
                     }
                 }
                 ChromePressBox(
-                    scales[3], 0.94f, onExportClick, Modifier.size(32.dp),
+                    scales[3], 0.94f, onExportClick, Modifier.size(hg.BTN_DP.dp),
                     tag = "header_export_button", description = "Export"
                 )
             }
@@ -456,7 +456,7 @@ fun LayerHeader(
     val scales = remember { List(5) { Animatable(1f) } }
     val scaleValues = scales.map { it.value }
     val pad = UiLabelAtlas.PAD.toFloat()
-    val zone = minOf(36.dp, height)
+    val zone = minOf(lg.ZONE_MAX_DP.dp, height)
     val columnHDp = (lg.columnHeightPx(nameTextH, density, renameable) / density).dp
 
     BoxWithConstraints(
@@ -472,9 +472,9 @@ fun LayerHeader(
         // draw uses.
         val slotWidthPx = maxWidth.value * density
         fun resolveAll(): LayerHeaderEntries {
-            val copyPx = (16f * density).roundToInt()
-            val deletePx = (17f * density).roundToInt()
-            val morePx = (14f * density).roundToInt()
+            val copyPx = (lg.GLYPH_COPY_DP * density).roundToInt()
+            val deletePx = (lg.GLYPH_DELETE_DP * density).roundToInt()
+            val morePx = (lg.GLYPH_MORE_DP * density).roundToInt()
             val copy = if (onDuplicate != null) atlas.resolveIcon("lh:copy", copyPx, copyPx) { cv, x, y ->
                 val b = rasterizePainterBitmap(copyPainter, copyPx, density)
                 cv.drawBitmap(b, x, y, null)
@@ -518,10 +518,10 @@ fun LayerHeader(
                     val left = lg.backLeftPx(dd)
                     setScaleAbout(left + zonePx / 2f, cy, scales[0].value)
                     setTranslate(
-                        lg.glyphLeftPx(left, h, 13f, dd),
-                        lg.glyphTopPx(h, 13f, dd)
+                        lg.glyphLeftPx(left, h, lg.GLYPH_BACK_DP, dd),
+                        lg.glyphTopPx(h, lg.GLYPH_BACK_DP, dd)
                     )
-                    glyphChevronBody(13f * dd, 13f * dd, dd)
+                    glyphChevronBody(lg.GLYPH_BACK_DP * dd, lg.GLYPH_BACK_DP * dd, dd)
                     clearTransform()
                 }
 
@@ -560,8 +560,8 @@ fun LayerHeader(
                     entries.copy?.let { e ->
                         addText(
                             e.index,
-                            lg.glyphLeftPx(left, h, 16f, dd) - pad,
-                            lg.glyphTopPx(h, 16f, dd) - pad,
+                            lg.glyphLeftPx(left, h, lg.GLYPH_COPY_DP, dd) - pad,
+                            lg.glyphTopPx(h, lg.GLYPH_COPY_DP, dd) - pad,
                             0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
                             tintArgb = TextPrimary.toArgb()
                         )
@@ -575,8 +575,8 @@ fun LayerHeader(
                     entries.delete?.let { e ->
                         addText(
                             e.index,
-                            lg.glyphLeftPx(left, h, 17f, dd) - pad,
-                            lg.glyphTopPx(h, 17f, dd) - pad,
+                            lg.glyphLeftPx(left, h, lg.GLYPH_DELETE_DP, dd) - pad,
+                            lg.glyphTopPx(h, lg.GLYPH_DELETE_DP, dd) - pad,
                             0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
                             tintArgb = TextPrimary.toArgb()
                         )
@@ -596,8 +596,8 @@ fun LayerHeader(
                     entries.more?.let { e ->
                         addText(
                             e.index,
-                            lg.glyphLeftPx(left, h, 14f, dd) - pad,
-                            lg.glyphTopPx(h, 14f, dd) - pad,
+                            lg.glyphLeftPx(left, h, lg.GLYPH_MORE_DP, dd) - pad,
+                            lg.glyphTopPx(h, lg.GLYPH_MORE_DP, dd) - pad,
                             0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
                             tintArgb = TextPrimary.toArgb()
                         )
