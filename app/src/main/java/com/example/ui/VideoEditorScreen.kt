@@ -149,6 +149,8 @@ import com.example.ui.components.AddTextSheet
 import com.example.ui.components.AppliedEffectsView
 import com.example.ui.components.AspectRatioSheet
 import com.example.ui.components.BottomToolbar
+import com.example.ui.components.drawSplitGlyph
+import com.example.ui.components.drawTrimGlyph
 import com.example.ui.components.CanvasArea
 import com.example.ui.components.ClipEditToolsPanel
 import com.example.ui.components.ClipEffectsSheet
@@ -3804,6 +3806,22 @@ fun VideoEditorScreen(
                                     id = id, label = label, icon = icon, badge = badge,
                                     enabled = enabled, active = active, iconRotate = iconRotate, onClick = onClick
                                 )
+                                // Build 260: action219 with a DRAWN glyph
+                                // (Sarowar's Split / Trim brackets) — the
+                                // Material icon stays as the fallback
+                                // identity; the draw paints white (the
+                                // pager blit tint supplies the colour).
+                                fun glyphAction219(
+                                    id: String,
+                                    label: String,
+                                    fallback: androidx.compose.ui.graphics.vector.ImageVector,
+                                    enabled: Boolean = true,
+                                    draw: androidx.compose.ui.graphics.drawscope.DrawScope.() -> Unit,
+                                    onClick: () -> Unit = {}
+                                ) = com.example.ui.components.PagerTool219(
+                                    id = id, label = label, icon = fallback,
+                                    enabled = enabled, onClick = onClick, glyphDraw = draw
+                                )
                                 val editTarget219 = when {
                                     type219 == LayerType.TEXT -> Triple("edit_text", "Edit Text", Icons.Default.TextFields)
                                     type219 == LayerType.SHAPE -> Triple("edit_shape", "Edit Shape", Icons.Default.Category)
@@ -3821,19 +3839,22 @@ fun VideoEditorScreen(
                                                 else if (type219 == LayerType.STICKER) { viewModel.beginAdjust(); showStickerSpeedSheet = true }
                                                 else { viewModel.beginAdjust(); showAudioSpeedSheet = true }
                                             }),
-                                        action219("trim_left", "Trim Left", Icons.Default.BorderLeft,
+                                        glyphAction219("trim_left", "Trim Left", Icons.Default.BorderLeft,
                                             enabled = type219 != LayerType.CHAIN && ph219 > clip219.startMs,
+                                            draw = { drawTrimGlyph(androidx.compose.ui.graphics.Color.White, trimLeft = true) },
                                             onClick = {
                                                 val d = ph219 - clip219.startMs
                                                 if (d > 0) { viewModel.beginAdjust(); viewModel.trimClipEdge(clip219.id, true, d) }
                                             }),
-                                        action219("split", "Split", Icons.Default.ContentCut,
+                                        glyphAction219("split", "Split", Icons.Default.ContentCut,
                                             enabled = type219 != LayerType.CHAIN,
+                                            draw = { drawSplitGlyph(androidx.compose.ui.graphics.Color.White) },
                                             onClick = {
                                                 viewModel.splitSelectedClip()
                                             }),
-                                        action219("trim_right", "Trim Right", Icons.Default.BorderRight,
+                                        glyphAction219("trim_right", "Trim Right", Icons.Default.BorderRight,
                                             enabled = type219 != LayerType.CHAIN && ph219 < clip219.endMs,
+                                            draw = { drawTrimGlyph(androidx.compose.ui.graphics.Color.White, trimLeft = false) },
                                             onClick = {
                                                 val d = ph219 - clip219.endMs
                                                 if (d < 0) { viewModel.beginAdjust(); viewModel.trimClipEdge(clip219.id, false, d) }

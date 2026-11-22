@@ -454,7 +454,15 @@ data class PagerTool219(
     val active: Boolean = false,
     /** Icon rotation in degrees (Flip V reuses the Flip glyph at 90°). */
     val iconRotate: Float = 0f,
-    val onClick: () -> Unit = {}
+    val onClick: () -> Unit = {},
+    /**
+     * Build 260: an optional DRAWN glyph (Sarowar's Split / Trim
+     * bracket family — BracketGlyphs.kt) that replaces [icon] in the
+     * page's raster: drawn once into the UI atlas like the multi-select
+     * bar's drawn glyphs (only alpha is read; the blit tint colours
+     * it). [icon] stays as the non-null fallback identity.
+     */
+    val glyphDraw: (androidx.compose.ui.graphics.drawscope.DrawScope.() -> Unit)? = null
 )
 
 /** One pager row: its height and whether its labels use the small (9.5 sp) size. */
@@ -557,10 +565,21 @@ private fun PagerPageGl(buttons: List<PagerBtnLayout>) {
         val prep = preps[i]
         val iconPx = (prep.effIconDp * density).roundToInt()
         val rot = b.tool.iconRotate.roundToInt()
-        val icon = atlas.resolveIcon("pager-icon:${b.tool.icon.name}:${prep.effIconDp}:$rot", iconPx, iconPx) { cv, x, y ->
-            val bmp = rasterizePagerIcon(painters[i], iconPx, density, b.tool.iconRotate)
-            cv.drawBitmap(bmp, x, y, null)
-            bmp.recycle()
+        val glyphDraw = b.tool.glyphDraw
+        val icon = if (glyphDraw != null) {
+            // Build 260: a drawn glyph (the Split / Trim brackets)
+            // rasterizes from its DrawScope draw, keyed by tool id.
+            atlas.resolveIcon("pager-drawn:${b.tool.id}:${prep.effIconDp}", iconPx, iconPx) { cv, x, y ->
+                val bmp = rasterizeDrawBitmap(iconPx, iconPx, density) { glyphDraw() }
+                cv.drawBitmap(bmp, x, y, null)
+                bmp.recycle()
+            }
+        } else {
+            atlas.resolveIcon("pager-icon:${b.tool.icon.name}:${prep.effIconDp}:$rot", iconPx, iconPx) { cv, x, y ->
+                val bmp = rasterizePagerIcon(painters[i], iconPx, density, b.tool.iconRotate)
+                cv.drawBitmap(bmp, x, y, null)
+                bmp.recycle()
+            }
         }
         val labels = prep.lineTexts.map { atlas.resolve(it, prep.style) }
         val badge = b.tool.badge?.let { atlas.resolve(it, UiLabelStyle.PAGER_BADGE) }
