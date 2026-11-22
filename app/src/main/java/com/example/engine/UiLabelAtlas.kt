@@ -251,13 +251,7 @@ enum class UiLabelStyle(
     CHIP_8_XBOLD(8f, 800),
 
     /** Build 253 (stage 6): project-card duration badge: 9 sp SemiBold. */
-    TEXT_9_SEMI(9f, 600),
-
-    /** Build 255: transform panel segmented toggle / link chip: 13 sp Medium. */
-    TF_SEG(13f, 500),
-
-    /** Build 255: transform card big value: 16 sp Medium, tabular figures. */
-    TF_VALUE(16f, 500, tnum = true);
+    TEXT_9_SEMI(9f, 600);
 
     companion object {
         /** The pager label style for an auto-fit size (7.5–10 sp in 0.5 steps). */
