@@ -48,7 +48,12 @@ object PanelGeometry {
         if (maxLines <= 0) return emptyList()
         if (text.isEmpty()) return listOf("")
         if (measure(text) <= maxWPx) return listOf(text)
-        val lines = ArrayList<String>(maxLines)
+        // Capacity hint only — NEVER pre-size by [maxLines] itself:
+        // it is a cap, not a data size, and unbounded callers pass
+        // Int.MAX_VALUE (build 254: ArrayList<String>(Int.MAX_VALUE)
+        // tried to allocate ~8.6 GB and OOM-crashed GlTextBlock on a
+        // phone). The text's own length bounds the real line count.
+        val lines = ArrayList<String>(minOf(maxLines, 16))
         var rest = text
         while (rest.isNotEmpty() && lines.size < maxLines) {
             if (measure(rest) <= maxWPx) {
