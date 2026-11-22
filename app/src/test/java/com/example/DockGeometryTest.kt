@@ -118,11 +118,13 @@ class DockGeometryTest {
     }
 
     @Test
-    fun glyphTableScalesBuild248SizesByFortyPercent() {
+    fun glyphTableScalesBuild248SizesByFortyPercentTwice() {
+        // Build 257: 15 -> 21, 16 -> 22.4 (x1.4). Build 260 (Sarowar's
+        // order): x1.4 again -> 29.4 / 31.4.
         assertEquals(12, DockGeometry.GLYPH_DP.size)
-        assertEquals(21f, DockGeometry.GLYPH_DP[0], 0f)    // media: 15 x 1.4
-        assertEquals(22.4f, DockGeometry.GLYPH_DP[2], 0.001f) // fx: 16 x 1.4
-        assertEquals(21f, DockGeometry.GLYPH_DP[9], 0f)    // camera (icon): 15 x 1.4
-        assertEquals(22.4f, DockGeometry.GLYPH_DP[11], 0.001f) // chain: 16 x 1.4
+        assertEquals(29.4f, DockGeometry.GLYPH_DP[0], 0.001f) // media: 21 x 1.4
+        assertEquals(31.4f, DockGeometry.GLYPH_DP[2], 0.001f) // fx: 22.4 x 1.4
+        assertEquals(29.4f, DockGeometry.GLYPH_DP[9], 0.001f) // camera (icon): 21 x 1.4
+        assertEquals(31.4f, DockGeometry.GLYPH_DP[11], 0.001f) // chain: 22.4 x 1.4
     }
 }

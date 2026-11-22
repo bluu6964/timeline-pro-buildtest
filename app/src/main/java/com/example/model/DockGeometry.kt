@@ -39,13 +39,17 @@ object DockGeometry {
 
     /**
      * Glyph box size per tile (dp), in dock order — build 248's sizes
-     * (15 / 16 dp) scaled by build 257's ordered +40%: 21 / 22.4 dp.
-     * The three Material icons (music, sticker, camera) are the 21 dp
-     * entries.
+     * (15 / 16 dp) scaled by build 257's ordered +40% (21 / 22.4 dp)
+     * and by build 260's ordered +40% again: 29.4 / 31.4 dp. The tiles
+     * stay 44 dp; every glyph raster (Material icons, the play
+     * triangle, the fx star) is resolved from this table at draw time,
+     * so the bigger blits rasterize at the bigger size and stay sharp.
+     * The three Material icons (music, sticker, camera) are the
+     * 29.4 dp entries.
      * Order: media, music, fx, text, shapes, sticker, vector, drawing,
      * null, camera, group, chain.
      */
-    val GLYPH_DP = floatArrayOf(21f, 21f, 22.4f, 21f, 22.4f, 21f, 22.4f, 22.4f, 22.4f, 21f, 22.4f, 22.4f)
+    val GLYPH_DP = floatArrayOf(29.4f, 29.4f, 31.4f, 29.4f, 31.4f, 29.4f, 31.4f, 31.4f, 31.4f, 29.4f, 31.4f, 31.4f)
 
     /** The scrolling content's total width (dp): both paddings + tiles + gaps. */
     fun contentWidthDp(tileCount: Int = TILE_COUNT): Float =
