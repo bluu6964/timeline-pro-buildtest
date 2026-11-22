@@ -2001,7 +2001,7 @@ fun FullscreenPlayerModal(
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
                     .windowInsetsPadding(WindowInsets.safeDrawing)
-                    .padding(horizontal = 20.dp, bottom = 14.dp),
+                    .padding(start = 20.dp, end = 20.dp, bottom = 14.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 FullscreenScrubBar(
