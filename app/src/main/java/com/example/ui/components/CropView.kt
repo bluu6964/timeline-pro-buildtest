@@ -332,13 +332,12 @@ fun CropView(
             val maxH = maxHeight
             val targetRatio = aspectRatio.ratioFloat
 
-            val (frameW, frameH) = remember(maxW, maxH, targetRatio) {
-                if (maxW.value / maxH.value > targetRatio) {
-                    (maxH * targetRatio) to maxH
-                } else {
-                    maxW to (maxW / targetRatio)
-                }
+            // Build 261: the shared frame-fit law (model/FrameFit), as on the canvas.
+            val frameFit = remember(maxW, maxH, targetRatio) {
+                com.example.model.FrameFit.fit(maxW.value, maxH.value, targetRatio)
             }
+            val frameW = frameFit.w.dp
+            val frameH = frameFit.h.dp
             val frameRatio = frameW.value / frameH.value
             val density = androidx.compose.ui.platform.LocalDensity.current
             val contentW = when {

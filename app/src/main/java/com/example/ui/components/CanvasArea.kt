@@ -196,13 +196,16 @@ fun CanvasArea(
             val maxH = maxHeight
             val targetRatio = aspectRatio.ratioFloat
 
-            val (frameW, frameH) = remember(maxW, maxH, targetRatio) {
-                if (maxW.value / maxH.value > targetRatio) {
-                    (maxH * targetRatio) to maxH
-                } else {
-                    maxW to (maxW / targetRatio)
-                }
+            // Build 261: the fit is THE law (model/FrameFit, host-pinned) —
+            // the largest rect of the project's aspect inside this area,
+            // centred by the BoxWithConstraints alignment below. The C++
+            // preview treats the frame's surface as the canvas, so this
+            // rect's aspect IS the picture's aspect: letterbox, never stretch.
+            val frameFit = remember(maxW, maxH, targetRatio) {
+                com.example.model.FrameFit.fit(maxW.value, maxH.value, targetRatio)
             }
+            val frameW = frameFit.w.dp
+            val frameH = frameFit.h.dp
 
             val frameDensity = androidx.compose.ui.platform.LocalDensity.current
             LaunchedEffect(frameW, frameH) {
