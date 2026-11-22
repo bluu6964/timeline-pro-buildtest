@@ -17,7 +17,6 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import com.example.ui.util.enterPop
 import com.example.ui.util.bouncyClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -45,6 +44,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -1778,6 +1783,38 @@ private fun DrawScope.drawRegularPolygon(color: Color, points: Int, innerRatio: 
     drawPath(path, color)
 }
 
+/**
+ * Build 261 — while the fullscreen player is open, its dialog window IS
+ * the screen: full-size layout and the system bars hidden (immersive;
+ * a swipe brings them back briefly). Everything is restored when the
+ * player closes, so the editor behind it is exactly as it was. Before
+ * build 261 the player sat in a plain dialog window: the status /
+ * navigation bars stayed visible, the window was sized and inset by
+ * the dialog system, and the project frame was fitted into that
+ * smaller, offset box instead of the display the user calls fullscreen.
+ */
+@Composable
+private fun FullscreenWindowEffect() {
+    val view = androidx.compose.ui.platform.LocalView.current
+    if (view.isInEditMode) return
+    androidx.compose.runtime.DisposableEffect(view) {
+        val window = (view as? androidx.compose.ui.window.DialogWindowProvider)?.window
+            ?: (view.parent as? androidx.compose.ui.window.DialogWindowProvider)?.window
+        if (window == null) return@DisposableEffect onDispose { }
+        window.setLayout(
+            android.view.WindowManager.LayoutParams.MATCH_PARENT,
+            android.view.WindowManager.LayoutParams.MATCH_PARENT
+        )
+        val controller = androidx.core.view.WindowCompat.getInsetsController(window, view)
+        controller.systemBarsBehavior =
+            androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        controller.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+        onDispose {
+            controller.show(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+        }
+    }
+}
+
 @Composable
 fun FullscreenPlayerModal(
     aspectRatio: AspectRatio,
@@ -1793,6 +1830,8 @@ fun FullscreenPlayerModal(
     /** Live playhead reader (the screen's playheadProvider): the canvas follows playback, not the opening frame. */
     playheadMs: () -> Long,
     onTogglePlay: () -> Unit,
+    /** Build 261: the fullscreen scrub bar's seek (the screen's viewModel.seekTo). */
+    onSeekTo: (Long) -> Unit = {},
     onDismiss: () -> Unit,
     /** Onion-skin ghosts (build 190): the same settings the inline canvas receives, so the shared engine's state does not flip while the player is open. */
     onionSkin: com.example.model.OnionSkinSettings = com.example.model.OnionSkinSettings(),
@@ -1801,12 +1840,22 @@ fun FullscreenPlayerModal(
 ) {
     Dialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+        // Build 261: decorFitsSystemWindows = false — the player's content
+        // (and with it the frame fit) uses the REAL display, not the
+        // dialog's inset-shrunk box; FullscreenWindowEffect hides the
+        // system bars while the player is open and restores them on exit.
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
     ) {
         DialogMotion180(fadeOnly = true)
+        FullscreenWindowEffect()
         Box(
             modifier = Modifier
-                .enterPop()
+                // Build 261: NO enterPop here — its graphicsLayer (scale /
+                // translate) wrapped the preview's SurfaceView, and a
+                // SurfaceView presented through a transformed layer is a
+                // documented distortion hazard (the surface does not
+                // follow the layer transform; the window fade from
+                // DialogMotion180 is the player's only enter motion).
                 .fillMaxSize()
                 .background(AmBaseDeep),
             contentAlignment = Alignment.Center
@@ -1837,6 +1886,10 @@ fun FullscreenPlayerModal(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .fillMaxWidth()
+                    // Build 261: the window is edge-to-edge now (decorFits
+                    // off), so the pills keep clear of the cutout / any
+                    // visible system-bar area via the safe-drawing insets.
+                    .windowInsetsPadding(WindowInsets.safeDrawing)
                     .padding(12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
@@ -1938,13 +1991,30 @@ fun FullscreenPlayerModal(
                 }
             }
 
-            // Bottom Play Overlay — build 253: the disc + glyph draw in
-            // GL. The build-252 IconButton had no press scale (ripple
-            // only); the press box uses 1.0 so only the tap remains.
-            Box(
+            // Bottom overlay — build 261: a scrub bar (new: the player
+            // could not seek at all before build 261 — the only controls
+            // were this disc, a read-only timecode and the exit pill) over
+            // the play disc, the whole block inset-safe (gesture bar /
+            // cutout) now that the window is edge-to-edge.
+            Column(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 24.dp)
+                    .fillMaxWidth()
+                    .windowInsetsPadding(WindowInsets.safeDrawing)
+                    .padding(horizontal = 20.dp, bottom = 14.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                FullscreenScrubBar(
+                    currentPlayheadMs = currentPlayheadMs,
+                    totalDurationMs = totalDurationMs,
+                    onSeekTo = onSeekTo
+                )
+                Spacer(Modifier.height(12.dp))
+            // Play disc — build 253: the disc + glyph draw in GL. The
+            // build-252 IconButton had no press scale (ripple only); the
+            // press box uses 1.0 so only the tap remains.
+            Box(
+                modifier = Modifier
                     .size(44.dp)
             ) {
                 val playPainter = rememberVectorPainter(
@@ -1986,6 +2056,80 @@ fun FullscreenPlayerModal(
                     description = "Play/Pause"
                 )
             }
+            }
         }
+    }
+}
+
+/**
+ * Build 261 — the fullscreen player's seek bar. Before build 261 the
+ * player had NO way to seek: the only controls were the play disc, a
+ * read-only timecode and the exit pill, so any scrub meant leaving
+ * fullscreen. The bar follows the playhead while playing; a tap seeks
+ * at once; a drag previews the position and seeks on release. The
+ * position mapping is model/ScrubLaw (host-pinned by FrameFitTest).
+ */
+@Composable
+private fun FullscreenScrubBar(
+    currentPlayheadMs: Long,
+    totalDurationMs: Long,
+    onSeekTo: (Long) -> Unit
+) {
+    var scrubbing by remember { mutableStateOf<Float?>(null) }
+    val shown = scrubbing ?: com.example.model.ScrubLaw.fractionAt(currentPlayheadMs, totalDurationMs)
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(28.dp)
+            .pointerInput(totalDurationMs) {
+                detectTapGestures { offset ->
+                    val f = if (size.width > 0) offset.x / size.width else 0f
+                    onSeekTo(com.example.model.ScrubLaw.msAt(f, totalDurationMs))
+                }
+            }
+            .pointerInput(totalDurationMs) {
+                detectDragGestures(
+                    onDragStart = { offset ->
+                        scrubbing = if (size.width > 0) (offset.x / size.width).coerceIn(0f, 1f) else 0f
+                    },
+                    onDrag = { change, _ ->
+                        change.consume()
+                        scrubbing = if (size.width > 0) (change.position.x / size.width).coerceIn(0f, 1f) else 0f
+                    },
+                    onDragEnd = {
+                        scrubbing?.let { onSeekTo(com.example.model.ScrubLaw.msAt(it, totalDurationMs)) }
+                        scrubbing = null
+                    },
+                    onDragCancel = { scrubbing = null }
+                )
+            }
+            .testTag("fullscreen_scrub_bar")
+            .semantics { contentDescription = "Seek" },
+        contentAlignment = Alignment.CenterStart
+    ) {
+        // Track.
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(4.dp)
+                .background(Color(0x40FFFFFF), RoundedCornerShape(2.dp))
+        )
+        // Played part.
+        if (shown > 0f) {
+            Box(
+                Modifier
+                    .fillMaxWidth(shown)
+                    .height(4.dp)
+                    .background(AmAccent, RoundedCornerShape(2.dp))
+            )
+        }
+        // Thumb.
+        val thumbX = (maxWidth * shown - 6.dp).coerceIn(0.dp, (maxWidth - 12.dp).coerceAtLeast(0.dp))
+        Box(
+            Modifier
+                .offset(x = thumbX)
+                .size(12.dp)
+                .background(Color.White, CircleShape)
+        )
     }
 }

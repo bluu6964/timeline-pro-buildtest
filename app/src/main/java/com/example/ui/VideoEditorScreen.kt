@@ -5957,6 +5957,7 @@ fun VideoEditorScreen(
             nativePreview = nativePreview,
             playheadMs = playheadProvider,
             onTogglePlay = { viewModel.togglePlayPause() },
+            onSeekTo = { viewModel.seekTo(it) },
             onDismiss = { showFullscreenPlayer = false },
             onionSkin = onionSkin,
             onionFps = exportSettings.frameRate,
