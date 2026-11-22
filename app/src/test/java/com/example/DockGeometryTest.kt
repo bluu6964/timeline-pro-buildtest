@@ -87,6 +87,37 @@ class DockGeometryTest {
     }
 
     @Test
+    fun fxStarEntryIsTheBigStarsDiameter() {
+        // fx glyph box at density 2: 22.4 dp x 2 = 44.8 px; the big star's
+        // diameter is 15/25 of the box = 26.88 px -> rasterized at 27 px.
+        assertEquals(27, DockGeometry.fxStarEntryPx(44.8f))
+        assertEquals(1, DockGeometry.fxStarEntryPx(0.5f)) // never zero-sized
+    }
+
+    @Test
+    fun fxStarBlitsLandOnTheBuild248StarPositions() {
+        // Glyph box: left 100, top 50, edge 44.8 px -> u = 44.8 / 25 = 1.792 px.
+        val (sl, st, ss) = DockGeometry.fxStarBlit(
+            100f, 50f, 44.8f,
+            DockGeometry.FX_STAR_SMALL_C, DockGeometry.FX_STAR_SMALL_C, DockGeometry.FX_STAR_SMALL_R
+        )
+        // Small star: centre (8.5, 8.5) r 5.5 -> ink from (3, 3) u, size 11 u.
+        assertEquals(100f + 3f * 1.792f, sl, 0.01f)
+        assertEquals(50f + 3f * 1.792f, st, 0.01f)
+        assertEquals(11f * 1.792f, ss, 0.01f)
+        val (bl, bt, bs) = DockGeometry.fxStarBlit(
+            100f, 50f, 44.8f,
+            DockGeometry.FX_STAR_BIG_C, DockGeometry.FX_STAR_BIG_C, DockGeometry.FX_STAR_BIG_R
+        )
+        // Big star: centre (16, 16) r 7.5 -> ink from (8.5, 8.5) u, size 15 u;
+        // its right edge lands at (16 + 7.5) = 23.5 units of the 25-unit grid.
+        assertEquals(100f + 8.5f * 1.792f, bl, 0.01f)
+        assertEquals(50f + 8.5f * 1.792f, bt, 0.01f)
+        assertEquals(15f * 1.792f, bs, 0.01f)
+        assertEquals(100f + 23.5f * 1.792f, bl + bs, 0.01f)
+    }
+
+    @Test
     fun glyphTableScalesBuild248SizesByFortyPercent() {
         assertEquals(12, DockGeometry.GLYPH_DP.size)
         assertEquals(21f, DockGeometry.GLYPH_DP[0], 0f)    // media: 15 x 1.4

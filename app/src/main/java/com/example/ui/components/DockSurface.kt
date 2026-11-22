@@ -70,6 +70,13 @@ import kotlin.math.roundToInt
  * applied as the command builder's scale-about-centre transform instead
  * of a graphicsLayer.
  *
+ * Build 259: the media tile's play triangle and the fx tile's two stars
+ * blit from the atlas too. As flat-batch filled polygons they were
+ * painted over by the tiles' opaque SDF fills (the renderer flushes flat
+ * before SDF) — on device the Fx tile was empty and the media tile showed
+ * only its outline. The atlas batch flushes last, so blits always land
+ * on top; the media outline (an SDF stroke) stays a vector builder.
+ *
  * What did NOT change: the tile order, labels, tags and actions; the
  * horizontal scroll (the GL surface is the full content width (632 dp since build 257) and
  * scrolls with its container, like the Compose row did); the Chain
@@ -114,7 +121,7 @@ internal fun DockGlRow(
     // Resolve every label + icon into the atlas BEFORE the snapshot is
     // built, so the build pass below only reads cached entries. Two-pass
     // on overflow (the TlLabelAtlas contract): reset and resolve again.
-    fun resolveAll(): Pair<List<UiLabelAtlas.Entry?>, Map<Int, UiLabelAtlas.Entry?>> {
+    fun resolveAll(): DockResolved {
         val labelEntries = labels.map { atlas.resolve(it, UiLabelStyle.DOCK) }
         val iconEntries = HashMap<Int, UiLabelAtlas.Entry?>()
         DOCK_ICON_TILES.forEachIndexed { n, tileIndex ->
@@ -126,14 +133,32 @@ internal fun DockGlRow(
                 bmp.recycle()
             }
         }
-        return labelEntries to iconEntries
+        // Build 259: the media tile's play triangle and the fx tile's star,
+        // rasterized into the atlas like the icons (see DockGlyphs).
+        val playPx = (DockGeometry.GLYPH_DP[0] * density).roundToInt()
+        val playEntry = atlas.resolveIcon("dock-glyph:play", playPx, playPx) { canvas, x, y ->
+            val bmp = rasterizePlayBitmap(playPx)
+            canvas.drawBitmap(bmp, x, y, null)
+            bmp.recycle()
+        }
+        val fxPx = (DockGeometry.GLYPH_DP[2] * density).roundToInt()
+        val starPx = DockGeometry.fxStarEntryPx(fxPx.toFloat())
+        val starEntry = atlas.resolveIcon("dock-glyph:star", starPx, starPx) { canvas, x, y ->
+            val bmp = rasterizeStarBitmap(starPx)
+            canvas.drawBitmap(bmp, x, y, null)
+            bmp.recycle()
+        }
+        return DockResolved(labelEntries, iconEntries, playEntry, starEntry)
     }
     var resolved = resolveAll()
     if (atlas.overflowed) {
         atlas.reset()
         resolved = resolveAll()
     }
-    val (labelEntries, iconEntries) = resolved
+    val labelEntries = resolved.labels
+    val iconEntries = resolved.icons
+    val playEntry = resolved.play
+    val starEntry = resolved.star
 
     val labelHPx = atlas.textHeightPx(UiLabelStyle.DOCK)
     val labelAscentPx = atlas.fontMetrics(UiLabelStyle.DOCK).ascent
@@ -155,11 +180,12 @@ internal fun DockGlRow(
                 modifier = Modifier.fillMaxSize(),
                 clearArgb = 0,
                 atlas = atlas,
-                drawKey = listOf(labelEntries, iconEntries, scaleValues, atlas.generation),
+                drawKey = listOf(labelEntries, iconEntries, playEntry, starEntry, scaleValues, atlas.generation),
                 buildCmds = { _, h, d ->
                     buildDockCommands(
                         heightPx = h, density = d,
                         labelEntries = labelEntries, iconEntries = iconEntries,
+                        playEntry = playEntry, starEntry = starEntry,
                         scaleValues = scaleValues,
                         labelHeightPx = labelHPx, labelAscentPx = labelAscentPx
                     )
@@ -202,12 +228,48 @@ private val DOCK_TAGS = listOf(
 /** Tile indices whose glyph is a Material icon (music, sticker, camera). */
 private val DOCK_ICON_TILES = listOf(1, 5, 9)
 
+/** Build 259: the atlas-blitted dock glyphs' ink colours (their build-248 values). */
+private val PLAY_INK_ARGB = Color(0xFFD4D4D8).toArgb()
+private val FX_STAR_SMALL_ARGB = Color(0xFF71717A).toArgb()
+private val FX_STAR_BIG_ARGB = Color(0xFFF4F4F5).toArgb()
+
+/** Build 259: everything [DockGlRow] resolves into the atlas, in one holder. */
+private class DockResolved(
+    val labels: List<UiLabelAtlas.Entry?>,
+    val icons: Map<Int, UiLabelAtlas.Entry?>,
+    val play: UiLabelAtlas.Entry?,
+    val star: UiLabelAtlas.Entry?
+)
+
+/**
+ * Blit atlas entry [e] so its INK box lands at ([inkLeft], [inkTop]) with
+ * edge [inkSize]: the entry rect (ink + PAD) scales by inkSize / inkW and
+ * the pad offset scales with it. The builder's press-scale transform
+ * applies on top, exactly as it does for the icon blits.
+ */
+private fun VectorCmdBuilder.blitInk(
+    e: UiLabelAtlas.Entry, inkLeft: Float, inkTop: Float, inkSize: Float, tintArgb: Int
+) {
+    val pad = UiLabelAtlas.PAD.toFloat()
+    val scale = if (e.inkW > 0f) inkSize / e.inkW else 1f
+    addText(
+        entry = e.index,
+        dstX = inkLeft - pad * scale, dstY = inkTop - pad * scale,
+        srcDX = 0f, srcDY = 0f,
+        srcW = e.rectW.toFloat(), srcH = e.rectH.toFloat(),
+        dstW = e.rectW * scale, dstH = e.rectH * scale,
+        tintArgb = tintArgb
+    )
+}
+
 /** Draw the whole dock (all twelve tiles) into this builder. */
 private fun VectorCmdBuilder.buildDockCommands(
     heightPx: Float,
     density: Float,
     labelEntries: List<UiLabelAtlas.Entry?>,
     iconEntries: Map<Int, UiLabelAtlas.Entry?>,
+    playEntry: UiLabelAtlas.Entry?,
+    starEntry: UiLabelAtlas.Entry?,
     scaleValues: List<Float>,
     labelHeightPx: Float,
     labelAscentPx: Float
@@ -241,10 +303,11 @@ private fun VectorCmdBuilder.buildDockCommands(
             strokeWidth = borderPx,
             strokeArgb = tileBorderArgb
         )
-        // Glyph: a vector builder in its centred box, or an atlas icon blit.
+        // Glyph: a vector builder in its centred box, or an atlas blit.
         val glyphDp = DockGeometry.GLYPH_DP[i]
         val glyphLeft = DockGeometry.glyphLeftPx(tileLeft, glyphDp, density)
         val glyphTop = DockGeometry.glyphTopPx(colTop, glyphDp, density)
+        val gw = glyphDp * density
         val icon = iconEntries[i]
         if (icon != null) {
             addText(
@@ -254,12 +317,35 @@ private fun VectorCmdBuilder.buildDockCommands(
                 srcW = icon.rectW.toFloat(), srcH = icon.rectH.toFloat(),
                 tintArgb = iconTintArgb
             )
+        } else if (i == 0) {
+            // Build 259: the outline stays a vector builder (SDF stroke);
+            // the play triangle is an atlas blit — as a flat-batch polygon
+            // the tile's opaque SDF fill painted over it (see DockGlyphs).
+            setTranslate(glyphLeft, glyphTop)
+            dockMediaGlyph(gw)
+            setTranslate(0f, 0f)
+            playEntry?.let { blitInk(it, glyphLeft, glyphTop, gw, PLAY_INK_ARGB) }
+        } else if (i == 2) {
+            // Build 259: both fx sparkles as atlas blits (same cover-up;
+            // the tile rendered completely empty). Centres are square
+            // (c, c) in the 25-unit grid — see DockGeometry's fx law.
+            starEntry?.let { e ->
+                val (sl, st, ss) = DockGeometry.fxStarBlit(
+                    glyphLeft, glyphTop, gw,
+                    DockGeometry.FX_STAR_SMALL_C, DockGeometry.FX_STAR_SMALL_C,
+                    DockGeometry.FX_STAR_SMALL_R
+                )
+                blitInk(e, sl, st, ss, FX_STAR_SMALL_ARGB)
+                val (bl, bt, bs) = DockGeometry.fxStarBlit(
+                    glyphLeft, glyphTop, gw,
+                    DockGeometry.FX_STAR_BIG_C, DockGeometry.FX_STAR_BIG_C,
+                    DockGeometry.FX_STAR_BIG_R
+                )
+                blitInk(e, bl, bt, bs, FX_STAR_BIG_ARGB)
+            }
         } else {
             setTranslate(glyphLeft, glyphTop)
-            val gw = glyphDp * density
             when (i) {
-                0 -> dockMediaGlyph(gw)
-                2 -> dockFxGlyph(gw)
                 3 -> dockTextGlyph(gw)
                 4 -> dockShapesGlyph(gw)
                 6 -> dockVectorGlyph(gw)
@@ -341,6 +427,48 @@ private fun DockTouchTile(
             }
             .testTag(tag)
     )
+}
+
+/**
+ * Build 259: the media tile's play triangle as a standalone bitmap (the
+ * glyph box's size; white fill — the atlas shader reads only the alpha
+ * coverage, the blit tint supplies the colour). The same 24-unit points
+ * the old flat-batch polygon used: (10.2, 9.3) / (15.2, 12) / (10.2, 14.7).
+ */
+private fun rasterizePlayBitmap(sizePx: Int): Bitmap {
+    val bmp = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+    val canvas = android.graphics.Canvas(bmp)
+    val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        color = android.graphics.Color.WHITE
+        style = android.graphics.Paint.Style.FILL
+    }
+    val u = sizePx / 24f
+    val path = android.graphics.Path()
+    path.moveTo(10.2f * u, 9.3f * u)
+    path.lineTo(15.2f * u, 12f * u)
+    path.lineTo(10.2f * u, 14.7f * u)
+    path.close()
+    canvas.drawPath(path, paint)
+    return bmp
+}
+
+/** Build 259: the fx star ([DOCK_STAR_PTS], unit radius) filling its square bitmap. */
+private fun rasterizeStarBitmap(sizePx: Int): Bitmap {
+    val bmp = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+    val canvas = android.graphics.Canvas(bmp)
+    val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        color = android.graphics.Color.WHITE
+        style = android.graphics.Paint.Style.FILL
+    }
+    val path = android.graphics.Path()
+    DOCK_STAR_PTS.forEachIndexed { i, pt ->
+        val px = (pt.first * 0.5f + 0.5f) * sizePx
+        val py = (pt.second * 0.5f + 0.5f) * sizePx
+        if (i == 0) path.moveTo(px, py) else path.lineTo(px, py)
+    }
+    path.close()
+    canvas.drawPath(path, paint)
+    return bmp
 }
 
 /**

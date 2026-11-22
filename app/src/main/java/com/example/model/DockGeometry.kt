@@ -107,6 +107,47 @@ object DockGeometry {
         return Triple(rectLeft, rectWPx * s, rectHPx * s)
     }
 
+    // ---- Build 259: the Fx tile's two stars ---------------------------------
+    // The stars used to be flat-batch filled polygons (VectorCmdBuilder
+    // .addFilledPolygon); the GL renderer flushes the flat batch BEFORE the
+    // SDF batch, so every tile's opaque SDF fill painted over them — the Fx
+    // tile rendered empty on device (the media tile's play triangle died the
+    // same way). Both glyphs are atlas blits now (the atlas batch flushes
+    // LAST, the path the three Material icons already take): the star is
+    // rasterized once into its own entry and blitted twice from the
+    // placement law below. Grid: the glyph builders' 25-unit grid.
+
+    /** Fx star centres / radii in the 25-unit glyph grid (small grey, big white). */
+    const val FX_STAR_SMALL_C = 8.5f
+    const val FX_STAR_SMALL_R = 5.5f
+    const val FX_STAR_BIG_C = 16f
+    const val FX_STAR_BIG_R = 7.5f
+
+    /** The star atlas entry's raster side (px): the big star's diameter, 2 × 7.5 of the 25-unit grid. */
+    fun fxStarEntryPx(glyphPx: Float): Int =
+        kotlin.math.ceil(2f * FX_STAR_BIG_R / 25f * glyphPx).toInt().coerceAtLeast(1)
+
+    /**
+     * One Fx star's blit placement: the dst rect (left, top, size) in
+     * surface px for a star of radius [radiusU] centred at
+     * ([centreUX], [centreUY]) in the 25-unit grid, inside the glyph box
+     * at ([glyphLeftPx], [glyphTopPx]) with edge [glyphPx]. The returned
+     * rect is the star's INK box; the caller widens it by the atlas pad
+     * scaled by size / entry ink size.
+     */
+    fun fxStarBlit(
+        glyphLeftPx: Float, glyphTopPx: Float, glyphPx: Float,
+        centreUX: Float, centreUY: Float, radiusU: Float
+    ): Triple<Float, Float, Float> {
+        val u = glyphPx / 25f
+        val size = 2f * radiusU * u
+        return Triple(
+            glyphLeftPx + (centreUX - radiusU) * u,
+            glyphTopPx + (centreUY - radiusU) * u,
+            size
+        )
+    }
+
     /** Press-scale centre (px): the column's centre, bouncyClickable's transform origin. */
     fun pressCenterXPx(tileLeftPx: Float, density: Float): Float =
         tileLeftPx + TILE_DP * density / 2f

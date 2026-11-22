@@ -18,7 +18,15 @@ import com.example.engine.VectorCmdBuilder
  * (they cannot be vector-drawn faithfully by hand).
  */
 
-/** The reference's media glyph: a rounded rect with a play triangle. */
+/**
+ * The reference's media glyph OUTLINE: a stroked rounded rect (SDF batch).
+ * Build 259: the play triangle is NOT drawn here any more. It was a
+ * flat-batch filled polygon, and the renderer flushes the flat batch before
+ * the SDF batch — the tile's own opaque SDF fill painted over it, so the
+ * triangle never reached the screen. It is an atlas blit now (the atlas
+ * flushes last), rasterized in DockSurface from the same 24-unit points:
+ * (10.2, 9.3) / (15.2, 12) / (10.2, 14.7), ink 0xFFD4D4D8.
+ */
 internal fun VectorCmdBuilder.dockMediaGlyph(w: Float) {
     val u = w / 24f
     val cArgb = Color(0xFFD4D4D8).toArgb()
@@ -30,29 +38,20 @@ internal fun VectorCmdBuilder.dockMediaGlyph(w: Float) {
         strokeWidth = 2f * u,
         strokeArgb = cArgb
     )
-    addFilledPolygon(
-        floatArrayOf(10.2f * u, 15.2f * u, 10.2f * u),
-        floatArrayOf(9.3f * u, 12f * u, 14.7f * u),
-        3, cArgb
-    )
 }
 
-private val DOCK_STAR_PTS = listOf(
+/**
+ * The fx glyph's 8-point star outline (unit grid, radius 1). Build 259:
+ * the two sparkles are atlas blits, not flat-batch polygons — same
+ * flat-under-SDF cover-up as the play triangle (the Fx tile rendered
+ * completely empty). DockSurface rasterizes this outline once and blits
+ * it twice (small grey + big white) at [com.example.model.DockGeometry]'s
+ * fxStarBlit placement.
+ */
+internal val DOCK_STAR_PTS = listOf(
     0f to -1f, 0.24f to -0.24f, 1f to 0f, 0.24f to 0.24f,
     0f to 1f, -0.24f to 0.24f, -1f to 0f, -0.24f to -0.24f
 )
-
-/** The reference's fx glyph: a small grey sparkle and a big white one. */
-internal fun VectorCmdBuilder.dockFxGlyph(w: Float) {
-    val u = w / 25f
-    fun addStar(cx: Float, cy: Float, r: Float, argb: Int) {
-        val xs = FloatArray(DOCK_STAR_PTS.size) { cx + DOCK_STAR_PTS[it].first * r }
-        val ys = FloatArray(DOCK_STAR_PTS.size) { cy + DOCK_STAR_PTS[it].second * r }
-        addFilledPolygon(xs, ys, DOCK_STAR_PTS.size, argb)
-    }
-    addStar(8.5f * u, 8.5f * u, 5.5f * u, Color(0xFF71717A).toArgb())
-    addStar(16f * u, 16f * u, 7.5f * u, Color(0xFFF4F4F5).toArgb())
-}
 
 /** The reference's text glyph: T strokes. */
 internal fun VectorCmdBuilder.dockTextGlyph(w: Float) {
