@@ -114,25 +114,25 @@ class PanelGeometryTest {
     @Test
     fun toolRowZonesMirrorThePanels() {
         val g = PanelGeometry.ToolRow
-        assertEquals(92f, g.dividerLeftPx(d), 0f) // (6 + 36 + 4) * 2
-        assertEquals(98f, g.tilesLeftPx(d), 0f) // + (1 + 2) * 2
-        assertEquals(29f, g.backIconLeftPx(d), 0f) // 12 + (36 − 19)
-        assertEquals(26f, g.dividerTopPx(0f, 100f, d), 0f) // (100 − 48) / 2
+        assertEquals(71f, g.dividerLeftPx(d), 0f) // (4.5 + 28 + 3) * 2 — build 257 scale
+        assertEquals(77f, g.tilesLeftPx(d), 0f) // + (1 + 2) * 2
+        assertEquals(22f, g.backIconLeftPx(d), 0f) // 9 + (28 − 15)
+        assertEquals(31.5f, g.dividerTopPx(0f, 100f, d), 0f) // (100 − 37) / 2
     }
 
     @Test
     fun toolTileWidthIsTheWiderOfIconAndLabel() {
         val g = PanelGeometry.ToolRow
-        assertEquals(112f, g.tileWidthPx(100f, d), 0f) // label wins: 100 + 12
-        assertEquals(48f, g.tileWidthPx(20f, d), 0f) // icon wins: 36 + 12
+        assertEquals(110f, g.tileWidthPx(100f, d), 0f) // label wins: 100 + 10
+        assertEquals(38f, g.tileWidthPx(20f, d), 0f) // icon wins: 28 + 10
     }
 
     @Test
     fun toolTileStackAndPill() {
         val g = PanelGeometry.ToolRow
-        // stack = (18 + 2) * 2 + 30 = 70, centred in 100 → top 15.
-        assertEquals(15f, g.stackTopPx(0f, 100f, 30f, d), 0f)
-        assertEquals(82f, g.pillHeightPx(30f, d), 0f) // 70 + 2 * 3 * 2
+        // stack = (14 + 1.5) * 2 + 30 = 61, centred in 100 → top 19.5.
+        assertEquals(19.5f, g.stackTopPx(0f, 100f, 30f, d), 0f)
+        assertEquals(71f, g.pillHeightPx(30f, d), 0f) // 61 + 2 * 2.5 * 2
     }
 
     @Test
@@ -149,19 +149,19 @@ class PanelGeometryTest {
     @Test
     fun gridContentAndTileLefts() {
         val g = PanelGeometry.Grid
-        assertEquals(392f, g.contentWidthPx(3, d), 0f) // (16 + 168 + 12) * 2
-        assertEquals(264f, g.tileLeftPx(2, d), 0f) // (8 + 2 * 62) * 2
-        assertEquals(302f, g.glyphLeftPx(264f, d), 0f) // + (56 − 18)
-        assertEquals(100f, g.labelWidthPx(d), 0f)
+        assertEquals(303f, g.contentWidthPx(3, d), 0f) // (12 + 130.5 + 9) * 2 — build 257 scale
+        assertEquals(204f, g.tileLeftPx(2, d), 0f) // (6 + 2 * 48) * 2
+        assertEquals(233.5f, g.glyphLeftPx(204f, d), 0f) // + (43.5 − 14)
+        assertEquals(77f, g.labelWidthPx(d), 0f)
     }
 
     @Test
     fun gridStackCentresInTheTile() {
         val g = PanelGeometry.Grid
-        // region = 96 − 12 = 84; stack = 36 + 2 + 22 = 60; top = 6 + 12.
-        assertEquals(18f, g.stackTopPx(0f, 1, 22f, d), 0f)
-        // Two lines: stack = 36 + 2 + 44 = 82; top = 6 + 1.
-        assertEquals(7f, g.stackTopPx(0f, 2, 22f, d), 0f)
+        // region = 75 − 10 = 65; stack = 28 + 2 + 22 = 52; top = 5 + 6.5.
+        assertEquals(11.5f, g.stackTopPx(0f, 1, 22f, d), 0f)
+        // Two lines: stack = 28 + 2 + 44 = 74 > region 65; top = 5 − 4.5.
+        assertEquals(0.5f, g.stackTopPx(0f, 2, 22f, d), 0f)
     }
 
     // ── Pager ───────────────────────────────────────────────────────
@@ -230,20 +230,20 @@ class PanelGeometryTest {
     @Test
     fun blendSheetRows() {
         val g = PanelGeometry.Sheets
-        assertEquals(62f, g.blendRowHeightPx(30f, d), 0f) // 30 + 32
-        assertEquals(144f, g.blendRowTopPx(1, 40f, 62f, d), 0f) // 12 + 40 + 20 + 72
-        assertEquals(620f, g.blendContentHeightPx(40f, 62f, 7, d), 0f)
-        assertEquals(638f, g.blendCheckLeftPx(720f, d), 0f) // 720 − 28 − 22 − 32
-        assertEquals(50f, g.rowTextLeftPx(11f, d), 0f)
+        assertEquals(54f, g.blendRowHeightPx(30f, d), 0f) // 30 + 24 — build 257 scale
+        assertEquals(127f, g.blendRowTopPx(1, 40f, 54f, d), 0f) // 9 + 40 + 16 + 62
+        assertEquals(533f, g.blendContentHeightPx(40f, 54f, 7, d), 0f)
+        assertEquals(656f, g.blendCheckLeftPx(720f, d), 0f) // 720 − 22 − 17 − 25
+        assertEquals(39f, g.rowTextLeftPx(8.5f, d), 0f)
     }
 
     @Test
     fun replaceSheetRows() {
         val g = PanelGeometry.Sheets
-        // Image (84) beats the text stack (56): row = 84 + 28.
-        assertEquals(112f, g.replaceRowHeightPx(30f, 26f, d), 0f)
-        assertEquals(488f, g.replaceContentHeightPx(40f, 112f, 3, d), 0f)
-        assertEquals(48f, g.replaceImageLeftPx(d), 0f)
-        assertEquals(152f, g.replaceTextLeftPx(d), 0f) // 48 + 52 * 2
+        // Image (66) beats the text stack (56): row = 66 + 22.
+        assertEquals(88f, g.replaceRowHeightPx(30f, 26f, d), 0f)
+        assertEquals(390f, g.replaceContentHeightPx(40f, 88f, 3, d), 0f)
+        assertEquals(38f, g.replaceImageLeftPx(d), 0f)
+        assertEquals(120f, g.replaceTextLeftPx(d), 0f) // 38 + 41 * 2
     }
 }

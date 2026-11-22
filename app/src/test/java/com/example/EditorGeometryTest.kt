@@ -64,22 +64,22 @@ class EditorGeometryTest {
 
     @Test
     fun sliderRowPillSitsAtTheRightEdge() {
-        // Row 400 px wide at density 2: pill centre = 400 − 58.
-        assertEquals(342f, EditorGeometry.SliderRow.pillCentreXPx(400f, d), 0f)
-        assertEquals(36f, EditorGeometry.SliderRow.centreYPx(d), 0f)
+        // Row 400 px wide at density 2: pill centre = 400 − 45 (build 257 scale).
+        assertEquals(355f, EditorGeometry.SliderRow.pillCentreXPx(400f, d), 0f)
+        assertEquals(28f, EditorGeometry.SliderRow.centreYPx(d), 0f)
     }
 
     // ── ValueHeader ─────────────────────────────────────────────────
 
     @Test
     fun valueHeaderValueCentresInTheWeightSpan() {
-        // Row 800 px: back box 64, right boxes 128 → span [64, 672],
-        // centre 368.
-        assertEquals(368f, EditorGeometry.ValueHeader.valueCentreXPx(800f, d), 0f)
-        // Diamond box spans [672, 736] → centre 704; easing [736, 800] → 768.
-        assertEquals(704f, EditorGeometry.ValueHeader.diamondCentreXPx(800f, d), 0f)
-        assertEquals(768f, EditorGeometry.ValueHeader.easingCentreXPx(800f, d), 0f)
-        assertEquals(34f, EditorGeometry.ValueHeader.centreYPx(d), 0f)
+        // Row 800 px: back box 50, right boxes 100 → span [50, 700],
+        // centre 375 (build 257 scale).
+        assertEquals(375f, EditorGeometry.ValueHeader.valueCentreXPx(800f, d), 0f)
+        // Diamond box spans [700, 750] → centre 725; easing [750, 800] → 775.
+        assertEquals(725f, EditorGeometry.ValueHeader.diamondCentreXPx(800f, d), 0f)
+        assertEquals(775f, EditorGeometry.ValueHeader.easingCentreXPx(800f, d), 0f)
+        assertEquals(26.5f, EditorGeometry.ValueHeader.centreYPx(d), 0f)
     }
 
     @Test
@@ -87,9 +87,10 @@ class EditorGeometryTest {
         val pts = EditorGeometry.ValueHeader.diamondOutline(100f, 50f, d)
         assertEquals(32, pts.size)
         // Every point stays inside the rotated square's half-diagonal
-        // (34 px side → 34/√2 ≈ 24.04 px), and the outline reaches
-        // well past the unrotated half side (17 px): the rounded
-        // corner arcs peak at ≈ 15.56 + 6 ≈ 21.6 px from the centre.
+        // (26 px side → 26/√2 ≈ 18.38 px), and the outline reaches
+        // well past the unrotated half side (13 px): the rounded
+        // corner arcs peak at ≈ 11.31 + 5 ≈ 16.3 px from the centre
+        // (build 257 scale: 13 dp diamond, 2.5 dp corners).
         var maxR = 0f
         var i = 0
         while (i < pts.size) {
@@ -99,38 +100,38 @@ class EditorGeometryTest {
             if (r > maxR) maxR = r
             i += 2
         }
-        assertTrue(maxR > 20f)
-        assertTrue(maxR < 34f / kotlin.math.sqrt(2f))
+        assertTrue(maxR > 15f)
+        assertTrue(maxR < 26f / kotlin.math.sqrt(2f))
     }
 
     // ── ScreenChrome ────────────────────────────────────────────────
 
     @Test
     fun screenChromePillSizesToItsLabel() {
-        // Advance 60 px, density 2: width = 60 + 2×24 = 108.
-        assertEquals(108f, EditorGeometry.ScreenChrome.pillWPx(60f, d), 0f)
-        // Font box 30 px: 30 + 24 = 54 < 64 (32 dp min) → 64.
-        assertEquals(64f, EditorGeometry.ScreenChrome.pillHPx(30f, d), 0f)
-        // Font box 50 px: 50 + 24 = 74 > 64 → 74.
-        assertEquals(74f, EditorGeometry.ScreenChrome.pillHPx(50f, d), 0f)
+        // Advance 60 px, density 2: width = 60 + 2×19 = 98 (build 257 scale).
+        assertEquals(98f, EditorGeometry.ScreenChrome.pillWPx(60f, d), 0f)
+        // Font box 30 px: 30 + 18 = 48 < 50 (25 dp min) → 50.
+        assertEquals(50f, EditorGeometry.ScreenChrome.pillHPx(30f, d), 0f)
+        // Font box 50 px: 50 + 18 = 68 > 50 → 68.
+        assertEquals(68f, EditorGeometry.ScreenChrome.pillHPx(50f, d), 0f)
     }
 
     @Test
     fun screenChromeTitleCentresBetweenBackAndPill() {
-        // Row 800, pill 108: span [(10+34)×2, 800 − 20 − 108] = [88, 672].
-        assertEquals(380f, EditorGeometry.ScreenChrome.titleCentreXPx(800f, 108f, d), 0f)
+        // Row 800, pill 108: span [(8+26.5)×2, 800 − 16 − 108] = [69, 676] → 372.5.
+        assertEquals(372.5f, EditorGeometry.ScreenChrome.titleCentreXPx(800f, 108f, d), 0f)
     }
 
     @Test
     fun screenChromeTransportSpaceBetween() {
-        // Row 800, density 2: content = 800 − 64 = 736; children =
-        // 60 + 236 + 124 = 420; gaps = (736 − 420)/2 = 158.
-        assertEquals(158f, EditorGeometry.ScreenChrome.spaceBetweenGapPx(800f, d), 0f)
-        // Transport left = pad 32 + lead 60 + gap 158 = 250.
-        assertEquals(250f, EditorGeometry.ScreenChrome.transportLeftPx(800f, d), 0f)
-        // Undo left = 800 − 32 − 124 = 644.
-        assertEquals(644f, EditorGeometry.ScreenChrome.undoLeftPx(800f, d), 0f)
-        assertEquals(68f, EditorGeometry.ScreenChrome.rowHPx(d), 0f)
+        // Row 800, density 2: content = 800 − 50 = 750; children =
+        // 47 + 185 + 97 = 329; gaps = (750 − 329)/2 = 210.5 (build 257 scale).
+        assertEquals(210.5f, EditorGeometry.ScreenChrome.spaceBetweenGapPx(800f, d), 0f)
+        // Transport left = pad 25 + lead 47 + gap 210.5 = 282.5.
+        assertEquals(282.5f, EditorGeometry.ScreenChrome.transportLeftPx(800f, d), 0f)
+        // Undo left = 800 − 25 − 97 = 678.
+        assertEquals(678f, EditorGeometry.ScreenChrome.undoLeftPx(800f, d), 0f)
+        assertEquals(53f, EditorGeometry.ScreenChrome.rowHPx(d), 0f)
     }
 
     @Test
@@ -165,14 +166,14 @@ class EditorGeometryTest {
 
     @Test
     fun swatchGridCellsSplitTheRowEvenly() {
-        // Row 416 px, 4 cells, gaps 8: cell = (416 − 24)/4 = 98 (square).
-        assertEquals(98f, EditorGeometry.SwatchGrid.cellWPx(416f, 4, d), 0f)
-        assertEquals(212f, EditorGeometry.SwatchGrid.cellLeftPx(2, 416f, 4, d), 0f)
-        // Row stride = cell + the 8 px spacer: row 1 starts at 106.
-        assertEquals(106f, EditorGeometry.SwatchGrid.rowTopPx(1, 98f, d), 0f)
-        // 3 rows: 3 × 106 = 318 (trailing spacer included).
-        assertEquals(318f, EditorGeometry.SwatchGrid.gridHPx(3, 98f, d), 0f)
-        assertEquals(0f, EditorGeometry.SwatchGrid.gridHPx(0, 98f, d), 0f)
+        // Row 416 px, 4 cells, gaps 6: cell = (416 − 18)/4 = 99.5 (square).
+        assertEquals(99.5f, EditorGeometry.SwatchGrid.cellWPx(416f, 4, d), 0f)
+        assertEquals(211f, EditorGeometry.SwatchGrid.cellLeftPx(2, 416f, 4, d), 0f)
+        // Row stride = cell + the 6 px spacer: row 1 starts at 105.5.
+        assertEquals(105.5f, EditorGeometry.SwatchGrid.rowTopPx(1, 99.5f, d), 0f)
+        // 3 rows: 3 × 105.5 = 316.5 (trailing spacer included).
+        assertEquals(316.5f, EditorGeometry.SwatchGrid.gridHPx(3, 99.5f, d), 0f)
+        assertEquals(0f, EditorGeometry.SwatchGrid.gridHPx(0, 99.5f, d), 0f)
     }
 
     // ── M3Slider ────────────────────────────────────────────────────
@@ -180,29 +181,29 @@ class EditorGeometryTest {
     @Test
     fun m3SliderTrackGeometry() {
         val g = EditorGeometry.M3Slider
-        // Width 400 px, density 2, idle thumb 8 px: track [4, 396].
-        assertEquals(8f, g.thumbWPx(false, d), 0f)
-        assertEquals(4f, g.thumbWPx(true, d), 0f)
-        assertEquals(4f, g.trackLeftPx(false, d), 0f)
-        assertEquals(392f, g.trackWPx(400f, false, d), 0f)
-        // Pressed: thumb 4 px → track [2, 398].
-        assertEquals(2f, g.trackLeftPx(true, d), 0f)
-        assertEquals(396f, g.trackWPx(400f, true, d), 0f)
-        // End gap: idle 4 + 12 = 16; pressed 2 + 12 = 14.
-        assertEquals(16f, g.endGapPx(false, d), 0f)
-        assertEquals(14f, g.endGapPx(true, d), 0f)
-        // Stop centre: 4 + 392 − 16 = 380.
-        assertEquals(380f, g.stopCentreXPx(400f, false, d), 0f)
+        // Width 400 px, density 2, idle thumb 6 px: track [3, 397] (build 257 scale).
+        assertEquals(6f, g.thumbWPx(false, d), 0f)
+        assertEquals(3f, g.thumbWPx(true, d), 0f)
+        assertEquals(3f, g.trackLeftPx(false, d), 0f)
+        assertEquals(394f, g.trackWPx(400f, false, d), 0f)
+        // Pressed: thumb 3 px → track [1.5, 398.5].
+        assertEquals(1.5f, g.trackLeftPx(true, d), 0f)
+        assertEquals(397f, g.trackWPx(400f, true, d), 0f)
+        // End gap: idle 3 + 9 = 12; pressed 1.5 + 9 = 10.5.
+        assertEquals(12f, g.endGapPx(false, d), 0f)
+        assertEquals(10.5f, g.endGapPx(true, d), 0f)
+        // Stop centre: 3 + 394 − 12 = 385.
+        assertEquals(385f, g.stopCentreXPx(400f, false, d), 0f)
     }
 
     @Test
     fun m3SliderThumbPlacementRoundsLikeTheLibrary() {
         val g = EditorGeometry.M3Slider
-        // Track 392 × fraction 0.5 = 196 exactly; 0.333 → 130.5 → 131
+        // Track 394 × fraction 0.5 = 197 exactly; 0.333 → 131.2 → 131
         // (the library rounds the thumb's placement to whole px).
-        assertEquals(196, g.thumbLeftPx(400f, 0.5f, false, d))
+        assertEquals(197, g.thumbLeftPx(400f, 0.5f, false, d))
         assertEquals(131, g.thumbLeftPx(400f, 0.333f, false, d))
-        assertEquals(196f, g.valueEndPx(400f, 0.5f, false, d), 0f)
+        assertEquals(197f, g.valueEndPx(400f, 0.5f, false, d), 0f)
     }
 
     @Test
@@ -224,9 +225,9 @@ class EditorGeometryTest {
     @Test
     fun m3SliderValueLawRoundTripsAndClamps() {
         val g = EditorGeometry.M3Slider
-        // Offsets live in [4, 396] for width 400 at density 2.
-        assertEquals(4f, g.offsetOfValue(400f, 0f, 0f, 100f, false, d), 0f)
-        assertEquals(396f, g.offsetOfValue(400f, 100f, 0f, 100f, false, d), 0f)
+        // Offsets live in [3, 397] for width 400 at density 2.
+        assertEquals(3f, g.offsetOfValue(400f, 0f, 0f, 100f, false, d), 0f)
+        assertEquals(397f, g.offsetOfValue(400f, 100f, 0f, 100f, false, d), 0f)
         assertEquals(200f, g.offsetOfValue(400f, 50f, 0f, 100f, false, d), 0f)
         assertEquals(50f, g.valueOfOffset(400f, 200f, 0f, 100f, false, d), 0f)
         // Out-of-range offsets clamp to the ends.

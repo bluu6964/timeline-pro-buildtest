@@ -16,6 +16,14 @@ import kotlin.math.max
  * stage-2/3 law: a line's baseline sits at its layout box's top minus
  * the paint's ascent, with the font box centred in the line box when an
  * explicit line height applies ([lineBaselinePx]).
+ *
+ * Build 257 (panel compaction, Sarowar's order): build 240 compacted
+ * the chrome (measured from eeecfe1's paired dp changes: median
+ * x0.773; dock 46->36, lane 58->44) but the tool panels kept their
+ * pre-240 size. The ToolRow, Grid and Sheets constants are now scaled
+ * x0.78 (rounded to the nearest 0.5 dp; hairlines <= 1.5 dp kept).
+ * The Pager and GroupBar objects are the toolbar/chrome surface
+ * itself — already at build 240's scale, NOT re-scaled.
  */
 object PanelGeometry {
 
@@ -104,18 +112,18 @@ object PanelGeometry {
     // ── Clip / audio tools rows (ClipEditToolsPanel, AudioClipToolsPanel) ──
 
     object ToolRow {
-        const val BACK_BOX_DP = 36f
-        const val BACK_LEFT_DP = 6f
-        const val BACK_GAP_DP = 4f
-        const val BACK_ICON_DP = 19f
+        const val BACK_BOX_DP = 28f
+        const val BACK_LEFT_DP = 4.5f
+        const val BACK_GAP_DP = 3f
+        const val BACK_ICON_DP = 15f
         const val DIVIDER_W_DP = 1f
-        const val DIVIDER_H_DP = 24f
-        const val TILE_ICON_DP = 18f
-        const val TILE_GAP_DP = 2f
-        const val TILE_PAD_H_DP = 3f
-        const val TILE_PAD_V_DP = 3f
-        const val TILE_CORNER_DP = 10f
-        const val BAR_CORNER_DP = 18f
+        const val DIVIDER_H_DP = 18.5f
+        const val TILE_ICON_DP = 14f
+        const val TILE_GAP_DP = 1.5f
+        const val TILE_PAD_H_DP = 2.5f
+        const val TILE_PAD_V_DP = 2.5f
+        const val TILE_CORNER_DP = 8f
+        const val BAR_CORNER_DP = 14f
 
         /** The divider's left edge: back box zone = 6 pad + 36 box + 4 pad. */
         fun dividerLeftPx(density: Float): Float =
@@ -203,14 +211,14 @@ object PanelGeometry {
     // ── Tools grid (ToolsGridSheet) ─────────────────────────────────
 
     object Grid {
-        const val TILE_W_DP = 56f
-        const val TILE_H_DP = 48f
-        const val GAP_DP = 6f
-        const val PAD_H_DP = 8f
-        const val TILE_PAD_DP = 3f
-        const val GLYPH_DP = 18f
+        const val TILE_W_DP = 43.5f
+        const val TILE_H_DP = 37.5f
+        const val GAP_DP = 4.5f
+        const val PAD_H_DP = 6f
+        const val TILE_PAD_DP = 2.5f
+        const val GLYPH_DP = 14f
         const val GLYPH_GAP_DP = 1f
-        const val CORNER_DP = 12f
+        const val CORNER_DP = 9.5f
 
         /** The scrolling content's full width for [count] tiles. */
         fun contentWidthPx(count: Int, density: Float): Float =
@@ -419,21 +427,21 @@ object PanelGeometry {
     // ── Clip sheets (ClipToolsSheets: blend + replace) ──────────────
 
     object Sheets {
-        const val COL_PAD_H_DP = 14f
-        const val COL_PAD_TOP_DP = 6f
-        const val COL_PAD_BOTTOM_DP = 22f
-        const val TITLE_GAP_DP = 10f
-        const val BLEND_ROW_PAD_H_DP = 11f
-        const val BLEND_ROW_PAD_V_DP = 8f
-        const val BLEND_ROW_GAP_DP = 5f
-        const val BLEND_CHECK_DP = 16f
-        const val REPLACE_ROW_PAD_H_DP = 10f
-        const val REPLACE_ROW_PAD_V_DP = 7f
-        const val REPLACE_ROW_GAP_DP = 6f
-        const val REPLACE_IMG_DP = 42f
-        const val REPLACE_IMG_CORNER_DP = 9f
-        const val REPLACE_TEXT_GAP_DP = 10f
-        const val ROW_CORNER_DP = 14f
+        const val COL_PAD_H_DP = 11f
+        const val COL_PAD_TOP_DP = 4.5f
+        const val COL_PAD_BOTTOM_DP = 17f
+        const val TITLE_GAP_DP = 8f
+        const val BLEND_ROW_PAD_H_DP = 8.5f
+        const val BLEND_ROW_PAD_V_DP = 6f
+        const val BLEND_ROW_GAP_DP = 4f
+        const val BLEND_CHECK_DP = 12.5f
+        const val REPLACE_ROW_PAD_H_DP = 8f
+        const val REPLACE_ROW_PAD_V_DP = 5.5f
+        const val REPLACE_ROW_GAP_DP = 4.5f
+        const val REPLACE_IMG_DP = 33f
+        const val REPLACE_IMG_CORNER_DP = 7f
+        const val REPLACE_TEXT_GAP_DP = 8f
+        const val ROW_CORNER_DP = 11f
 
         /** A blend row's height: its 12 sp line plus 8+8 vertical padding. */
         fun blendRowHeightPx(textHeightPx: Float, density: Float): Float =

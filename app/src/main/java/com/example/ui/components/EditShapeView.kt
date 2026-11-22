@@ -393,7 +393,7 @@ fun EditShapeView(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(topStart = AmCornerSheet, topEnd = AmCornerSheet))
-                .padding(start = 12.dp, end = 12.dp, top = 16.dp, bottom = 6.dp)
+                .padding(start = 9.5.dp, end = 9.5.dp, top = 12.5.dp, bottom = 4.5.dp)
         ) {
             // Tab Bar: [Shape] [Fill] [Stroke] [Shadow] [Glow]
             GlPillStrip(
@@ -415,7 +415,7 @@ fun EditShapeView(
                 modifier = Modifier.fillMaxWidth()
             )
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             // Build 257: the tab content scrolls inside its budget
             // height (ShapePreviewGeometry.budget), so every control
@@ -451,7 +451,7 @@ fun EditShapeView(
                     )
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(9.5.dp))
 
                     // Width Dial Slider (matching screenshot: Width, tick ruler, red needle, 100%)
                     RulerDialSlider(
@@ -463,7 +463,7 @@ fun EditShapeView(
                         isPercentage = true
                     )
 
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(4.5.dp))
 
                     // Height Dial Slider (matching screenshot: Height, tick ruler, red needle, 100%)
                     RulerDialSlider(
@@ -475,7 +475,7 @@ fun EditShapeView(
                         isPercentage = true
                     )
 
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(4.5.dp))
 
                     // Feather Dial Slider (matching screenshot: Feather, tick ruler, red needle, 0.0%)
                     RulerDialSlider(
@@ -490,7 +490,7 @@ fun EditShapeView(
                     // Corner radius (Alight import, build 80): only the rounded rect shapes read it —
                     // the renderers ignore it for SQUARE, CIRCLE and the rest, so it stays hidden there.
                     if (selectedShapeType == ShapeType.WIDE_ROUNDED_RECT || selectedShapeType == ShapeType.ROUNDED_SQUARE) {
-                        Spacer(modifier = Modifier.height(6.dp))
+                        Spacer(modifier = Modifier.height(4.5.dp))
                         if (keyframedCornerRadius) {
                             // Animated corner radius (build 173): the slider would silently mislead —
                             // the value changes over time — so it stays hidden, like the build-86
@@ -502,7 +502,7 @@ fun EditShapeView(
                                 align = TextAlign.Start,
                                 modifier = Modifier.fillMaxWidth()
                             )
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(6.dp))
                             ShapeEditChipGl(label = "Use static radius", onClick = {
                                 cornerRadiusDp = initialClip?.at(currentPlayheadMs)?.shapeCornerRadius
                                     ?: cornerRadiusDp
@@ -532,14 +532,14 @@ fun EditShapeView(
                         align = TextAlign.Start,
                         modifier = Modifier.fillMaxWidth()
                     )
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(4.5.dp))
                     ShapeSwatchRowGl(
                         colors = listOf(Color.White, Color(0xFFABE41D), Color(0xFFABE41D), Color(0xFFFFEB3B), Color(0xFF00E676), Color(0xFF9C27B0), Color(0xFFFF5722), Color(0xFF1E2129)),
                         selected = fillColor,
                         circleDp = 28f,
                         onPick = { fillColor = it }
                     )
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                     RulerDialSlider(
                         label = "Opacity",
                         value = fillOpacity,
@@ -559,7 +559,7 @@ fun EditShapeView(
                         max = 30f,
                         isPercentage = false
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
                     ShapeSwatchRowGl(
                         colors = listOf(Color.White, Color(0xFFABE41D), Color(0xFFABE41D), Color(0xFFFFEB3B), Color.Black),
                         selected = strokeColor,
@@ -570,7 +570,7 @@ fun EditShapeView(
                     // outline — 0–100 % draws the whole stroke, a narrower window draws it on.
                     // The sliders clamp against each other so start can never pass end.
                     if (strokeWidth > 0f) {
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
                         if (keyframedTrim) {
                             // Animated trim (build 175): the sliders would silently mislead — the
                             // window changes over time — so they stay hidden, like the build-173
@@ -582,7 +582,7 @@ fun EditShapeView(
                                 align = TextAlign.Start,
                                 modifier = Modifier.fillMaxWidth()
                             )
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(6.dp))
                             ShapeEditChipGl(label = "Use static trim", onClick = {
                                 val (s, e) = initialClip?.let {
                                     ShapeEditValues.staticTrimAt(it, currentPlayheadMs)
@@ -600,7 +600,7 @@ fun EditShapeView(
                                 max = 100f,
                                 isPercentage = true
                             )
-                            Spacer(modifier = Modifier.height(6.dp))
+                            Spacer(modifier = Modifier.height(4.5.dp))
                             RulerDialSlider(
                                 label = "Trim end",
                                 value = trimEndPercent,
@@ -637,7 +637,7 @@ fun EditShapeView(
             }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
             // The violet primary pill (build 207 redesign; build 253:
             // drawn in GL as GlVioletPill — same pill, same label).
@@ -663,7 +663,7 @@ fun EditShapeView(
                 modifier = Modifier.fillMaxWidth()
             )
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
         }
         }
     }

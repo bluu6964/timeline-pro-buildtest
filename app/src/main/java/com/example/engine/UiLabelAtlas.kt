@@ -103,18 +103,18 @@ enum class UiLabelStyle(
     /** Build 251 (stage 4): clip-sheet secondary text: 10.5 sp Regular. */
     SHEET_DESC(10.5f, 400),
 
-    /** Build 252 (stage 5): editor row labels (RulerDialSlider): 12 sp Medium. */
-    ED_LABEL(12f, 500),
+    /** Build 252 (stage 5): editor row labels (RulerDialSlider): 12 sp Medium — build 257: compacted x0.78 to the 9.5 sp floor (build 240's chrome ratio, panel fonts). */
+    ED_LABEL(9.5f, 500),
 
-    /** Build 252 (stage 5): slider value readouts: 11.5 sp Monospace Bold. */
-    ED_VALUE_MONO(11.5f, 700, mono = true),
+    /** Build 252 (stage 5): slider value readouts: 11.5 sp Monospace Bold — build 257: compacted x0.78 to the 9.5 sp floor. */
+    ED_VALUE_MONO(9.5f, 700, mono = true),
 
-    /** Build 252 (stage 5): the shared value header's readout: 13 sp Monospace Bold. */
-    VALUE_HEADER_MONO(13f, 700, mono = true),
+    /** Build 252 (stage 5): the shared value header's readout: 13 sp Monospace Bold — build 257: compacted x0.78 to 10 sp. */
+    VALUE_HEADER_MONO(10f, 700, mono = true),
 
-    /** Build 252 (stage 5): editor screen titles: 14.5 sp Bold / 15 sp Bold (AppliedFx). */
-    SCREEN_TITLE(14.5f, 700),
-    SCREEN_TITLE_15(15f, 700),
+    /** Build 252 (stage 5): editor screen titles: 14.5 sp Bold / 15 sp Bold (AppliedFx) — build 257: compacted x0.78 to 11.5 sp. */
+    SCREEN_TITLE(11.5f, 700),
+    SCREEN_TITLE_15(11.5f, 700),
 
     /** Build 252 (stage 5): header pill labels (Done / Add): 12 sp Bold. */
     PILL_TEXT(12f, 700),
@@ -147,8 +147,8 @@ enum class UiLabelStyle(
     CURVE(8.5f, 400),
     CURVE_BOLD(8.5f, 700),
 
-    /** Build 252 (stage 5): colour header hex readout: 13.5 sp Medium. */
-    HEX_BIG(13.5f, 500),
+    /** Build 252 (stage 5): colour header hex readout: 13.5 sp Medium — build 257: compacted x0.78 to 10.5 sp. */
+    HEX_BIG(10.5f, 500),
 
     /** Build 252 (stage 5): editor timecode rows: 10.5 sp Monospace Bold / Regular. */
     TIMECODE_MONO(10.5f, 700, mono = true),

@@ -23,6 +23,16 @@ import kotlin.math.sqrt
  * stage-2/3 law: a line's baseline sits at its layout box's top minus
  * the paint's ascent, with the font box centred in the line box when an
  * explicit line height applies ([PanelGeometry.lineBaselinePx]).
+ *
+ * Build 257 (panel compaction, Sarowar's order): every dp constant in
+ * this file is scaled x0.78 — the ratio build 240 applied to the
+ * chrome (measured median x0.773 across eeecfe1's paired dp changes)
+ * — rounded to the nearest 0.5 dp; hairlines <= 1.5 dp and the
+ * timecode weights (fractions, not sizes) are unchanged. The panel
+ * label styles in UiLabelStyle (ED_LABEL, ED_VALUE_MONO,
+ * VALUE_HEADER_MONO, SCREEN_TITLE(_15), HEX_BIG) shrank by the same
+ * factor with a 9.5 sp floor; the shared ED_TEXT / SMALL styles were
+ * left alone (they also serve sheets and chrome).
  */
 object EditorGeometry {
 
@@ -93,10 +103,10 @@ object EditorGeometry {
     // ── RulerDialSlider row ─────────────────────────────────────────
 
     object SliderRow {
-        const val ROW_H_DP = 36f
-        const val PILL_W_DP = 58f
-        const val PILL_H_DP = 24f
-        const val ICON_DP = 18f
+        const val ROW_H_DP = 28f
+        const val PILL_W_DP = 45f
+        const val PILL_H_DP = 18.5f
+        const val ICON_DP = 14f
 
         /** The value pill's centre x: the pill is the row's last element. */
         fun pillCentreXPx(rowWPx: Float, density: Float): Float = rowWPx - PILL_W_DP * density / 2f
@@ -108,14 +118,14 @@ object EditorGeometry {
     // ── The shared value header (Transform / Color / Crop) ──────────
 
     object ValueHeader {
-        const val H_DP = 34f
-        const val BOX_DP = 32f
-        const val BACK_ICON_DP = 20f
-        const val DIAMOND_DP = 17f
-        const val DIAMOND_CORNER_DP = 3f
+        const val H_DP = 26.5f
+        const val BOX_DP = 25f
+        const val BACK_ICON_DP = 15.5f
+        const val DIAMOND_DP = 13f
+        const val DIAMOND_CORNER_DP = 2.5f
         const val DIAMOND_BORDER_DP = 1.5f
-        const val ADD_ICON_DP = 11f
-        const val EASING_TILE_DP = 16f
+        const val ADD_ICON_DP = 8.5f
+        const val EASING_TILE_DP = 12.5f
 
         /** The value text's centre: the middle of the weight-1 span
          *  between the back box and the two right boxes. */
@@ -150,13 +160,13 @@ object EditorGeometry {
     // ── Editor screen chrome (Crop / EditShape / AppliedFx) ─────────
 
     object ScreenChrome {
-        const val HEADER_H_DP = 42f
-        const val HEADER_PAD_DP = 10f
-        const val BACK_BOX_DP = 34f
-        const val BACK_ICON_DP = 22f
-        const val PILL_PAD_H_DP = 12f
-        const val PILL_PAD_V_DP = 6f
-        const val PILL_MIN_H_DP = 32f
+        const val HEADER_H_DP = 33f
+        const val HEADER_PAD_DP = 8f
+        const val BACK_BOX_DP = 26.5f
+        const val BACK_ICON_DP = 17f
+        const val PILL_PAD_H_DP = 9.5f
+        const val PILL_PAD_V_DP = 4.5f
+        const val PILL_MIN_H_DP = 25f
 
         /** The header pill's width: label advance + horizontal padding. */
         fun pillWPx(advancePx: Float, density: Float): Float =
@@ -183,16 +193,16 @@ object EditorGeometry {
         // spacer, the prev/play/next group and the undo/redo group,
         // arranged SpaceBetween — the free space splits into two equal
         // gaps between the three children.
-        const val TRANSPORT_PAD_DP = 16f
-        const val LEAD_SPACER_DP = 30f
-        const val PREV_NEXT_BOX_DP = 30f
-        const val PLAY_BOX_DP = 34f
-        const val GROUP_GAP_DP = 12f
-        const val PREV_NEXT_ICON_DP = 19f
-        const val PLAY_ICON_DP = 23f
-        const val UNDO_BOX_DP = 28f
-        const val UNDO_GAP_DP = 6f
-        const val UNDO_ICON_DP = 17f
+        const val TRANSPORT_PAD_DP = 12.5f
+        const val LEAD_SPACER_DP = 23.5f
+        const val PREV_NEXT_BOX_DP = 23.5f
+        const val PLAY_BOX_DP = 26.5f
+        const val GROUP_GAP_DP = 9.5f
+        const val PREV_NEXT_ICON_DP = 15f
+        const val PLAY_ICON_DP = 18f
+        const val UNDO_BOX_DP = 22f
+        const val UNDO_GAP_DP = 4.5f
+        const val UNDO_ICON_DP = 13f
 
         /** The transport group's width: prev + gap + play + gap + next. */
         fun transportGroupWPx(density: Float): Float =
@@ -224,10 +234,10 @@ object EditorGeometry {
         // weighted spacer, current timecode, separator, total timecode,
         // a fixed spacer, and the (already native) tick strip weighted.
         // The two weights share the width left after the fixed parts.
-        const val TIMECODE_PAD_DP = 12f
+        const val TIMECODE_PAD_DP = 9.5f
         const val LEAD_WEIGHT = 0.36f
         const val TICKS_WEIGHT = 0.48f
-        const val MID_SPACER_DP = 6f
+        const val MID_SPACER_DP = 4.5f
 
         /** The lead spacer's width from its weight share of [flexWPx]. */
         fun timecodeLeadPx(flexWPx: Float): Float =
@@ -282,8 +292,8 @@ object EditorGeometry {
 
     object SwatchGrid {
         const val COLUMNS = 7
-        const val GAP_DP = 4f
-        const val CORNER_DP = 7f
+        const val GAP_DP = 3f
+        const val CORNER_DP = 5.5f
 
         /**
          * One row's cell width: the row is split into [count] equal
@@ -322,15 +332,15 @@ object EditorGeometry {
     // exactly the slop.
 
     object M3Slider {
-        const val HEIGHT_DP = 48f
-        const val THUMB_W_DP = 4f
-        const val THUMB_W_PRESSED_DP = 2f
-        const val THUMB_H_DP = 44f
-        const val TRACK_H_DP = 16f
-        const val TRACK_OUTER_CORNER_DP = 8f
-        const val TRACK_INNER_CORNER_DP = 2f
-        const val TRACK_GAP_DP = 6f
-        const val STOP_DP = 4f
+        const val HEIGHT_DP = 37.5f
+        const val THUMB_W_DP = 3f
+        const val THUMB_W_PRESSED_DP = 1.5f
+        const val THUMB_H_DP = 34.5f
+        const val TRACK_H_DP = 12.5f
+        const val TRACK_OUTER_CORNER_DP = 6f
+        const val TRACK_INNER_CORNER_DP = 1.5f
+        const val TRACK_GAP_DP = 4.5f
+        const val STOP_DP = 3f
 
         fun thumbWPx(pressed: Boolean, density: Float): Float =
             (if (pressed) THUMB_W_PRESSED_DP else THUMB_W_DP) * density

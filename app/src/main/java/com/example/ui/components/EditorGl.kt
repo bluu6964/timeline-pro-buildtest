@@ -1017,7 +1017,7 @@ internal fun GlWidthRow(
         Box(
             Modifier
                 .width(((labelEntry?.advance ?: 0f) / density).dp)
-                .height(48.dp)
+                .height(37.5.dp)
         ) {
             NativeVectorCanvas(
                 modifier = Modifier.fillMaxSize(),
@@ -1041,7 +1041,7 @@ internal fun GlWidthRow(
                 }
             )
         }
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(8.dp))
         GlSlider(
             value = value,
             onValueChange = onValueChange,
@@ -1055,11 +1055,11 @@ internal fun GlWidthRow(
                 .weight(1f)
                 .testTag(sliderTag)
         )
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(6.dp))
         Box(
             Modifier
                 .width(((valueEntry?.advance ?: 0f) / density).dp)
-                .height(48.dp)
+                .height(37.5.dp)
         ) {
             NativeVectorCanvas(
                 modifier = Modifier.fillMaxSize(),

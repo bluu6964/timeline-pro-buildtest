@@ -42,7 +42,9 @@ class ShapePreviewGeometryTest {
 
     @Test
     fun budgetOnShortScreenHoldsBothFloors() {
-        val (preview, panel) = ShapePreviewGeometry.budget(480f)
+        // Build 257: the panel chrome shrank (128 -> 100), so the
+        // both-floors case now sits at a 450 dp screen (avail 208).
+        val (preview, panel) = ShapePreviewGeometry.budget(450f)
         assertEquals(ShapePreviewGeometry.PREVIEW_MIN_DP, preview, 0.001f)
         assertEquals(ShapePreviewGeometry.PANEL_SCROLL_MIN_DP, panel, 0.001f)
     }

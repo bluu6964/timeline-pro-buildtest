@@ -38,11 +38,15 @@ object ShapePreviewGeometry {
      * tab strip + the gap above the save pill + the save pill + bottom
      * padding. Only the tab CONTENT between the strip and the pill is
      * flexible (it scrolls inside its budget).
+     * Build 257 (panel compaction): 128 -> 100 at the same x0.78 the
+     * panel's own rows shrank by; the freed 28 dp flows into the
+     * flexible split — and [PREVIEW_MAX_DP] rises by 15 so the preview
+     * banks most of it.
      */
-    const val PANEL_CHROME_DP = 128f
+    const val PANEL_CHROME_DP = 100f
 
     const val PREVIEW_MIN_DP = 96f
-    const val PREVIEW_MAX_DP = 200f
+    const val PREVIEW_MAX_DP = 215f
     const val PANEL_SCROLL_MIN_DP = 120f
     const val PANEL_SCROLL_MAX_DP = 264f
 

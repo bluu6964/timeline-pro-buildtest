@@ -352,7 +352,7 @@ fun ColorEditSheet(
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(36.dp)
+                .height(28.dp)
         ) {
             val tabW = maxWidth / 4
             NativeVectorCanvas(
