@@ -24,6 +24,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -62,9 +66,9 @@ import com.example.engine.UiLabelAtlas
 import com.example.engine.UiLabelStyle
 import com.example.engine.rememberUiAtlas
 import com.example.model.AnimProp
-import com.example.model.ChromeGeometry
 import com.example.model.EditorGeometry
 import com.example.model.PanelGeometry
+import com.example.model.BlendKind
 import com.example.model.BlendModes
 import com.example.model.BlendSpec
 import com.example.model.Easing
@@ -78,6 +82,7 @@ import com.example.ui.theme.AmCornerPanel
 import com.example.ui.theme.AmInk
 import com.example.ui.theme.AmPanel
 import com.example.ui.theme.AmPanelElevated
+import com.example.ui.theme.AmPink
 import com.example.ui.theme.AmTextDim
 import com.example.ui.theme.AmTextPrimary
 import com.example.ui.util.BlendThumbs
@@ -97,15 +102,17 @@ private val BlendInk = AmInk
 private val BlendCheckInk = AmInk
 
 /**
- * "Blending & Opacity" editor of a layer (build 221, Sarowar's HTML reference v5):
- * a horizontal carousel of the active category's blend modes (82 dp thumbnails with
- * REAL blend results, see [BlendThumbs]; the chosen mode's thumbnail turns circular,
- * dims and gains a green check badge), the opacity slider flanked by the keyframe
- * (left) and easing-graph (right) buttons, and the six category pills at the bottom.
- * The whole panel fits the lower zone with NO vertical scrolling (build 221 fit law):
- * 8 pad + 107 carousel + 10 + 17 slider header + 4 + 32 slider row + 10 + 37 pills
- * + 6 pad = 231 dp of content in the sheet's 230.9 dp at 360x800 — the reference's
- * generous 28/26 dp section gaps are compressed to 10 dp for exactly this reason.
+ * "Blending & Opacity" editor of a layer (build 221, Sarowar's HTML reference v5;
+ * build 258, Sarowar's Blending fixes): the OPACITY block (0 — value — 100 header
+ * + the slider flanked by the keyframe and easing-graph buttons) sits at the TOP
+ * of the panel, always visible; the category chips are pinned under it; the mode
+ * area below is the active section's carousel (thumbnails with REAL blend
+ * results, see [BlendThumbs]; the chosen mode's thumbnail turns circular, dims
+ * and gains a green check badge) or the see-all GRID. The four MATTE modes are
+ * not ordinary blends — they key off the layer below — so they live in their
+ * own pink-outlined "Matte" section, never interleaved with the standard modes
+ * ([PanelGeometry.BlendPanel] is the layout law). Mode names are NEVER clipped:
+ * they wrap to two full lines under the thumbnail.
  * Every change is applied live to the layer, so the canvas above shows it straight away.
  *
  * Inventory note (build 221): the old sheet's in-panel header row (back + value text +
@@ -144,16 +151,60 @@ fun BlendEditSheet(
     val segEnd = if (segIdx >= 0) opKeys[segIdx + 1] else null
     val easingOpen = showEasing && easingEnabled && segStart != null && segEnd != null
 
-    var category by remember(clip.id) {
-        mutableStateOf(BlendModes.find(clip.blendMode).category)
-    }
     val current = BlendModes.find(clip.blendMode)
-    // An outside change of the mode (e.g. Reset blending) pulls the carousel to the
-    // mode's own category; picking a mode or browsing categories never triggers this,
-    // because the picked mode always sits inside the browsed category.
+    // Build 258: display sections. The native table files "Normal" under the
+    // "Matte" category, but Normal is a STANDARD mode (kind NORMAL) — the
+    // Matte section holds exactly the four kind-MATTE modes.
+    val bp = PanelGeometry.BlendPanel
+    val matteModes = remember { BlendModes.all.filter { it.kind == BlendKind.MATTE } }
+    val standardModes = remember { BlendModes.all.filter { it.kind != BlendKind.MATTE } }
+    val standardCategories = remember {
+        BlendModes.categories.filter { it != PanelGeometry.BlendPanel.MATTE }
+    }
+    fun sectionOf(spec: BlendSpec): String = when {
+        spec.kind == BlendKind.MATTE -> PanelGeometry.BlendPanel.MATTE
+        spec.isNormal -> PanelGeometry.BlendPanel.ALL
+        else -> spec.category
+    }
+    fun sectionModes(section: String): List<BlendSpec> = when (section) {
+        PanelGeometry.BlendPanel.ALL -> standardModes
+        PanelGeometry.BlendPanel.MATTE -> matteModes
+        else -> standardModes.filter { it.category == section }
+    }
+    var section by remember(clip.id) { mutableStateOf(sectionOf(current)) }
+    var gridView by remember(clip.id) { mutableStateOf(false) }
+    // An outside change of the mode (e.g. Reset blending) pulls the panel to the
+    // mode's own section; picking a mode or browsing sections never triggers
+    // this, because the picked mode always sits inside the browsed section.
     LaunchedEffect(current.name) {
-        if (BlendModes.inCategory(category).none { it.name == current.name }) {
-            category = current.category
+        if (sectionModes(section).none { it.name == current.name }) {
+            section = sectionOf(current)
+        }
+    }
+    // The see-all grid's sections: Normal alone under "Standard", then the
+    // standard categories, then the separated Matte family last.
+    val gridSections: List<Pair<String, List<BlendSpec>>> = remember {
+        listOf("Standard" to standardModes.filter { it.isNormal }) +
+            standardCategories.map { c ->
+                c to standardModes.filter { it.category == c && !it.isNormal }
+            } +
+            listOf(PanelGeometry.BlendPanel.MATTE to matteModes)
+    }
+    val gridEntries: List<BlendGridEntry> = remember {
+        gridSections.flatMap { (title, modes) ->
+            listOf<BlendGridEntry>(
+                BlendGridEntry.Header(title, title == PanelGeometry.BlendPanel.MATTE)
+            ) + modes.map { BlendGridEntry.Mode(it) }
+        }
+    }
+    val gridState = rememberLazyGridState()
+    LaunchedEffect(section, gridView) {
+        if (gridView) {
+            val target = if (section == PanelGeometry.BlendPanel.ALL) 0 else
+                PanelGeometry.BlendPanel.sectionStartIndex(
+                    section, gridSections.map { it.first }, gridSections.map { it.second.size }
+                )
+            if (target >= 0) gridState.scrollToItem(target)
         }
     }
 
@@ -182,44 +233,10 @@ fun BlendEditSheet(
                 .padding(top = 6.dp, bottom = 4.dp)
                 .testTag("blend_edit_sheet")
         ) {
-        if (easingOpen) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(108.dp)
-                    .padding(horizontal = 10.dp)
-            ) {
-                EasingEditor(
-                    easing = segStart!!.easing,
-                    progress = ((relMs - segStart.timeMs).toFloat() /
-                        (segEnd!!.timeMs - segStart.timeMs).coerceAtLeast(1L)).coerceIn(0f, 1f),
-                    onBegin = onEasingBegin,
-                    onChange = { e -> onEasingChange(AnimProp.OPACITY, segStart.timeMs, e) },
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
-            Spacer(Modifier.height(2.dp))
-        } else {
-            // ---- Mode carousel of the active category --------------------------------
-            LazyRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("blend_modes_row"),
-                contentPadding = PaddingValues(horizontal = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(BlendModes.inCategory(category), key = { it.name }) { spec ->
-                    BlendModeItem(
-                        spec = spec,
-                        selected = spec.name == current.name,
-                        onClick = { onUpdate { it.copy(blendMode = spec.name) } }
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(6.dp))
-
-            // ---- Slider header: 0 — value — 100 ---------------------------------------
+        // ---- Slider header: 0 — value — 100 ---------------------------------------
+        // Build 258: the opacity block sits at the TOP of the panel and is
+        // always visible — it no longer trades places with the easing
+        // editor or sits under the mode carousel.
             // Build 252 (stage 5): the three runs are drawn in GL
             // (the value in the atlas's tabular-figures style); the
             // value's testTag rides an invisible box over its old
@@ -297,7 +314,6 @@ fun BlendEditSheet(
             }
 
             Spacer(Modifier.height(2.dp))
-        }
 
         // ---- Slider row: keyframe | opacity slider | graph ----------------------------
         Row(
@@ -330,46 +346,224 @@ fun BlendEditSheet(
             )
         }
 
+        Spacer(Modifier.height(4.dp))
+
+        // ---- Category chips + Grid/Carousel toggle (pinned under the opacity block) --
+        // Build 258: the chips moved from the panel's bottom to directly
+        // under the opacity slider, so section navigation is always in
+        // reach. Labels: All + the table's categories with Matte last
+        // ([PanelGeometry.BlendPanel.chipLabels]). Picking "All" also
+        // switches to the grid — the see-all view.
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            GlPillStrip(
+                items = bp.chipLabels(BlendModes.categories).map { name ->
+                    GlPillItem(
+                        label = name,
+                        selected = name == section,
+                        tag = "blend_tab_$name",
+                        onClick = {
+                            section = name
+                            if (name == bp.ALL) gridView = true
+                        }
+                    )
+                },
+                labelStyle = { on -> if (on) UiLabelStyle.ED_TEXT_SEMI else UiLabelStyle.ED_TEXT_MED },
+                textArgb = { on -> (if (on) BlendInk else BlendIconTint).toArgb() },
+                fillArgb = { on -> (if (on) BlendGreen else BlendSurface).toArgb() },
+                borderArgb = { null },
+                padHDp = 12f,
+                padVDp = 6f,
+                gapDp = 6f,
+                modifier = Modifier.weight(1f),
+                pressScale = 0.95f,
+                scrollable = true,
+                contentPadHDp = 12f
+            )
+            Spacer(Modifier.width(6.dp))
+            GlPillStrip(
+                items = listOf(
+                    GlPillItem(
+                        label = if (gridView) "Carousel" else "Grid",
+                        selected = gridView,
+                        tag = "blend_view_toggle",
+                        onClick = { gridView = !gridView }
+                    )
+                ),
+                labelStyle = { on -> if (on) UiLabelStyle.ED_TEXT_SEMI else UiLabelStyle.ED_TEXT_MED },
+                textArgb = { on -> (if (on) BlendInk else BlendIconTint).toArgb() },
+                fillArgb = { on -> (if (on) BlendGreen else BlendSurface).toArgb() },
+                borderArgb = { null },
+                padHDp = 12f,
+                padVDp = 6f,
+                gapDp = 6f,
+                modifier = Modifier.padding(end = 12.dp),
+                pressScale = 0.95f,
+                scrollable = false
+            )
+        }
+
         Spacer(Modifier.height(6.dp))
 
-        // ---- Category pills -----------------------------------------------------------
-        // Build 252 (stage 5): the six category pills on one GL
-        // surface (GlPillStrip) — lime fill + ink label when active,
-        // panel fill + bright label otherwise; tags preserved.
-        GlPillStrip(
-            items = BlendModes.categories.map { name ->
-                GlPillItem(
-                    label = name,
-                    selected = name == category,
-                    tag = "blend_tab_$name",
-                    onClick = { category = name }
+        // ---- Mode area: easing editor / grid / Matte section / carousel ---------------
+        if (easingOpen) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(108.dp)
+                    .padding(horizontal = 10.dp)
+            ) {
+                EasingEditor(
+                    easing = segStart!!.easing,
+                    progress = ((relMs - segStart.timeMs).toFloat() /
+                        (segEnd!!.timeMs - segStart.timeMs).coerceAtLeast(1L)).coerceIn(0f, 1f),
+                    onBegin = onEasingBegin,
+                    onChange = { e -> onEasingChange(AnimProp.OPACITY, segStart.timeMs, e) },
+                    modifier = Modifier.fillMaxSize()
                 )
-            },
-            labelStyle = { on -> if (on) UiLabelStyle.ED_TEXT_SEMI else UiLabelStyle.ED_TEXT_MED },
-            textArgb = { on -> (if (on) BlendInk else BlendIconTint).toArgb() },
-            fillArgb = { on -> (if (on) BlendGreen else BlendSurface).toArgb() },
-            borderArgb = { null },
-            padHDp = 12f,
-            padVDp = 6f,
-            gapDp = 6f,
-            modifier = Modifier.fillMaxWidth(),
-            pressScale = 0.95f,
-            scrollable = true,
-            contentPadHDp = 12f
-        )
+            }
+            Spacer(Modifier.height(2.dp))
+        } else if (gridView) {
+            // See-all grid: every mode, grouped by section, Matte last
+            // under its own header. Internal vertical scroll replaces
+            // the endless horizontal carousel.
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(bp.GRID_COLUMNS),
+                state = gridState,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(176.dp)
+                    .testTag("blend_modes_grid"),
+                contentPadding = PaddingValues(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(bp.GRID_GAP_DP.dp),
+                verticalArrangement = Arrangement.spacedBy(bp.SECTION_GAP_DP.dp)
+            ) {
+                gridEntries.forEach { entry ->
+                    when (entry) {
+                        is BlendGridEntry.Header -> item(
+                            key = "blend_hdr_${entry.title}",
+                            span = { GridItemSpan(maxLineSpan) }
+                        ) {
+                            BlendSectionHeader(title = entry.title, matte = entry.matte)
+                        }
+                        is BlendGridEntry.Mode -> item(key = "blend_grid_${entry.spec.name}") {
+                            Box(
+                                modifier = Modifier.fillMaxWidth(),
+                                contentAlignment = Alignment.TopCenter
+                            ) {
+                                BlendModeItem(
+                                    spec = entry.spec,
+                                    selected = entry.spec.name == current.name,
+                                    matte = entry.spec.kind == BlendKind.MATTE,
+                                    onClick = { onUpdate { it.copy(blendMode = entry.spec.name) } }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        } else if (section == bp.MATTE) {
+            // The separated Matte family: its own filled, pink-headed
+            // section — these modes key off the layer BELOW.
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp)
+                    .background(BlendSurface, RoundedCornerShape(12.dp))
+                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                    .testTag("blend_matte_section")
+            ) {
+                GlTextLine(
+                    text = "Matte — uses the layer below",
+                    style = UiLabelStyle.SECTION_BOLD,
+                    colorArgb = AmPink.toArgb(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(14.dp)
+                )
+                Spacer(Modifier.height(4.dp))
+                LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("blend_modes_row"),
+                    horizontalArrangement = Arrangement.spacedBy(bp.ITEM_GAP_DP.dp)
+                ) {
+                    items(matteModes, key = { it.name }) { spec ->
+                        BlendModeItem(
+                            spec = spec,
+                            selected = spec.name == current.name,
+                            matte = true,
+                            onClick = { onUpdate { it.copy(blendMode = spec.name) } }
+                        )
+                    }
+                }
+            }
+        } else {
+            // ---- Mode carousel of the active section ----------------------------------
+            LazyRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("blend_modes_row"),
+                contentPadding = PaddingValues(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(bp.ITEM_GAP_DP.dp)
+            ) {
+                items(sectionModes(section), key = { it.name }) { spec ->
+                    BlendModeItem(
+                        spec = spec,
+                        selected = spec.name == current.name,
+                        matte = spec.kind == BlendKind.MATTE,
+                        onClick = { onUpdate { it.copy(blendMode = spec.name) } }
+                    )
+                }
+            }
+        }
         }
     }
 }
 
+/** One see-all grid entry: a section header or a mode (build 258). */
+private sealed interface BlendGridEntry {
+    data class Header(val title: String, val matte: Boolean) : BlendGridEntry
+    data class Mode(val spec: BlendSpec) : BlendGridEntry
+}
+
+/** A grid section header; the Matte header is pink on a filled band. */
+@Composable
+private fun BlendSectionHeader(title: String, matte: Boolean) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(PanelGeometry.BlendPanel.SECTION_HEADER_H_DP.dp)
+            .then(
+                if (matte) Modifier.background(BlendSurface, RoundedCornerShape(6.dp))
+                else Modifier
+            )
+            .padding(horizontal = if (matte) 6.dp else 0.dp)
+    ) {
+        GlTextLine(
+            text = if (matte) "Matte — uses the layer below" else title,
+            style = UiLabelStyle.SECTION_BOLD,
+            colorArgb = (if (matte) AmPink else BlendMuted).toArgb(),
+            modifier = Modifier.fillMaxSize()
+        )
+    }
+}
+
 // =====================================================================================
-// One carousel item: 82 dp thumbnail (real blend result) + mode name under it.
+// One mode item: thumbnail (real blend result) + the mode's FULL name under it.
 // Selected: the thumbnail turns circular, dims to 62 % and gains the green check badge.
+// Build 258: the name is never ellipsized — it wraps to two full lines at the
+// item width ([PanelGeometry.BlendPanel.labelLines]); matte items carry a pink
+// outline so the family reads as distinct even inside the grid.
 // =====================================================================================
 
 @Composable
 private fun BlendModeItem(
     spec: BlendSpec,
     selected: Boolean,
+    matte: Boolean = false,
     onClick: () -> Unit
 ) {
     val thumb = remember(spec.name) { BlendThumbs.bitmapFor(spec) }
@@ -378,6 +572,7 @@ private fun BlendModeItem(
     // cannot carry it, the stage-4 limit); the selected state's veil
     // + check badge and the mode name are drawn in GL over it. The
     // item's press scale stays bouncyClickable's on the whole item.
+    val g = PanelGeometry.BlendPanel
     val density = androidx.compose.ui.platform.LocalDensity.current.density
     val atlas = rememberUiAtlas()
     val pad = UiLabelAtlas.PAD.toFloat()
@@ -385,34 +580,32 @@ private fun BlendModeItem(
     val checkPx = (13f * density).roundToInt()
     val nameStyle = if (selected) UiLabelStyle.TEXT_11_MED else UiLabelStyle.TEXT_11
 
-    fun resolveItem(): Pair<UiLabelAtlas.Entry?, UiLabelAtlas.Entry?> {
+    fun resolveItem(): Pair<UiLabelAtlas.Entry?, List<UiLabelAtlas.Entry?>> {
         val check = atlas.resolveIcon("blend:check", checkPx, checkPx) { cv, x, y ->
             val b = rasterizePainterBitmap(checkPainter, checkPx, density)
             cv.drawBitmap(b, x, y, null)
             b.recycle()
         }
-        val name = atlas.resolve(
-            ChromeGeometry.ellipsize(spec.name, 64f * density) { atlas.measure(it, nameStyle) },
-            nameStyle
-        )
-        return check to name
+        val lines = g.labelLines(spec.name, g.ITEM_W_DP * density) { atlas.measure(it, nameStyle) }
+        return check to lines.map { atlas.resolve(it, nameStyle) }
     }
     var itemEntries = resolveItem()
     if (atlas.overflowed) {
         atlas.reset()
         itemEntries = resolveItem()
     }
-    val (checkEntry, nameEntry) = itemEntries
+    val (checkEntry, nameEntries) = itemEntries
     val nameTextH = atlas.textHeightPx(nameStyle)
+    val thumbPx = g.THUMB_DP * density
 
     Box(
         modifier = Modifier
-            .width(64.dp)
+            .width(g.ITEM_W_DP.dp)
             .bouncyClickable(pressedScale = 0.95f, onClick = onClick)
             .testTag("blend_mode_${spec.name}")
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(modifier = Modifier.size(64.dp)) {
+            Box(modifier = Modifier.size(g.THUMB_DP.dp)) {
                 val shape = if (selected) CircleShape else RoundedCornerShape(12.dp)
                 Image(
                     bitmap = thumb.asImageBitmap(),
@@ -424,46 +617,58 @@ private fun BlendModeItem(
                         .background(AmCardSurface, shape)
                 )
             }
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(g.LABEL_GAP_DP.dp))
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height((nameTextH / density).dp)
+                    .height((nameTextH * g.LABEL_LINES / density).dp)
             )
         }
         NativeVectorCanvas(
             modifier = Modifier.fillMaxSize(),
             clearArgb = 0,
             atlas = atlas,
-            drawKey = listOf(checkEntry, nameEntry, selected, atlas.generation),
+            drawKey = listOf(checkEntry, nameEntries, selected, matte, atlas.generation),
             buildCmds = { w, _, dd ->
+                val cx = w / 2f
+                val cy = thumbPx / 2f
+                if (matte) {
+                    // The Matte family's distinct mark: a pink outline
+                    // around the thumbnail (an SDF stroke with a
+                    // transparent fill — nothing flat sits under it).
+                    addRoundRect(
+                        cx, cy, thumbPx, thumbPx, 12f * dd, 0,
+                        1.5f * dd, AmPink.toArgb()
+                    )
+                }
                 if (selected) {
                     // The reference dims the chosen thumbnail to 62 %
                     // brightness — a black veil at 38 % over the
                     // (opaque) picture is exactly that multiply.
-                    val c = 32f * dd
-                    addCircle(c, c, c, Color.Black.copy(alpha = 0.38f).toArgb())
-                    addCircle(c, c, 12f * dd, BlendGreen.toArgb())
+                    addCircle(cx, cy, cy, Color.Black.copy(alpha = 0.38f).toArgb())
+                    addCircle(cx, cy, 12f * dd, BlendGreen.toArgb())
                     if (checkEntry != null) {
                         addText(
                             checkEntry.index,
-                            c - checkPx / 2f - pad, c - checkPx / 2f - pad,
+                            cx - checkPx / 2f - pad, cy - checkPx / 2f - pad,
                             0f, 0f, checkEntry.rectW.toFloat(), checkEntry.rectH.toFloat(),
                             tintArgb = BlendCheckInk.toArgb()
                         )
                     }
                 }
-                if (nameEntry != null) {
-                    val fm = atlas.fontMetrics(nameStyle)
-                    val nameTop = 70f * dd
-                    val baseline = PanelGeometry.lineBaselinePx(nameTop, nameTextH, fm.ascent, fm.descent)
-                    val originX = EditorGeometry.centredOriginPx(w / 2f, nameEntry.advance)
-                    val (dstX, dstY) = EditorGeometry.textDst(originX, baseline, nameEntry.bearing, nameEntry.base, pad)
-                    addText(
-                        nameEntry.index, dstX, dstY,
-                        0f, 0f, nameEntry.rectW.toFloat(), nameEntry.rectH.toFloat(),
-                        tintArgb = (if (selected) Color.White else BlendMuted).toArgb()
-                    )
+                val fm = atlas.fontMetrics(nameStyle)
+                nameEntries.forEachIndexed { i, e ->
+                    if (e != null) {
+                        val lineTop = thumbPx + g.LABEL_GAP_DP * dd + i * nameTextH
+                        val baseline = PanelGeometry.lineBaselinePx(lineTop, nameTextH, fm.ascent, fm.descent)
+                        val originX = EditorGeometry.centredOriginPx(w / 2f, e.advance)
+                        val (dstX, dstY) = EditorGeometry.textDst(originX, baseline, e.bearing, e.base, pad)
+                        addText(
+                            e.index, dstX, dstY,
+                            0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                            tintArgb = (if (selected) Color.White else BlendMuted).toArgb()
+                        )
+                    }
                 }
             }
         )

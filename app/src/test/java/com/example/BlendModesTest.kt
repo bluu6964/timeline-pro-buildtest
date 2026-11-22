@@ -35,6 +35,18 @@ class BlendModesTest {
     }
 
     @Test
+    fun matteFamilyIsExactlyTheFourKeyModes() {
+        // Build 258: the separated Matte section is exactly these four;
+        // Normal is a standard mode (kind NORMAL), never a matte.
+        assertEquals(27, BlendModes.all.size)
+        assertEquals(
+            setOf("Alpha Matte", "Mask Invert", "Luma", "Luma Invert"),
+            BlendModes.all.filter { it.kind == BlendKind.MATTE }.map { it.name }.toSet()
+        )
+        assertEquals(BlendKind.NORMAL, BlendModes.find("Normal").kind)
+    }
+
+    @Test
     fun mattesAreInTheMatteGroup() {
         BlendModes.all.filter { it.kind == BlendKind.MATTE }
             .forEach { assertEquals("Matte", it.category) }
