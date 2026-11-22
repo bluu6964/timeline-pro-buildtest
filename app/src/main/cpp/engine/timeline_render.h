@@ -83,6 +83,11 @@ struct Clip {
     std::vector<int64_t> keysRelMs;  // in-bar keyframe diamonds (selected clip only)
     // Waveform peaks (AudioWaveform buckets of 50 ms of SOURCE time); empty = none yet.
     std::vector<float> peaks;
+    // Build 259: the filmstrip thumbnail strip (an entry of the thumb atlas,
+    // engine/TimelineThumbs.kt) and the FULL source duration it covers.
+    // thumb < 0 = strip not extracted yet (the bar keeps its plain fill).
+    int32_t thumb = -1;
+    int64_t srcDurMs = 0;
     int64_t trimStartMs = 0;
     float speed = 1.f;
     float volume = 1.f;
@@ -138,6 +143,19 @@ struct Atlas {
     }
 };
 
+/**
+ * Build 259: the filmstrip atlas — real frame thumbnails, packed by Kotlin
+ * into one bitmap exactly like the label atlas (RGBA_8888 pixels + entry
+ * rects), except the entries are opaque pictures, not white glyphs. Each
+ * entry is ONE clip source's strip: frame tiles sampled across the full
+ * source range (see model/FilmstripGeometry.kt for the sampling law).
+ */
+struct ThumbAtlas {
+    std::vector<uint8_t> rgba;  // RGBA_8888, w * h * 4 (opaque pictures)
+    int32_t w = 0, h = 0;
+    std::vector<AtlasEntry> entries;  // strip rects (base unused)
+};
+
 /** Per-frame view values (the only things that change while playing / scrolling / dragging). */
 struct View {
     int32_t w = 0, h = 0;        // surface size (px)
@@ -183,11 +201,19 @@ int64_t rulerStepMs(float ppm, float density);
 float fadeGainAt(const Clip& c, int64_t relMs);
 /** Height (px) of one waveform bar of an audio body / video strip; exposed for tests. */
 float wavePeak(const Clip& c, float srcMs, float msPerBar);
+/**
+ * Build 259: the strip window a bar shows, as fractions of the strip's
+ * width: the source range [trimStartMs, trimStartMs + durMs × speed]
+ * mapped onto [0, srcDurMs], clamped to the source; (0, 0) when the clip
+ * has no source range. Mirrors model/FilmstripGeometry.window.
+ */
+void thumbWindow(const Clip& c, float* u0, float* u1);
 
 class Renderer {
 public:
     void setSnapshot(Snapshot s) { snap_ = std::move(s); }
     void setAtlas(Atlas a) { atlas_ = std::move(a); }
+    void setThumbAtlas(ThumbAtlas t) { thumbAtlas_ = std::move(t); }
     const Snapshot& snapshot() const { return snap_; }
 
     /** Draws the whole timeline slot into [dst] (RGBA_8888, [stride] bytes per row). */
@@ -199,6 +225,7 @@ public:
 private:
     Snapshot snap_;
     Atlas atlas_;
+    ThumbAtlas thumbAtlas_;
 };
 
 }  // namespace timeline

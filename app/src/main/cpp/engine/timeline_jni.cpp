@@ -155,6 +155,47 @@ JNIEXPORT void JNICALL Java_com_example_engine_TimelineNative_nativeSetAtlas(
     h->renderer.setAtlas(std::move(at));
 }
 
+// Build 259: the filmstrip thumb atlas — the same bitmap-copy pattern as
+// nativeSetAtlas, minus the digit table (entries are opaque pictures).
+JNIEXPORT void JNICALL Java_com_example_engine_TimelineNative_nativeSetThumbAtlas(
+    JNIEnv* env, jclass, jlong p, jobject bitmap, jintArray rects) {
+    TlHandle* h = of(p);
+    if (!h || !bitmap || !rects) return;
+    AndroidBitmapInfo info;
+    if (AndroidBitmap_getInfo(env, bitmap, &info) != ANDROID_BITMAP_RESULT_SUCCESS) return;
+    if (info.format != ANDROID_BITMAP_FORMAT_RGBA_8888 || info.width == 0 || info.height == 0) return;
+    if (info.width > 8192 || info.height > 8192) return;
+    void* pixels = nullptr;
+    if (AndroidBitmap_lockPixels(env, bitmap, &pixels) != ANDROID_BITMAP_RESULT_SUCCESS || !pixels)
+        return;
+    ThumbAtlas at;
+    at.w = (int32_t)info.width;
+    at.h = (int32_t)info.height;
+    at.rgba.resize((size_t)at.w * at.h * 4);
+    const uint8_t* src = (const uint8_t*)pixels;
+    for (int32_t y = 0; y < at.h; ++y)
+        memcpy(at.rgba.data() + (size_t)y * at.w * 4, src + (size_t)y * info.stride, (size_t)at.w * 4);
+    AndroidBitmap_unlockPixels(env, bitmap);
+
+    const jsize nRect = env->GetArrayLength(rects);
+    const jsize n = nRect / 4;
+    if (n < 0 || n > (1 << 20)) return;
+    jint* r = env->GetIntArrayElements(rects, nullptr);
+    if (!r) return;
+    at.entries.resize((size_t)n);
+    for (jsize i = 0; i < n; ++i) {
+        int32_t ex = std::clamp<int32_t>(r[i * 4], 0, at.w);
+        int32_t ey = std::clamp<int32_t>(r[i * 4 + 1], 0, at.h);
+        at.entries[i].x = ex;
+        at.entries[i].y = ey;
+        at.entries[i].w = std::clamp<int32_t>(r[i * 4 + 2], 0, at.w - ex);
+        at.entries[i].h = std::clamp<int32_t>(r[i * 4 + 3], 0, at.h - ey);
+    }
+    env->ReleaseIntArrayElements(rects, r, JNI_ABORT);
+    std::lock_guard<std::mutex> lock(h->mu);
+    h->renderer.setThumbAtlas(std::move(at));
+}
+
 JNIEXPORT void JNICALL Java_com_example_engine_TimelineNative_nativeBeginSnapshot(
     JNIEnv*, jclass, jlong p, jfloat density, jfloat pxPerMs, jfloat rulerHPx, jfloat railWPx,
     jfloat topPadPx, jfloat gapPx, jfloat bottomPadPx, jlong totalMs, jint layerCount,
@@ -231,7 +272,8 @@ JNIEXPORT jint JNICALL Java_com_example_engine_TimelineNative_nativeAddTrack(
 JNIEXPORT void JNICALL Java_com_example_engine_TimelineNative_nativeAddClip(
     JNIEnv* env, jclass, jlong p, jint trackIdx, jlong startMs, jlong durMs, jint kind,
     jint color, jint flags, jint label, jint chip, jint badge, jlong trimStartMs, jfloat speed,
-    jfloat volume, jlong fadeInMs, jlong fadeOutMs, jlongArray keysRelMs, jfloatArray peaks) {
+    jfloat volume, jlong fadeInMs, jlong fadeOutMs, jlongArray keysRelMs, jfloatArray peaks,
+    jint thumb, jlong srcDurMs) {
     TlHandle* h = of(p);
     if (!h) return;
     std::lock_guard<std::mutex> lock(h->mu);
@@ -245,6 +287,8 @@ JNIEXPORT void JNICALL Java_com_example_engine_TimelineNative_nativeAddClip(
     c.label = label;
     c.chip = chip;
     c.badge = badge;
+    c.thumb = thumb < -1 ? -1 : thumb;
+    c.srcDurMs = srcDurMs < 0 ? 0 : srcDurMs;
     c.trimStartMs = trimStartMs;
     c.speed = speed;
     c.volume = volume;

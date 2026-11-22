@@ -60,6 +60,10 @@ internal object TimelineNative {
         h: Long, bitmap: Bitmap, rects: IntArray, bases: FloatArray,
         digits: IntArray, digitAdv: FloatArray, digitBaseY: Float
     )
+    /** Build 259: upload the filmstrip thumb atlas (bitmap + strip rects). */
+    @JvmStatic external fun nativeSetThumbAtlas(
+        h: Long, bitmap: Bitmap, rects: IntArray
+    )
     @JvmStatic external fun nativeBeginSnapshot(
         h: Long, density: Float, pxPerMs: Float, rulerHPx: Float, railWPx: Float,
         topPadPx: Float, gapPx: Float, bottomPadPx: Float, totalMs: Long,
@@ -73,7 +77,8 @@ internal object TimelineNative {
         h: Long, trackIdx: Int, startMs: Long, durMs: Long, kind: Int, color: Int,
         flags: Int, label: Int, chip: Int, badge: Int, trimStartMs: Long,
         speed: Float, volume: Float, fadeInMs: Long, fadeOutMs: Long,
-        keysRelMs: LongArray?, peaks: FloatArray?
+        keysRelMs: LongArray?, peaks: FloatArray?,
+        thumb: Int, srcDurMs: Long
     )
     @JvmStatic external fun nativeEndSnapshot(h: Long)
     @JvmStatic external fun nativeContentHeight(h: Long): Float
@@ -364,6 +369,18 @@ internal class NativeTimelineEngine(context: Context) {
     private val framePending = AtomicBoolean(false)
     private val atlas = TlLabelAtlas(density, fontScale)
     private var uploadedEntryCount = -1
+    // Build 259: filmstrip thumbnails (async extraction + atlas, TimelineThumbs.kt).
+    private val thumbs = TlThumbAtlas(appContext, density)
+    private var uploadedThumbCount = -1
+    private var lastInput: TlSnapshotInput? = null
+
+    init {
+        // A finished strip re-runs the last snapshot build so the clip picks
+        // its entry up (the callback fires on the main thread, like update()).
+        thumbs.onStripReady = {
+            if (!destroyed) lastInput?.let { update(it) }
+        }
+    }
 
     private val rwLock = ReentrantReadWriteLock()
     @Volatile private var destroyed = false
@@ -455,6 +472,7 @@ internal class NativeTimelineEngine(context: Context) {
 
     /** Push a fresh data snapshot (called from the composition on data change). */
     fun update(input: TlSnapshotInput) {
+        lastInput = input
         // The whole build runs under ONE read-lock acquisition (withHandle):
         // destroy can never free the handle mid-build, and the begin..end
         // sequence is atomic against every other entry point.
@@ -492,6 +510,14 @@ internal class NativeTimelineEngine(context: Context) {
     /** The atlas bitmap is 8 MB — upload it only when entries were added or it was reset. */
     private fun uploadAtlasIfDirty(h: Long) {
         if (atlas.entryCount != uploadedEntryCount) uploadAtlas(h)
+    }
+
+    /** Build 259: same dirty-upload rule for the filmstrip thumb atlas. */
+    private fun uploadThumbAtlasIfDirty(h: Long) {
+        if (thumbs.entryCount != uploadedThumbCount) {
+            TimelineNative.nativeSetThumbAtlas(h, thumbs.bitmap, thumbs.rectArray())
+            uploadedThumbCount = thumbs.entryCount
+        }
     }
 
     /** Returns false when the atlas overflowed and the pass must restart. */
@@ -570,6 +596,7 @@ internal class NativeTimelineEngine(context: Context) {
         }
         if (failed) return false
         uploadAtlasIfDirty(h)
+        uploadThumbAtlasIfDirty(h)
 
         TimelineNative.nativeBeginSnapshot(
             h, density, input.pxPerMs, 34f * dpPx, 34f * dpPx,
@@ -603,6 +630,17 @@ internal class NativeTimelineEngine(context: Context) {
                 if (clip.type == LayerType.VIDEO) flags = flags or TL_FLAG_VIDEO
                 if (clip.type == LayerType.AUDIO) flags = flags or TL_FLAG_AUDIO
                 val labels = perTrack[ti][ci]
+                // Build 259: the filmstrip strip for media bars — entryFor
+                // kicks the async extraction on first sight and returns -1
+                // while it is pending (the bar keeps its placeholder fill).
+                // Photos key their strip by the still itself; their window
+                // spans the clip's own duration.
+                var thumb = -1
+                var srcDurMs = 0L
+                if (clip.type == LayerType.VIDEO && !inChain && clip.uri != null) {
+                    srcDurMs = if (clip.isImage) clip.durationMs else clip.sourceDurationMs
+                    if (srcDurMs > 0L) thumb = thumbs.entryFor(clip.uri, srcDurMs, clip.isImage)
+                }
                 TimelineNative.nativeAddClip(
                     h, nativeTrack,
                     clip.startMs, clip.durationMs,
@@ -613,7 +651,8 @@ internal class NativeTimelineEngine(context: Context) {
                     clip.trimStartMs, clip.speed, clip.volume,
                     clip.fadeInMs, clip.fadeOutMs,
                     if (clip.id == input.selectedClipId) clip.keyframeTimes().toLongArray() else null,
-                    clip.uri?.let { input.waveforms[it] }
+                    clip.uri?.let { input.waveforms[it] },
+                    thumb, srcDurMs
                 )
             }
         }
@@ -644,6 +683,7 @@ internal class NativeTimelineEngine(context: Context) {
         } finally {
             rwLock.writeLock().unlock()
         }
+        thumbs.release()
         thread.quitSafely()
     }
 }

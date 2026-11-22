@@ -361,6 +361,20 @@ float wavePeak(const Clip& c, float srcMs, float msPerBar) {
     return peak;
 }
 
+void thumbWindow(const Clip& c, float* u0, float* u1) {
+    *u0 = 0.f;
+    *u1 = 0.f;
+    if (c.srcDurMs <= 0) return;
+    const double dur = (double)c.srcDurMs;
+    const double sp = c.speed > 0.f ? (double)c.speed : 1.0;
+    double from = (double)c.trimStartMs / dur;
+    double to = ((double)c.trimStartMs + (double)c.durMs * sp) / dur;
+    from = std::max(0.0, std::min(from, 1.0));
+    to = std::max(from, std::min(to, 1.0));
+    *u0 = (float)from;
+    *u1 = (float)to;
+}
+
 namespace {
 
 // ---- Atlas text ----
@@ -564,6 +578,7 @@ namespace {
 struct Ctx {
     const Snapshot& s;
     const Atlas& at;
+    const ThumbAtlas& th;
     const View& v;
     float d;    // density (px per dp)
     float ppm;  // px per ms
@@ -631,6 +646,64 @@ void drawChip(Fb& fb, const Ctx& c, int32_t atlasIdx, float x, float y, float pa
     blitCentered(fb, c.at, atlasIdx, x + cw / 2.f, y + ch / 2.f, kWhite, alphaMul);
 }
 
+// ---- Filmstrip thumbnails (build 259) ----
+
+// Blits the clip's thumbnail strip window into the bar rect, bilinear,
+// through blendPx (so the bar's rounded clip applies). The strip covers
+// the FULL source range; the bar shows the thumbWindow slice of it, so
+// the frame tiles tile along the lane and stretch / crop with the time
+// scale. Returns false when the strip is not ready yet — the caller then
+// draws the placeholder shading. No allocations: fixed per-pixel math
+// over the bar's visible rect only.
+bool drawFilmstrip(Fb& fb, const Ctx& c, const Clip& cl, float x, float y, float w, float h, float alphaMul) {
+    if (cl.thumb < 0 || cl.thumb >= (int32_t)c.th.entries.size() || c.th.rgba.empty()) return false;
+    const AtlasEntry& e = c.th.entries[(size_t)cl.thumb];
+    if (e.w <= 0 || e.h <= 0) return false;
+    float u0, u1;
+    thumbWindow(cl, &u0, &u1);
+    if (u1 <= u0) return false;
+    int ix0 = std::max(0, (int)std::floor(x)), iy0 = std::max(0, (int)std::floor(y));
+    int ix1 = std::min(fb.w, (int)std::ceil(x + w)), iy1 = std::min(fb.h, (int)std::ceil(y + h));
+    if (ix1 <= ix0 || iy1 <= iy0) return false;
+    // Source span in texel-index space (texel k's centre sits at k): dst
+    // pixel centres map linearly onto it, clamped to the entry's own
+    // first/last texel centres so neighbouring strips never bleed in.
+    const float sx0 = (float)e.x + u0 * (float)e.w - 0.5f;
+    const float sx1 = (float)e.x + u1 * (float)e.w - 0.5f;
+    const float sy0 = (float)e.y - 0.5f;
+    const float sy1 = (float)(e.y + e.h) - 0.5f;
+    const float loX = (float)e.x, hiX = (float)(e.x + e.w - 1);
+    const float loY = (float)e.y, hiY = (float)(e.y + e.h - 1);
+    uint8_t rgb[3];
+    for (int j = iy0; j < iy1; ++j) {
+        float sy = clampf(sy0 + ((j + 0.5f - y) / h) * (sy1 - sy0), loY, hiY);
+        int y0 = (int)std::floor(sy);
+        int y1 = std::min(y0 + 1, (int)hiY);
+        float fy = sy - (float)y0;
+        const uint8_t* row0 = &c.th.rgba[(size_t)y0 * (size_t)c.th.w * 4];
+        const uint8_t* row1 = &c.th.rgba[(size_t)y1 * (size_t)c.th.w * 4];
+        for (int i = ix0; i < ix1; ++i) {
+            float sx = clampf(sx0 + ((i + 0.5f - x) / w) * (sx1 - sx0), loX, hiX);
+            int x0 = (int)std::floor(sx);
+            int x1 = std::min(x0 + 1, (int)hiX);
+            float fx = sx - (float)x0;
+            const uint8_t* p00 = row0 + (size_t)x0 * 4;
+            const uint8_t* p10 = row0 + (size_t)x1 * 4;
+            const uint8_t* p01 = row1 + (size_t)x0 * 4;
+            const uint8_t* p11 = row1 + (size_t)x1 * 4;
+            for (int ch = 0; ch < 3; ++ch) {
+                float top = (float)p00[ch] + ((float)p10[ch] - (float)p00[ch]) * fx;
+                float bot = (float)p01[ch] + ((float)p11[ch] - (float)p01[ch]) * fx;
+                rgb[ch] = (uint8_t)(top + (bot - top) * fy + 0.5f);
+            }
+            fb.blendPx(i, j,
+                       (255u << 24) | ((uint32_t)rgb[0] << 16) | ((uint32_t)rgb[1] << 8) | (uint32_t)rgb[2],
+                       alphaMul);
+        }
+    }
+    return true;
+}
+
 // ---- One clip bar ----
 void drawClip(Fb& fb, const Ctx& c, int32_t ti, int32_t ci, bool asDragged) {
     const Snapshot& s = c.s;
@@ -668,15 +741,19 @@ void drawClip(Fb& fb, const Ctx& c, int32_t ti, int32_t ci, bool asDragged) {
     // Contents, clipped to the bar's rounded shape (Compose clips the bar box).
     fb.clipOn = true; fb.cx0 = x; fb.cy0 = y; fb.cx1 = x + w; fb.cy1 = y + h; fb.cr = barR;
     if ((cl.flags & kFlagVideo) && !inChain) {
-        // Filmstrip indication: 34 dp frame cells over the body
-        float cellW = c.dp(34);
-        int i0 = std::max(0, (int)std::floor(-x / cellW));
-        for (float cellX = x + i0 * cellW, i = (float)i0; cellX < x + w && cellX < fb.w; cellX += cellW, i += 1) {
-            float a = ((int)i % 2 == 0) ? 0.11f : 0.045f;
-            fillRect(fb, cellX, y, std::min(cellX + cellW, x + w), y + h,
-                     mulAlpha(withAlpha(kWhite, a), alphaMul));
-            if (i > 0) fillRect(fb, cellX - c.dp(0.5f), y, cellX + c.dp(0.5f), y + h,
-                                mulAlpha(withAlpha(0xFF000000u, 0.30f), alphaMul));
+        // Build 259: real filmstrip thumbnails once the clip's strip has
+        // been extracted; until then the build-224 fake cell shading over
+        // the body stays as the placeholder.
+        if (!drawFilmstrip(fb, c, cl, x, y, w, h, alphaMul)) {
+            float cellW = c.dp(34);
+            int i0 = std::max(0, (int)std::floor(-x / cellW));
+            for (float cellX = x + i0 * cellW, i = (float)i0; cellX < x + w && cellX < fb.w; cellX += cellW, i += 1) {
+                float a = ((int)i % 2 == 0) ? 0.11f : 0.045f;
+                fillRect(fb, cellX, y, std::min(cellX + cellW, x + w), y + h,
+                         mulAlpha(withAlpha(kWhite, a), alphaMul));
+                if (i > 0) fillRect(fb, cellX - c.dp(0.5f), y, cellX + c.dp(0.5f), y + h,
+                                    mulAlpha(withAlpha(0xFF000000u, 0.30f), alphaMul));
+            }
         }
         if (cl.flags & kFlagHasUri) drawVideoWave(fb, c, cl, x, y, w, h, alphaMul);
     } else if ((cl.flags & kFlagAudio) && !inChain) {
@@ -769,7 +846,7 @@ void Renderer::draw(uint8_t* dst, int32_t dstW, int32_t dstH, int32_t stride, co
     if (!dst || dstW <= 0 || dstH <= 0) return;
     Fb fb{dst, dstW, dstH, stride};
     const Snapshot& s = snap_;
-    Ctx c{s, atlas_, v, s.density, ppmPx(s)};
+    Ctx c{s, atlas_, thumbAtlas_, v, s.density, ppmPx(s)};
     float d = c.d;
     float R = s.rulerHPx;
     float cx = v.w / 2.f;

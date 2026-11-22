@@ -313,6 +313,83 @@ int main() {
         CHECK(phPx == 0xFFFFFFFFu, "overflowing digit entry: draw completes, playhead intact");
     }
 
+    // ---- Build 259: filmstrip thumb window + strip blit ----
+    {
+        Clip tc;
+        tc.srcDurMs = 10000; tc.trimStartMs = 2000; tc.durMs = 4000; tc.speed = 1.f;
+        float u0, u1;
+        thumbWindow(tc, &u0, &u1);
+        CHECK_F(u0, 0.2f, "thumb window: trim start fraction");
+        CHECK_F(u1, 0.6f, "thumb window: trim + duration fraction");
+        tc.durMs = 2000; tc.speed = 2.f;
+        thumbWindow(tc, &u0, &u1);
+        CHECK_F(u1, 0.6f, "thumb window: speed consumes source twice as fast");
+        tc.speed = 1.f; tc.durMs = 4000; tc.trimStartMs = 9000;
+        thumbWindow(tc, &u0, &u1);
+        CHECK_F(u0, 0.9f, "thumb window: late trim start");
+        CHECK_F(u1, 1.f, "thumb window: overrun clamps to the source end");
+        tc.trimStartMs = 12000;
+        thumbWindow(tc, &u0, &u1);
+        CHECK_F(u0, 1.f, "thumb window: trim past the source clamps to empty");
+        CHECK_F(u1, 1.f, "thumb window: empty window has u1 == u0");
+        tc.srcDurMs = 0;
+        thumbWindow(tc, &u0, &u1);
+        CHECK_F(u0, 0.f, "thumb window: no source -> empty");
+        CHECK_F(u1, 0.f, "thumb window: no source -> empty end");
+    }
+    {
+        // A two-colour strip: left half red, right half blue. A bar whose
+        // window covers the first half of the source shows red; trimmed to
+        // the second half it shows blue.
+        ThumbAtlas th;
+        th.w = 64; th.h = 16;
+        th.rgba.assign((size_t)64 * 16 * 4, 0);
+        for (int j = 0; j < 16; ++j)
+            for (int i = 0; i < 64; ++i) {
+                uint8_t* p = &th.rgba[((size_t)j * 64 + i) * 4];
+                if (i < 32) { p[0] = 255; p[1] = 0; p[2] = 0; }
+                else { p[0] = 0; p[1] = 0; p[2] = 255; }
+                p[3] = 255;
+            }
+        AtlasEntry te; te.x = 0; te.y = 0; te.w = 64; te.h = 16;
+        th.entries.push_back(te);
+
+        Snapshot sT;
+        sT.density = 2.f; sT.pxPerMs = 0.045f; sT.rulerHPx = 88; sT.railWPx = 84;
+        sT.topPadPx = 8; sT.gapPx = 8; sT.bottomPadPx = 8; sT.totalMs = 8000;
+        Track tT; tT.heightPx = 64;
+        Clip vc; vc.startMs = 2000; vc.durMs = 4000; vc.kind = kGlyphVideo;
+        vc.color = 0xFF10B981; vc.flags = kFlagVideo;
+        vc.thumb = 0; vc.srcDurMs = 8000; vc.trimStartMs = 0; vc.speed = 1.f;
+        tT.clips.push_back(vc);
+        sT.tracks = {tT};
+        Renderer rT;
+        rT.setThumbAtlas(th);
+        rT.setSnapshot(sT);
+        const int WT = 720, HT = 300;
+        std::vector<uint8_t> imgT((size_t)WT * HT * 4, 0);
+        rT.draw(imgT.data(), WT, HT, WT * 4, v);
+        auto pxT = [&](int x, int y) {
+            const uint8_t* p = &imgT[((size_t)y * WT + x) * 4];
+            return ((uint32_t)p[3] << 24) | ((uint32_t)p[0] << 16) |
+                   ((uint32_t)p[1] << 8) | p[2];
+        };
+        // Bar: x 360..720, y 96..160. Window (0, 0.5) -> the red half
+        // stretches across the whole bar.
+        CHECK(pxT(400, 128) == 0xFFFF0000u, "filmstrip: first-half window shows the red frames");
+        CHECK(pxT(680, 100) == 0xFFFF0000u, "filmstrip: red reaches toward the bar's right edge");
+        // Trim into the second half of the source -> blue.
+        sT.tracks[0].clips[0].trimStartMs = 4000;
+        rT.setSnapshot(sT);
+        rT.draw(imgT.data(), WT, HT, WT * 4, v);
+        CHECK(pxT(400, 128) == 0xFF0000FFu, "filmstrip: second-half window shows the blue frames");
+        // Strip not ready (thumb -1): the placeholder body colour stays.
+        sT.tracks[0].clips[0].thumb = -1;
+        rT.setSnapshot(sT);
+        rT.draw(imgT.data(), WT, HT, WT * 4, v);
+        CHECK(nearPx(pxT(400, 128), 0xFF10B981u, 30), "filmstrip: no strip -> placeholder body");
+    }
+
     std::printf("timeline_selftest: %d passed, %d failed\n", g_pass, g_fail);
     return g_fail == 0 ? 0 : 1;
 }
