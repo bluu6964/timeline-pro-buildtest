@@ -424,6 +424,77 @@ object PanelGeometry {
             PAD_V_DP * density + (contentHeightPx(textHeightPx, density) - textHeightPx) / 2f
     }
 
+    // ── Blending panel (BlendEditView) ──────────────────────────────
+    //
+    // Build 258: the pager Blending panel's layout law. The panel is
+    // "Blending & Opacity": the opacity block sits at the TOP, the
+    // category chips are pinned under it, and the mode area below is
+    // either the category carousel or the see-all grid. The four
+    // MATTE modes (kind == MATTE) are NOT ordinary blends — they key
+    // off the layer below — so they live in their own "Matte" section,
+    // never interleaved with the standard modes; "Normal" (kind
+    // NORMAL, native category "Matte") is a standard mode and rides
+    // the "All" view, not the Matte section.
+
+    object BlendPanel {
+        /** The Matte section's label (also its chip label). */
+        const val MATTE = "Matte"
+
+        /** The see-all chip's label. */
+        const val ALL = "All"
+
+        /** Mode item metrics (build 257's compacted panel scale). */
+        const val ITEM_W_DP = 68f
+        const val THUMB_DP = 60f
+        const val ITEM_GAP_DP = 8f
+        const val LABEL_GAP_DP = 4f
+        const val LABEL_LINES = 2
+
+        /** See-all grid metrics. */
+        const val GRID_COLUMNS = 4
+        const val GRID_GAP_DP = 8f
+        const val GRID_PAD_H_DP = 12f
+        const val SECTION_HEADER_H_DP = 18f
+        const val SECTION_GAP_DP = 6f
+
+        /**
+         * The pinned chip labels: [ALL] first, then the table's own
+         * categories in their order with Matte moved LAST (it is the
+         * separated family, after every standard category).
+         */
+        fun chipLabels(categories: List<String>): List<String> =
+            listOf(ALL) + categories.filter { it != MATTE } +
+                (if (MATTE in categories) listOf(MATTE) else emptyList())
+
+        /**
+         * A mode's full name wrapped for its item: greedy word wrap
+         * at the item width, at most [LABEL_LINES] lines, NEVER
+         * ellipsized — every character of the name survives (a word
+         * longer than the item breaks mid-word across the two lines).
+         */
+        fun labelLines(name: String, itemWPx: Float, measure: (String) -> Float): List<String> =
+            wrapGreedy(name, itemWPx, LABEL_LINES, measure)
+
+        /** One item's height: thumbnail + gap + the reserved two label lines. */
+        fun itemHeightPx(thumbPx: Float, labelLinePx: Float, density: Float): Float =
+            thumbPx + LABEL_GAP_DP * density + LABEL_LINES * labelLinePx
+
+        /**
+         * The grid entry index at which [section]'s header sits, in a
+         * grid laid out as (header, modes…) per section in [sections]
+         * order with [counts] modes per section; -1 when absent. The
+         * grid's scroll-to-section target.
+         */
+        fun sectionStartIndex(section: String, sections: List<String>, counts: List<Int>): Int {
+            var idx = 0
+            for (i in sections.indices) {
+                if (sections[i] == section) return idx
+                idx += 1 + counts[i]
+            }
+            return -1
+        }
+    }
+
     // ── Clip sheets (ClipToolsSheets: blend + replace) ──────────────
 
     object Sheets {

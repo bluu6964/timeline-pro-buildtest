@@ -225,6 +225,49 @@ class PanelGeometryTest {
         assertEquals(44f, g.textLeftPx(d), 0f)
     }
 
+    // ── Blending panel (build 258) ──────────────────────────────────
+
+    @Test
+    fun blendChipLabelsPutAllFirstAndMatteLast() {
+        val g = PanelGeometry.BlendPanel
+        assertEquals(
+            listOf("All", "Darken", "Brighten", "Contrast", "Difference", "Color", "Matte"),
+            g.chipLabels(listOf("Matte", "Darken", "Brighten", "Contrast", "Difference", "Color"))
+        )
+        // No Matte in the table: no Matte chip is invented.
+        assertEquals(listOf("All", "Darken"), g.chipLabels(listOf("Darken")))
+    }
+
+    @Test
+    fun blendLabelLinesNeverEllipsize() {
+        val g = PanelGeometry.BlendPanel
+        // 5 px/char ≈ the 11 sp atlas paint; a 40 px item forces wraps.
+        val fivePx = { s: String -> s.length * 5f }
+        assertEquals(listOf("Alpha", "Matte"), g.labelLines("Alpha Matte", 40f, fivePx))
+        assertEquals(listOf("Lighter", "Color"), g.labelLines("Lighter Color", 40f, fivePx))
+        assertEquals(listOf("Mask", "Invert"), g.labelLines("Mask Invert", 40f, fivePx))
+        // A fitting name stays on one line; every character survives
+        // (an over-wide single word breaks mid-word, never ellipsizes).
+        assertEquals(listOf("Normal"), g.labelLines("Normal", 40f, fivePx))
+        for (name in listOf("Alpha Matte", "Lighter Color", "Darker Color", "Saturation", "Luminosity")) {
+            val lines = g.labelLines(name, 40f, fivePx)
+            assertEquals(name.replace(" ", ""), lines.joinToString("").replace(" ", ""))
+        }
+    }
+
+    @Test
+    fun blendItemAndSectionGeometry() {
+        val g = PanelGeometry.BlendPanel
+        // thumb 120 (60 dp) + 8 gap (4 dp) + 2 × 26 label lines, density 2.
+        assertEquals(180f, g.itemHeightPx(120f, 26f, d), 0f)
+        val sections = listOf("Darken", "Brighten", "Matte")
+        val counts = listOf(5, 5, 4)
+        assertEquals(0, g.sectionStartIndex("Darken", sections, counts))
+        assertEquals(6, g.sectionStartIndex("Brighten", sections, counts))
+        assertEquals(12, g.sectionStartIndex("Matte", sections, counts))
+        assertEquals(-1, g.sectionStartIndex("Color", sections, counts))
+    }
+
     // ── Sheets ──────────────────────────────────────────────────────
 
     @Test
