@@ -221,6 +221,88 @@ class EditorGeometryTest {
         assertTrue(g.inactiveDrawn(400f, 0.5f, false, d))
     }
 
+    // ── Transform panel (build 255: card-grid redesign) ─────────────
+
+    @Test
+    fun transformSegmentedGeometry() {
+        val g = EditorGeometry.TransformPanel
+        // Track: 2 segments of 54 dp + 2 dp pad on both sides.
+        assertEquals(224f, g.segTrackWPx(d), 0f)
+        assertEquals(4f, g.segLeftPx(0, d), 0f)
+        assertEquals(112f, g.segLeftPx(1, d), 0f)
+        assertEquals(58f, g.segCentreXPx(0, d), 0f)
+        assertEquals(166f, g.segCentreXPx(1, d), 0f)
+        // The second segment ends flush with the track's inner pad.
+        assertEquals(
+            g.segTrackWPx(d) - g.SEG_PAD_DP * d,
+            g.segLeftPx(1, d) + g.SEG_W_DP * d, 0f
+        )
+        assertEquals(32f, g.headerCentreYPx(d), 0f)
+    }
+
+    @Test
+    fun transformRightBoxGeometry() {
+        val g = EditorGeometry.TransformPanel
+        // 32 dp boxes flush right in a 400 px row: centres at 368 / 304 / 240.
+        assertEquals(368f, g.rightBoxCentreXPx(400f, 0, d), 0f)
+        assertEquals(304f, g.rightBoxCentreXPx(400f, 1, d), 0f)
+        assertEquals(240f, g.rightBoxCentreXPx(400f, 2, d), 0f)
+        // Link chip: 2×10 pad + 16 icon + 5 gap around a 30 px label.
+        assertEquals(112f, g.linkChipWPx(30f, d), 0f)
+        // With 3 boxes to its right, the chip's right edge is at 400 − 192.
+        assertEquals(96f, g.linkChipLeftPx(400f, 112f, 3, d), 0f)
+        assertEquals(
+            400f - 3 * g.ICON_BOX_DP * d,
+            g.linkChipLeftPx(400f, 112f, 3, d) + 112f, 0f
+        )
+    }
+
+    @Test
+    fun transformCardGridGeometry() {
+        val g = EditorGeometry.TransformPanel
+        // 400×200 px grid, 8 dp (16 px) gap: cells 192×92.
+        assertEquals(192f, g.cellWPx(400f, d), 0f)
+        assertEquals(92f, g.cellHPx(200f, d), 0f)
+        assertEquals(0f, g.cellLeftPx(0, 400f, d), 0f)
+        assertEquals(208f, g.cellLeftPx(1, 400f, d), 0f)
+        assertEquals(0f, g.cellTopPx(0, 200f, d), 0f)
+        assertEquals(108f, g.cellTopPx(1, 200f, d), 0f)
+        // The second column / row ends flush with the grid's edge.
+        assertEquals(400f, g.cellLeftPx(1, 400f, d) + g.cellWPx(400f, d), 0f)
+        assertEquals(200f, g.cellTopPx(1, 200f, d) + g.cellHPx(200f, d), 0f)
+        // Card internals: top-row centre, diamond centre, label origin,
+        // right-aligned value origin, ruler strip top.
+        assertEquals(34f, g.topRowCentreYPx(d), 0f)
+        assertEquals(40f, g.diamondCentreXPx(d), 0f)
+        assertEquals(68f, g.labelOriginXPx(d), 0f)
+        assertEquals(128f, g.valueOriginXPx(192f, 40f, d), 0f)
+        assertEquals(52f, g.stripTopPx(92f, d), 0f)
+    }
+
+    @Test
+    fun transformPadReadoutGeometry() {
+        val g = EditorGeometry.TransformPanel
+        // Advances: "X"=10, "-27"=30, "Y"=10, "0"=10 at density 2:
+        // gaps 3 dp (6 px) after labels, 6 dp (12 px) between groups.
+        val lefts = g.readoutLeftsPx(listOf(10f, 30f, 10f, 10f), d, 20f)
+        assertEquals(listOf(20f, 36f, 78f, 94f), lefts)
+        // The joint diamond hugs the pad's top-right (6 dp inset).
+        assertEquals(364f, g.padDiamondCentreXPx(400f, d), 0f)
+        assertEquals(36f, g.padDiamondCentreYPx(d), 0f)
+    }
+
+    @Test
+    fun transformQuickRowGeometry() {
+        val g = EditorGeometry.TransformPanel
+        // 400 px row, 4 chips, 8 dp gaps: (400 − 48) / 4 = 88 px each.
+        assertEquals(88f, g.chipWPx(400f, 4, d), 0f)
+        assertEquals(0f, g.chipLeftPx(0, 400f, 4, d), 0f)
+        assertEquals(104f, g.chipLeftPx(1, 400f, 4, d), 0f)
+        assertEquals(312f, g.chipLeftPx(3, 400f, 4, d), 0f)
+        assertEquals(400f, g.chipLeftPx(3, 400f, 4, d) + g.chipWPx(400f, 4, d), 0f)
+        assertEquals(0f, g.chipWPx(400f, 0, d), 0f)
+    }
+
     @Test
     fun m3SliderValueLawRoundTripsAndClamps() {
         val g = EditorGeometry.M3Slider

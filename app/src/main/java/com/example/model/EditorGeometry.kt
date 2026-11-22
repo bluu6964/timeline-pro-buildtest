@@ -306,6 +306,154 @@ object EditorGeometry {
             if (rows <= 0) 0f else rows * (cellWPx + GAP_DP * density)
     }
 
+    // ── Transform panel (build 255: the card-grid redesign) ───────
+    //
+    // The header row (2D/3D segmented toggle, XY-link chip,
+    // keyframe-all, easing, close), the 2×2 value-card grid (a card =
+    // keyframe diamond + label + big value over a ruler strip; the
+    // linked-XY position pad spanning both rows) and the quick-action
+    // chip row. The Compose hosts lay the cells out with the same
+    // arithmetic (equal weight-1 cells, [GAP_DP] between them); these
+    // functions pin it for the GL draws and the host tests.
+
+    object TransformPanel {
+        // Header row.
+        const val HEADER_H_DP = 32f
+        const val SEG_PAD_DP = 2f
+        const val SEG_W_DP = 54f
+        const val SEG_H_DP = 28f
+        const val SEG_TRACK_CORNER_DP = 9f
+        const val SEG_CORNER_DP = 7f
+        const val ICON_BOX_DP = 32f
+        const val ICON_CORNER_DP = 8f
+        const val LINK_PAD_DP = 10f
+        const val LINK_ICON_DP = 16f
+        const val LINK_GAP_DP = 5f
+        const val LINK_CORNER_DP = 8f
+
+        /** The segmented track's width: two segments + the pad around them. */
+        fun segTrackWPx(density: Float): Float = (2f * SEG_W_DP + 2f * SEG_PAD_DP) * density
+
+        /** One segment's left edge inside the track. */
+        fun segLeftPx(index: Int, density: Float): Float = (SEG_PAD_DP + index * SEG_W_DP) * density
+
+        /** One segment's centre x inside the track. */
+        fun segCentreXPx(index: Int, density: Float): Float =
+            segLeftPx(index, density) + SEG_W_DP * density / 2f
+
+        /** The track's vertical centre = the header row's centre. */
+        fun headerCentreYPx(density: Float): Float = HEADER_H_DP * density / 2f
+
+        /**
+         * The centre x of a right-side header box: the boxes are
+         * [ICON_BOX_DP] wide, flush to the row's right edge, indexed
+         * from the right (0 = the rightmost box).
+         */
+        fun rightBoxCentreXPx(rowWPx: Float, indexFromRight: Int, density: Float): Float =
+            rowWPx - ICON_BOX_DP * density * (indexFromRight + 0.5f)
+
+        /** The XY-link chip's width: pads + icon + gap + the label's advance. */
+        fun linkChipWPx(labelAdvancePx: Float, density: Float): Float =
+            (2f * LINK_PAD_DP + LINK_ICON_DP + LINK_GAP_DP) * density + labelAdvancePx
+
+        /**
+         * The link chip's left edge: its right edge sits just left of
+         * the [boxesFromRight] right-side icon boxes.
+         */
+        fun linkChipLeftPx(rowWPx: Float, chipWPx: Float, boxesFromRight: Int, density: Float): Float =
+            rowWPx - ICON_BOX_DP * density * boxesFromRight - chipWPx
+
+        // Card grid.
+        const val GAP_DP = 8f
+        const val CARD_CORNER_DP = 10f
+        const val CARD_PAD_DP = 8f
+        const val CARD_TOP_PAD_DP = 5f
+        const val TOP_ROW_H_DP = 24f
+        const val DIAMOND_BOX_DP = 24f
+        const val VALUE_END_PAD_DP = 12f
+        const val STRIP_H_DP = 20f
+
+        /** One grid cell's width: two equal columns, one gap between them. */
+        fun cellWPx(gridWPx: Float, density: Float): Float =
+            (gridWPx - GAP_DP * density) / 2f
+
+        /** One grid cell's height: two equal rows, one gap between them. */
+        fun cellHPx(gridHPx: Float, density: Float): Float =
+            (gridHPx - GAP_DP * density) / 2f
+
+        /** A cell's left edge (column 0 / 1). */
+        fun cellLeftPx(col: Int, gridWPx: Float, density: Float): Float =
+            col * (cellWPx(gridWPx, density) + GAP_DP * density)
+
+        /** A cell's top edge (row 0 / 1). */
+        fun cellTopPx(row: Int, gridHPx: Float, density: Float): Float =
+            row * (cellHPx(gridHPx, density) + GAP_DP * density)
+
+        /** The card top row's centre y (diamond, label and value share it). */
+        fun topRowCentreYPx(density: Float): Float =
+            (CARD_TOP_PAD_DP + TOP_ROW_H_DP / 2f) * density
+
+        /** The diamond button's centre x inside a card. */
+        fun diamondCentreXPx(density: Float): Float =
+            (CARD_PAD_DP + DIAMOND_BOX_DP / 2f) * density
+
+        /** The label's layout origin x: just right of the diamond box. */
+        fun labelOriginXPx(density: Float): Float =
+            (CARD_PAD_DP + DIAMOND_BOX_DP + 2f) * density
+
+        /** The value's layout origin x: right-aligned to the end pad. */
+        fun valueOriginXPx(cardWPx: Float, advancePx: Float, density: Float): Float =
+            cardWPx - VALUE_END_PAD_DP * density - advancePx
+
+        /** The ruler strip's top edge inside a card (the strip hugs the bottom). */
+        fun stripTopPx(cardHPx: Float, density: Float): Float =
+            cardHPx - STRIP_H_DP * density
+
+        // Position pad readout ("X <v>  Y <v>", top-left inside the pad).
+        const val READOUT_TOP_DP = 8f
+        const val READOUT_LEFT_DP = 10f
+        const val READOUT_LABEL_GAP_DP = 3f
+        const val READOUT_GROUP_GAP_DP = 6f
+        const val PAD_DIAMOND_INSET_DP = 6f
+
+        /**
+         * The readout runs' left edges: [advances] are the four runs
+         * (label X, value X, label Y, value Y); a label gap follows
+         * each axis label, a group gap follows the X value.
+         */
+        fun readoutLeftsPx(advances: List<Float>, density: Float, startPx: Float): List<Float> {
+            val gaps = floatArrayOf(READOUT_LABEL_GAP_DP, READOUT_GROUP_GAP_DP, READOUT_LABEL_GAP_DP)
+            val out = ArrayList<Float>(advances.size)
+            var x = startPx
+            for (i in advances.indices) {
+                out.add(x)
+                if (i < gaps.size) x += advances[i] + gaps[i] * density
+            }
+            return out
+        }
+
+        /** The pad's joint keyframe diamond centre x (inset from the top-right). */
+        fun padDiamondCentreXPx(cardWPx: Float, density: Float): Float =
+            cardWPx - (PAD_DIAMOND_INSET_DP + DIAMOND_BOX_DP / 2f) * density
+
+        /** The pad's joint keyframe diamond centre y. */
+        fun padDiamondCentreYPx(density: Float): Float =
+            (PAD_DIAMOND_INSET_DP + DIAMOND_BOX_DP / 2f) * density
+
+        // Quick-action row.
+        const val QUICK_H_DP = 30f
+        const val QUICK_GAP_DP = 8f
+        const val QUICK_CORNER_DP = 8f
+
+        /** One quick chip's width: [count] equal chips, gaps between them. */
+        fun chipWPx(rowWPx: Float, count: Int, density: Float): Float =
+            if (count <= 0) 0f else (rowWPx - QUICK_GAP_DP * density * (count - 1)) / count
+
+        /** One quick chip's left edge. */
+        fun chipLeftPx(index: Int, rowWPx: Float, count: Int, density: Float): Float =
+            index * (chipWPx(rowWPx, count, density) + QUICK_GAP_DP * density)
+    }
+
     // ── The stock Material 3 slider's drawn form ────────────────────
     //
     // Material3 1.3.0 (compose BOM 2024.09.00), read from the library's
