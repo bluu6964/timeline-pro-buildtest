@@ -55,7 +55,6 @@ import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.Flip
 import androidx.compose.material.icons.filled.FlipCameraAndroid
 import androidx.compose.material.icons.filled.SwapHoriz
@@ -91,6 +90,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -752,7 +753,17 @@ internal fun TimelineBarActionsPublisher(
                     if (isMasterMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
                     onClick = onToggleMasterAudio
                 )
-                tile("Split", "bar_split", Icons.Default.ContentCut, onClick = onSplitClip)
+                // Build 260: Split's glyph is Sarowar's `][` bracket
+                // design (BracketGlyphs), a drawn glyph like the
+                // multi-select bar's — no longer the scissors icon.
+                add(
+                    BarActionTile(
+                        "Split", "bar_split", onClick = onSplitClip,
+                        glyph = BarGlyph.Drawn(24f, 20f, IconActive) {
+                            drawSplitGlyph(androidx.compose.ui.graphics.Color.White)
+                        }
+                    )
+                )
                 tile("Copy", "bar_copy", Icons.Default.ContentCopy, onClick = onDuplicateClip)
                 onSpeed?.let { tile("Speed", "bar_speed", Icons.Default.Speed, onClick = it) }
                 onReverse?.let { tile("Reverse", "bar_reverse", Icons.Default.FastRewind, onClick = it) }
@@ -809,7 +820,9 @@ internal fun TimelineSelectedBar(
             label = "Master", tint = IconActive, onClick = onToggleMasterAudio,
             modifier = Modifier.weight(1f), tag = "bar_master"
         )
-        SelectedBarButton(Icons.Default.ContentCut, "Split", AmMint, onSplitClip, Modifier.weight(1f), tag = "bar_split")
+        SelectedBarDrawnButton("Split", onSplitClip, Modifier.weight(1f), tag = "bar_split") {
+            drawSplitGlyph(AmMint)
+        }
         SelectedBarButton(Icons.Default.ContentCopy, "Copy", IconActive, onDuplicateClip, Modifier.weight(1f), tag = "bar_copy")
         if (onSpeed != null) {
             SelectedBarButton(Icons.Default.Speed, "Speed", IconActive, onSpeed, Modifier.weight(1f), tag = "bar_speed")
@@ -908,6 +921,37 @@ private fun SelectedBarButton(
             tint = if (destructive) AmDanger else tint,
             modifier = Modifier.size(18.dp)
         )
+    }
+}
+
+/**
+ * Build 260: [SelectedBarButton]'s drawn-glyph twin — same box, same
+ * 18 dp icon slot, same bouncyClickable contract, but the glyph is a
+ * DrawScope draw (Sarowar's bracket family in BracketGlyphs.kt has no
+ * Material icon). The label is the accessibility description, as with
+ * the icon variant; the draw paints in its own colour.
+ */
+@Composable
+private fun SelectedBarDrawnButton(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    tag: String = "",
+    draw: androidx.compose.ui.graphics.drawscope.DrawScope.() -> Unit
+) {
+    Box(
+        modifier = modifier
+            .fillMaxHeight()
+            .padding(vertical = 4.dp)
+            .bouncyClickable(onClick = onClick)
+            .testTag(tag),
+        contentAlignment = Alignment.Center
+    ) {
+        androidx.compose.foundation.Canvas(
+            modifier = Modifier
+                .size(18.dp)
+                .semantics { contentDescription = label }
+        ) { draw() }
     }
 }
 

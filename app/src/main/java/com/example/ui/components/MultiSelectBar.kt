@@ -339,9 +339,12 @@ fun multiBarActionTiles(
     // Row 1, left group (playhead-dependent, exactly the bar's modes).
     when (mode) {
         MultiBarMode.SPLIT -> {
-            action("Delete left", "multi_delete_left", MultiAction.DELETE_LEFT) { drawSplitIcon(dashLeft = true, dashRight = false) }
-            action("Split", "multi_split", MultiAction.SPLIT) { drawSplitIcon(dashLeft = false, dashRight = false) }
-            action("Delete right", "multi_delete_right", MultiAction.DELETE_RIGHT) { drawSplitIcon(dashLeft = false, dashRight = true) }
+            // Build 260: Sarowar's bracket family (BracketGlyphs) —
+            // Delete left/right are the Trim design (centre cut line,
+            // the deleted side dashed), Split is the plain `][`.
+            action("Delete left", "multi_delete_left", MultiAction.DELETE_LEFT) { drawTrimGlyph(IconColor, trimLeft = true) }
+            action("Split", "multi_split", MultiAction.SPLIT) { drawSplitGlyph(IconColor) }
+            action("Delete right", "multi_delete_right", MultiAction.DELETE_RIGHT) { drawTrimGlyph(IconColor, trimLeft = false) }
         }
         MultiBarMode.START -> {
             action("Extend start", "multi_extend_start", MultiAction.EXTEND_START) { drawExtendIcon(atStart = true) }
@@ -444,15 +447,7 @@ private fun DrawScope.verticalLine(x: Float) {
     )
 }
 
-/** delete-left / split / delete-right: playhead line with a box on each side. */
-private fun DrawScope.drawSplitIcon(dashLeft: Boolean, dashRight: Boolean) {
-    val cx = size.width / 2f
-    val pad = 1.5.dp.toPx()
-    val gap = 4.dp.toPx()
-    outline(pad, cx - gap, dashLeft)
-    outline(cx + gap, size.width - pad, dashRight)
-    verticalLine(cx)
-}
+/** The split / delete-left / delete-right glyphs live in BracketGlyphs.kt (build 260). */
 
 /** Extend start/end to the playhead: dashed (new) part + solid (old) part next to the line. */
 private fun DrawScope.drawExtendIcon(atStart: Boolean) {
