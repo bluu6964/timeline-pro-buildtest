@@ -4453,9 +4453,6 @@ fun VideoEditorScreen(
                         onUndo = { viewModel.undo() },
                         onRedo = { viewModel.redo() },
                         onDismiss = { showTransformMode = false },
-                        // Build 255: the transform quick row's Flip chip — the model's
-                        // real horizontal flip of the selected layer.
-                        onFlipHorizontal = { viewModel.flipHorizontalSelectedClip() },
                         panelOnly = true,
                         // A Null / Controller has no picture of its own to tilt: no 3D tab for them.
                         show3d = selectedClip?.type != LayerType.NULL && selectedClip?.type != LayerType.CONTROLLER,
