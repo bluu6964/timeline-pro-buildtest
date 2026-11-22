@@ -57,6 +57,13 @@ class ChromeGeometryTest {
     // ── Controls bar ────────────────────────────────────────────────
 
     @Test
+    fun controlsBarHeightIsTheCanvasDelta() {
+        // Build 260 item 6: the editor screen's playControlsH and the
+        // exact amount the canvas zone grows by — one constant, 34 dp.
+        assertEquals(34f, ChromeGeometry.Controls.BAR_H_DP, 0f)
+    }
+
+    @Test
     fun controlsGroupsMirrorBuild249() {
         val c = ChromeGeometry.Controls
         // Bar 800x56 px: buttons (56 dp) centred → top 0.

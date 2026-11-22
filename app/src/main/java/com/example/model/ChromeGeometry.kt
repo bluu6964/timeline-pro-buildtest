@@ -66,6 +66,13 @@ object ChromeGeometry {
     // ── Controls bar (PlayControlsSection) ──────────────────────────
 
     object Controls {
+        /**
+         * The controls bar's laid-out height in the editor screen —
+         * the single source for the screen's playControlsH and for
+         * build 260 item 6's canvas delta (the canvas zone grows by
+         * EXACTLY this much, funded by the layer panel).
+         */
+        const val BAR_H_DP = 34f
         const val BTN_DP = 28f
         const val GLYPH_PLAY_DP = 19f
         const val GLYPH_SMALL_DP = 17f

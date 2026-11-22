@@ -2428,7 +2428,25 @@ fun VideoEditorScreen(
             // the rows' exact height is the whole floor.
             val minLayerZoneH = 56.dp
             headerH = 44.dp
-            playControlsH = 34.dp
+            playControlsH = ChromeGeometry.Controls.BAR_H_DP.dp
+            // Build 260 item 6 (Sarowar's order 2026-11-22 19:07 +
+            // confirmation 19:07): the canvas zone grows by EXACTLY
+            // the controls bar's height (BAR_H_DP = 34 dp). The money
+            // comes entirely from the layer panel: lowerZoneH below is
+            // DERIVED (total − header − canvas − transport), so it
+            // shrinks by the same 34 dp, the controls bar and the time
+            // ruler shift down by 34 dp, and the preview frame stays
+            // aspect-locked/letterboxed inside the taller zone.
+            // INVARIANCE (hard requirement): canvasH is assigned here,
+            // once, from the base budget — no state below ever
+            // reassigns it. No selection, a selected layer (pager),
+            // the tools grid, any editor panel (Transform / Colour /
+            // Blend / Effects — bottom-anchored overlays whose top is
+            // DERIVED from canvasH via panelTop, so they overlay the
+            // lower zone only), multi-select (footer swap inside the
+            // lower zone), onion row and scopes (paid inside the
+            // lower zone) all resolve to this same canvasH.
+            canvasH += playControlsH
             val lowerZoneH = totalHeight - headerH - canvasH - playControlsH
             val footerH = if (sel219) com.example.ui.components.SELECTED_PAGER_HEIGHT_DP.dp
                 else if (toolbarH >= 70.dp) toolbarH else 70.dp
