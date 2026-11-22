@@ -64,6 +64,42 @@ class PanelGeometryTest {
     }
 
     @Test
+    fun wrapUnboundedMaxLinesReturnsEveryLine() {
+        // Build 254 regression: maxLines = Int.MAX_VALUE (the
+        // unbounded callers' value) must not pre-allocate by the cap —
+        // the old ArrayList<String>(maxLines) tried to allocate
+        // ~8.6 GB and OOM-crashed. 40 px lines at 10 px/char; every
+        // word survives, nothing is dropped.
+        assertEquals(
+            listOf("one", "two", "thre", "e", "four", "five", "six"),
+            PanelGeometry.wrapGreedy("one two three four five six", 40f, Int.MAX_VALUE, tenPx)
+        )
+    }
+
+    @Test
+    fun wrapUnboundedBreaksOneLongWordToTheEnd() {
+        // One 18-char word, 50 px box: mid-word breaks until it ends.
+        assertEquals(
+            listOf("keyfr", "amesk", "eyfra", "mes"),
+            PanelGeometry.wrapGreedy("keyframeskeyframes", 50f, Int.MAX_VALUE, tenPx)
+        )
+    }
+
+    @Test
+    fun wrapCrashShapeNarrowBoxLongParagraph() {
+        // The phone crash's exact shape (build 252/253): a long
+        // hint paragraph that does not fit its narrow box on one
+        // line, wrapped unbounded by GlTextBlock.
+        assertEquals(
+            listOf("This panel", "has no", "editable", "values for", "the", "selected", "layer yet"),
+            PanelGeometry.wrapGreedy(
+                "This panel has no editable values for the selected layer yet",
+                100f, Int.MAX_VALUE, tenPx
+            )
+        )
+    }
+
+    @Test
     fun wrapSecondLineBreaksAgain() {
         // The pager's floor case: line 2 re-breaks and the rest clips.
         val at75 = { s: String -> s.length * 15f }
