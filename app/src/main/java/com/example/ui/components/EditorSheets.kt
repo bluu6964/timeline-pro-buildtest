@@ -32,6 +32,7 @@ import com.example.engine.UiLabelStyle
 import com.example.engine.rememberUiAtlas
 import com.example.model.EditorGeometry
 import com.example.model.PanelGeometry
+import com.example.model.ShapeCatalog
 import com.example.model.SheetGeometry
 import kotlin.math.roundToInt
 import androidx.compose.material.icons.filled.Palette
@@ -54,6 +55,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -1505,24 +1509,15 @@ fun AddTextSheet(
     }
 }
 
-private data class ShapeOption(val name: String, val pattern: String)
-
-private val ShapeOptions = listOf(
-    ShapeOption("Circle", "CIRCLE"),
-    ShapeOption("Oval", "OVAL"),
-    ShapeOption("Square", "SQUARE"),
-    ShapeOption("Rounded", "ROUNDED_SQUARE"),
-    ShapeOption("Wide Rect", "WIDE_ROUNDED_RECT"),
-    ShapeOption("Pentagon", "PENTAGON"),
-    ShapeOption("Star", "STAR")
-)
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddShapeSheet(
     onAddShape: (name: String, pattern: String) -> Unit,
     onDismiss: () -> Unit
 ) {
+    // Build 256: the picker is the 100-kind ShapeCatalog, filtered by category
+    // chips (null = All). The build-253 7-kind picker is removed entirely.
+    var category by remember { mutableStateOf<ShapeCatalog.Category?>(null) }
     AppBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = AmPanel,
@@ -1610,23 +1605,46 @@ fun AddShapeSheet(
             }
             Spacer(Modifier.height(10.dp))
 
-            ShapeOptions.chunked(4).forEach { rowItems ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    rowItems.forEach { opt ->
-                        ShapePickerCard(
-                            name = opt.name,
-                            pattern = opt.pattern,
-                            onClick = { onAddShape(opt.name, opt.pattern); onDismiss() },
-                            modifier = Modifier.weight(1f)
-                        )
+            // Build 256: category chips — All + the catalog's eight categories.
+            GlPillStrip(
+                items = buildList {
+                    add(GlPillItem(label = "All", selected = category == null, onClick = { category = null }))
+                    for (c in ShapeCatalog.categories) {
+                        add(GlPillItem(label = c.label, selected = category == c, onClick = { category = c }))
                     }
-                    repeat(4 - rowItems.size) { Spacer(Modifier.weight(1f)) }
+                },
+                labelStyle = { sel -> if (sel) UiLabelStyle.ED_TEXT_BOLD else UiLabelStyle.ED_TEXT_MED },
+                textArgb = { sel -> if (sel) AmInk.toArgb() else TextPrimary.toArgb() },
+                fillArgb = { sel -> if (sel) AmAccent.toArgb() else AmPanelElevated.toArgb() },
+                borderArgb = { sel -> if (sel) AmAccent.toArgb() else AmHairlineStrong.toArgb() },
+                padHDp = 12f,
+                padVDp = 6f,
+                gapDp = 6f,
+                minHDp = 32f,
+                scrollable = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(10.dp))
+
+            // The grid: 4 columns on the SheetGeometry.ShapeGrid law, bounded
+            // height, every card drawn from its shape's own catalog points.
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(SheetGeometry.ShapeGrid.COLUMNS),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 392.dp),
+                horizontalArrangement = Arrangement.spacedBy(SheetGeometry.ShapeGrid.GAP_DP.dp),
+                verticalArrangement = Arrangement.spacedBy(SheetGeometry.ShapeGrid.GAP_DP.dp)
+            ) {
+                items(ShapeCatalog.inCategory(category), key = { it.pattern }) { def ->
+                    ShapeGridCard(
+                        def = def,
+                        onClick = { onAddShape(def.name, def.pattern); onDismiss() },
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
-                Spacer(Modifier.height(8.dp))
             }
+            Spacer(Modifier.height(10.dp))
 
             // Build 253: the footer note draws in GL.
             GlLabelLine(
@@ -1643,36 +1661,40 @@ fun AddShapeSheet(
 }
 
 /**
- * Build 253 (stage 6): one shape picker card on a single GL surface —
- * tile fill + hairline, the shape glyph (its build-252 command body,
- * now emitted into the card's stream at the glyph's rect), and the
- * name. The whole card was bouncyClickable content in Compose (the
- * clickable sat on the outer Column), so the whole draw press-scales.
+ * Build 256: one catalog shape card on a single GL surface — tile fill +
+ * hairline, the glyph drawn from the shape's OWN [ShapeCatalog] points
+ * (the same points the canvas renders; a hole subpath is punched with
+ * the tile colour), and the name wrapped by the greedy breaker to at
+ * most two full-word lines under the tile. Card metrics are the
+ * [SheetGeometry.ShapeGrid] law; the whole draw press-scales.
  */
 @Composable
-private fun ShapePickerCard(
-    name: String,
-    pattern: String,
+private fun ShapeGridCard(
+    def: ShapeCatalog.Def,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val g = SheetGeometry.ShapeCard
+    val g = SheetGeometry.ShapeGrid
     val density = LocalDensity.current.density
     val atlas = rememberUiAtlas()
     val pad = UiLabelAtlas.PAD.toFloat()
-    val labelH = atlas.textHeightPx(UiLabelStyle.TEXT_95_MED)
-    fun resolveName() = atlas.resolve(name, UiLabelStyle.TEXT_95_MED)
-    var nameE = resolveName()
-    if (atlas.overflowed) {
-        atlas.reset()
-        nameE = resolveName()
-    }
-    val e = nameE
+    val labelStyle = UiLabelStyle.TEXT_95_MED
+    val labelH = atlas.textHeightPx(labelStyle)
     val scale = remember { Animatable(1f) }
 
     BoxWithConstraints(modifier = modifier) {
-        val cardW = maxWidth.value * density
-        val cardH = g.cardHeightPx(cardW, labelH, density)
+        // In the grid the cell IS the tile: card width == tile edge.
+        val tilePx = maxWidth.value * density
+        fun resolveLines(): List<UiLabelAtlas.Entry?> =
+            PanelGeometry.wrapGreedy(def.name, tilePx, g.LABEL_LINES) { atlas.measure(it, labelStyle) }
+                .map { atlas.resolve(it, labelStyle) }
+        var lineEntries = resolveLines()
+        if (atlas.overflowed) {
+            atlas.reset()
+            lineEntries = resolveLines()
+        }
+        val lines = lineEntries
+        val cardH = g.cardHeightPx(tilePx, labelH, g.LABEL_LINES, density)
         Box(
             Modifier
                 .width(maxWidth)
@@ -1682,7 +1704,7 @@ private fun ShapePickerCard(
                 modifier = Modifier.fillMaxSize(),
                 clearArgb = 0,
                 atlas = atlas,
-                drawKey = listOf(e, scale.value, pattern, atlas.generation),
+                drawKey = listOf(lines, scale.value, def.pattern, atlas.generation),
                 buildCmds = { w, h, dd ->
                     setScaleAbout(w / 2f, h / 2f, scale.value)
                     // Tile: fill + the inside hairline.
@@ -1695,60 +1717,35 @@ private fun ShapePickerCard(
                         g.TILE_CORNER_DP * dd - 0.5f * dd,
                         0, 1f * dd, AmHairline.toArgb()
                     )
-                    // The glyph: the build-252 command body, placed in
-                    // the centred 0.48-fraction box of the tile.
-                    val gw = w * g.GLYPH_FRAC
-                    val gh = w * g.GLYPH_FRAC
-                    val gx = (w - gw) / 2f
-                    val gy = (w - gh) / 2f
-                    setTranslate(gx, gy)
-                    val c = Color(0xFFEDEDED).toArgb()
-                    fun addRegPoly(points: Int, innerRatio: Float) {
-                        val cx = gw / 2f
-                        val cy = gh / 2f
-                        val outer = minOf(gw, gh) / 2f
-                        val total = if (innerRatio < 1f) points * 2 else points
-                        val xs = FloatArray(total)
-                        val ys = FloatArray(total)
-                        for (i in 0 until total) {
-                            val angle = Math.toRadians(i * 360.0 / total - 90.0)
-                            val radius = if (innerRatio < 1f && i % 2 == 1) outer * innerRatio else outer
-                            xs[i] = cx + radius * kotlin.math.cos(angle).toFloat()
-                            ys[i] = cy + radius * kotlin.math.sin(angle).toFloat()
+                    // The glyph: the catalog's own subpaths mapped into the
+                    // tile by the ShapeGrid glyph law.
+                    val glyphArgb = Color(0xFFEDEDED).toArgb()
+                    val tileArgb = AmPanelHigh.toArgb()
+                    var o = 0
+                    for (sub in def.subs) {
+                        val xs = FloatArray(sub.count)
+                        val ys = FloatArray(sub.count)
+                        for (j in 0 until sub.count) {
+                            xs[j] = g.glyphX(0f, w, def.flat[o + j * 2])
+                            ys[j] = g.glyphY(0f, w, def.flat[o + j * 2 + 1])
                         }
-                        addFilledPolygon(xs, ys, total, c)
+                        addFilledPolygon(xs, ys, sub.count, if (sub.hole) tileArgb else glyphArgb)
+                        o += sub.count * 2
                     }
-                    when (pattern) {
-                        "CIRCLE" -> addCircle(gw / 2f, gh / 2f, minOf(gw, gh) / 2f, c)
-                        "SQUARE" -> addRect(0f, 0f, gw, gh, c)
-                        "ROUNDED_SQUARE", "ROUNDED_RECT" ->
-                            addRoundRect(gw / 2f, gh / 2f, gw, gh, minOf(gw, gh) * 0.24f, c)
-                        "WIDE_ROUNDED_RECT" -> {
-                            val rh = gh * 0.62f
-                            addRoundRect(gw / 2f, gh / 2f, gw, rh, rh * 0.22f, c)
+                    // The name: up to two centred lines under the tile.
+                    val fm = atlas.fontMetrics(labelStyle)
+                    lines.forEachIndexed { i, entry ->
+                        entry?.let { e ->
+                            val labelTop = w + g.LABEL_GAP_DP * dd + i * labelH
+                            val baseline = PanelGeometry.lineBaselinePx(labelTop, labelH, fm.ascent, fm.descent)
+                            val originX = EditorGeometry.centredOriginPx(w / 2f, e.advance)
+                            val (dstX, dstY) = EditorGeometry.textDst(originX, baseline, e.bearing, e.base, pad)
+                            addText(
+                                e.index, dstX, dstY,
+                                0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                                tintArgb = TextSecondary.toArgb()
+                            )
                         }
-                        "OVAL" -> {
-                            val rh = gh * 0.68f
-                            addArc(gw / 2f, gh / 2f, gw / 2f, rh / 2f, 0f, 360f, fillArgb = c)
-                        }
-                        "STAR" -> addRegPoly(5, innerRatio = 0.45f)
-                        "PENTAGON" -> addRegPoly(5, innerRatio = 1f)
-                        else -> addCircle(gw / 2f, gh / 2f, minOf(gw, gh) / 2f, c)
-                    }
-                    clearTransform()
-                    setScaleAbout(w / 2f, h / 2f, scale.value)
-                    e?.let { entry ->
-                        val style = UiLabelStyle.TEXT_95_MED
-                        val fm = atlas.fontMetrics(style)
-                        val labelTop = w + g.LABEL_GAP_DP * dd
-                        val baseline = PanelGeometry.lineBaselinePx(labelTop, labelH, fm.ascent, fm.descent)
-                        val originX = EditorGeometry.centredOriginPx(w / 2f, entry.advance)
-                        val (dstX, dstY) = EditorGeometry.textDst(originX, baseline, entry.bearing, entry.base, pad)
-                        addText(
-                            entry.index, dstX, dstY,
-                            0f, 0f, entry.rectW.toFloat(), entry.rectH.toFloat(),
-                            tintArgb = TextSecondary.toArgb()
-                        )
                     }
                     clearTransform()
                 }
@@ -1756,7 +1753,7 @@ private fun ShapePickerCard(
             ChromePressBox(
                 scale, 0.94f, onClick,
                 Modifier.fillMaxSize(),
-                description = name
+                description = def.name
             )
         }
     }
