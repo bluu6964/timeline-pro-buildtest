@@ -156,4 +156,111 @@ class TextEditGeometryTest {
         assertEquals(lefts.last() + widths.last(), g.contentWPx(widths, d), eps)
         assertTrue(abs(g.contentWPx(widths, d) - (widths.sum() + g.STRIP_GAP_DP * d * (widths.size - 1))) < eps)
     }
+
+    // ── Build 267: every row must leave its controls a real slot ────
+    //
+    // The build-266 screen drew only the labels from Spacing down:
+    // the label line's box took the whole row, so the weighted
+    // slider / swatch strip / pill strip measured 0 wide and the
+    // pinned tiles + Done pill fell off the right edge. These tests
+    // pin the row laws the hosts lay out by: with realistic label
+    // advances, every control's rect is positive and inside its row.
+
+    @Test
+    fun topBarTitleHugsAndDoneFits() {
+        val g = TextEditGeometry.TopBar
+        for (d in densities) {
+            val rowW = 360f * d
+            val titleAdv = 42f * d // "Text" in the header style
+            val titleW = g.titleWPx(titleAdv, rowW)
+            assertEquals(titleAdv, titleW, eps)
+            val pillW = EditorGeometry.ScreenChrome.pillWPx(80f, d)
+            val doneL = g.doneLeftPx(rowW, pillW, d)
+            // The title ends well before the Done pill starts, and
+            // the pill's right edge is the screen padding.
+            assertTrue(
+                "title must not reach Done (d=$d)",
+                g.titleLeftPx(d) + titleW < doneL
+            )
+            assertEquals(rowW - TextEditGeometry.SCREEN_PAD_H_DP * d, doneL + pillW, eps)
+            assertTrue("Done pill has real width (d=$d)", pillW > 0f)
+        }
+    }
+
+    @Test
+    fun sliderRowsGiveTheSliderARealSpan() {
+        val g = TextEditGeometry.SliderRow
+        // (label advance dp, value advance dp) for the screen's rows:
+        // Letter space / Line height / Thickness / Opacity / Blur /
+        // Distance / Angle / Corner / Padding / Reveal start / end.
+        val cases = listOf(82f to 24f, 76f to 32f, 62f to 24f, 52f to 32f, 30f to 32f, 55f to 36f)
+        for (d in densities) {
+            val rowW = 328f * d // 360 dp screen − the screen padding
+            for ((labelDp, valueDp) in cases) {
+                val labelAdv = labelDp * d
+                val valueAdv = valueDp * d
+                val sliderW = g.sliderWPx(rowW, labelAdv, valueAdv, d)
+                assertTrue(
+                    "slider span must be real (label=$labelDp d=$d)",
+                    sliderW > 100f * d
+                )
+                // The three boxes + two gaps tile the row exactly.
+                val sliderL = g.sliderLeftPx(labelAdv, rowW, d)
+                assertEquals(g.labelWPx(labelAdv, rowW) + g.LABEL_GAP_DP * d, sliderL, eps)
+                val valueL = g.valueLeftPx(rowW, labelAdv, valueAdv, d)
+                assertEquals(sliderL + sliderW + g.VALUE_GAP_DP * d, valueL, eps)
+                assertEquals(rowW, valueL + g.valueWPx(valueAdv, rowW), eps)
+            }
+        }
+    }
+
+    @Test
+    fun colorRowsGiveTheStripAndPinnedTilesRealSlots() {
+        val g = TextEditGeometry.Swatches
+        for (d in densities) {
+            val rowW = 328f * d
+            val labelAdv = 34f * d // "Color"
+            val stripW = g.stripWPx(rowW, labelAdv, d)
+            // The strip shows at least two full swatches (it scrolls
+            // for the rest) — build 266 showed none.
+            assertTrue("strip must be real (d=$d)", stripW > 2f * g.CELL_DP * d)
+            val stripL = g.stripLeftPx(labelAdv, rowW, d)
+            assertEquals(g.labelWPx(labelAdv, rowW) + g.LABEL_GAP_DP * d, stripL, eps)
+            // Pinned tiles: custom then eyedropper, ending flush
+            // with the row's right edge, all inside the row.
+            val customL = g.customLeftPx(rowW, labelAdv, d)
+            assertEquals(stripL + stripW + g.PIN_GAP_DP * d, customL, eps)
+            val dropL = g.eyedropperLeftPx(rowW, labelAdv, d)
+            assertEquals(customL + g.CELL_DP * d + g.GAP_DP * d, dropL, eps)
+            assertEquals(rowW, dropL + g.CELL_DP * d, eps)
+            // The strip's own swatch layout starts at the strip's left.
+            assertEquals(0f, g.leftPx(0, d), eps)
+            assertTrue(g.contentWPx(12, d) > stripW) // 12 swatches scroll
+        }
+    }
+
+    @Test
+    fun weightStripSlotIsRealAndPillsTile() {
+        val g = TextEditGeometry.Chips
+        for (d in densities) {
+            val rowW = 328f * d
+            val labelAdv = 72f * d // "Font weight"
+            val slot = g.stripSlotWPx(rowW, labelAdv, d)
+            assertTrue("weight strip slot must be real (d=$d)", slot > 100f * d)
+            // The seven weight pills (GlPillStrip law, padH 14, gap 6):
+            // lefts cumulative, first pill fully inside the slot.
+            val advances = List(7) { 26f * d }
+            val widths = EditorGeometry.PillStrip.itemWidthsPx(advances, 14f, d)
+            val lefts = EditorGeometry.PillStrip.itemLeftsPx(widths, 6f, d)
+            assertEquals(0f, lefts[0], eps)
+            assertTrue("first pill fits the slot (d=$d)", widths[0] < slot)
+            for (i in 1 until widths.size) {
+                assertEquals(lefts[i - 1] + widths[i - 1] + 6f * d, lefts[i], eps)
+            }
+            assertEquals(
+                EditorGeometry.PillStrip.contentWPx(widths, 6f, d),
+                lefts.last() + widths.last(), eps
+            )
+        }
+    }
 }

@@ -38,6 +38,23 @@ class EditorGeometryTest {
     }
 
     @Test
+    fun labelLineBoxHugsItsAdvance() {
+        val g = EditorGeometry.LabelLine
+        // Unpinned host: the box is exactly the drawn run's advance —
+        // a Row sibling after the label keeps the row's other width
+        // (build 267: the box previously took the full max width and
+        // starved the Text editor's slider / swatch / pill rows).
+        assertEquals(120f, g.boxWPx(120f, 0f, 600f), 0f)
+        // An advance past the host's max clamps to the max (the
+        // ellipsize case keeps today's full-width box).
+        assertEquals(600f, g.boxWPx(900f, 0f, 600f), 0f)
+        // A width-pinned host (fillMaxWidth / width(dp): min == max)
+        // keeps exactly its pinned width.
+        assertEquals(600f, g.boxWPx(120f, 600f, 600f), 0f)
+        assertEquals(32f, g.boxWPx(120f, 32f, 32f), 0f)
+    }
+
+    @Test
     fun roundedRectOutlineHasFourArcsWorthOfPoints() {
         val pts = EditorGeometry.roundedRectOutline(0f, 0f, 40f, 20f, 5f, 5f, 5f, 5f, segPerCorner = 4)
         assertEquals(32, pts.size)

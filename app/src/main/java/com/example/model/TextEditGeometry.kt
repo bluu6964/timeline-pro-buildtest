@@ -44,6 +44,20 @@ object TextEditGeometry {
         fun doneCentreXPx(rowWPx: Float, pillWPx: Float, density: Float): Float =
             rowWPx - SCREEN_PAD_H_DP * density - pillWPx / 2f
 
+        /** The Done pill's left edge. */
+        fun doneLeftPx(rowWPx: Float, pillWPx: Float, density: Float): Float =
+            doneCentreXPx(rowWPx, pillWPx, density) - pillWPx / 2f
+
+        /**
+         * The title's box width: the hug rule ([EditorGeometry.LabelLine])
+         * — the title takes only its advance, so the bar's weighted
+         * spacer, not the title, absorbs the free width and the Done
+         * pill lands at the right edge. (Build 267: the title's box
+         * previously spanned the whole bar and pushed Done out.)
+         */
+        fun titleWPx(titleAdvancePx: Float, rowWPx: Float): Float =
+            EditorGeometry.LabelLine.boxWPx(titleAdvancePx, 0f, rowWPx)
+
         /** The bar's vertical centre (every element shares it). */
         fun centreYPx(density: Float): Float = H_DP * density / 2f
     }
@@ -96,6 +110,38 @@ object TextEditGeometry {
 
         /** Gap between the slider and the value readout. */
         const val VALUE_GAP_DP = 10f
+
+        /** The label box's width: the hug rule ([EditorGeometry.LabelLine]). */
+        fun labelWPx(labelAdvancePx: Float, rowWPx: Float): Float =
+            EditorGeometry.LabelLine.boxWPx(labelAdvancePx, 0f, rowWPx)
+
+        /** The value readout's box width: the hug rule again. */
+        fun valueWPx(valueAdvancePx: Float, rowWPx: Float): Float =
+            EditorGeometry.LabelLine.boxWPx(valueAdvancePx, 0f, rowWPx)
+
+        /** The slider's left edge: label box + the label gap. */
+        fun sliderLeftPx(labelAdvancePx: Float, rowWPx: Float, density: Float): Float =
+            labelWPx(labelAdvancePx, rowWPx) + LABEL_GAP_DP * density
+
+        /**
+         * The slider's width: the row minus the two hugged boxes and
+         * the two gaps — the weighted span the host's Row leaves it.
+         * This is the width build 266 lost (the label took the whole
+         * row, leaving 0); it must stay positive for real labels.
+         */
+        fun sliderWPx(
+            rowWPx: Float, labelAdvancePx: Float, valueAdvancePx: Float, density: Float
+        ): Float =
+            (rowWPx - labelWPx(labelAdvancePx, rowWPx) - LABEL_GAP_DP * density -
+                VALUE_GAP_DP * density - valueWPx(valueAdvancePx, rowWPx)).coerceAtLeast(0f)
+
+        /** The value readout's left edge. */
+        fun valueLeftPx(
+            rowWPx: Float, labelAdvancePx: Float, valueAdvancePx: Float, density: Float
+        ): Float =
+            sliderLeftPx(labelAdvancePx, rowWPx, density) +
+                sliderWPx(rowWPx, labelAdvancePx, valueAdvancePx, density) +
+                VALUE_GAP_DP * density
     }
 
     // ── Segmented rows (style toggles, alignment) ──────────────────
@@ -156,6 +202,37 @@ object TextEditGeometry {
         /** Gap between the strip and the pinned custom-colour tile. */
         const val PIN_GAP_DP = 6f
 
+        /** Gap between the row's label and the swatch strip. */
+        const val LABEL_GAP_DP = 10f
+
+        /** The label box's width: the hug rule ([EditorGeometry.LabelLine]). */
+        fun labelWPx(labelAdvancePx: Float, rowWPx: Float): Float =
+            EditorGeometry.LabelLine.boxWPx(labelAdvancePx, 0f, rowWPx)
+
+        /** The strip's left edge: label box + the label gap. */
+        fun stripLeftPx(labelAdvancePx: Float, rowWPx: Float, density: Float): Float =
+            labelWPx(labelAdvancePx, rowWPx) + LABEL_GAP_DP * density
+
+        /**
+         * The strip's width: the row minus the hugged label, the
+         * gaps and the two pinned tiles (custom + eyedropper) — the
+         * weighted span the host's Row leaves it. Build 266 lost it
+         * to the label (0); it must stay positive for real labels.
+         */
+        fun stripWPx(rowWPx: Float, labelAdvancePx: Float, density: Float): Float =
+            (rowWPx - stripLeftPx(labelAdvancePx, rowWPx, density) -
+                PIN_GAP_DP * density - CELL_DP * density -
+                GAP_DP * density - CELL_DP * density).coerceAtLeast(0f)
+
+        /** The pinned custom-colour tile's left edge. */
+        fun customLeftPx(rowWPx: Float, labelAdvancePx: Float, density: Float): Float =
+            stripLeftPx(labelAdvancePx, rowWPx, density) +
+                stripWPx(rowWPx, labelAdvancePx, density) + PIN_GAP_DP * density
+
+        /** The eyedropper tile's left edge (its right edge is the row's). */
+        fun eyedropperLeftPx(rowWPx: Float, labelAdvancePx: Float, density: Float): Float =
+            customLeftPx(rowWPx, labelAdvancePx, density) + CELL_DP * density + GAP_DP * density
+
         /** A swatch's left edge inside the strip. */
         fun leftPx(index: Int, density: Float): Float =
             index * (CELL_DP + GAP_DP) * density
@@ -187,9 +264,22 @@ object TextEditGeometry {
         /** The font chip's text size (the old chip's 15 sp, in its own face). */
         const val FONT_TEXT_SP = 15f
 
+        /** Gap between the font-weight row's label and its pill strip. */
+        const val LABEL_GAP_DP = 10f
+
         /** One chip's width from its label's advance. */
         fun chipWPx(advancePx: Float, density: Float): Float =
             advancePx + 2f * PAD_H_DP * density
+
+        /**
+         * The pill strip's slot width in the font-weight row: the
+         * row minus the hugged label box and the gap — the weighted
+         * span the host's Row leaves the strip. Build 266 lost it to
+         * the label (0); it must stay positive for the real label.
+         */
+        fun stripSlotWPx(rowWPx: Float, labelAdvancePx: Float, density: Float): Float =
+            (rowWPx - EditorGeometry.LabelLine.boxWPx(labelAdvancePx, 0f, rowWPx) -
+                LABEL_GAP_DP * density).coerceAtLeast(0f)
 
         /** Chip left edges: cumulative widths + gaps, from [startPx]. */
         fun leftsPx(widths: List<Float>, density: Float, startPx: Float = 0f): List<Float> =

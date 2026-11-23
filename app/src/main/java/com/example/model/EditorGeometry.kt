@@ -53,6 +53,27 @@ object EditorGeometry {
     fun centredTextTopPx(boxTopPx: Float, boxHPx: Float, textHPx: Float): Float =
         boxTopPx + (boxHPx - textHPx) / 2f
 
+    // ── Leaf text lines (GlTextLine / GlLabelLine) ──────────────────
+
+    object LabelLine {
+        /**
+         * The box width of a GL leaf text line: the drawn run's
+         * advance, coerced into the host's width constraints — the
+         * hug-content sizing of the Compose Text this component
+         * replaced in stage 6. A host that pins its width
+         * (fillMaxWidth / fillMaxSize / width(dp)) passes
+         * min == max, so the box keeps exactly that width; an
+         * unpinned line in a Row takes only its advance, leaving the
+         * row's remaining width to its siblings. (Build 267: the box
+         * previously took the full incoming max width, so a label
+         * heading a Row starved every weighted sibling to 0 width
+         * and pushed the rest off the row's right edge — the Text
+         * editor's slider / colour / pill rows rendered labels only.)
+         */
+        fun boxWPx(advancePx: Float, minWPx: Float, maxWPx: Float): Float =
+            advancePx.coerceIn(minWPx, maxWPx)
+    }
+
     /**
      * The outline points (x, y pairs) of a rounded rect centred at
      * ([cx], [cy]) with per-corner radii, sampled at [segPerCorner]
