@@ -1111,7 +1111,7 @@ private fun RefCardBox(
     selected: Boolean,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
-    content: @Composable () -> Unit
+    content: @Composable androidx.compose.foundation.layout.BoxScope.() -> Unit
 ) {
     val r = TextEditGeometry.Ref
     val scale = remember { Animatable(1f) }
