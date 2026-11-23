@@ -1,6 +1,7 @@
 package com.example.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
@@ -59,8 +60,15 @@ fun TextLayerContent(
     val density = LocalDensity.current
     val family = rememberFontFamily(clip.fontFamily)
     val width = if (frameWidth.value > 0f) frameWidth else 300.dp
-    val fontPx = with(density) { width.toPx() } * FONT_SIZE_FRACTION
-    val label = (clip.text ?: "").ifEmpty { TEXT_PLACEHOLDER }
+    // Build 271: the font size goes through the one law (frameW ×
+    // 11% × textSizePercent), and the Case transform applies to the
+    // displayed string (placeholder included, as the reference does).
+    val fontPx = com.example.model.TextPaintRules.fontPx(
+        with(density) { width.toPx() }, clip.textSizePercent
+    )
+    val label = com.example.model.TextPaintRules.caseTransform(
+        (clip.text ?: "").ifEmpty { TEXT_PLACEHOLDER }, clip.textCase
+    )
 
     val decoration = when {
         clip.isUnderline && clip.isStrikethrough ->
@@ -69,7 +77,9 @@ fun TextLayerContent(
         clip.isStrikethrough -> TextDecoration.LineThrough
         else -> TextDecoration.None
     }
-    val fillColor = if (clip.fillMode == FILL_NONE) Color.Transparent else Color(clip.textColor)
+    // Build 271: the solid fill carries the textOpacity alpha fold.
+    val fillColor = if (clip.fillMode == FILL_NONE) Color.Transparent
+        else Color(com.example.model.TextPaintRules.alphaFold(clip.textColor, clip.textOpacity))
     val fillBrush: Brush? = when (clip.fillMode) {
         FILL_GRADIENT -> clip.gradientBrush()
         com.example.model.FILL_IMAGE -> clip.imageBrush()
@@ -128,6 +138,12 @@ fun TextLayerContent(
     val bgArgb = if (clip.bgShape == com.example.model.TEXT_BG_NONE) null
         else com.example.model.TextPaintRules.bgArgb(clip.bgColor, clip.bgOpacity)
     val bgDef = com.example.model.textBgShapeDef(clip.bgShape)
+    // Build 271: the bg border (colour under the same bg rule; the
+    // 0 "unset" colour must be gated BEFORE bgArgb, whose stored-0
+    // alpha reads as opaque).
+    val borderArgb = if (bgArgb != null && clip.bgBorderColor != 0L && clip.bgBorderWidth > 0f)
+        com.example.model.TextPaintRules.bgArgb(clip.bgBorderColor, clip.bgOpacity) else null
+    val borderWpx = fontPx * clip.bgBorderWidth / 100f
     val bgModifier = when {
         bgArgb == null -> Modifier
         bgDef != null -> Modifier.drawBehind {
@@ -145,17 +161,33 @@ fun TextLayerContent(
             }
             path.fillType = androidx.compose.ui.graphics.PathFillType.EvenOdd
             drawPath(path, Color(bgArgb))
+            if (borderArgb != null) {
+                drawPath(
+                    path, Color(borderArgb),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = borderWpx)
+                )
+            }
         }
-        clip.bgShape == com.example.model.TEXT_BG_ROUNDED -> Modifier.background(
-            Color(bgArgb),
-            RoundedCornerShape(
+        clip.bgShape == com.example.model.TEXT_BG_ROUNDED -> {
+            val shape = RoundedCornerShape(
                 percent = maxOf((clip.bgCorner / 2f).toInt().coerceIn(0, 50), 25)
             )
-        )
-        else -> Modifier.background(
-            Color(bgArgb),
-            RoundedCornerShape(percent = (clip.bgCorner / 2f).toInt().coerceIn(0, 50))
-        )
+            Modifier.background(Color(bgArgb), shape).then(
+                if (borderArgb != null) Modifier.border(
+                    with(density) { borderWpx.toDp() }, Color(borderArgb), shape
+                ) else Modifier
+            )
+        }
+        else -> {
+            val shape = RoundedCornerShape(
+                percent = (clip.bgCorner / 2f).toInt().coerceIn(0, 50)
+            )
+            Modifier.background(Color(bgArgb), shape).then(
+                if (borderArgb != null) Modifier.border(
+                    with(density) { borderWpx.toDp() }, Color(borderArgb), shape
+                ) else Modifier
+            )
+        }
     }
 
     Box(
@@ -174,6 +206,28 @@ fun TextLayerContent(
             .then(bgModifier)
             .padding(horizontal = padH, vertical = padV)
     ) {
+        // Build 271: the glow — the glyph drawn in the glow colour
+        // with a zero-offset shadow at the radius and at twice the
+        // radius (the engine's two blurred ink passes), under the
+        // stroke and fill. No fill = no glow, as in the engine.
+        if (clip.glowColor != 0L && clip.fillMode != FILL_NONE) {
+            val glowC = Color(clip.glowColor)
+            val glowR = fontPx * clip.glowRadius / 100f
+            Text(
+                text = label,
+                style = base.copy(
+                    color = glowC,
+                    shadow = Shadow(glowC, Offset.Zero, glowR * 2f)
+                )
+            )
+            Text(
+                text = label,
+                style = base.copy(
+                    color = glowC,
+                    shadow = Shadow(glowC, Offset.Zero, glowR)
+                )
+            )
+        }
         if (hasStroke) {
             // Outline sits underneath; the fill drawn on top hides its inner half.
             Text(
@@ -184,9 +238,16 @@ fun TextLayerContent(
                     shadow = shadow
                 )
             )
-            Text(text = label, style = base.withFill(fillBrush, fillColor))
+            Text(
+                text = label,
+                style = base.withFill(fillBrush, fillColor, clip.textOpacity / 100f)
+            )
         } else {
-            Text(text = label, style = base.withFill(fillBrush, fillColor).copy(shadow = shadow))
+            Text(
+                text = label,
+                style = base.withFill(fillBrush, fillColor, clip.textOpacity / 100f)
+                    .copy(shadow = shadow)
+            )
         }
     }
 }
@@ -274,6 +335,8 @@ val TextPresets: List<TextPreset> = listOf(
     TextPreset(0xFFFF9F0A, shadowOpacity = 80f, shadowBlur = 40f, shadowDistance = 0f, shadowColor = 0xFFFF9F0A)
 )
 
-/** Text fill: a gradient brush when there is one, otherwise a plain colour. */
-private fun TextStyle.withFill(brush: Brush?, color: Color): TextStyle =
-    if (brush != null) copy(brush = brush) else copy(color = color)
+/** Text fill: a gradient brush when there is one, otherwise a plain colour.
+ *  Build 271: a brush fill takes the textOpacity fold through the
+ *  style alpha (a solid colour carries the fold in the colour). */
+private fun TextStyle.withFill(brush: Brush?, color: Color, opacity: Float = 1f): TextStyle =
+    if (brush != null) copy(brush = brush, alpha = opacity) else copy(color = color)

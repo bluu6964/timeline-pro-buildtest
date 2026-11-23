@@ -194,6 +194,62 @@ static void testEngine() {
         CHECK(axis[3] > 200 && axis[2] > 200 && axis[0] < 40);
     }
 
+    // Build 271: the glow — two blurred ink passes at zero offset.
+    // A red glow around white text must paint reddish pixels WELL
+    // outside the plain text's bounding box, and a glow colour with
+    // alpha 0 must paint nothing.
+    {
+        Request rg;
+        rg.text = "Hi"; rg.fontPath = latin; rg.fontPx = 60; rg.maxTextW = 500;
+        rg.padH = 15; rg.padV = 7; rg.cx = 300; rg.cy = 150;
+        std::fill(bmp.begin(), bmp.end(), 0);
+        CHECK(draw(bmp.data(), W, H, W * 4, rg));
+        int gx0, gx1, gy0, gy1;
+        firstOpaqueCols(bmp, W, H, &gx0, &gx1, &gy0, &gy1);
+        rg.glowOn = true; rg.glowBlur = 15; rg.glowArgb = 0xFFFF0000;
+        std::fill(bmp.begin(), bmp.end(), 0);
+        CHECK(draw(bmp.data(), W, H, W * 4, rg));
+        // Premultiplied storage: a distant glow pixel is DIM red —
+        // the test is red-dominance, not brightness.
+        int glowHits = 0;
+        for (int y = 0; y < H; ++y) {
+            for (int x = 0; x < gx0 - 6; ++x) {
+                const uint8_t* p = &bmp[((size_t)y * W + x) * 4];
+                if (p[3] > 12 && p[0] > p[1] + 20 && p[0] > p[2] + 20) ++glowHits;
+            }
+        }
+        CHECK(glowHits > 20);
+        rg.glowArgb = 0x00FF0000;  // alpha 0: no glow at all
+        std::fill(bmp.begin(), bmp.end(), 0);
+        CHECK(draw(bmp.data(), W, H, W * 4, rg));
+        bool anyRed = false;
+        for (size_t i = 0; i < bmp.size(); i += 4)
+            if (bmp[i + 3] > 12 && bmp[i] > bmp[i + 1] + 20 && bmp[i] > bmp[i + 2] + 20) anyRed = true;
+        CHECK(!anyRed);
+    }
+
+    // Build 271: the background border — a green ring on the blue
+    // box's edge; the pad area inside stays blue, and nothing paints
+    // outside the box beyond the ring's half width.
+    {
+        Request rb2;
+        rb2.text = "Hi"; rb2.fontPath = latin; rb2.fontPx = 60; rb2.maxTextW = 500;
+        rb2.padH = 40; rb2.padV = 30; rb2.cx = 300; rb2.cy = 150;
+        rb2.bgOn = true; rb2.bgArgb = 0xFF0000FF; rb2.bgCornerFrac = 0.f;
+        rb2.bgBorderArgb = 0xFF00FF00; rb2.bgBorderW = 6;
+        Stats sb2;
+        std::fill(bmp.begin(), bmp.end(), 0);
+        CHECK(draw(bmp.data(), W, H, W * 4, rb2, &sb2));
+        auto pxAt = [&](int x, int y) -> const uint8_t* { return &bmp[((size_t)y * W + x) * 4]; };
+        const int topY = 150 - (int)(sb2.boxH / 2);
+        const uint8_t* edge = pxAt(300, topY);
+        CHECK(edge[1] > 150 && edge[0] < 110 && edge[3] > 200);   // green ring on the edge
+        const uint8_t* padIn = pxAt(300 - (int)(sb2.boxW / 2) + 12, 150);
+        CHECK(padIn[2] > 200 && padIn[1] < 110 && padIn[3] > 200); // blue fill inside
+        const uint8_t* out = pxAt(300, topY - 8);
+        CHECK(out[3] < 10);                                        // nothing outside
+    }
+
     // rotation 90: the box becomes tall
     r = Request(); r.text = "WWWW"; r.fontPath = latin; r.fontPx = 50; r.maxTextW = 500; r.cx = 300; r.cy = 150; r.rotationDeg = 90.f;
     std::fill(bmp.begin(), bmp.end(), 0);

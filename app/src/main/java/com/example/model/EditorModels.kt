@@ -40,11 +40,17 @@ const val TEXT_BG_SPEECH = 3
 const val TEXT_BG_SPEECH_SQ = 4
 const val TEXT_BG_THOUGHT = 5
 
+/** Build 271: the reference Bubbles "Bang" starburst — a 12-point star
+ *  outline from [ShapeCatalog] (the reference burst has ~16 points;
+ *  SH_STAR12 is the catalog's closest). */
+const val TEXT_BG_BANG = 6
+
 /** The catalog outline a bubble [bgShape] draws, or null for the box shapes / None. */
 fun textBgShapeDef(bgShape: Int): ShapeCatalog.Def? = when (bgShape) {
     TEXT_BG_SPEECH -> ShapeCatalog.byPattern("SH_SPEECH")
     TEXT_BG_SPEECH_SQ -> ShapeCatalog.byPattern("SH_SPEECH_SQ")
     TEXT_BG_THOUGHT -> ShapeCatalog.byPattern("SH_THOUGHT")
+    TEXT_BG_BANG -> ShapeCatalog.byPattern("SH_STAR12")
     else -> null
 }
 
@@ -286,6 +292,36 @@ data class TimelineClip(
      * which renders byte-identically to the old box.
      */
     val bgShape: Int = TEXT_BG_RECTANGLE,
+    /**
+     * Build 271 (the reference text panel's Size / Opacity / Glow /
+     * Case controls, made real end-to-end). All additive with
+     * defaults that render exactly as builds ≤270 did:
+     *
+     * [textSizePercent] — the font-size multiplier over the house law
+     * (frame width × 11%): the panel's Size slider shows the
+     * reference's 12–44 "px" scale, where 20 px = 100%.
+     * [textOpacity] — the FILL's own alpha (0..100), folded into the
+     * fill / gradient colours by every painter; NOT the layer
+     * opacity. [glowColor] — 0 = no glow (the house "unset" colour);
+     * [glowRadius] — glow blur radius in % of the font size (the
+     * panel shows it on the reference's 2–28 px scale: px × 5).
+     * [textCase] — 0 none, 1 UPPER, 2 lower, 3 Capitalize; a
+     * DISPLAY-only transform ([TextPaintRules.caseTransform]) — the
+     * stored [text] is never rewritten. [textEffect] — the Effects
+     * tab's applied effect id ("" = none), kept so the tab can ring
+     * the active tile; the effect itself is the field bundle it
+     * applied. [bgBorderColor] / [bgBorderWidth] — an outline around
+     * the background shape (0 / 0 = none; width in % of font size),
+     * drawn by every painter's background pass.
+     */
+    val textSizePercent: Float = 100f,
+    val textOpacity: Float = 100f,
+    val glowColor: Long = 0L,
+    val glowRadius: Float = 60f,
+    val textCase: Int = 0,
+    val textEffect: String = "",
+    val bgBorderColor: Long = 0L,
+    val bgBorderWidth: Float = 0f,
     val shapePattern: String? = null,
     val shapeOffsetX: Float = 0f,
     val shapeOffsetY: Float = 0f,

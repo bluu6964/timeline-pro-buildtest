@@ -4265,18 +4265,20 @@ fun VideoEditorScreen(
                     onHeightChange = { textPanelHeightDp = it },
                     availableHeightDp = textZoneH.value,
                     imeBottomDp = textImeBottomDp.value,
-                    onAnimApply = { slot, preset ->
+                    onAnimApply = { slot, preset, durationMs ->
                         // The Animations tool's own action and canvas
                         // units. setClipAnim targets the SELECTED
                         // layer — in every entry flow the edited text
                         // layer is the selected one; if that ever
                         // stops being true, apply through updateClip
                         // to the edited layer instead of risking the
-                        // wrong layer.
+                        // wrong layer. Build 271: the panel's
+                        // Duration slider may override the preset's
+                        // default length.
                         val animW = if (previewFrameWidthPx > 1f) previewFrameWidthPx else 1000f
                         val animH = animW / selectedAspectRatio.ratioFloat.coerceAtLeast(0.1f)
                         val dir = preset?.defaultDir() ?: com.example.model.AnimDir.LEFT
-                        val ms = preset?.defaultMs ?: 500L
+                        val ms = durationMs ?: preset?.defaultMs ?: 500L
                         if (selectedClipId == editingText.id) {
                             viewModel.setClipAnim(slot, preset, dir, ms, null, animW, animH)
                         } else {

@@ -73,6 +73,15 @@ struct Request {
     int bgShape = 0;
     std::vector<float> bgPts;
     std::vector<int> bgCounts;
+    // Build 271: glow — two blurred copies of the ink mask at zero
+    // offset (radii glowBlur and 2×glowBlur), composited with the
+    // shadow pass — and the background shape's border (a uniform
+    // outline around the bg box / outline, width in layout px).
+    bool glowOn = false;
+    float glowBlur = 0.f;             // px
+    uint32_t glowArgb = 0u;
+    uint32_t bgBorderArgb = 0u;
+    float bgBorderW = 0.f;            // layout px (scaled by rs at draw)
 
     // Text animator (Alight Motion "texttransform", already evaluated for this frame by Kotlin: TextAnimEval.kt).
     // The text is cut into units (0 = every letter, 1 = every word, 2 = every line); the range [animStart, animEnd]

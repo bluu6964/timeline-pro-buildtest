@@ -153,6 +153,13 @@ fun defaultTextLook(c: TimelineClip): TimelineClip {
         bgColor = d.bgColor,
         bgOpacity = d.bgOpacity,
         bgPadding = d.bgPadding,
-        bgCorner = d.bgCorner
+        bgCorner = d.bgCorner,
+        // Build 271: the default look also clears the glow, the
+        // applied art effect and the bg border (the reference's
+        // Default template resets its effect bundle).
+        glowColor = d.glowColor,
+        textEffect = d.textEffect,
+        bgBorderColor = d.bgBorderColor,
+        bgBorderWidth = d.bgBorderWidth
     )
 }

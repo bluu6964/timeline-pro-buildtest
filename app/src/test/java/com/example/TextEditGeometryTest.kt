@@ -249,8 +249,11 @@ class TextEditGeometryTest {
 
     @Test
     fun stylesSectionsFollowCapCutOrder() {
+        // Build 271: the reference's sub-tab list (Curve is not a
+        // sub-tab in the reference — the Path controls ride at the
+        // end of Spacing under a "Curve" label).
         assertEquals(
-            listOf("Text", "Stroke", "Glow", "Background", "Shadow", "Curve", "Spacing", "Bold italic", "Case"),
+            listOf("Text", "Stroke", "Glow", "Background", "Shadow", "Spacing", "Bold Italic", "Case"),
             TextEditGeometry.Styles.SECTION_LABELS
         )
     }
@@ -416,7 +419,11 @@ class TextEditGeometryTest {
     fun panelDefaultShowsTwoTemplateRows() {
         val g = TextEditGeometry.Panel
         val grid = TextEditGeometry.Grid
-        val twoRows = (2f * grid.TEMPLATE_CARD_H_DP + grid.GAP_DP)
+        val ref = TextEditGeometry.Ref
+        // Build 271's derivation: sub-header + content top pad +
+        // two nominal square cells + the row gap.
+        val twoRows = (ref.SUBHEADER_H_DP + ref.CONTENT_PAD_TOP_DP +
+            2f * ref.TEMPLATE_CELL_NOMINAL_DP + grid.GAP_DP)
         for (d in densities) {
             // The two-row height is exactly chrome + two card rows.
             assertEquals(
@@ -477,6 +484,154 @@ class TextEditGeometryTest {
             assertEquals(4, g.rowCount(11, 3))
             assertEquals(2, g.rowCount(6, 3))
             assertEquals(0, g.rowCount(0, 3))
+        }
+    }
+
+    // ── Build 271: the reference panel's metrics ─────────────────
+
+    @Test
+    fun refPrimaryTabUnderlineIsCentredUnderItsLabel() {
+        val g = TextEditGeometry.Ref
+        for (d in densities) {
+            val advances = listOf(70f, 40f, 38f, 42f, 66f, 48f).map { it * d }
+            val lefts = g.tabLeftsPx(advances, d)
+            assertEquals(g.TAB_PAD_H_DP * d, lefts[0], eps)
+            for (i in 1 until advances.size) {
+                assertEquals(
+                    lefts[i - 1] + advances[i - 1] + g.TAB_GAP_DP * d, lefts[i], eps
+                )
+            }
+            // The underline's centre is the label's centre.
+            for (i in advances.indices) {
+                val u = g.underlineLeftPx(lefts[i], advances[i], d)
+                assertEquals(
+                    lefts[i] + advances[i] / 2f,
+                    u + g.UNDERLINE_W_DP * d / 2f, eps
+                )
+            }
+            // Content width: last label's right edge + end padding.
+            assertEquals(
+                lefts.last() + advances.last() + g.TAB_PAD_H_DP * d,
+                g.tabsContentWPx(advances, d), eps
+            )
+        }
+    }
+
+    @Test
+    fun refSliderRowTilesExactly() {
+        val g = TextEditGeometry.Ref
+        for (d in densities) {
+            val rowW = 360f * d
+            val span = g.sliderSpanWPx(rowW, d)
+            assertTrue("slider span must be real (d=$d)", span > 100f * d)
+            // label + gap + span + gap + value = the row, exactly.
+            assertEquals(
+                rowW,
+                g.SLIDER_LABEL_W_DP * d + g.SLIDER_GAP_DP * d + span +
+                    g.SLIDER_GAP_DP * d + g.SLIDER_VALUE_W_DP * d,
+                eps
+            )
+            assertEquals(
+                (g.SLIDER_LABEL_W_DP + g.SLIDER_GAP_DP) * d,
+                g.sliderLeftPx(d), eps
+            )
+            assertEquals(rowW - g.SLIDER_VALUE_W_DP * d, g.sliderValueLeftPx(rowW, d), eps)
+            // The thumb mapping is a bijection between the span's
+            // travel and 0..1 (thumb radius in from both ends).
+            assertEquals(0f, g.sliderFraction(0f, span, d), eps)
+            assertEquals(1f, g.sliderFraction(span, span, d), eps)
+            assertEquals(
+                0.5f,
+                g.sliderFraction(g.sliderThumbXPx(0.5f, span, d), span, d), eps
+            )
+            assertEquals(
+                span / 2f,
+                g.sliderThumbXPx(0.5f, span, d), eps
+            )
+        }
+    }
+
+    @Test
+    fun refSwatchRowIsCumulative() {
+        val g = TextEditGeometry.Ref
+        for (d in densities) {
+            val lefts = g.swatchLeftsPx(12, d)
+            assertEquals(0f, lefts[0], eps)
+            for (i in 1 until 12) {
+                assertEquals(
+                    (g.SWATCH_DP + g.SWATCH_GAP_DP) * d,
+                    lefts[i] - lefts[i - 1], eps
+                )
+            }
+            assertEquals(
+                lefts.last() + g.SWATCH_DP * d,
+                g.swatchContentWPx(12, d), eps
+            )
+            assertEquals(0f, g.swatchContentWPx(0, d), eps)
+        }
+    }
+
+    @Test
+    fun refPillWidthsAreHugContentWithAMinimum() {
+        val g = TextEditGeometry.Ref
+        for (d in densities) {
+            // A short label ("B") floors at the 48dp minimum.
+            assertEquals(g.PILL_MIN_W_DP * d, g.pillWPx(8f * d, d), eps)
+            // A long label is its advance + both paddings.
+            assertEquals(90f * d + 2f * g.PILL_PAD_H_DP * d, g.pillWPx(90f * d, d), eps)
+            val widths = listOf(48f, 80f, 60f).map { it * d }
+            val lefts = g.pillLeftsPx(widths, d)
+            assertEquals(0f, lefts[0], eps)
+            for (i in 1 until widths.size) {
+                assertEquals(
+                    lefts[i - 1] + widths[i - 1] + g.PILL_GAP_DP * d, lefts[i], eps
+                )
+            }
+        }
+    }
+
+    @Test
+    fun refBubbleCardAspectIsTheReferenceRatio() {
+        val g = TextEditGeometry.Ref
+        for (d in densities) {
+            val cell = 80f * d
+            assertEquals(cell / 1.25f, g.bubbleCardHPx(cell), eps)
+        }
+    }
+
+    @Test
+    fun refCollapseHeightIsExactlyTheChrome() {
+        val g = TextEditGeometry.Panel
+        for (d in densities) {
+            // Kb-active: head + input row + primary tabs, no body.
+            assertEquals(g.chromeHeightPx(d), g.collapseHeightPx(d), eps)
+            assertEquals(
+                (g.HEAD_H_DP + g.FIELD_H_DP + g.TAB_ROW_H_DP) * d,
+                g.collapseHeightPx(d), eps
+            )
+            // The collapse is below the minimum (which adds one
+            // content row) — it is a distinct keyboard state, and
+            // the resting height is never rewritten by it.
+            assertTrue(g.collapseHeightPx(d) < g.minHeightPx(d))
+        }
+    }
+
+    @Test
+    fun refSubTabItemsTileWithTheRowGap() {
+        val g = TextEditGeometry.Ref
+        for (d in densities) {
+            val advances = listOf(52f, 84f, 44f, 30f).map { it * d }
+            val widths = advances.map { g.subItemWPx(it, d) }
+            advances.forEachIndexed { i, adv ->
+                assertEquals(adv + 2f * g.SUB_ITEM_PAD_H_DP * d, widths[i], eps)
+            }
+            val lefts = g.subLeftsPx(widths, d)
+            assertEquals(0f, lefts[0], eps)
+            for (i in 1 until widths.size) {
+                assertEquals(
+                    lefts[i - 1] + widths[i - 1] + g.SUB_GAP_DP * d, lefts[i], eps
+                )
+            }
         }
     }
 

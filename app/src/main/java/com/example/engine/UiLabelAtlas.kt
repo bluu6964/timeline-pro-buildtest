@@ -213,6 +213,15 @@ enum class UiLabelStyle(
     /** Build 253 (stage 6): aspect-ratio card labels: 13.5 sp Medium. */
     TEXT_135_MED(13.5f, 500),
 
+    /** Build 271: the reference text panel's primary tabs: 13.5 sp SemiBold. */
+    TEXT_135_SEMI(13.5f, 600),
+
+    /** Build 271: the reference panel's sub-tabs: 12.5 sp Medium. */
+    TEXT_125_MED(12.5f, 500),
+
+    /** Build 271: the reference panel's slider value readouts: 11.5 sp SemiBold tabular. */
+    TEXT_115_SEMI_TNUM(11.5f, 600, tnum = true),
+
     /** Build 253 (stage 6): 14 sp Bold (projects hero, onion stepper). */
     TEXT_14_BOLD(14f, 700),
 

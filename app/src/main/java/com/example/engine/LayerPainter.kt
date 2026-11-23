@@ -380,6 +380,24 @@ internal class LayerPainter(
         canvas.restore()
     }
 
+    /**
+     * Build 271: the background border's stroke paint, or null when
+     * no border is set. The colour follows the same bgColor ×
+     * bgOpacity rule as the fill (applied to bgBorderColor); the
+     * caller only invokes this when a background was painted.
+     */
+    private fun bgBorderPaint(clip: TimelineClip, fontPx: Float): Paint? {
+        if (clip.bgBorderColor == 0L || clip.bgBorderWidth <= 0f) return null
+        val argb = com.example.model.TextPaintRules.bgArgb(clip.bgBorderColor, clip.bgOpacity)
+            ?: return null
+        return Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = argb
+            style = Paint.Style.STROKE
+            strokeWidth = fontPx * clip.bgBorderWidth / 100f
+            strokeJoin = Paint.Join.ROUND
+        }
+    }
+
     private fun drawText(canvas: Canvas, clip: TimelineClip, timeMs: Long = -1L) {
         if (clip.isBehindCamera) return
         val full = clip.text?.ifBlank { null } ?: "Text"
@@ -393,13 +411,20 @@ internal class LayerPainter(
         // With drawing.progress (strokeTrimText) the trim window over the FULL text governs what is
         // drawn, so the textprogress string cut does not apply (the C++ engine likewise counts the
         // hidden clusters' outline lengths in the total).
-        val content = if (timeMs >= 0L && !clip.strokeTrimText) {
+        val cut = if (timeMs >= 0L && !clip.strokeTrimText) {
             TextProgressEval.evaluate(clip, timeMs)?.let { TextProgressEval.visibleText(counted, it.start, it.end) } ?: counted
         } else counted
-        val textColor = argb(clip.textColor, fallback = 0xFFFFFFFF)
+        // Build 271: the Case display transform (display-only; the
+        // stored text is untouched), then the fill colour with the
+        // textOpacity alpha folded in.
+        val content = com.example.model.TextPaintRules.caseTransform(cut, clip.textCase)
+        val textColor = argb(
+            com.example.model.TextPaintRules.alphaFold(clip.textColor, clip.textOpacity),
+            fallback = 0xFFFFFFFF
+        )
         val scale = (clip.effectiveScalePercent / 100f).coerceAtLeast(0.01f)
         // Same rules as the preview (TextLayerContent): every size is a fraction of the frame width.
-        val fontPx = frameW * 0.11f
+        val fontPx = com.example.model.TextPaintRules.fontPx(frameW.toFloat(), clip.textSizePercent)
         val bgOn = clip.bgOpacity > 0f
         val padH = maxOf(fontPx * 0.25f, if (bgOn) fontPx * clip.bgPadding / 100f * 0.9f else 0f)
         val padV = maxOf(fontPx * 0.12f, if (bgOn) fontPx * clip.bgPadding / 100f * 0.5f else 0f)
@@ -549,12 +574,18 @@ internal class LayerPainter(
                     }
                 }
                 canvas.drawPath(path, bg)
+                // Build 271: the bg border ring (polygon path).
+                bgBorderPaint(clip, fontPx)?.let { canvas.drawPath(path, it) }
             } else {
                 var corner = (clip.bgCorner / 2f).toInt().coerceIn(0, 50) / 100f * minOf(boxW, boxH)
                 if (clip.bgShape == com.example.model.TEXT_BG_ROUNDED) {
                     corner = maxOf(corner, 0.25f * minOf(boxW, boxH))
                 }
                 canvas.drawRoundRect(RectF(0f, 0f, boxW, boxH), corner, corner, bg)
+                // Build 271: the bg border ring (box shapes).
+                bgBorderPaint(clip, fontPx)?.let {
+                    canvas.drawRoundRect(RectF(0f, 0f, boxW, boxH), corner, corner, it)
+                }
             }
         }
 
@@ -595,11 +626,38 @@ internal class LayerPainter(
             strokeLayout.draw(canvas)
         }
 
+        // Build 271: the glow — two passes of the layout drawn with
+        // a glow-coloured paint carrying a zero-offset shadow at the
+        // radius and at twice the radius (the native engine's two
+        // blurred ink passes), under the fill. No fill = no glow,
+        // exactly as in the engine.
+        if (clip.glowColor != 0L && clip.fillMode != com.example.model.FILL_NONE) {
+            val glowBase = argb(clip.glowColor, fallback = 0xFF18D8E0)
+            val glowR = (fontPx * clip.glowRadius / 100f).coerceAtLeast(0.01f)
+            for (blur in listOf(glowR * 2f, glowR)) {
+                val glowPaint = TextPaint(tp).apply {
+                    color = glowBase
+                    shader = null
+                    setShadowLayer(blur, 0f, 0f, glowBase)
+                }
+                @Suppress("DEPRECATION")
+                StaticLayout(content, glowPaint, maxTextW, align, clip.lineHeightPercent / 100f, 0f, false)
+                    .draw(canvas)
+            }
+        }
+
         // Text fill: none / solid (already set) / gradient over the text block.
         when (clip.fillMode) {
             com.example.model.FILL_NONE -> tp.color = android.graphics.Color.TRANSPARENT
             com.example.model.FILL_GRADIENT -> tp.shader =
-                com.example.engine.buildGradientShader(clip, layout.width.toFloat(), layout.height.toFloat())
+                com.example.engine.buildGradientShader(
+                    // Build 271: textOpacity folds into the gradient stops.
+                    if (clip.textOpacity >= 100f) clip else clip.copy(
+                        gradColor1 = com.example.model.TextPaintRules.alphaFold(clip.gradColor1, clip.textOpacity),
+                        gradColor2 = com.example.model.TextPaintRules.alphaFold(clip.gradColor2, clip.textOpacity)
+                    ),
+                    layout.width.toFloat(), layout.height.toFloat()
+                )
             com.example.model.FILL_IMAGE -> {
                 val uri = clip.fillImageUri
                 val bmp = uri?.let { com.example.engine.FillImages.loadSync(it) }

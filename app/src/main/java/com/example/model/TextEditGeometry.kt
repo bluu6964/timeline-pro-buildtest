@@ -342,7 +342,228 @@ object TextEditGeometry {
          * sub-section can never silently lose its place again.
          */
         val SECTION_LABELS: List<String> =
-            listOf("Text", "Stroke", "Glow", "Background", "Shadow", "Curve", "Spacing", "Bold italic", "Case")
+            listOf("Text", "Stroke", "Glow", "Background", "Shadow", "Spacing", "Bold Italic", "Case")
+    }
+
+    // ── Build 271: the reference panel's metrics ─────────────────
+    //
+    // Sarowar's HTML reference (ai_studio_code__57.html) is the spec
+    // for everything below the panel head: tokens, input row,
+    // primary text tabs, sub-tab chips, cards, circular swatches,
+    // sliders and pill toggles. Reference px read as dp/sp 1:1.
+
+    object Ref {
+        // Tokens.
+        const val SHEET_ARGB: Int = 0xFF121215.toInt()
+        const val ELEVATED_ARGB: Int = 0xFF1C1C21.toInt()
+        const val CARD_ARGB: Int = 0xFF222228.toInt()
+        const val CARD_HOVER_ARGB: Int = 0xFF2C2C34.toInt()
+        const val HAIRLINE_ARGB: Int = 0x14FFFFFF
+        const val TEXT_ARGB: Int = 0xFFF5F5F7.toInt()
+        const val SECONDARY_ARGB: Int = 0xFF8E8E98.toInt()
+        const val CYAN_ARGB: Int = 0xFF18D8E0.toInt()
+        const val CARD_LABEL_ARGB: Int = 0xFFA6A6B2.toInt()
+        const val EMPTY_ARGB: Int = 0xFF7C7C88.toInt()
+        const val PIN_OFF_ARGB: Int = 0xFF7C7C88.toInt()
+        const val PIN_ON_ARGB: Int = 0xFFFFCC00.toInt()
+
+        // Sheet frame.
+        const val SHEET_RADIUS_DP = 16f
+
+        // Input row.
+        const val INPUT_PAD_H_DP = 14f
+        const val INPUT_PAD_TOP_DP = 11f
+        const val INPUT_PAD_BOTTOM_DP = 7f
+        const val INPUT_BOX_H_DP = 40f
+        const val INPUT_RADIUS_DP = 10f
+        const val INPUT_BG_ARGB: Int = 0xFF232329.toInt()
+        const val INPUT_BORDER_ARGB: Int = 0x12FFFFFF
+        const val INPUT_FOCUS_BG_ARGB: Int = 0xFF292931.toInt()
+        const val INPUT_FOCUS_BORDER_ARGB: Int = 0xB818D8E0.toInt()
+        const val PLACEHOLDER_ARGB: Int = 0xFF71717B.toInt()
+        const val INPUT_GAP_DP = 10f
+        const val CONFIRM_DP = 36f
+        const val CONFIRM_RADIUS_DP = 9f
+        const val CONFIRM_BG_ARGB: Int = 0x12FFFFFF
+
+        // Primary tabs (text tabs, not pills).
+        const val TAB_PAD_H_DP = 16f
+        const val TAB_PAD_TOP_DP = 2f
+        const val TAB_PAD_BOTTOM_DP = 10f
+        const val TAB_GAP_DP = 20f
+        const val TAB_LABEL_BOTTOM_DP = 6f
+        const val UNDERLINE_W_DP = 18f
+        const val UNDERLINE_H_DP = 2.5f
+        const val UNDERLINE_RADIUS_DP = 2f
+
+        /** A primary tab's left edge: padding + advances + gaps. */
+        fun tabLeftsPx(advancesPx: List<Float>, density: Float): List<Float> {
+            val out = ArrayList<Float>(advancesPx.size)
+            var x = TAB_PAD_H_DP * density
+            for (adv in advancesPx) {
+                out.add(x)
+                x += adv + TAB_GAP_DP * density
+            }
+            return out
+        }
+
+        /** The underline bar's left edge: centred under the label. */
+        fun underlineLeftPx(tabLeftPx: Float, labelAdvancePx: Float, density: Float): Float =
+            tabLeftPx + (labelAdvancePx - UNDERLINE_W_DP * density) / 2f
+
+        /** The tabs row's total content width (for the scroll law). */
+        fun tabsContentWPx(advancesPx: List<Float>, density: Float): Float =
+            if (advancesPx.isEmpty()) 0f
+            else tabLeftsPx(advancesPx, density).last() + advancesPx.last() +
+                TAB_PAD_H_DP * density
+
+        // Sub-tab rows.
+        const val SUB_PAD_H_DP = 14f
+        const val SUB_PAD_TOP_DP = 9f
+        const val SUB_PAD_BOTTOM_DP = 7f
+        const val SUB_GAP_DP = 14f
+        const val SUB_ITEM_PAD_H_DP = 6f
+        const val SUB_ITEM_PAD_V_DP = 3f
+        const val SUB_CHIP_RADIUS_DP = 6f
+        const val SUB_ACTIVE_BG_ARGB: Int = 0x1AFFFFFF
+        const val SUB_ICON_DP = 17f
+        const val SUBHEADER_H_DP = 34f
+
+        /** A sub-tab item's width: advance + both side paddings. */
+        fun subItemWPx(advancePx: Float, density: Float): Float =
+            advancePx + 2f * SUB_ITEM_PAD_H_DP * density
+
+        /** Sub-tab item lefts: cumulative with the row gap. */
+        fun subLeftsPx(widthsPx: List<Float>, density: Float): List<Float> {
+            val out = ArrayList<Float>(widthsPx.size)
+            var x = 0f
+            for (w in widthsPx) {
+                out.add(x)
+                x += w + SUB_GAP_DP * density
+            }
+            return out
+        }
+
+        // Inline search field.
+        const val SEARCH_BG_ARGB: Int = 0xFF1F1F25.toInt()
+        const val SEARCH_RADIUS_DP = 8f
+        const val SEARCH_PAD_BOTTOM_DP = 8f
+
+        // Content + cards.
+        const val CONTENT_PAD_H_DP = 14f
+        const val CONTENT_PAD_TOP_DP = 4f
+        const val CONTENT_PAD_BOTTOM_DP = 16f
+        const val CARD_RADIUS_DP = 9f
+        const val CARD_BORDER_W_DP = 1.5f
+        const val FONT_CARD_H_DP = 54f
+        const val BUBBLE_ASPECT = 1.25f
+
+        /** A bubble card's height from its cell width. */
+        fun bubbleCardHPx(cellWPx: Float): Float = cellWPx / BUBBLE_ASPECT
+
+        /** The nominal template cell at the reference's 360dp width
+         *  (the two-row default law's fixed point). */
+        const val TEMPLATE_CELL_NOMINAL_DP = 77f
+
+        // Card pins (bookmark star / download badge).
+        const val PIN_DP = 18f
+        const val PIN_INSET_DP = 4f
+        const val PIN_RADIUS_DP = 4f
+        const val PIN_BG_ARGB: Int = 0x73000000
+        const val BADGE_INSET_DP = 5f
+
+        // Circular colour rows.
+        const val SWATCH_DP = 26f
+        const val SWATCH_GAP_DP = 11f
+        const val SWATCH_BORDER_W_DP = 2f
+        const val SWATCH_BORDER_ARGB: Int = 0x24FFFFFF
+        const val SWATCH_PAD_TOP_DP = 6f
+        const val SWATCH_PAD_BOTTOM_DP = 12f
+
+        /** Swatch lefts: cumulative with the swatch gap. */
+        fun swatchLeftsPx(count: Int, density: Float): List<Float> =
+            (0 until count).map { it * (SWATCH_DP + SWATCH_GAP_DP) * density }
+
+        /** The swatch row's total content width. */
+        fun swatchContentWPx(count: Int, density: Float): Float =
+            if (count <= 0) 0f
+            else count * SWATCH_DP * density + (count - 1) * SWATCH_GAP_DP * density
+
+        // Reference sliders.
+        const val SLIDER_LABEL_W_DP = 70f
+        const val SLIDER_GAP_DP = 12f
+        const val SLIDER_VALUE_W_DP = 42f
+        const val SLIDER_TRACK_H_DP = 3.5f
+        const val SLIDER_TRACK_ARGB: Int = 0xFF36363E.toInt()
+        const val SLIDER_THUMB_DP = 16f
+        const val SLIDER_THUMB_BORDER_DP = 2f
+        const val SLIDER_ROW_PAD_V_DP = 6f
+
+        /** The slider's span: the row minus label, value and gaps —
+         *  the three boxes + two gaps tile the row exactly. */
+        fun sliderSpanWPx(rowWPx: Float, density: Float): Float =
+            rowWPx - (SLIDER_LABEL_W_DP + SLIDER_VALUE_W_DP +
+                2f * SLIDER_GAP_DP) * density
+
+        /** The slider's left edge (after label + gap). */
+        fun sliderLeftPx(density: Float): Float =
+            (SLIDER_LABEL_W_DP + SLIDER_GAP_DP) * density
+
+        /** The value readout's left edge (after slider + gap). */
+        fun sliderValueLeftPx(rowWPx: Float, density: Float): Float =
+            rowWPx - SLIDER_VALUE_W_DP * density
+
+        /** The value a thumb-centre x maps to (the thumb travels
+         *  from one thumb-radius to span − radius). */
+        fun sliderFraction(xPx: Float, spanWPx: Float, density: Float): Float {
+            val r = SLIDER_THUMB_DP * density / 2f
+            val travel = (spanWPx - 2f * r).coerceAtLeast(1f)
+            return ((xPx - r) / travel).coerceIn(0f, 1f)
+        }
+
+        /** The thumb centre x for a fraction. */
+        fun sliderThumbXPx(fraction: Float, spanWPx: Float, density: Float): Float {
+            val r = SLIDER_THUMB_DP * density / 2f
+            return r + fraction.coerceIn(0f, 1f) * (spanWPx - 2f * r).coerceAtLeast(0f)
+        }
+
+        // Pill toggles.
+        const val PILL_MIN_W_DP = 48f
+        const val PILL_H_DP = 36f
+        const val PILL_PAD_H_DP = 12f
+        const val PILL_RADIUS_DP = 8f
+        const val PILL_GAP_DP = 8f
+        const val PILL_ROW_PAD_V_DP = 6f
+        const val PILL_SEL_BG_ARGB: Int = 0x2418D8E0
+
+        /** A pill's width: advance + padding, floored at the min. */
+        fun pillWPx(advancePx: Float, density: Float): Float =
+            maxOf(PILL_MIN_W_DP * density, advancePx + 2f * PILL_PAD_H_DP * density)
+
+        /** Pill lefts: cumulative with the pill gap. */
+        fun pillLeftsPx(widthsPx: List<Float>, density: Float): List<Float> {
+            val out = ArrayList<Float>(widthsPx.size)
+            var x = 0f
+            for (w in widthsPx) {
+                out.add(x)
+                x += w + PILL_GAP_DP * density
+            }
+            return out
+        }
+
+        // Aa preset tiles.
+        const val AA_W_DP = 40f
+        const val AA_H_DP = 36f
+        const val AA_RADIUS_DP = 8f
+        const val AA_GAP_DP = 8f
+        const val AA_PAD_TOP_DP = 10f
+        const val AA_PAD_BOTTOM_DP = 2f
+
+        // Card labels (under Animations cards).
+        const val CARD_LABEL_GAP_DP = 5f
+
+        // Empty state.
+        const val EMPTY_PAD_V_DP = 28f
     }
 
     // ── Build 268: the draggable bottom panel ──────────────────────
@@ -364,8 +585,9 @@ object TextEditGeometry {
         const val GRAB_W_DP = 40f
         const val GRAB_H_DP = 4f
 
-        /** The hosted typing field's budgeted height in the min law. */
-        const val FIELD_H_DP = 56f
+        /** The input row's full height (build 271: the reference's
+         *  padding 11 + the 40dp input box + padding 7). */
+        const val FIELD_H_DP = 58f
 
         /** The spacer between the typing field and the tab row. */
         const val FIELD_GAP_DP = 6f
@@ -428,22 +650,35 @@ object TextEditGeometry {
             currentPx: Float, dragDeltaYPx: Float, minPx: Float, maxPx: Float
         ): Float = clampHeightPx(currentPx - dragDeltaYPx, minPx, maxPx)
 
-        /** The panel's own chrome above the tab content viewport. */
+        /** The panel's own chrome above the tab content viewport
+         *  (build 271: head + input row + primary tabs — the input
+         *  row carries its own padding, so no gap term). */
         fun chromeHeightPx(density: Float): Float =
-            (HEAD_H_DP + FIELD_H_DP + FIELD_GAP_DP + TAB_ROW_H_DP) * density
+            (HEAD_H_DP + FIELD_H_DP + TAB_ROW_H_DP) * density
 
         /** The tab content's viewport height at [heightPx]. */
         fun contentViewportPx(heightPx: Float, density: Float): Float =
             (heightPx - chromeHeightPx(density)).coerceAtLeast(0f)
 
         /**
+         * Build 271: the keyboard-open height. While the main typing
+         * field holds focus (the reference's kb-active state, bound
+         * to its main input only), the sheet body hides and the
+         * panel is exactly its chrome.
+         */
+        fun collapseHeightPx(density: Float): Float = chromeHeightPx(density)
+
+        /**
          * The panel height at which the Templates tab shows TWO
-         * FULL template-card rows (build 269): chrome + two card
-         * rows and the gap between them.
+         * FULL template-card rows (build 269's law, re-derived for
+         * build 271's 4-column square cards): chrome + the
+         * sub-header row + the content top pad + two nominal cells
+         * and the gap between them.
          */
         fun twoTemplateRowsHeightPx(density: Float): Float =
             chromeHeightPx(density) +
-                (2f * Grid.TEMPLATE_CARD_H_DP + Grid.GAP_DP) * density
+                (Ref.SUBHEADER_H_DP + Ref.CONTENT_PAD_TOP_DP +
+                    2f * Ref.TEMPLATE_CELL_NOMINAL_DP + Grid.GAP_DP) * density
 
         /**
          * The first-open height, before any drag is remembered:

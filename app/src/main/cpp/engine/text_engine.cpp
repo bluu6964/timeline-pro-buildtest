@@ -803,6 +803,70 @@ void drawBgShape(Image& img, float x0, float y0, float x1, float y1, const Reque
     compositeMask(img, m, argb);
 }
 
+// Build 271: the background shape's border — a uniform ring of width
+// [wPx] centred on the shape's edge. For the box shapes the ring
+// comes from the same SDF drawRoundRect fills with (coverage =
+// clamp(w/2 + 0.5 − |d|)); for the polygon set it is the distance to
+// the nearest outline segment.
+void strokeRoundRect(Image& img, float x0, float y0, float x1, float y1, float radius, float wPx, uint32_t argb) {
+    if (wPx <= 0.f || argbA(argb) == 0) return;
+    std::vector<uint8_t> m((size_t)img.w * img.h, 0);
+    const float hx = (x1 - x0) * 0.5f, hy = (y1 - y0) * 0.5f, cx = (x0 + x1) * 0.5f, cy = (y0 + y1) * 0.5f;
+    const float r = std::max(0.f, std::min(radius, std::min(hx, hy)));
+    const float ext = wPx * 0.5f + 1.f;
+    const int ix0 = std::max(0, (int)std::floor(x0 - ext)), ix1 = std::min(img.w, (int)std::ceil(x1 + ext));
+    const int iy0 = std::max(0, (int)std::floor(y0 - ext)), iy1 = std::min(img.h, (int)std::ceil(y1 + ext));
+    for (int y = iy0; y < iy1; ++y) {
+        for (int x = ix0; x < ix1; ++x) {
+            const float qx = std::fabs(x + 0.5f - cx) - (hx - r), qy = std::fabs(y + 0.5f - cy) - (hy - r);
+            const float ox = std::max(qx, 0.f), oy = std::max(qy, 0.f);
+            const float d = std::sqrt(ox * ox + oy * oy) + std::min(std::max(qx, qy), 0.f) - r;
+            const float cov = std::min(1.f, std::max(0.f, wPx * 0.5f + 0.5f - std::fabs(d)));
+            m[(size_t)y * img.w + x] = (uint8_t)std::lround(cov * 255.f);
+        }
+    }
+    compositeMask(img, m, argb);
+}
+
+float bgSegDist(float px, float py, float ax, float ay, float bx, float by) {
+    const float dx = bx - ax, dy = by - ay;
+    const float len2 = dx * dx + dy * dy;
+    float t = len2 > 0.f ? ((px - ax) * dx + (py - ay) * dy) / len2 : 0.f;
+    t = std::min(1.f, std::max(0.f, t));
+    const float ex = ax + t * dx - px, ey = ay + t * dy - py;
+    return std::sqrt(ex * ex + ey * ey);
+}
+
+void strokeBgShape(Image& img, float x0, float y0, float x1, float y1, const Request& rq, float wPx, uint32_t argb) {
+    if (wPx <= 0.f || argbA(argb) == 0) return;
+    std::vector<uint8_t> m((size_t)img.w * img.h, 0);
+    const float ext = wPx * 0.5f + 1.f;
+    const int ix0 = std::max(0, (int)std::floor(x0 - ext)), ix1 = std::min(img.w, (int)std::ceil(x1 + ext));
+    const int iy0 = std::max(0, (int)std::floor(y0 - ext)), iy1 = std::min(img.h, (int)std::ceil(y1 + ext));
+    const float sx = (x1 - x0) * 0.5f, sy = (y1 - y0) * 0.5f;
+    for (int y = iy0; y < iy1; ++y) {
+        for (int x = ix0; x < ix1; ++x) {
+            const float px = x + 0.5f, py = y + 0.5f;
+            float best = 1e9f;
+            size_t base = 0;
+            for (int count : rq.bgCounts) {
+                if (count < 2 || base + (size_t)count * 2 > rq.bgPts.size()) break;
+                for (int i = 0, j = count - 1; i < count; j = i++) {
+                    const float ax = x0 + (rq.bgPts[base + (size_t)j * 2] + 1.f) * sx;
+                    const float ay = y0 + (rq.bgPts[base + (size_t)j * 2 + 1] + 1.f) * sy;
+                    const float bx = x0 + (rq.bgPts[base + (size_t)i * 2] + 1.f) * sx;
+                    const float by = y0 + (rq.bgPts[base + (size_t)i * 2 + 1] + 1.f) * sy;
+                    best = std::min(best, bgSegDist(px, py, ax, ay, bx, by));
+                }
+                base += (size_t)count * 2;
+            }
+            const float cov = std::min(1.f, std::max(0.f, wPx * 0.5f + 0.5f - best));
+            m[(size_t)y * img.w + x] = (uint8_t)std::lround(cov * 255.f);
+        }
+    }
+    compositeMask(img, m, argb);
+}
+
 // Converts glyph [g] (an outline or stroked outline glyph) to a bitmap at the sub-pixel origin of
 // (x, y) and adds it into the mask with the alpha [gain]. Takes ownership of [g] either way.
 bool blitGlyph(FT_Glyph g, float x, float y, std::vector<uint8_t>& mask, int mw, int mh, float gain) {
@@ -1279,9 +1343,13 @@ bool draw(uint8_t* dst, int dstW, int dstH, int dstStride, const Request& rq, St
     // ---- raster size (the layer scale is applied when drawing glyphs, so text stays sharp)
     const float shadowSigma = rq.shadowOn ? (0.57735f * std::max(0.f, rq.shadowBlur) + 0.5f) : 0.f;
     float rs = std::max(0.01f, rq.scale);
+    const float glowSigma2 = rq.glowOn ? (0.57735f * std::max(0.f, 2.f * rq.glowBlur) + 0.5f) : 0.f;
     auto marginFor = [&](float s) {
         float m = 2.f + (rq.drawOn ? rq.drawStrokeW : rq.strokeW) * s * 0.5f;
         if (rq.shadowOn) m += std::max(std::fabs(rq.shadowDx), std::fabs(rq.shadowDy)) * s + 3.f * shadowSigma * s;
+        // Build 271: the glow's outer pass blurs at 2× the radius —
+        // its gaussian tail is the glow's farthest reach.
+        if (rq.glowOn) m += 3.f * glowSigma2 * s;
         // A text animator moves letters away from the box: the picture needs room for them (and for the shadow of a moved letter).
         if (rq.animOn) m += std::max(std::fabs(rq.animDx), std::fabs(rq.animDy)) * s;
         return std::min(rq.animOn ? 1600 : 400, (int)std::ceil(m));
@@ -1602,24 +1670,50 @@ bool draw(uint8_t* dst, int dstW, int dstH, int dstStride, const Request& rq, St
                           std::max(rq.bgCornerFrac, 0.25f) * std::min(boxWs, boxHs), rq.bgArgb);
         else
             drawRoundRect(img, ox, oy, ox + boxWs, oy + boxHs, rq.bgCornerFrac * std::min(boxWs, boxHs), rq.bgArgb);
+        // Build 271: the bg border ring, over the fill.
+        if (rq.bgBorderW > 0.f && argbA(rq.bgBorderArgb) > 0) {
+            const float bw = rq.bgBorderW * rs;
+            if (rq.bgShape == 2 && rq.bgCounts.size() >= 1 && rq.bgPts.size() >= 6)
+                strokeBgShape(img, ox, oy, ox + boxWs, oy + boxHs, rq, bw, rq.bgBorderArgb);
+            else if (rq.bgShape == 1)
+                strokeRoundRect(img, ox, oy, ox + boxWs, oy + boxHs,
+                                std::max(rq.bgCornerFrac, 0.25f) * std::min(boxWs, boxHs), bw, rq.bgBorderArgb);
+            else
+                strokeRoundRect(img, ox, oy, ox + boxWs, oy + boxHs,
+                                rq.bgCornerFrac * std::min(boxWs, boxHs), bw, rq.bgBorderArgb);
+        }
     }
     if (wantStroke) compositeMask(img, strokeMask, rq.strokeArgb);
-    if (rq.shadowOn && (wantFill || haveColor || rq.drawOn) && argbA(rq.shadowArgb) > 0) {
-        std::vector<uint8_t> sh((size_t)imgW * imgH, 0);
-        std::vector<uint8_t> ink;  // what casts the shadow: the text fill (or the drawn outline), and the emoji pictures
+    if ((rq.shadowOn || rq.glowOn) && (wantFill || haveColor || rq.drawOn)) {
+        std::vector<uint8_t> ink;  // what casts the shadow / glow: the text fill (or the drawn outline), and the emoji pictures
         if (wantFill) ink = fillMask; else if (rq.drawOn) ink = drawMask; else ink.assign((size_t)imgW * imgH, 0);
         if (haveColor) for (size_t i = 0; i < ink.size(); ++i) ink[i] = std::max(ink[i], colorImg.px[i * 4 + 3]);
-        const int dx = (int)std::lround(rq.shadowDx * rs), dy = (int)std::lround(rq.shadowDy * rs);
-        for (int y = 0; y < imgH; ++y) {
-            const int sy = y - dy;
-            if (sy < 0 || sy >= imgH) continue;
-            for (int x = 0; x < imgW; ++x) {
-                const int sx = x - dx;
-                if (sx >= 0 && sx < imgW) sh[(size_t)y * imgW + x] = ink[(size_t)sy * imgW + sx];
+        if (rq.shadowOn && argbA(rq.shadowArgb) > 0) {
+            std::vector<uint8_t> sh((size_t)imgW * imgH, 0);
+            const int dx = (int)std::lround(rq.shadowDx * rs), dy = (int)std::lround(rq.shadowDy * rs);
+            for (int y = 0; y < imgH; ++y) {
+                const int sy = y - dy;
+                if (sy < 0 || sy >= imgH) continue;
+                for (int x = 0; x < imgW; ++x) {
+                    const int sx = x - dx;
+                    if (sx >= 0 && sx < imgW) sh[(size_t)y * imgW + x] = ink[(size_t)sy * imgW + sx];
+                }
             }
+            blurAlpha(sh, imgW, imgH, shadowSigma * rs);
+            compositeMask(img, sh, rq.shadowArgb);
         }
-        blurAlpha(sh, imgW, imgH, shadowSigma * rs);
-        compositeMask(img, sh, rq.shadowArgb);
+        // Build 271: the glow — the reference's layered blurred
+        // copies at ZERO offset: blur at the radius, then at twice
+        // the radius, composited outer-first under the fill.
+        if (rq.glowOn && argbA(rq.glowArgb) > 0) {
+            const float gSigma = 0.57735f * std::max(0.f, rq.glowBlur) + 0.5f;
+            std::vector<uint8_t> g2 = ink;
+            blurAlpha(g2, imgW, imgH, gSigma * 2.f * rs);
+            compositeMask(img, g2, rq.glowArgb);
+            std::vector<uint8_t> g1 = ink;
+            blurAlpha(g1, imgW, imgH, gSigma * rs);
+            compositeMask(img, g1, rq.glowArgb);
+        }
     }
     // The text block starts at (padH + dx, padV) inside the box; Android's block is maxTextW wide.
     const float dxBlock = rq.align == 0 ? 0.f : rq.align == 2 ? tightW - rq.maxTextW : (tightW - rq.maxTextW) * 0.5f;

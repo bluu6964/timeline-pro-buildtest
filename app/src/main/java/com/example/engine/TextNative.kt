@@ -75,8 +75,8 @@ internal class NativeTextPainter(
 
     // 40 floats: 0..36 the draw params, 37/38 the engine's layout-box
     // outputs, 39 (build 268) the background shape code.
-    private val p = FloatArray(40)
-    private val c = IntArray(7)
+    private val p = FloatArray(44)
+    private val c = IntArray(9)
     private val anim = FloatArray(15)
 
     /** Layout box (frame pixels, scale 1) of the last layer this painter drew; the pivot of the layer is a fraction of it. */
@@ -97,8 +97,14 @@ internal class NativeTextPainter(
         // so the engine lays out and draws the counted value — and the textprogress window /
         // texttransform units below operate on the counted string, the only order in which they see
         // the text that is actually shown. -1 = unknown time = the authored text, like the animators.
-        val content = if (timeMs >= 0L) CounterEval.displayText(authored, clip, timeMs) ?: authored else authored
-        val fontPx = frameW * 0.11f
+        // Build 271: the Case transform is display-only — it applies
+        // to the string handed to layout (after the counter), never
+        // to the stored text.
+        val counted = if (timeMs >= 0L) CounterEval.displayText(authored, clip, timeMs) ?: authored else authored
+        val content = com.example.model.TextPaintRules.caseTransform(counted, clip.textCase)
+        // Build 271: the font size goes through the one law
+        // (frameW × 11% × textSizePercent).
+        val fontPx = com.example.model.TextPaintRules.fontPx(frameW.toFloat(), clip.textSizePercent)
         val bgOn = clip.bgOpacity > 0f
         val padH = maxOf(fontPx * 0.25f, if (bgOn) fontPx * clip.bgPadding / 100f * 0.9f else 0f)
         val padV = maxOf(fontPx * 0.12f, if (bgOn) fontPx * clip.bgPadding / 100f * 0.5f else 0f)
@@ -172,7 +178,31 @@ internal class NativeTextPainter(
         } else {
             p[28] = 0f; p[29] = 0f; p[39] = 0f; c[3] = 0
         }
-        c[0] = argb(clip.textColor, 0xFFFFFFFF)
+        // Build 271: the bg border (p[42] = width in layout px,
+        // c[8] = the border colour under the same bgColor ×
+        // bgOpacity rule as the fill) and the glow (p[40] on,
+        // p[41] = blur px, c[7] = colour). No bg painted = no border.
+        val borderArgb = if (bgArgb != null && clip.bgBorderColor != 0L && clip.bgBorderWidth > 0f)
+            com.example.model.TextPaintRules.bgArgb(clip.bgBorderColor, clip.bgOpacity) else null
+        if (borderArgb != null) {
+            p[42] = fontPx * clip.bgBorderWidth / 100f
+            c[8] = borderArgb
+        } else {
+            p[42] = 0f; c[8] = 0
+        }
+        if (clip.glowColor != 0L) {
+            p[40] = 1f
+            p[41] = (fontPx * clip.glowRadius / 100f).coerceAtLeast(0.01f)
+            c[7] = argb(clip.glowColor, 0xFF18D8E0)
+        } else {
+            p[40] = 0f; p[41] = 0f; c[7] = 0
+        }
+        // Build 271: textOpacity folds into the fill colours (solid
+        // below, gradient stops in the FILL_GRADIENT branch).
+        c[0] = argb(
+            com.example.model.TextPaintRules.alphaFold(clip.textColor, clip.textOpacity),
+            0xFFFFFFFF
+        )
         c[1] = argb(clip.textStrokeColor, 0xFF000000)
         // Gradient / picture fill: the colour comes from the position in the text block (C++: compositeFill).
         var fillBmp: Bitmap? = null
@@ -181,8 +211,10 @@ internal class NativeTextPainter(
                 p[30] = 1f
                 p[31] = clip.gradType.toFloat()
                 p[32] = clip.gradX1; p[33] = clip.gradY1; p[34] = clip.gradX2; p[35] = clip.gradY2
-                c[4] = clip.gradColor1.toInt()   // raw ARGB, like buildGradientShader
-                c[5] = clip.gradColor2.toInt()
+                // Raw ARGB, like buildGradientShader — with the
+                // build-271 textOpacity alpha folded in.
+                c[4] = com.example.model.TextPaintRules.alphaFold(clip.gradColor1, clip.textOpacity).toInt()
+                c[5] = com.example.model.TextPaintRules.alphaFold(clip.gradColor2, clip.textOpacity).toInt()
             }
             FILL_IMAGE -> {
                 p[30] = 2f

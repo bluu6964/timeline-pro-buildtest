@@ -48,6 +48,8 @@ JNIEXPORT jboolean JNICALL Java_com_example_engine_TextNative_nativeEmojiAvailab
 //        21 strike, 22 fillOn, 23 strokeW, 24 shadowOn, 25 shadowBlur, 26 shadowDx, 27 shadowDy, 28 bgOn, 29 bgCornerFrac,
 //        30 fillKind (0 solid, 1 gradient, 2 picture), 31 gradType, 32..35 gradient x1 y1 x2 y2, 36 picture mode
 // c[6]: fill, stroke, shadow, background colour, gradient colour 1, gradient colour 2 (ARGB ints)
+// p[39]: background shape code (build 268); p[40..42]: glow on, glow blur px, bg border width in
+//        layout px (build 271); c[7]: glow colour, c[8]: bg border colour (build 271)
 // fillBitmap: the fill picture (premultiplied RGBA8888) or null
 // levelsA / paraRtlA: bidi embedding level per code point, 1 flag per paragraph (see Request::bidiLevels) or null
 // animA (null = no text animator, up to 15 floats; each group has its own on flag so the three can travel together):
@@ -65,11 +67,15 @@ JNIEXPORT jboolean JNICALL Java_com_example_engine_TextNative_nativeDraw(
     if (!bitmap || !pA || !cA || env->GetArrayLength(pA) < 37 || env->GetArrayLength(cA) < 6) return JNI_FALSE;
     // p[39] (build 268) carries the background shape code; older callers
     // with a 39-float array simply read 0 = the rectangle box.
+    // p[40..42] + c[7..8] (build 271): glow on / glow blur px / bg
+    // border width (layout px), glow colour, bg border colour —
+    // length-guarded like p[39], so a shorter array reads "off".
     const jsize pLen = env->GetArrayLength(pA);
-    float p[40] = {};
-    jint c[7] = {0, 0, 0, 0, 0, 0, (jint)0xFF00FF00};
-    env->GetFloatArrayRegion(pA, 0, pLen < 40 ? pLen : 40, p);
-    env->GetIntArrayRegion(cA, 0, env->GetArrayLength(cA) >= 7 ? 7 : 6, c);
+    const jsize cLen = env->GetArrayLength(cA);
+    float p[44] = {};
+    jint c[9] = {0, 0, 0, 0, 0, 0, (jint)0xFF00FF00, 0, 0};
+    env->GetFloatArrayRegion(pA, 0, pLen < 44 ? pLen : 44, p);
+    env->GetIntArrayRegion(cA, 0, cLen < 9 ? cLen : 9, c);
 
     am::text::Request r;
     r.text = toUtf8(env, text);
@@ -86,6 +92,11 @@ JNIEXPORT jboolean JNICALL Java_com_example_engine_TextNative_nativeDraw(
     r.shadowOn = p[24] > 0.5f; r.shadowBlur = p[25]; r.shadowDx = p[26]; r.shadowDy = p[27];
     r.bgOn = p[28] > 0.5f; r.bgCornerFrac = p[29];
     r.bgShape = pLen >= 40 ? (int)p[39] : 0;
+    r.glowOn = pLen >= 41 && p[40] > 0.5f;
+    r.glowBlur = pLen >= 42 ? p[41] : 0.f;
+    r.bgBorderW = pLen >= 43 ? p[42] : 0.f;
+    r.glowArgb = cLen >= 8 ? (uint32_t)c[7] : 0u;
+    r.bgBorderArgb = cLen >= 9 ? (uint32_t)c[8] : 0u;
     if (bgPtsA && bgCountsA) {
         const jsize np = env->GetArrayLength(bgPtsA);
         const jsize nc = env->GetArrayLength(bgCountsA);

@@ -1,6 +1,7 @@
 package com.example.model
 
 import com.example.engine.ValueLawsNative
+import kotlin.math.roundToInt
 
 /**
  * The ONE text-paint rule every text painter follows (build 212): the Compose preview
@@ -37,4 +38,51 @@ object TextPaintRules {
     /** Letter spacing in px for a font size in px (native engine semantics). */
     fun letterSpacingPx(fontPx: Float, letterSpacingPercent: Float): Float =
         ValueLawsNative.nativeTextLetterSpacingPx(fontPx, letterSpacingPercent)
+
+    /**
+     * Build 271: the ONE font-size law. The historical size is 11%
+     * of the frame width; [TimelineClip.textSizePercent] multiplies
+     * it (100 = the historical size). The panel's Size slider shows
+     * the reference's 12–44 "px" scale mapped as percent = px × 5
+     * (20 px = 100%). Every painter (native params, Canvas, Compose)
+     * computes fontPx through here.
+     */
+    fun fontPx(frameW: Float, textSizePercent: Float): Float =
+        frameW * 0.11f * (textSizePercent / 100f)
+
+    /**
+     * Build 271: the Case display transform (Styles → Case). Modes:
+     * 0 = as typed, 1 = UPPER, 2 = lower, 3 = Capitalize Each Word
+     * (the reference's \b\w rule: a word character at a word start is
+     * uppercased, the rest of the word is left as typed). DISPLAY
+     * ONLY — the stored text is never rewritten; every painter
+     * transforms the string it hands to layout.
+     */
+    fun caseTransform(text: String, textCase: Int): String = when (textCase) {
+        1 -> text.uppercase()
+        2 -> text.lowercase()
+        3 -> {
+            val sb = StringBuilder(text.length)
+            var wordStart = true
+            for (ch in text) {
+                val isWord = ch.isLetterOrDigit() || ch == '_'
+                sb.append(if (wordStart && isWord) ch.uppercaseChar() else ch)
+                wordStart = !isWord
+            }
+            sb.toString()
+        }
+        else -> text
+    }
+
+    /** An ARGB colour with its alpha folded by [percent] (0..100) —
+     *  the fill-opacity fold every painter applies for
+     *  [TimelineClip.textOpacity]. A stored 0x00 alpha byte reads as
+     *  opaque, like [bgArgb]. */
+    fun alphaFold(argb: Long, percent: Float): Long {
+        val stored = ((argb ushr 24) and 0xFF).toInt()
+        val a = if (stored == 0) 255 else stored
+        val f = (percent / 100f).coerceIn(0f, 1f)
+        val out = (a * f).roundToInt().coerceIn(0, 255)
+        return (argb and 0x00FFFFFF) or (out.toLong() shl 24)
+    }
 }
