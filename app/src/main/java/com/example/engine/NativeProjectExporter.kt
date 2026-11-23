@@ -107,6 +107,9 @@ class NativeProjectExporter(private val context: Context) {
 
     private val main = Handler(Looper.getMainLooper())
     private val cancelled = AtomicBoolean(false)
+    // Build 265: per-load generations for the still-picture FX cache (starts at 1;
+    // 0 is the native side's "never cache").
+    private val imageGen = java.util.concurrent.atomic.AtomicInteger(0)
     private var worker: Thread? = null
 
     /**
@@ -161,7 +164,9 @@ class NativeProjectExporter(private val context: Context) {
 
     // ------------------------------------------------------------------------------------------
 
-    private class ImageLayer(val textureId: Int, val width: Int, val height: Int)
+    // [gen] = the still-picture FX cache stamp (build 265): a fresh value per load,
+    // so a recycled GL texture id can never pair with a previous photo's generation.
+    private class ImageLayer(val textureId: Int, val width: Int, val height: Int, val gen: Int)
 
     /** Text / shape / sticker layers drawn into one picture; [blendId] != 0 = one layer with a blend mode. */
     private class OverlayGroup(val clips: List<TimelineClip>, val blendId: Int, val pose: Boolean = false, val fx: Boolean = false, val mask: List<TimelineClip> = emptyList(), val mediaFill: Boolean = false, val ownMask: Boolean = false) {
@@ -431,7 +436,7 @@ class NativeProjectExporter(private val context: Context) {
                             val tex = renderer.createTexture2d()
                             GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, tex)
                             GLUtils.texImage2D(GLES30.GL_TEXTURE_2D, 0, bmp, 0)
-                            images[c.id] = ImageLayer(tex, bmp.width, bmp.height)
+                            images[c.id] = ImageLayer(tex, bmp.width, bmp.height, imageGen.incrementAndGet())
                             bmp.recycle()
                         } else {
                             videos[c.id] = VideoLayerSource.open(context, uri, renderer, pool)
@@ -663,7 +668,8 @@ class NativeProjectExporter(private val context: Context) {
                                         val t = renderer.applyFxSpill(
                                             img.textureId, false, FLIP_V, img.width, img.height, 0, canvasRgb,
                                             imgOps, ClipFxLibrary.grainFrame(timeMs), imgMasks,
-                                            crop = floatArrayOf(p.cropX, p.cropY, p.cropW, p.cropH), geomOut = geom
+                                            crop = floatArrayOf(p.cropX, p.cropY, p.cropW, p.cropH), geomOut = geom,
+                                            cacheGen = img.gen
                                         )
                                         val adj = if (t != 0) {
                                             spillDrawParams(p, img.width, img.height, geom[0].toInt(), geom[1].toInt(), w, h)
@@ -675,7 +681,8 @@ class NativeProjectExporter(private val context: Context) {
                                     if (fxTex == 0) {
                                         fxTex = renderer.applyFx(
                                             img.textureId, false, FLIP_V, img.width, img.height, 0,
-                                            0, 0f, 0, false, canvasRgb, imgOps, ClipFxLibrary.grainFrame(timeMs), imgMasks
+                                            0, 0f, 0, false, canvasRgb, imgOps, ClipFxLibrary.grainFrame(timeMs), imgMasks,
+                                            cacheGen = img.gen
                                         )
                                     }
                                     if (fxTex == 0) error("Native effects / masks failed on '${clip.name}'.")
@@ -1523,7 +1530,7 @@ class NativeProjectExporter(private val context: Context) {
     /** Photo decoded in C++ (AImageDecoder, Android 11+) straight into a texture; null = use [loadBitmap]. */
     private fun loadPhotoNative(renderer: NativeRenderer, uri: Uri, maxSide: Int = 2560): ImageLayer? = try {
         context.contentResolver.openFileDescriptor(uri, "r")?.use { pfd ->
-            renderer.loadPhoto(pfd.fd, maxSide)?.let { ImageLayer(it.textureId, it.width, it.height) }
+            renderer.loadPhoto(pfd.fd, maxSide)?.let { ImageLayer(it.textureId, it.width, it.height, imageGen.incrementAndGet()) }
         }
     } catch (t: Throwable) {
         Log.w(TAG, "native photo decode failed, using the Kotlin decoder", t)

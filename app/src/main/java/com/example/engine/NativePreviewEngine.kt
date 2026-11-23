@@ -58,10 +58,15 @@ class NativePreviewEngine(context: Context) {
         }
     }
 
-    private class Image(val tex: Int, val w: Int, val h: Int)
+    // [gen] = the still-picture FX cache stamp (build 265): a fresh value per load,
+    // so a recycled GL texture id can never pair with a previous photo's generation.
+    private class Image(val tex: Int, val w: Int, val h: Int, val gen: Int)
     private class AnimEntry(val clip: TimelineClip, val anim: NativeLayerAnim)
 
     private val appCtx = context.applicationContext
+    // Build 265: per-load generations for the still-picture FX cache (starts at 1;
+    // 0 is the native side's "never cache").
+    private val imageGen = java.util.concurrent.atomic.AtomicInteger(0)
     private val gl = GlThread("am-preview-gl")
 
     // Input from the UI thread.
@@ -404,7 +409,7 @@ class NativePreviewEngine(context: Context) {
         val s = if (c.isImage) {
             val loaded: Image? = try {
                 appCtx.contentResolver.openFileDescriptor(uri, "r")?.use { pfd ->
-                    r.loadPhoto(pfd.fd, MAX_PHOTO_SIDE)?.let { Image(it.textureId, it.width, it.height) }
+                    r.loadPhoto(pfd.fd, MAX_PHOTO_SIDE)?.let { Image(it.textureId, it.width, it.height, imageGen.incrementAndGet()) }
                 }
             } catch (t: Throwable) {
                 Log.w(TAG, "photo decode failed", t)
@@ -635,7 +640,8 @@ class NativePreviewEngine(context: Context) {
                             val t = r.applyFxSpill(
                                 img.tex, false, FLIP_V, img.w, img.h, 0, canvasRgb,
                                 imgOps, ClipFxLibrary.grainFrame(sceneT), imgMasks,
-                                crop = floatArrayOf(p.cropX, p.cropY, p.cropW, p.cropH), geomOut = geom
+                                crop = floatArrayOf(p.cropX, p.cropY, p.cropW, p.cropH), geomOut = geom,
+                                cacheGen = img.gen
                             )
                             val adj = if (t != 0) {
                                 spillDrawParams(p, img.w, img.h, geom[0].toInt(), geom[1].toInt(), outW, outH)
@@ -647,7 +653,8 @@ class NativePreviewEngine(context: Context) {
                         if (fxTex == 0) {
                             fxTex = r.applyFx(
                                 img.tex, false, FLIP_V, img.w, img.h, 0,
-                                0, 0f, 0, false, canvasRgb, imgOps, ClipFxLibrary.grainFrame(sceneT), imgMasks
+                                0, 0f, 0, false, canvasRgb, imgOps, ClipFxLibrary.grainFrame(sceneT), imgMasks,
+                                cacheGen = img.gen
                             )
                         }
                         if (fxTex != 0) {

@@ -37,7 +37,7 @@ internal object RendererNative {
         r: Long, tex: Int, oes: Boolean, params: FloatArray,
         faceMask: Int, faceStrength: Float, cutMask: Int, flatten: Boolean, canvas: FloatArray,
         fxOps: FloatArray?, grainFrame: Int, maskOps: FloatArray?, bgAligned: Boolean,
-        spill: Boolean, geomOut: FloatArray?
+        spill: Boolean, geomOut: FloatArray?, cacheGen: Int
     ): Int
     @JvmStatic external fun nativeApplyTexMask(
         r: Long, tex: Int, oes: Boolean, params: FloatArray, maskTex: Int, subtract: Boolean
@@ -300,7 +300,9 @@ class NativeRenderer private constructor(private var ptr: Long) : AutoCloseable 
         fxOps: FloatArray? = null, grainFrame: Int = 0, maskOps: FloatArray? = null,
         crop: FloatArray? = null,
         /** The picture sits exactly where it is on the canvas (text / shape / sticker pictures): Copy Background may read what is behind it. */
-        backdrop: Boolean = false
+        backdrop: Boolean = false,
+        /** Build 265: still-picture FX cache stamp (see the native LayerFx::cacheGen). 0 = never cache. */
+        cacheGen: Int = 0
     ): Int {
         // [crop] = [x, y, w, h] fractions of the picture (origin top-left): the effects run on that part only and the
         // result has that part's pixel size (text / shape layers: the layer's box, see OverlayFx). null = the whole picture.
@@ -311,7 +313,7 @@ class NativeRenderer private constructor(private var ptr: Long) : AutoCloseable 
         fillParams(texMatrix, contentW, contentH, contentRotation, lp)
         return RendererNative.nativeApplyFx(
             ptr, tex, external, params, faceMask, faceStrength, cutMask, flatten, canvasRgb, fxOps, grainFrame, maskOps, backdrop,
-            false, null
+            false, null, cacheGen
         )
     }
 
@@ -332,7 +334,9 @@ class NativeRenderer private constructor(private var ptr: Long) : AutoCloseable 
         canvasRgb: FloatArray,
         fxOps: FloatArray? = null, grainFrame: Int = 0, maskOps: FloatArray? = null,
         crop: FloatArray? = null,
-        geomOut: FloatArray
+        geomOut: FloatArray,
+        /** Build 265: still-picture FX cache stamp (see the native LayerFx::cacheGen). 0 = never cache. */
+        cacheGen: Int = 0
     ): Int {
         val lp = LayerParams()
         if (crop != null && crop.size >= 4) {
@@ -341,7 +345,7 @@ class NativeRenderer private constructor(private var ptr: Long) : AutoCloseable 
         fillParams(texMatrix, contentW, contentH, contentRotation, lp)
         return RendererNative.nativeApplyFx(
             ptr, tex, external, params, 0, 0f, 0, false, canvasRgb, fxOps, grainFrame, maskOps, false,
-            true, geomOut
+            true, geomOut, cacheGen
         )
     }
 
