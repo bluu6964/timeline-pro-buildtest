@@ -367,6 +367,9 @@ object TextEditGeometry {
         /** The hosted typing field's budgeted height in the min law. */
         const val FIELD_H_DP = 56f
 
+        /** The spacer between the typing field and the tab row. */
+        const val FIELD_GAP_DP = 6f
+
         /** The tab row under the typing field. */
         const val TAB_ROW_H_DP = 40f
 
@@ -391,6 +394,17 @@ object TextEditGeometry {
          * The max height while the keyboard is up: the drag range is
          * measured in the space above the keyboard, so the IME inset
          * comes off the available height.
+         *
+         * Build 269 (Sarowar's phone report on 268): this law and
+         * the host's bottom IME padding are the ONLY IME
+         * compensation in the app — the Activity declares
+         * adjustResize, so the system NEVER pans or resizes the
+         * window behind the app's back. On 268 the manifest declared
+         * no softInputMode, the edge-to-edge window defaulted to
+         * adjustPan, and the system's pan stacked ON TOP of this
+         * clamp + the host padding: the panel flew up by a second
+         * keyboard height, head and typing field off the top of the
+         * screen. Do not add another inset mechanism anywhere.
          */
         fun imeMaxHeightPx(availablePx: Float, imeBottomPx: Float): Float =
             (availablePx - imeBottomPx).coerceAtLeast(0f)
@@ -414,10 +428,38 @@ object TextEditGeometry {
             currentPx: Float, dragDeltaYPx: Float, minPx: Float, maxPx: Float
         ): Float = clampHeightPx(currentPx - dragDeltaYPx, minPx, maxPx)
 
-        /** The first-open height, before any drag is remembered. */
+        /** The panel's own chrome above the tab content viewport. */
+        fun chromeHeightPx(density: Float): Float =
+            (HEAD_H_DP + FIELD_H_DP + FIELD_GAP_DP + TAB_ROW_H_DP) * density
+
+        /** The tab content's viewport height at [heightPx]. */
+        fun contentViewportPx(heightPx: Float, density: Float): Float =
+            (heightPx - chromeHeightPx(density)).coerceAtLeast(0f)
+
+        /**
+         * The panel height at which the Templates tab shows TWO
+         * FULL template-card rows (build 269): chrome + two card
+         * rows and the gap between them.
+         */
+        fun twoTemplateRowsHeightPx(density: Float): Float =
+            chromeHeightPx(density) +
+                (2f * Grid.TEMPLATE_CARD_H_DP + Grid.GAP_DP) * density
+
+        /**
+         * The first-open height, before any drag is remembered:
+         * [DEFAULT_FRACTION] of the owned zone, floored at the
+         * two-template-row height so the first open is never the
+         * build-268 sliver (on a phone-sized zone 62% lands below
+         * the minimum and the content was a 44 dp strip), and
+         * clamped to the zone — a zone smaller than two rows simply
+         * opens at its max; the canvas is never touched.
+         */
         fun defaultHeightPx(availablePx: Float, density: Float): Float =
             clampHeightPx(
-                availablePx * DEFAULT_FRACTION,
+                maxOf(
+                    availablePx * DEFAULT_FRACTION,
+                    twoTemplateRowsHeightPx(density)
+                ),
                 minHeightPx(density), maxHeightPx(availablePx)
             )
     }
@@ -430,6 +472,9 @@ object TextEditGeometry {
 
     object Grid {
         const val GAP_DP = 8f
+
+        /** One Templates card's height (the host's card box). */
+        const val TEMPLATE_CARD_H_DP = 96f
 
         /** One cell's width: the row split into [columns] cells. */
         fun cellWPx(rowWPx: Float, columns: Int, density: Float): Float =

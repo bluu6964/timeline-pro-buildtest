@@ -374,6 +374,77 @@ class TextEditGeometryTest {
     }
 
     @Test
+    fun panelImeOpenKeepsHeadFieldAndTabsVisible() {
+        val g = TextEditGeometry.Panel
+        for (d in densities) {
+            // The build-269 scenario: an 800 dp screen's owned zone,
+            // a 300 dp keyboard. The clamped height must still fit
+            // head + field + tab row + the minimum content, and the
+            // height never exceeds the IME range — the panel's top
+            // stays at or below the zone's top (the canvas's bottom
+            // edge), its bottom on the keyboard's top edge (the
+            // host's padding), so the head and typing field are
+            // always fully on screen.
+            val zone = 800f * d
+            val ime = 300f * d
+            val imeMax = g.imeMaxHeightPx(zone, ime)
+            assertEquals(zone - ime, imeMax, eps)
+            assertTrue("IME max must fit the minimum panel (d=$d)", imeMax >= g.minHeightPx(d))
+            assertTrue(
+                "head + field + tab row must fit (d=$d)",
+                imeMax >= (g.HEAD_H_DP + g.FIELD_H_DP + g.TAB_ROW_H_DP) * d
+            )
+            // A taller remembered height clamps INTO the IME range…
+            val remembered = 620f * d
+            assertEquals(imeMax, g.clampHeightPx(remembered, g.minHeightPx(d), imeMax), eps)
+            // …and when the keyboard closes (ime = 0) the SAME
+            // remembered height comes back verbatim — the IME clamp
+            // is a display clamp only, never a rewrite of the
+            // session's height.
+            assertEquals(
+                remembered,
+                g.clampHeightPx(remembered, g.minHeightPx(d), g.imeMaxHeightPx(zone, 0f)),
+                eps
+            )
+            // The IME range never exceeds the plain range: the
+            // panel top can never rise above the zone's top.
+            assertTrue(imeMax <= g.maxHeightPx(zone))
+        }
+    }
+
+    @Test
+    fun panelDefaultShowsTwoTemplateRows() {
+        val g = TextEditGeometry.Panel
+        val grid = TextEditGeometry.Grid
+        val twoRows = (2f * grid.TEMPLATE_CARD_H_DP + grid.GAP_DP)
+        for (d in densities) {
+            // The two-row height is exactly chrome + two card rows.
+            assertEquals(
+                g.chromeHeightPx(d) + twoRows * d,
+                g.twoTemplateRowsHeightPx(d), eps
+            )
+            // A roomy zone: the default's content viewport fits two
+            // FULL template-card rows (build 268 opened at 62% of a
+            // phone zone — below the minimum — and showed a sliver).
+            val roomy = 600f * d
+            val defRoomy = g.defaultHeightPx(roomy, d)
+            assertTrue(
+                "default must show two full rows (d=$d)",
+                g.contentViewportPx(defRoomy, d) >= twoRows * d
+            )
+            // A zone of exactly the two-row height opens at it.
+            val exact = g.twoTemplateRowsHeightPx(d)
+            assertEquals(exact, g.defaultHeightPx(exact, d), eps)
+            // A zone smaller than two rows opens at the zone max —
+            // the best possible without touching the canvas.
+            val small = 300f * d
+            assertEquals(
+                g.maxHeightPx(small), g.defaultHeightPx(small, d), eps
+            )
+        }
+    }
+
+    @Test
     fun panelDefaultHeightIsInsideTheRange() {
         val g = TextEditGeometry.Panel
         for (d in densities) {
