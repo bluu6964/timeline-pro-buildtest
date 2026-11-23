@@ -90,8 +90,30 @@ struct Fb {
 void fillRect(Fb& fb, float x0, float y0, float x1, float y1, uint32_t argb) {
     int ix0 = std::max(0, (int)std::floor(x0)), iy0 = std::max(0, (int)std::floor(y0));
     int ix1 = std::min(fb.w, (int)std::ceil(x1)), iy1 = std::min(fb.h, (int)std::ceil(y1));
+    // Build 264: the integer interior — pixels whose coverage is exactly 1
+    // (x >= x0 and x + 1 <= x1, and the same for y) — is written without
+    // the per-pixel coverage computation; only the fractional border ring
+    // pays for it. Unclipped opaque interiors (section bands, hairlines)
+    // write the same bytes blendPx writes at full alpha.
+    int jx0 = std::max(ix0, (int)std::ceil(x0)), jy0 = std::max(iy0, (int)std::ceil(y0));
+    int jx1 = std::min(ix1, (int)std::floor(x1 - 1.f) + 1);
+    int jy1 = std::min(iy1, (int)std::floor(y1 - 1.f) + 1);
+    if (jx1 < jx0) jx1 = jx0;
+    if (jy1 < jy0) jy1 = jy0;
+    const bool direct = !fb.clipOn && (argb >> 24) == 0xFFu;
+    for (int y = jy0; y < jy1; ++y)
+        for (int x = jx0; x < jx1; ++x) {
+            if (direct) {
+                uint8_t* d = fb.p + (size_t)y * fb.stride + (size_t)x * 4;
+                d[0] = (uint8_t)(argb >> 16); d[1] = (uint8_t)(argb >> 8);
+                d[2] = (uint8_t)argb; d[3] = 255;
+            } else {
+                fb.blendPx(x, y, argb, 1.f);
+            }
+        }
     for (int y = iy0; y < iy1; ++y)
         for (int x = ix0; x < ix1; ++x) {
+            if (x >= jx0 && x < jx1 && y >= jy0 && y < jy1) continue;  // interior, done above
             // Exact coverage on the fractional edges.
             float cov = std::min({x + 1.f - x0, x1 - x, y + 1.f - y0, y1 - y, 1.f});
             if (cov > 0) fb.blendPx(x, y, argb, cov);
@@ -105,7 +127,12 @@ float sdRoundBox(float px, float py, float cx, float cy, float hx, float hy,
     float qx = std::fabs(px - cx) - (hx - r);
     float qy = std::fabs(py - cy) - (hy - r);
     float ax = std::max(qx, 0.f), ay = std::max(qy, 0.f);
-    return std::min(std::max(qx, qy), 0.f) + std::sqrt(ax * ax + ay * ay) - r;
+    // Build 264: outside the four corner quadrants the length term is
+    // exactly ax or ay (or 0), so the per-pixel sqrt — paid for every
+    // pixel of every rounded rect / stroke, every frame — is only
+    // computed where both components are non-zero.
+    float len = (ax == 0.f) ? ay : (ay == 0.f) ? ax : std::sqrt(ax * ax + ay * ay);
+    return std::min(std::max(qx, qy), 0.f) + len - r;
 }
 
 void fillRoundRect(Fb& fb, float x, float y, float w, float h,
@@ -169,12 +196,29 @@ void drawLine(Fb& fb, float x0, float y0, float x1, float y1, float width, uint3
     int iy1 = std::min(fb.h, (int)std::ceil(std::max(y0, y1) + pad));
     float dx = x1 - x0, dy = y1 - y0;
     float len2 = dx * dx + dy * dy;
+    // Build 264: axis-aligned lines — the waveform bars (one vertical line
+    // per 3 dp step of every media bar, every frame) and the ruler ticks.
+    // For a pixel whose centre lies within the segment's span, the nearest
+    // point on the line is the pixel's own row/column, so the distance is
+    // the exact perpendicular offset — no projection, no sqrt. Pixels past
+    // the endpoints keep the general formula below.
+    const bool vert = (dx == 0.f && dy != 0.f);
+    const bool horz = (dy == 0.f && dx != 0.f);
+    const float spanLo = vert ? std::min(y0, y1) : std::min(x0, x1);
+    const float spanHi = vert ? std::max(y0, y1) : std::max(x0, x1);
     for (int j = iy0; j < iy1; ++j)
         for (int i = ix0; i < ix1; ++i) {
             float px = i + 0.5f, py = j + 0.5f;
-            float t = len2 > 0 ? clampf(((px - x0) * dx + (py - y0) * dy) / len2, 0.f, 1.f) : 0.f;
-            float ex = x0 + t * dx - px, ey = y0 + t * dy - py;
-            float dist = std::sqrt(ex * ex + ey * ey);
+            float dist;
+            if (vert && py >= spanLo && py <= spanHi) {
+                dist = std::fabs(px - x0);
+            } else if (horz && px >= spanLo && px <= spanHi) {
+                dist = std::fabs(py - y0);
+            } else {
+                float t = len2 > 0 ? clampf(((px - x0) * dx + (py - y0) * dy) / len2, 0.f, 1.f) : 0.f;
+                float ex = x0 + t * dx - px, ey = y0 + t * dy - py;
+                dist = std::sqrt(ex * ex + ey * ey);
+            }
             float cov = clampf(width / 2.f + 0.5f - dist, 0.f, 1.f);
             if (cov > 0) fb.blendPx(i, j, argb, cov);
         }
