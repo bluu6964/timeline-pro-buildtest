@@ -3277,6 +3277,7 @@ void Renderer::runEffects(const LayerFx& fx, int W, int H, int* cur) {
         bool ok = true;
         switch (op.type) {
             case FX_BLUR: ok = fxBlur(op, W, H, cur); break;
+            case FX_DIR_BLUR: ok = fxDirBlur(op, W, H, cur, fx.grainFrame); break;
             case FX_GLOW: ok = fxGlow(op, W, H, cur); break;
             case FX_RGB_SPLIT: ok = fxSplit(op, W, H, cur); break;
             case FX_GRAIN: ok = fxGrain(op, W, H, cur, fx.grainFrame); break;
@@ -3457,6 +3458,65 @@ bool Renderer::fxBlurPx(float sigma, int W, int H, int* cur) {
     const int dst = 1 - *cur;
     begin(copy, fxFbo_[dst], W, H);
     bindTex(0, L.tex[0]);
+    glUniform1i(loc(copy, "uTex"), 0);
+    draw();
+    *cur = dst;
+    return true;
+}
+
+// Build 265: Directional Blur at a working resolution. The shader (kFxBlur2 mode 0)
+// is a single full-size pass of 48 taps per pixel however long the streak is; on a
+// big picture (a 1080 photo padded by the build-263 spill pass is 2040x2040) that
+// is ~200M taps for one effect, re-run on every preview frame. Long streaks now
+// follow fxBlurPx's big-sigma shape: box-reduce the picture by 2^shift (the plan
+// keeps the reduced length <= 64 px, so the 48 taps sample the streak at least as
+// finely as at full size), run the SAME shader there with uUnit scaled by the same
+// factor (its lenPx formula then yields the reduced length), and bilinear-upsample
+// back. The kernel is a 1D box along the streak, so there is no second pass to
+// separate; the only approximation is the reduce's perpendicular softening of at
+// most 2^shift px. Short streaks (shift 0) keep the historical full-size pass.
+bool Renderer::fxDirBlur(const FxOp& op, int W, int H, int* cur, int frame) {
+    if (fxIsIdentity(op)) return true;
+    const DirBlurPlan plan = fxPlanDirBlur(fxDirBlurLenPx(op.p[1], H));
+    if (plan.shift == 0) return fxShaded(op, W, H, cur, frame);
+    const uint32_t down = effProg(EF_DOWN), blur2 = effProg(EF_BLUR2), copy = effProg(EF_COPY);
+    if (!down || !blur2 || !copy) return false;
+
+    uint32_t srcTex = fxTex_[*cur];
+    int sw = W, sh = H;
+    for (int i = 0; i < plan.shift; ++i) {
+        const int lw = halfSize(W, i), lh = halfSize(H, i);
+        if (!ensureLevel(i, lw, lh)) return false;
+        begin(down, lv_[i].fbo[0], lw, lh);
+        bindTex(0, srcTex);
+        glUniform1i(loc(down, "uTex"), 0);
+        glUniform2f(loc(down, "uTexel"), 1.f / sw, 1.f / sh);
+        glUniform1i(loc(down, "uPre"), 0);
+        glUniform2f(loc(down, "uPreP"), 0.f, 0.f);
+        draw();
+        srcTex = lv_[i].tex[0];
+        sw = lw;
+        sh = lh;
+    }
+    const FxLevel& L = lv_[plan.shift - 1];
+    begin(blur2, L.fbo[1], L.w, L.h);
+    bindTex(0, L.tex[0]);
+    glUniform1i(loc(blur2, "uTex"), 0);
+    glUniform2f(loc(blur2, "uTexel"), 1.f / L.w, 1.f / L.h);
+    glUniform1f(loc(blur2, "uAspect"), (float)L.w / (float)L.h);
+    // uUnit scaled by 2^-shift: the shader's lenPx = p[1]/100 x 160 x uUnit then
+    // comes out as the reduced length on the small picture.
+    glUniform1f(loc(blur2, "uUnit"),
+                std::max(0.25f, (float)H / 1080.f) / (float)(1 << plan.shift));
+    glUniform1i(loc(blur2, "uFrame"), frame);
+    glUniform1i(loc(blur2, "uMode"), 0);
+    glUniform1fv(loc(blur2, "uP"), 7, op.p);
+    glUniform1fv(loc(blur2, "uQ"), 7, op.q);
+    glUniform1fv(loc(blur2, "uR"), 7, op.r);
+    draw();
+    const int dst = 1 - *cur;
+    begin(copy, fxFbo_[dst], W, H);
+    bindTex(0, L.tex[1]);
     glUniform1i(loc(copy, "uTex"), 0);
     draw();
     *cur = dst;

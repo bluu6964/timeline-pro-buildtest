@@ -67,6 +67,13 @@ struct LayerFx {
     FxOp ops[kFxMaxOps];
     int nOps = 0;
     int grainFrame = 0;         // film grain pattern number (fxGrainFrame(timeline ms)): preview == export
+    // Build 265 (still-picture FX cache): 0 = never cache this pass. Non-zero = the
+    // caller guarantees the source picture's pixels are immutable under this
+    // (texture, cacheGen) pair — a still photo's decoded texture, stamped with a
+    // per-load generation by the engines. Only the photo call sites pass it: group /
+    // space composed pictures and onion ghosts re-render into recycled textures
+    // under stable ids, so they must never be served from the cache.
+    int cacheGen = 0;
     // The masks of the layer (Masks panel), run LAST, after the effects: the layer times the combined mask coverage.
     MaskOp masks[kMaskMax];
     int nMasks = 0;
@@ -162,6 +169,10 @@ private:
     bool ensureMaskTargets(int w, int h);
     bool fxBlur(const FxOp& op, int W, int H, int* cur);
     bool fxBlurPx(float sigmaPx, int W, int H, int* cur);
+    // Build 265: Directional Blur — long streaks run on a reduced picture (fxPlanDirBlur)
+    // and are upsampled, like fxBlurPx's big-sigma path; short ones keep the exact
+    // full-size fxShaded pass.
+    bool fxDirBlur(const FxOp& op, int W, int H, int* cur, int frame);
     bool fxGlow(const FxOp& op, int W, int H, int* cur);
     bool fxSplit(const FxOp& op, int W, int H, int* cur);
     bool fxGrain(const FxOp& op, int W, int H, int* cur, int frame);
@@ -263,6 +274,23 @@ private:
         uint32_t tex = 0;
     };
     std::unordered_map<int, MaskSlot> masks_;
+    // Build 265: the still-picture FX cache (see LayerFx::cacheGen). A few effected
+    // pictures kept in their own textures so a still photo layer does not re-run its
+    // whole effect chain on every preview / export frame. Bounded: at most
+    // kFxCacheEntries entries and kFxCacheMaxPixels pixels in total (RGBA8, so the
+    // pixel budget is also a ~4x byte budget), LRU eviction; an entry bigger than
+    // the whole budget is never stored.
+    struct FxCacheEntry {
+        uint64_t key = 0;
+        uint32_t tex = 0, fbo = 0;
+        int w = 0, h = 0;
+        uint32_t lastUse = 0;
+    };
+    static constexpr int kFxCacheEntries = 4;
+    static constexpr int64_t kFxCacheMaxPixels = 12LL * 1024 * 1024;
+    FxCacheEntry fxCache_[kFxCacheEntries];
+    uint32_t fxCacheClock_ = 0;
+    void releaseFxCache();
     // Effect programs (built when first used) and the small pictures of the blur / glow pyramids.
     uint32_t eff_[57] = {0};
     uint32_t maskTex_[2] = {0, 0}, maskFbo_[2] = {0, 0};  // R8 coverage pictures (ping-pong)

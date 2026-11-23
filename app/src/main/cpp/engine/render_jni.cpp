@@ -251,7 +251,7 @@ JNIEXPORT jint JNICALL Java_com_example_engine_RendererNative_nativeLoadMask(JNI
 JNIEXPORT jint JNICALL Java_com_example_engine_RendererNative_nativeApplyFx(
     JNIEnv* env, jclass, jlong p, jint tex, jboolean oes, jfloatArray params, jint faceMask, jfloat faceStrength,
     jint cutMask, jboolean flatten, jfloatArray canvas, jfloatArray ops, jint grainFrame, jfloatArray masks,
-    jboolean bgAligned, jboolean spill, jfloatArray geomOut) {
+    jboolean bgAligned, jboolean spill, jfloatArray geomOut, jint cacheGen) {
     jfloat v[46] = {0};
     const jsize len = env->GetArrayLength(params);
     env->GetFloatArrayRegion(params, 0, len < 46 ? len : 46, v);
@@ -276,6 +276,7 @@ JNIEXPORT jint JNICALL Java_com_example_engine_RendererNative_nativeApplyFx(
     fx.flatten = flatten == JNI_TRUE;
     fx.bgAligned = bgAligned == JNI_TRUE;
     fx.spill = spill == JNI_TRUE;  // build 263: media effect spill (see Renderer::applyFx)
+    fx.cacheGen = (int)cacheGen;   // build 265: still-picture FX cache stamp (0 = never cache)
     if (canvas && env->GetArrayLength(canvas) >= 3) env->GetFloatArrayRegion(canvas, 0, 3, fx.canvasRgb);
     // The layer's effects (Effects panel): groups of am::kFxStride floats = type + 5 parameters.
     if (ops) {

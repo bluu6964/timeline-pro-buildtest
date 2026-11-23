@@ -275,6 +275,7 @@ bool Renderer::ensureFxTargets(int w, int h, int lw, int lh) {
 }
 
 void Renderer::releaseFx() {
+    releaseFxCache();
     for (int i = 0; i < 2; ++i) {
         dropTarget(&fxTex_[i], &fxFbo_[i]);
         dropTarget(&lowTex_[i], &lowFbo_[i]);
@@ -292,6 +293,83 @@ void Renderer::releaseFx() {
     }
     masks_.clear();
     releaseEffects();
+}
+
+namespace {
+
+// Build 265: the still-picture FX cache key — every input that can change the
+// pass's output, hashed by exact bit pattern (fxHash* in fx_plan.cpp):
+//   - the source: texture id + the caller's per-load generation (LayerFx::cacheGen),
+//     its size / rotation / texture matrix, and the LayerDraw fields the source copy
+//     in applyFx actually reads (crop, the 3D-turn fields, pin quad, gain — offset /
+//     scale / rotation / opacity are overridden by the pass and excluded);
+//   - the pass: spill flag, canvas colour, renderer size (the glow-scan sigma reads
+//     it), the result size, every op's type + p/q/r/s/t and every mask's fields;
+//   - the frame counter, but ONLY when the chain reads it (fxChainUsesFrame) — a
+//     keyframed slider reaches the pass as changed op values, so it misses the
+//     cache on its own; a grain / strobe / shake chain includes the counter and
+//     therefore still re-runs as time advances.
+uint64_t fxCacheKey(const LayerDraw& d, const LayerFx& fx, int w2, int h2, int frameW, int frameH) {
+    uint64_t h = 1469598103934665603ULL;  // FNV offset basis
+    h = fxHashMix(h, d.texture);
+    h = fxHashMix(h, (uint64_t)(uint32_t)fx.cacheGen);
+    const int di[4] = {d.contentW, d.contentH, d.contentRotation, w2};
+    h = fxHashInts(h, di, 4);
+    h = fxHashMix(h, (uint64_t)(uint32_t)h2);
+    h = fxHashMix(h, (uint64_t)(uint32_t)frameW);
+    h = fxHashMix(h, (uint64_t)(uint32_t)frameH);
+    h = fxHashFloats(h, d.texMatrix, 16);
+    const float df[13] = {d.cropX, d.cropY, d.cropW, d.cropH, d.rotX, d.rotY, d.pivotX,
+                          d.pivotY, d.baseX, d.baseY, d.perspD, d.gain, fx.faceStrength};
+    h = fxHashFloats(h, df, 13);
+    h = fxHashFloats(h, d.pinQ, 8);
+    h = fxHashFloats(h, fx.canvasRgb, 3);
+    h = fxHashMix(h, (fx.spill ? 1 : 0) | (fx.flatten ? 2 : 0) | (d.pin ? 4 : 0));
+    h = fxHashMix(h, (uint64_t)(uint32_t)fx.nOps);
+    for (int k = 0; k < fx.nOps; ++k) {
+        const FxOp& op = fx.ops[k];
+        h = fxHashMix(h, (uint64_t)(uint32_t)op.type);
+        h = fxHashFloats(h, op.p, 7);
+        h = fxHashFloats(h, op.q, 7);
+        h = fxHashFloats(h, op.r, 7);
+        h = fxHashFloats(h, op.s, 7);
+        h = fxHashFloats(h, op.t, 7);
+    }
+    h = fxHashMix(h, (uint64_t)(uint32_t)fx.nMasks);
+    for (int k = 0; k < fx.nMasks; ++k) {
+        const MaskOp& m = fx.masks[k];
+        const int mi[4] = {m.shape, m.mode, m.invert ? 1 : 0, m.nPts};
+        h = fxHashInts(h, mi, 4);
+        const float mf[13] = {m.cx, m.cy, m.hw, m.hh, m.cosR, m.sinR, m.feather, m.expand,
+                              m.opacity, m.corner, m.anRad, m.anCos, m.anSin};
+        h = fxHashFloats(h, mf, 13);
+        const float me[2] = {m.enCos, m.enSin};
+        h = fxHashFloats(h, me, 2);
+        const int nPts = m.nPts < kMaskPtsMax ? m.nPts : kMaskPtsMax;
+        if (nPts > 0) h = fxHashFloats(h, m.pts, nPts * 2);
+    }
+    if (fxChainUsesFrame(fx.ops, fx.nOps)) h = fxHashMix(h, (uint64_t)(uint32_t)fx.grainFrame);
+    return h;
+}
+
+// Eligible passes: a caller-stamped still picture (cacheGen), a plain 2D source
+// (video frames are OES and change every frame), no backdrop-aligned pass (Copy
+// Background reads the frame behind the layer), no face / cutout pass (their mask
+// textures are reloaded in place under a stable id), and no backdrop-reading op.
+bool fxCacheEligible(const LayerDraw& d, const LayerFx& fx) {
+    return fx.cacheGen != 0 && !d.oes && !fx.bgAligned && !fx.faceMask && !fx.cutMask &&
+           !fxChainReadsBackdrop(fx.ops, fx.nOps);
+}
+
+}  // namespace
+
+void Renderer::releaseFxCache() {
+    for (auto& e : fxCache_) {
+        dropTarget(&e.tex, &e.fbo);
+        e.key = 0;
+        e.w = e.h = 0;
+        e.lastUse = 0;
+    }
 }
 
 bool Renderer::applyFx(const LayerDraw& d, const LayerFx& fx, LayerDraw* out) {
@@ -317,6 +395,25 @@ bool Renderer::applyFx(const LayerDraw& d, const LayerFx& fx, LayerDraw* out) {
                         : 0;
     const int W2 = W + 2 * pad;
     const int H2 = H + 2 * pad;
+
+    // Build 265: the still-picture cache. A hit fills `out` exactly as the tail of
+    // this function does and returns without touching any GL state.
+    const bool cacheable = fxCacheEligible(d, fx);
+    const uint64_t cacheKey = cacheable ? fxCacheKey(d, fx, W2, H2, w_, h_) : 0;
+    if (cacheable) {
+        for (auto& e : fxCache_) {
+            if (e.key == cacheKey && e.tex && e.w == W2 && e.h == H2) {
+                e.lastUse = ++fxCacheClock_;
+                out->texture = e.tex;
+                out->oes = false;
+                for (int i = 0; i < 16; ++i) out->texMatrix[i] = (i % 5 == 0) ? 1.f : 0.f;
+                out->contentRotation = 0;
+                out->contentW = W2;
+                out->contentH = H2;
+                return true;
+            }
+        }
+    }
     int lw = 0, lh = 0;
     if (fx.faceMask) {
         const float s = std::fmin(1.f, std::fmax(0.f, fx.faceStrength));
@@ -476,6 +573,51 @@ bool Renderer::applyFx(const LayerDraw& d, const LayerFx& fx, LayerDraw* out) {
             masksOk = runMasks(fx, W, H, &cur);
         }
         if (!masksOk) LOGE("masks skipped (shader or target failed)");
+    }
+
+    // Build 265: keep the result for the still-picture cache (a plain copy out of
+    // the result target, ~1 tap per pixel against the chain's hundreds). Done
+    // before the state restore below; the restore rebinds the caller's framebuffer.
+    if (cacheable) {
+        const int64_t px = (int64_t)W2 * H2;
+        if (px <= kFxCacheMaxPixels) {
+            int64_t total = 0;
+            for (auto& e : fxCache_)
+                if (e.tex && e.key != cacheKey) total += (int64_t)e.w * e.h;
+            while (total + px > kFxCacheMaxPixels) {  // evict LRU until it fits
+                FxCacheEntry* lru = nullptr;
+                for (auto& e : fxCache_)
+                    if (e.tex && e.key != cacheKey && (!lru || e.lastUse < lru->lastUse)) lru = &e;
+                if (!lru) break;
+                total -= (int64_t)lru->w * lru->h;
+                dropTarget(&lru->tex, &lru->fbo);
+                lru->key = 0;
+                lru->w = lru->h = 0;
+                lru->lastUse = 0;
+            }
+            FxCacheEntry* slot = nullptr;
+            for (auto& e : fxCache_)
+                if (e.key == cacheKey) { slot = &e; break; }
+            if (!slot)  // the LRU slot (an empty one has lastUse 0 and wins)
+                for (auto& e : fxCache_)
+                    if (!slot || e.lastUse < slot->lastUse) slot = &e;
+            if (slot) {
+                bool ready = slot->tex && slot->w == W2 && slot->h == H2;
+                if (!ready) {
+                    dropTarget(&slot->tex, &slot->fbo);
+                    ready = makeTarget(W2, H2, &slot->tex, &slot->fbo);
+                }
+                if (ready) {
+                    glBindFramebuffer(GL_FRAMEBUFFER, fxFbo_[cur]);
+                    glBindTexture(GL_TEXTURE_2D, slot->tex);
+                    glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, W2, H2);
+                    slot->key = cacheKey;
+                    slot->w = W2;
+                    slot->h = H2;
+                    slot->lastUse = ++fxCacheClock_;
+                }
+            }
+        }
     }
 
     // back to what the caller had
