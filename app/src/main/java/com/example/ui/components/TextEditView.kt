@@ -72,6 +72,9 @@ import com.example.model.PanelGeometry
 import com.example.model.TEXT_BG_NONE
 import com.example.model.TEXT_BG_RECTANGLE
 import com.example.model.TEXT_BG_ROUNDED
+import com.example.model.TEXT_BG_SPEECH
+import com.example.model.TEXT_BG_SPEECH_SQ
+import com.example.model.TEXT_BG_THOUGHT
 import com.example.model.TextEditGeometry
 import com.example.model.TextTemplates
 import com.example.model.TimelineClip
