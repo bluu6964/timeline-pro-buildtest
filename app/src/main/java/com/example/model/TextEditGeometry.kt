@@ -1,0 +1,242 @@
+package com.example.model
+
+/**
+ * Build 266 — the Text editor screen's layout law (Sarowar's order:
+ * the whole Text section UI redesigned, "simple and clean", drawn by
+ * the C++ GL UI path like the rest of the app since builds 248–253).
+ *
+ * The screen is one calm full-screen surface: a top bar (back /
+ * "Text" / Done), a preview block, the hosted typing field, and one
+ * flat scrolling list of full-width rows grouped Font / Style /
+ * Color / Alignment / Spacing / Stroke / Shadow / Background /
+ * Reveal / Path. Every size the GL host draws comes from here; the
+ * host keeps only layout, touch boxes, semantics and state wiring
+ * (the stage-2/3/4/5 pattern). All functions work in raw pixels;
+ * [density] converts the dp constants exactly as `Dp.toPx()` did.
+ * Text placement inside a line box follows the shared law
+ * ([EditorGeometry.centredTextTopPx] + [PanelGeometry.lineBaselinePx]).
+ */
+object TextEditGeometry {
+
+    /** The screen's horizontal padding (every block and row). */
+    const val SCREEN_PAD_H_DP = 16f
+
+    // ── Top bar ─────────────────────────────────────────────────────
+
+    object TopBar {
+        const val H_DP = 52f
+
+        /** The back arrow's square tap box. */
+        const val BACK_BOX_DP = 36f
+
+        /** The back arrow glyph's size inside its box. */
+        const val BACK_ICON_DP = 20f
+
+        /** The back box's centre x: padding + half the box. */
+        fun backCentreXPx(density: Float): Float =
+            (SCREEN_PAD_H_DP + BACK_BOX_DP / 2f) * density
+
+        /** The title's left edge: padding + back box + the gap after it. */
+        fun titleLeftPx(density: Float): Float =
+            (SCREEN_PAD_H_DP + BACK_BOX_DP + 4f) * density
+
+        /** The Done pill's centre x: its right edge is the screen padding. */
+        fun doneCentreXPx(rowWPx: Float, pillWPx: Float, density: Float): Float =
+            rowWPx - SCREEN_PAD_H_DP * density - pillWPx / 2f
+
+        /** The bar's vertical centre (every element shares it). */
+        fun centreYPx(density: Float): Float = H_DP * density / 2f
+    }
+
+    // ── Preview block ───────────────────────────────────────────────
+
+    object Preview {
+        const val H_DP = 132f
+        const val CORNER_DP = 12f
+
+        /**
+         * The frame width handed to the text painter: the preview
+         * surface spans the screen inside its horizontal padding, and
+         * the painter's own sizes are fractions of this width (the
+         * same rule the canvas uses).
+         */
+        fun frameWidthPx(screenWPx: Float, density: Float): Float =
+            screenWPx - 2f * SCREEN_PAD_H_DP * density
+    }
+
+    /** Gap between the top bar and the preview block. */
+    const val GAP_AFTER_BAR_DP = 4f
+
+    /** Gap between the preview block and the typing field. */
+    const val GAP_AFTER_PREVIEW_DP = 12f
+
+    /** Gap between the typing field and the controls list. */
+    const val GAP_AFTER_FIELD_DP = 10f
+
+    // ── Group headers ───────────────────────────────────────────────
+
+    object GroupHeader {
+        /** The header line's box height. */
+        const val H_DP = 26f
+
+        /** Space above a header that follows another group. */
+        const val GAP_BEFORE_DP = 22f
+
+        /** Space below the header before its first row. */
+        const val GAP_AFTER_DP = 6f
+    }
+
+    // ── Slider rows (label + the standard GL slider + value) ───────
+
+    object SliderRow {
+        const val H_DP = 44f
+
+        /** Gap between the label and the slider. */
+        const val LABEL_GAP_DP = 10f
+
+        /** Gap between the slider and the value readout. */
+        const val VALUE_GAP_DP = 10f
+    }
+
+    // ── Segmented rows (style toggles, alignment) ──────────────────
+    //
+    // Equal cells across the row's width with [GAP_DP] between them;
+    // the cells tile the row exactly (first cell at 0, last cell's
+    // right edge at the row width).
+
+    object Segmented {
+        const val H_DP = 40f
+        const val GAP_DP = 6f
+        const val CORNER_DP = 10f
+
+        /** Icon size in an icon+label cell (alignment). */
+        const val ICON_DP = 18f
+
+        /** Gap between a cell's icon and its label. */
+        const val ICON_GAP_DP = 5f
+
+        /** One cell's width: the row split into [count] equal cells. */
+        fun cellWPx(rowWPx: Float, count: Int, density: Float): Float =
+            if (count <= 0) 0f else (rowWPx - GAP_DP * density * (count - 1)) / count
+
+        /** A cell's left edge within its row. */
+        fun cellLeftPx(index: Int, rowWPx: Float, count: Int, density: Float): Float =
+            index * (cellWPx(rowWPx, count, density) + GAP_DP * density)
+
+        /** A cell's centre x within its row. */
+        fun cellCentreXPx(index: Int, rowWPx: Float, count: Int, density: Float): Float =
+            cellLeftPx(index, rowWPx, count, density) + cellWPx(rowWPx, count, density) / 2f
+
+        /**
+         * The left edge of a centred icon+label run inside a cell:
+         * the run is icon + gap + label, centred as one piece; with
+         * no icon the run is the label alone.
+         */
+        fun runLeftPx(
+            cellLeftPx: Float, cellWPx: Float,
+            labelAdvancePx: Float, hasIcon: Boolean, density: Float
+        ): Float {
+            val runW = labelAdvancePx +
+                if (hasIcon) (ICON_DP + ICON_GAP_DP) * density else 0f
+            return cellLeftPx + (cellWPx - runW) / 2f
+        }
+    }
+
+    // ── Colour rows (label + swatch strip + custom + eyedropper) ───
+
+    object Swatches {
+        /** One swatch tile (the old colour row's 34 dp square). */
+        const val CELL_DP = 34f
+        const val GAP_DP = 6f
+        const val CORNER_DP = 8f
+
+        /** The colour row's height (the old TextColorRow's 40 dp). */
+        const val ROW_H_DP = 40f
+
+        /** Gap between the strip and the pinned custom-colour tile. */
+        const val PIN_GAP_DP = 6f
+
+        /** A swatch's left edge inside the strip. */
+        fun leftPx(index: Int, density: Float): Float =
+            index * (CELL_DP + GAP_DP) * density
+
+        /** A swatch's centre x inside the strip. */
+        fun centreXPx(index: Int, density: Float): Float =
+            leftPx(index, density) + CELL_DP * density / 2f
+
+        /** The strip's total content width for [count] swatches. */
+        fun contentWPx(count: Int, density: Float): Float =
+            if (count <= 0) 0f
+            else count * CELL_DP * density + (count - 1) * GAP_DP * density
+    }
+
+    // ── Chip strips (font chips, font-weight pills) ────────────────
+    //
+    // Hug-content chips in one horizontally scrolling strip: each
+    // chip is its label's advance + horizontal padding, all chips
+    // share one height, [STRIP_GAP_DP] apart. (The shared pill-strip
+    // law, [EditorGeometry.PillStrip], does the arithmetic; these
+    // are the text screen's constants for it.)
+
+    object Chips {
+        const val H_DP = 36f
+        const val PAD_H_DP = 12f
+        const val STRIP_GAP_DP = 8f
+        const val CORNER_DP = 10f
+
+        /** The font chip's text size (the old chip's 15 sp, in its own face). */
+        const val FONT_TEXT_SP = 15f
+
+        /** One chip's width from its label's advance. */
+        fun chipWPx(advancePx: Float, density: Float): Float =
+            advancePx + 2f * PAD_H_DP * density
+
+        /** Chip left edges: cumulative widths + gaps, from [startPx]. */
+        fun leftsPx(widths: List<Float>, density: Float, startPx: Float = 0f): List<Float> =
+            EditorGeometry.PillStrip.itemLeftsPx(widths, STRIP_GAP_DP, density, startPx)
+
+        /** The strip's total content width (chips + gaps). */
+        fun contentWPx(widths: List<Float>, density: Float): Float =
+            EditorGeometry.PillStrip.contentWPx(widths, STRIP_GAP_DP, density)
+    }
+
+    // ── Style preset tiles ──────────────────────────────────────────
+
+    object Presets {
+        /** One preset tile (the old Style tab's 48 dp square). */
+        const val TILE_DP = 48f
+        const val GAP_DP = 10f
+        const val CORNER_DP = 10f
+
+        /** A tile's left edge inside the strip. */
+        fun leftPx(index: Int, density: Float): Float =
+            index * (TILE_DP + GAP_DP) * density
+
+        /** A tile's centre x inside the strip. */
+        fun centreXPx(index: Int, density: Float): Float =
+            leftPx(index, density) + TILE_DP * density / 2f
+
+        /** The strip's total content width for [count] tiles. */
+        fun contentWPx(count: Int, density: Float): Float =
+            if (count <= 0) 0f
+            else count * TILE_DP * density + (count - 1) * GAP_DP * density
+    }
+
+    // ── Full-width action rows (Path attach / detach) ──────────────
+
+    object ActionRow {
+        const val H_DP = 44f
+
+        /** The label's inset from the row's left edge. */
+        const val PAD_H_DP = 14f
+    }
+
+    // ── Simple label/value rows (Path: "Layer" + the layer's name) ──
+
+    object LabelRow {
+        const val H_DP = 40f
+
+        /** The label column's width (the old PathTab's 88 dp). */
+        const val LABEL_W_DP = 88f
+    }
+}
