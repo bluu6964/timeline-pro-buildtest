@@ -1033,6 +1033,13 @@ struct FxShaderRef {
 FxShaderRef fxShaderOf(int type);
 // true when the effect would not change the picture at all (default / neutral values): the pass is skipped.
 bool fxIsIdentity(const FxOp& op);
+// Build 263 (media effect spill): the per-side pad, in picture pixels, that a media layer's
+// effect pass renders around the picture so blur / glow / shake can spread past the picture's
+// edge — the same stated rule the overlay (shape / text) path uses in OverlayFx.regionOf:
+// half the picture's larger side, clamped to [48, 480] px. 0 when the chain holds no
+// non-identity effect (nothing can spread, so nothing is padded). The fx system exposes no
+// per-effect extent, so the pad does not depend on WHICH effects are in the chain.
+int fxSpillPadPx(int w, int h, const FxOp* ops, int nOps);
 // CPU reference of the Levels effect (one channel, 0..1, sRGB values): input black / white (0..255), gamma (%), output black / white (0..255).
 float fxLevelsMap(float v, float inBlack, float inWhite, float gammaPct, float outBlack, float outWhite);
 // CPU reference of the Brightness & Contrast curve (one channel, 0..1): brightness / contrast -100..100.

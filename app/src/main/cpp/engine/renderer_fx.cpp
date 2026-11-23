@@ -307,6 +307,16 @@ bool Renderer::applyFx(const LayerDraw& d, const LayerFx& fx, LayerDraw* out) {
     const float cch = std::fmin(1.f, std::fmax(0.01f, d.cropH));
     const int W = std::max(1, (int)std::lround((double)d.contentW * ccw));
     const int H = std::max(1, (int)std::lround((double)d.contentH * cch));
+    // Build 263 (media effect spill): with spill set (and no picture-aligned mask pass in
+    // play), the whole pass — source copy, effects, layer masks — runs on a target padded
+    // by fxSpillPadPx on every side, so the effects spread past the picture's edge exactly
+    // like the overlay (shape / text) path's padded region. pad == 0 keeps the historical
+    // path byte-identical.
+    const int pad = (fx.spill && !fx.faceMask && !fx.cutMask && !fx.bgAligned)
+                        ? fxSpillPadPx(W, H, fx.ops, fx.nOps)
+                        : 0;
+    const int W2 = W + 2 * pad;
+    const int H2 = H + 2 * pad;
     int lw = 0, lh = 0;
     if (fx.faceMask) {
         const float s = std::fmin(1.f, std::fmax(0.f, fx.faceStrength));
@@ -314,7 +324,7 @@ bool Renderer::applyFx(const LayerDraw& d, const LayerFx& fx, LayerDraw* out) {
         lw = std::max(16, std::min(lw, W));
         lh = std::max(16, (int)std::lround((double)lw * H / (double)W));
     }
-    if (!ensureFxTargets(W, H, lw, lh)) return false;
+    if (!ensureFxTargets(W2, H2, lw, lh)) return false;
 
     // The frame clip (the canvas scissor beginFrame keeps on) must not cut the effects' own
     // rendering: the targets here are the size of the layer's picture, which can be larger than
@@ -358,16 +368,24 @@ bool Renderer::applyFx(const LayerDraw& d, const LayerFx& fx, LayerDraw* out) {
     // would otherwise clear and sample the same texture, erasing the picture).
     const int start = fxFirstTarget(d.texture, fxTex_[0]);
     glBindFramebuffer(GL_FRAMEBUFFER, fxFbo_[start]);
-    glViewport(0, 0, W, H);
+    glViewport(0, 0, W2, H2);
     glClearColor(0.f, 0.f, 0.f, 0.f);
     glClear(GL_COLOR_BUFFER_BIT);
     {
         const int sw = w_, sh = h_;
-        w_ = W;  // drawLayer fits the picture into the canvas: here canvas == picture, scale 1
-        h_ = H;
+        w_ = W2;  // drawLayer fits the picture into the canvas: here canvas == (padded) picture, scale 1
+        h_ = H2;
         LayerDraw n = d;
         n.offsetX = n.offsetY = 0.f;
         n.scaleX = n.scaleY = 1.f;
+        if (pad > 0) {
+            // Keep the picture at 1 px = 1 px, centred in the padded target: undo the
+            // fit drawLayer would apply to the bigger "canvas" (the same fit layerModelFor
+            // computes: min over the two axes of canvas / cropped-content size).
+            const double fit = std::fmin((double)W2 / ((double)d.contentW * ccw),
+                                         (double)H2 / ((double)d.contentH * cch));
+            if (fit > 0.0) n.scaleX = n.scaleY = (float)(1.0 / fit);
+        }
         n.rotationDeg = 0.f;
         n.opacity = 1.f;
         n.cropX = d.cropX;  // the part of the picture the effects run on (whole picture = 0, 0, 1, 1)
@@ -441,8 +459,24 @@ bool Renderer::applyFx(const LayerDraw& d, const LayerFx& fx, LayerDraw* out) {
         cur = dst;
     }
 
-    if (fx.nOps > 0) runEffects(fx, W, H, &cur);
-    if (fx.nMasks > 0 && !runMasks(fx, W, H, &cur)) LOGE("masks skipped (shader or target failed)");
+    if (fx.nOps > 0) runEffects(fx, W2, H2, &cur);
+    if (fx.nMasks > 0) {
+        bool masksOk;
+        if (pad > 0) {
+            // Mask geometry is in picture pixels: shift it into the padded frame
+            // (centres and path points move by the pad; sizes are extents, unchanged).
+            LayerFx fxm = fx;
+            for (int k = 0; k < fxm.nMasks; ++k) {
+                fxm.masks[k].cx += (float)pad;
+                fxm.masks[k].cy += (float)pad;
+                for (int q = 0; q < fxm.masks[k].nPts * 2; ++q) fxm.masks[k].pts[q] += (float)pad;
+            }
+            masksOk = runMasks(fxm, W2, H2, &cur);
+        } else {
+            masksOk = runMasks(fx, W, H, &cur);
+        }
+        if (!masksOk) LOGE("masks skipped (shader or target failed)");
+    }
 
     // back to what the caller had
     glActiveTexture(GL_TEXTURE0);
@@ -459,6 +493,8 @@ bool Renderer::applyFx(const LayerDraw& d, const LayerFx& fx, LayerDraw* out) {
     out->oes = false;
     for (int i = 0; i < 16; ++i) out->texMatrix[i] = (i % 5 == 0) ? 1.f : 0.f;  // identity
     out->contentRotation = 0;  // the picture is already upright
+    out->contentW = W2;  // the texture's content: the crop window, padded when spill padded it
+    out->contentH = H2;
     return true;
 }
 

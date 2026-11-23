@@ -251,7 +251,7 @@ JNIEXPORT jint JNICALL Java_com_example_engine_RendererNative_nativeLoadMask(JNI
 JNIEXPORT jint JNICALL Java_com_example_engine_RendererNative_nativeApplyFx(
     JNIEnv* env, jclass, jlong p, jint tex, jboolean oes, jfloatArray params, jint faceMask, jfloat faceStrength,
     jint cutMask, jboolean flatten, jfloatArray canvas, jfloatArray ops, jint grainFrame, jfloatArray masks,
-    jboolean bgAligned) {
+    jboolean bgAligned, jboolean spill, jfloatArray geomOut) {
     jfloat v[46] = {0};
     const jsize len = env->GetArrayLength(params);
     env->GetFloatArrayRegion(params, 0, len < 46 ? len : 46, v);
@@ -275,6 +275,7 @@ JNIEXPORT jint JNICALL Java_com_example_engine_RendererNative_nativeApplyFx(
     fx.cutMask = (uint32_t)cutMask;
     fx.flatten = flatten == JNI_TRUE;
     fx.bgAligned = bgAligned == JNI_TRUE;
+    fx.spill = spill == JNI_TRUE;  // build 263: media effect spill (see Renderer::applyFx)
     if (canvas && env->GetArrayLength(canvas) >= 3) env->GetFloatArrayRegion(canvas, 0, 3, fx.canvasRgb);
     // The layer's effects (Effects panel): groups of am::kFxStride floats = type + 5 parameters.
     if (ops) {
@@ -297,6 +298,12 @@ JNIEXPORT jint JNICALL Java_com_example_engine_RendererNative_nativeApplyFx(
     }
     am::LayerDraw out;
     if (!R(p)->applyFx(d, fx, &out)) return 0;
+    // Build 263: the result texture's content size (the crop window, padded when the
+    // spill pass padded it) — the caller compensates the layer's placement from it.
+    if (geomOut && env->GetArrayLength(geomOut) >= 2) {
+        jfloat g[2] = {(float)out.contentW, (float)out.contentH};
+        env->SetFloatArrayRegion(geomOut, 0, 2, g);
+    }
     return (jint)out.texture;
 }
 

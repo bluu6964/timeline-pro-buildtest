@@ -57,6 +57,12 @@ struct LayerFx {
     float canvasRgb[3] = {0, 0, 0};
     // The picture sits at the same place as on the canvas (text / shape / sticker pictures): Copy Background may read the backdrop.
     bool bgAligned = false;
+    // Build 263 (media effect spill): the pass renders into a region padded by fxSpillPadPx so
+    // effects can spread past the picture's edge (media layers opt in; the result's content
+    // size in `out` is the padded size and the caller compensates the placement). Never
+    // combined with the face / cutout passes (their mask textures are picture-aligned) or
+    // with bgAligned (Copy Background reads the canvas-aligned backdrop).
+    bool spill = false;
     // The effects of the layer (Effects panel), run in list order AFTER face blur / cutout.
     FxOp ops[kFxMaxOps];
     int nOps = 0;

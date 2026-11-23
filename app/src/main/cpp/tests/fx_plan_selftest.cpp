@@ -2533,6 +2533,21 @@ int main() {
         id172.p[6] = 0.f;
         CHECK(fxIsIdentity(id172), "gradientoverlay alpha 0 is identity");
     }
+    {
+        // Build 263: the media-spill pad rule — 0 for an empty / identity-only chain,
+        // else half the larger side clamped to [48, 480].
+        FxOp none[1];
+        CHECK(fxSpillPadPx(800, 600, none, 0) == 0, "spill pad: no ops -> 0");
+        FxOp idOp{}; idOp.type = FX_EXPOSURE; idOp.p[2] = 100.f;  // neutral exposure
+        CHECK(fxIsIdentity(idOp) && fxSpillPadPx(800, 600, &idOp, 1) == 0, "spill pad: identity-only -> 0");
+        FxOp blur{}; blur.type = FX_DIR_BLUR; blur.p[1] = 40.f;   // strength 40: not identity
+        CHECK(!fxIsIdentity(blur), "dir blur strength 40 is not identity");
+        CHECK(fxSpillPadPx(800, 600, &blur, 1) == 400, "spill pad: half of 800");
+        CHECK(fxSpillPadPx(60, 40, &blur, 1) == 48, "spill pad: floor 48");
+        CHECK(fxSpillPadPx(4000, 2000, &blur, 1) == 480, "spill pad: cap 480");
+        FxOp chain[2] = {idOp, blur};
+        CHECK(fxSpillPadPx(300, 900, chain, 2) == 450, "spill pad: one live op is enough, larger side wins");
+    }
     printf("%d checks, %d failed\n", checks, fails);
     return fails ? 1 : 0;
 }

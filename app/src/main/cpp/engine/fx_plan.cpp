@@ -697,6 +697,18 @@ bool fxIsIdentity(const FxOp& o) {
     }
 }
 
+int fxSpillPadPx(int w, int h, const FxOp* ops, int nOps) {
+    bool any = false;
+    for (int i = 0; i < nOps; ++i)
+        if (!fxIsIdentity(ops[i])) { any = true; break; }
+    if (!any) return 0;
+    const int m = w > h ? w : h;
+    int pad = m / 2;
+    if (pad < 48) pad = 48;
+    if (pad > 480) pad = 480;
+    return pad;
+}
+
 float fxLevelsMap(float v, float inBlack, float inWhite, float gammaPct, float outBlack, float outWhite) {
     const float ib = std::min(254.f, std::max(0.f, inBlack)) / 255.f;
     const float iw = std::min(255.f, std::max(ib * 255.f + 1.f, inWhite)) / 255.f;

@@ -36,7 +36,8 @@ internal object RendererNative {
     @JvmStatic external fun nativeApplyFx(
         r: Long, tex: Int, oes: Boolean, params: FloatArray,
         faceMask: Int, faceStrength: Float, cutMask: Int, flatten: Boolean, canvas: FloatArray,
-        fxOps: FloatArray?, grainFrame: Int, maskOps: FloatArray?, bgAligned: Boolean
+        fxOps: FloatArray?, grainFrame: Int, maskOps: FloatArray?, bgAligned: Boolean,
+        spill: Boolean, geomOut: FloatArray?
     ): Int
     @JvmStatic external fun nativeApplyTexMask(
         r: Long, tex: Int, oes: Boolean, params: FloatArray, maskTex: Int, subtract: Boolean
@@ -45,6 +46,45 @@ internal object RendererNative {
 
 /** Texture matrix of a texture that is already upright (what [NativeRenderer.applyFx] returns). */
 val IDENTITY_TEX_MATRIX = floatArrayOf(1f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 1f)
+
+/**
+ * Build 263 (media effect spill): the draw parameters for an [NativeRenderer.applyFxSpill]
+ * result. The result texture holds the layer's visible (post-crop) window plus the pad
+ * ring, so it is drawn WHOLE (crop 0,0,1,1 over the padded size) with the scale adjusted
+ * by the ratio of the two fit factors — the renderer's fit (min over the axes of
+ * canvas / content) of the original window vs of the padded picture — which lands the
+ * original window at exactly its unspilled size and position while the ring extends
+ * past the layer's rect. The pad is symmetric, so offsets / pivots / bases are
+ * untouched. Null = the geometry is degenerate (the caller falls back to the plain
+ * draw). [base] must not be corner-pinned (the pin path never spills).
+ */
+internal fun spillDrawParams(
+    base: LayerParams, picW: Int, picH: Int, paddedW: Int, paddedH: Int,
+    canvasW: Int, canvasH: Int
+): LayerParams? {
+    if (picW <= 0 || picH <= 0 || paddedW <= 0 || paddedH <= 0 || canvasW <= 0 || canvasH <= 0) return null
+    val ccw = base.cropW.coerceIn(0.01f, 1f)
+    val cch = base.cropH.coerceIn(0.01f, 1f)
+    val winW = ccw * picW
+    val winH = cch * picH
+    if (winW <= 0f || winH <= 0f) return null
+    val fitO = minOf(canvasW / winW, canvasH / winH)
+    val fitN = minOf(canvasW / paddedW.toFloat(), canvasH / paddedH.toFloat())
+    if (fitO <= 0f || fitN <= 0f) return null
+    val k = fitO / fitN
+    return LayerParams().also { q ->
+        q.offsetX = base.offsetX; q.offsetY = base.offsetY
+        q.scaleX = base.scaleX * k; q.scaleY = base.scaleY * k
+        q.rotationDeg = base.rotationDeg
+        q.opacity = base.opacity
+        q.cropX = 0f; q.cropY = 0f; q.cropW = 1f; q.cropH = 1f
+        q.rotX = base.rotX; q.rotY = base.rotY
+        q.pivotX = base.pivotX; q.pivotY = base.pivotY
+        q.baseX = base.baseX; q.baseY = base.baseY
+        q.perspD = base.perspD
+        q.gain = base.gain
+    }
+}
 
 /** One thread that owns the OpenGL context. Create the renderer and use it ONLY through [call] / [post]. */
 class GlThread(name: String = "am-gl") : AutoCloseable {
@@ -270,7 +310,38 @@ class NativeRenderer private constructor(private var ptr: Long) : AutoCloseable 
         }
         fillParams(texMatrix, contentW, contentH, contentRotation, lp)
         return RendererNative.nativeApplyFx(
-            ptr, tex, external, params, faceMask, faceStrength, cutMask, flatten, canvasRgb, fxOps, grainFrame, maskOps, backdrop
+            ptr, tex, external, params, faceMask, faceStrength, cutMask, flatten, canvasRgb, fxOps, grainFrame, maskOps, backdrop,
+            false, null
+        )
+    }
+
+    /**
+     * Build 263 (media effect spill): like [applyFx], but the effect pass renders into a
+     * region padded around the (cropped) picture — pass the layer's crop in [crop] — so
+     * blur / glow / shake spread past the picture's edge instead of clipping at it, the
+     * way shape layers already spill. On success [geomOut] receives the result texture's
+     * content size (the crop window, plus the pad ring when one was applied); draw the
+     * texture with [spillDrawParams] and that size. The pad is 0 — and the result is the
+     * plain crop window — when the chain holds no non-identity effect, and the native
+     * side also refuses to pad when a face / cutout mask is in play (the engines keep
+     * those on [applyFx]). 0 = failed (the caller falls back to [applyFx]).
+     */
+    fun applyFxSpill(
+        tex: Int, external: Boolean, texMatrix: FloatArray,
+        contentW: Int, contentH: Int, contentRotation: Int,
+        canvasRgb: FloatArray,
+        fxOps: FloatArray? = null, grainFrame: Int = 0, maskOps: FloatArray? = null,
+        crop: FloatArray? = null,
+        geomOut: FloatArray
+    ): Int {
+        val lp = LayerParams()
+        if (crop != null && crop.size >= 4) {
+            lp.cropX = crop[0]; lp.cropY = crop[1]; lp.cropW = crop[2]; lp.cropH = crop[3]
+        }
+        fillParams(texMatrix, contentW, contentH, contentRotation, lp)
+        return RendererNative.nativeApplyFx(
+            ptr, tex, external, params, 0, 0f, 0, false, canvasRgb, fxOps, grainFrame, maskOps, false,
+            true, geomOut
         )
     }
 

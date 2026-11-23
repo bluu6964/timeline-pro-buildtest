@@ -632,8 +632,8 @@ class NativeProjectExporter(private val context: Context) {
                             // own picture for a layer mask (below): inside the capture the draws are
                             // plain, the blend is applied when the cut picture is composited.
                             var effBlendId = blendId
-                            fun drawTex(tex: Int, oes: Boolean, mat: FloatArray, cw: Int, ch: Int, rot: Int) {
-                                for (pp in repeatDrawParams(p, clip, timeMs, if (previewW > 0f) w / previewW else 1f)) {
+                            fun drawTex(tex: Int, oes: Boolean, mat: FloatArray, cw: Int, ch: Int, rot: Int, base: LayerParams = p) {
+                                for (pp in repeatDrawParams(base, clip, timeMs, if (previewW > 0f) w / previewW else 1f)) {
                                     if (effBlendId == 0) renderer.drawLayer(tex, oes, mat, cw, ch, rot, pp)
                                     else renderer.drawLayerBlended(tex, oes, mat, cw, ch, rot, pp, effBlendId, canvasRgb)
                                 }
@@ -649,12 +649,38 @@ class NativeProjectExporter(private val context: Context) {
                                 val imgOps = fxOpsOf(clip, timeMs)
                                 val imgMasks = ClipMaskLibrary.toNative(clip.masks, timeMs - clip.startMs, CutoutMasks.sourceMs(clip, timeMs))
                                 if (imgOps != null || imgMasks != null) {
-                                    val fxTex = renderer.applyFx(
-                                        img.textureId, false, FLIP_V, img.width, img.height, 0,
-                                        0, 0f, 0, false, canvasRgb, imgOps, ClipFxLibrary.grainFrame(timeMs), imgMasks
-                                    )
+                                    // Build 263: effects spill past the photo's edge, same
+                                    // rule as the preview (spill pass on the visible crop
+                                    // window; masks keep the plain path unless uncropped;
+                                    // corner-pinned layers keep the plain path).
+                                    val uncropped = p.cropX == 0f && p.cropY == 0f && p.cropW == 1f && p.cropH == 1f
+                                    var fxTex = 0
+                                    var fxBase: LayerParams? = null
+                                    var fxW = img.width
+                                    var fxH = img.height
+                                    if (p.pin == null && (imgMasks == null || uncropped)) {
+                                        val geom = FloatArray(2)
+                                        val t = renderer.applyFxSpill(
+                                            img.textureId, false, FLIP_V, img.width, img.height, 0, canvasRgb,
+                                            imgOps, ClipFxLibrary.grainFrame(timeMs), imgMasks,
+                                            crop = floatArrayOf(p.cropX, p.cropY, p.cropW, p.cropH), geomOut = geom
+                                        )
+                                        val adj = if (t != 0) {
+                                            spillDrawParams(p, img.width, img.height, geom[0].toInt(), geom[1].toInt(), w, h)
+                                        } else null
+                                        if (t != 0 && adj != null) {
+                                            fxTex = t; fxBase = adj; fxW = geom[0].toInt(); fxH = geom[1].toInt()
+                                        }
+                                    }
+                                    if (fxTex == 0) {
+                                        fxTex = renderer.applyFx(
+                                            img.textureId, false, FLIP_V, img.width, img.height, 0,
+                                            0, 0f, 0, false, canvasRgb, imgOps, ClipFxLibrary.grainFrame(timeMs), imgMasks
+                                        )
+                                    }
                                     if (fxTex == 0) error("Native effects / masks failed on '${clip.name}'.")
-                                    drawTex(fxTex, false, IDENTITY_TEX_MATRIX, img.width, img.height, 0)
+                                    if (fxBase != null) drawTex(fxTex, false, IDENTITY_TEX_MATRIX, fxW, fxH, 0, fxBase)
+                                    else drawTex(fxTex, false, IDENTITY_TEX_MATRIX, img.width, img.height, 0)
                                     return true
                                 }
                                 drawTex(img.textureId, false, FLIP_V, img.width, img.height, 0)
@@ -707,15 +733,40 @@ class NativeProjectExporter(private val context: Context) {
                             val fxOps = fxOpsOf(clip, timeMs)
                             val maskOps = ClipMaskLibrary.toNative(clip.masks, timeMs - clip.startMs, CutoutMasks.sourceMs(clip, timeMs))
                             if (faceMask != 0 || cutMask != 0 || fxOps != null || maskOps != null) {
-                                val fxTex = renderer.applyFx(
-                                    src.textureId, true, src.texMatrix,
-                                    src.contentWidth, src.contentHeight, src.drawRotation,
-                                    faceMask, clip.faceBlurStrength, cutMask,
-                                    flatten = clip === visuals.first() && depth == 0, canvasRgb = canvasRgb,
-                                    fxOps = fxOps, grainFrame = ClipFxLibrary.grainFrame(timeMs), maskOps = maskOps
-                                )
+                                // Build 263: same spill as the preview — effects / masks
+                                // spill; face blur / cutout keep the plain path.
+                                var fxTex = 0
+                                var fxBase: LayerParams? = null
+                                var fxW = src.contentWidth
+                                var fxH = src.contentHeight
+                                val uncropped = p.cropX == 0f && p.cropY == 0f && p.cropW == 1f && p.cropH == 1f
+                                if (faceMask == 0 && cutMask == 0 && p.pin == null && (maskOps == null || uncropped)) {
+                                    val geom = FloatArray(2)
+                                    val t = renderer.applyFxSpill(
+                                        src.textureId, true, src.texMatrix,
+                                        src.contentWidth, src.contentHeight, src.drawRotation,
+                                        canvasRgb, fxOps, ClipFxLibrary.grainFrame(timeMs), maskOps,
+                                        crop = floatArrayOf(p.cropX, p.cropY, p.cropW, p.cropH), geomOut = geom
+                                    )
+                                    val adj = if (t != 0) {
+                                        spillDrawParams(p, src.contentWidth, src.contentHeight, geom[0].toInt(), geom[1].toInt(), w, h)
+                                    } else null
+                                    if (t != 0 && adj != null) {
+                                        fxTex = t; fxBase = adj; fxW = geom[0].toInt(); fxH = geom[1].toInt()
+                                    }
+                                }
+                                if (fxTex == 0) {
+                                    fxTex = renderer.applyFx(
+                                        src.textureId, true, src.texMatrix,
+                                        src.contentWidth, src.contentHeight, src.drawRotation,
+                                        faceMask, clip.faceBlurStrength, cutMask,
+                                        flatten = clip === visuals.first() && depth == 0, canvasRgb = canvasRgb,
+                                        fxOps = fxOps, grainFrame = ClipFxLibrary.grainFrame(timeMs), maskOps = maskOps
+                                    )
+                                }
                                 if (fxTex == 0) error("Native face blur / cutout / effects / masks failed on '${clip.name}'.")
-                                drawTex(fxTex, false, IDENTITY_TEX_MATRIX, src.contentWidth, src.contentHeight, 0)
+                                if (fxBase != null) drawTex(fxTex, false, IDENTITY_TEX_MATRIX, fxW, fxH, 0, fxBase)
+                                else drawTex(fxTex, false, IDENTITY_TEX_MATRIX, src.contentWidth, src.contentHeight, 0)
                                 RemoveRuntime.draw(renderer, removePatches, clip, p, timeMs, w, h, effBlendId, canvasRgb)
                                 return true
                             }
