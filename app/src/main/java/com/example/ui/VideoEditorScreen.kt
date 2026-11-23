@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -42,7 +43,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
-import com.example.ui.components.TextEditScreen
+import com.example.ui.components.TextEditPanel
 import com.example.ui.components.swipeDownToDismiss
 import com.example.ui.util.amChromeSpec
 import com.example.ui.util.enterPop
@@ -58,6 +59,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import android.content.Intent
 import android.graphics.Bitmap
 import com.example.engine.MediaImporter
@@ -132,6 +134,8 @@ import com.example.model.ScopeData
 import com.example.model.ScopeStats
 import com.example.model.TimelineTrack
 import com.example.model.at
+import com.example.model.withClipAnim
+import com.example.model.withoutClipAnim
 import com.example.model.depthFactor
 import com.example.model.isBehindCamera
 import com.example.model.isPathBearing
@@ -2251,6 +2255,10 @@ fun VideoEditorScreen(
     }
     // Text edit: id of the text layer that is being edited (null = closed).
     var editingTextId by remember { mutableStateOf<String?>(null) }
+    // Build 268: the Text panel's remembered height (dp) for this
+    // editor session — where the user's last head-drag released it.
+    // Null = never dragged (the panel opens at its default height).
+    var textPanelHeightDp by remember { mutableStateOf<Float?>(null) }
     // Color (fill) editor: id of the shape / text layer whose fill is being edited (null = closed).
     var editingColorId by remember { mutableStateOf<String?>(null) }
     // Blending editor (opacity + blend mode): id of the layer being edited (null = closed).
@@ -4195,21 +4203,32 @@ fun VideoEditorScreen(
             }
 
             // ---- Text edit -------------------------------------------------------------------
-            // Build 266: the Text editor is its own full-screen GL
-            // screen (TextEditScreen) — preview on top, the hosted
-            // typing field under it, one flat list of controls.
+            // Build 268: the Text editor is a draggable BOTTOM PANEL
+            // (TextEditPanel) over the lower zone — the canvas above
+            // stays visible and live (it is the preview now), the
+            // panel's head drags to a free height that stays where it
+            // is released, remembered in [textPanelHeightDp] for the
+            // session. Its height is clamped to panelH (the lower
+            // zone under the play controls), so canvasH's build-260
+            // invariance holds exactly as for the other panels.
             val editingText = editingTextId?.let { id -> tracks.flatMap { it.clips }.find { it.id == id } }
             LaunchedEffect(editingText == null, editingTextId) {
                 if (editingText == null && editingTextId != null) editingTextId = null
             }
             if (editingText != null && eyedropperCallback == null) {
-                // The screen hides while an eyedropper pick is armed:
+                // The panel hides while an eyedropper pick is armed:
                 // the eyedropper overlay below (this window, zIndex
-                // 32) and the canvas take the tap, and the screen
-                // returns when the pick resolves and clears the
-                // callback. Back and Done both close the screen —
-                // changes apply live, exactly as the old sheet's did.
-                TextEditScreen(
+                // 32) and the canvas take the tap, and the panel
+                // returns at its remembered height when the pick
+                // resolves and clears the callback. Back and Done
+                // both close the panel — changes apply live, exactly
+                // as the old sheet's did, and the layer stays
+                // selected (closing only clears editingTextId).
+                val textDensity = LocalDensity.current
+                val textImeBottomDp = with(textDensity) {
+                    WindowInsets.ime.getBottom(textDensity).toDp()
+                }
+                TextEditPanel(
                     clip = editingText,
                     pathLayers = tracks.flatMap { it.clips }.filter { it.isPathBearing && it.id != editingText.id },
                     onUpdate = { change -> viewModel.updateClip(editingText.id, change) },
@@ -4218,7 +4237,50 @@ fun VideoEditorScreen(
                         eyedropperCallback = null
                         editingTextId = null
                     },
-                    modifier = Modifier.zIndex(30f)
+                    heightDp = textPanelHeightDp,
+                    onHeightChange = { textPanelHeightDp = it },
+                    availableHeightDp = panelH.value,
+                    imeBottomDp = textImeBottomDp.value,
+                    onAnimApply = { slot, preset ->
+                        // The Animations tool's own action and canvas
+                        // units. setClipAnim targets the SELECTED
+                        // layer — in every entry flow the edited text
+                        // layer is the selected one; if that ever
+                        // stops being true, apply through updateClip
+                        // to the edited layer instead of risking the
+                        // wrong layer.
+                        val animW = if (previewFrameWidthPx > 1f) previewFrameWidthPx else 1000f
+                        val animH = animW / selectedAspectRatio.ratioFloat.coerceAtLeast(0.1f)
+                        val dir = preset?.defaultDir() ?: com.example.model.AnimDir.LEFT
+                        val ms = preset?.defaultMs ?: 500L
+                        if (selectedClipId == editingText.id) {
+                            viewModel.setClipAnim(slot, preset, dir, ms, null, animW, animH)
+                        } else {
+                            viewModel.updateClip(editingText.id) { c ->
+                                if (preset == null) c.withoutClipAnim(slot)
+                                else c.withClipAnim(slot, preset, dir, ms, null, animW, animH)
+                            }
+                        }
+                    },
+                    onAnimPreview = { slot, ms ->
+                        animPreviewJob?.cancel()
+                        animPreviewJob = scope.launch {
+                            val c = editingText
+                            val from = if (slot == com.example.model.AnimSlot.IN) c.startMs
+                                else (c.endMs - ms - 300L).coerceAtLeast(c.startMs)
+                            val until = if (slot == com.example.model.AnimSlot.IN) (c.startMs + ms + 400L).coerceAtMost(c.endMs - 1L)
+                                else c.endMs - 1L
+                            viewModel.pause()
+                            viewModel.seekTo(from)
+                            viewModel.play()
+                            kotlinx.coroutines.delay((until - from).coerceAtLeast(50L))
+                            viewModel.pause()
+                        }
+                    },
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = textImeBottomDp)
+                        .zIndex(30f)
                 )
             }
 

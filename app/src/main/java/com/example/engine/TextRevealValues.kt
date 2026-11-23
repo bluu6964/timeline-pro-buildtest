@@ -4,7 +4,7 @@ import com.example.model.AnimValue
 import com.example.model.TextAnimator
 
 /**
- * Value rules for the text editor's Reveal sliders ([com.example.ui.components.TextEditScreen],
+ * Value rules for the text editor's Reveal sliders ([com.example.ui.components.TextEditPanel],
  * Style tab) — the editor side of the Alight Motion `textprogress` animator (build 82 renders it).
  * Pure Kotlin, so the standalone harness can test it.
  *

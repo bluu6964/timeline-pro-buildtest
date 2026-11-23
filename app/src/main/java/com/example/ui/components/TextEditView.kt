@@ -8,8 +8,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -18,7 +20,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -27,7 +28,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Colorize
 import androidx.compose.material.icons.filled.FormatAlignCenter
 import androidx.compose.material.icons.filled.FormatAlignLeft
@@ -50,6 +50,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
@@ -60,12 +61,23 @@ import com.example.engine.TextRevealValues
 import com.example.engine.UiLabelAtlas
 import com.example.engine.UiLabelStyle
 import com.example.engine.rememberUiAtlas
+import com.example.model.AnimPreset
+import com.example.model.AnimPresets
+import com.example.model.AnimSlot
 import com.example.model.EditorGeometry
+import com.example.model.FILL_NONE
 import com.example.model.FILL_SOLID
 import com.example.model.LayerType
 import com.example.model.PanelGeometry
+import com.example.model.TEXT_BG_NONE
+import com.example.model.TEXT_BG_RECTANGLE
+import com.example.model.TEXT_BG_ROUNDED
 import com.example.model.TextEditGeometry
+import com.example.model.TextTemplates
 import com.example.model.TimelineClip
+import com.example.model.defaultTextLook
+import com.example.model.textBgCornerApplies
+import com.example.model.textBgShapeDef
 import com.example.ui.text.FontCatalog
 import com.example.ui.text.FontEntry
 import com.example.ui.text.FontRepository
@@ -84,38 +96,52 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 
 /**
- * Build 266 — the Text editor, redesigned (Sarowar's order: the whole
- * Text section UI changes, "simple and clean", and it moves to C++
- * like the rest of the app). The old build-213 sheet (a section
- * toolbar switching nine tab panels) is replaced by ONE calm
- * full-screen surface drawn by the C++ GL UI path (the stage-2…6
- * pattern: layout law in [TextEditGeometry], GL surfaces via
- * [NativeVectorCanvas] + the shared label atlas, Compose keeping
- * layout, touch boxes, semantics and state wiring):
+ * Build 268 — the Text editor as a DRAGGABLE BOTTOM PANEL (Sarowar's
+ * order, from his CapCut reference videos): the editor canvas stays
+ * visible and LIVE above (the text layer is selected on it; edits
+ * apply live as always), and the controls live in a bottom panel
+ * whose HEAD — grab pill + "Text" title + lime Done — drags
+ * vertically. The drag law is [TextEditGeometry.Panel]: the height
+ * follows the finger 1:1 and STAYS where it is released (no snap, no
+ * detent); the range is clamped to the editor's lower zone (the
+ * canvas's build-260 invariant height is never touched) and, while
+ * the keyboard is up, to the space above it. The released height is
+ * remembered by the host for the rest of the editor session.
  *
- *   top bar (back / "Text" / lime Done) → preview block (the text
- *   itself, large, in its real look) → the typing field → one flat
- *   scrolling list of full-width rows grouped Font / Style / Color /
- *   Alignment / Spacing / Stroke / Shadow / Background / Reveal /
- *   Path. Every control of the old sheet survives with its label and
- *   its value wiring (the audit map is in the build-266 report).
+ * The build-266 preview block is GONE: the canvas is the preview.
+ *
+ * Inside: the hosted typing field, the tab row — Templates / Fonts /
+ * Styles / Effects / Animations / Bubbles (the videos' structure) —
+ * and the active tab's content. Every control of the 266/267 screen
+ * survives in exactly one tab (the mapping is in the build-268
+ * report); the 267-fixed GL components and the LabelLine hug law are
+ * reused unchanged.
  *
  * Hosted islands, by platform law / proven limits only: the typing
- * field and the font search field (Android IME — text input never
- * moves), the preview block's and preset tiles' text (the app's
- * exact multi-style text painter [TextLayerContent] — the GL atlas
- * blits a single flat style and cannot reproduce stroke / shadow /
- * gradient / background-box text; the build-251 atlas limit), and
- * the colour picker dialog (already a hosted dialog app-wide).
- * Changes apply live, exactly as the old sheet's did — Back and Done
- * both simply leave the screen (no discard semantics existed).
+ * field and the font search field (Android IME), the template /
+ * effect cards' text (the app's exact multi-style painter
+ * [TextLayerContent] — the GL atlas blits one flat style and cannot
+ * reproduce stroke / shadow / gradient / background text), and the
+ * colour picker dialog (already hosted app-wide).
  */
 @Composable
-fun TextEditScreen(
+fun TextEditPanel(
     clip: TimelineClip,
     onUpdate: ((TimelineClip) -> TimelineClip) -> Unit,
     onEyedropper: ((Long) -> Unit) -> Unit,
     onClose: () -> Unit,
+    /** The session's remembered panel height in dp (null = first open). */
+    heightDp: Float?,
+    /** Stores the released height (dp) for the rest of the session. */
+    onHeightChange: (Float) -> Unit,
+    /** The lower zone's height in dp — the panel may never exceed it. */
+    availableHeightDp: Float,
+    /** The keyboard's height inside that zone in dp (0 = closed). */
+    imeBottomDp: Float,
+    /** Applies an animation preset through the Animations tool's own ViewModel action. */
+    onAnimApply: (slot: AnimSlot, preset: AnimPreset?) -> Unit,
+    /** Plays the applied animation of a slot, like the Animations tool does. */
+    onAnimPreview: (slot: AnimSlot, durationMs: Long) -> Unit,
     modifier: Modifier = Modifier,
     /** PATH-bearing shape layers of the project the text can attach to (build 191). */
     pathLayers: List<TimelineClip> = emptyList()
@@ -125,40 +151,468 @@ fun TextEditScreen(
         text = v
         onUpdate { it.copy(text = v, name = if (v.isBlank()) "Text" else "Text: ${v.take(24)}") }
     }
+    var tab by remember(clip.id) { mutableStateOf(TextTab.TEMPLATES) }
+
+    val density = LocalDensity.current.density
+    val pg = TextEditGeometry.Panel
+    val minPx = pg.minHeightPx(density)
+    val maxPx = pg.imeMaxHeightPx(availableHeightDp * density, imeBottomDp * density)
+    val restingPx = pg.clampHeightPx(
+        heightDp?.let { it * density }
+            ?: pg.defaultHeightPx(availableHeightDp * density, density),
+        minPx, maxPx
+    )
+    // The in-flight drag height: local so a drag move does not
+    // recompose the whole editor screen; committed to the host (the
+    // session memory) only on release — where it then stays.
+    var dragPx by remember(clip.id) { mutableStateOf<Float?>(null) }
+    val shownPx = dragPx?.let { pg.clampHeightPx(it, minPx, maxPx) } ?: restingPx
 
     Column(
         modifier = modifier
-            .fillMaxSize()
+            .fillMaxWidth()
+            .height((shownPx / density).dp)
             .background(AmBase)
-            .imePadding()
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = {}
             )
     ) {
-        TextTopBar(onBack = onClose, onDone = onClose)
-        Spacer(Modifier.height(TextEditGeometry.GAP_AFTER_BAR_DP.dp))
-        TextPreviewBlock(clip)
-        Spacer(Modifier.height(TextEditGeometry.GAP_AFTER_PREVIEW_DP.dp))
+        PanelHead(
+            onDone = onClose,
+            onDrag = { deltaY ->
+                dragPx = pg.draggedHeightPx(dragPx ?: shownPx, deltaY, minPx, maxPx)
+            },
+            onDragEnd = {
+                dragPx?.let { onHeightChange(it / density) }
+                dragPx = null
+            }
+        )
         TextBoxField(
             text, onText,
             Modifier.padding(horizontal = TextEditGeometry.SCREEN_PAD_H_DP.dp)
         )
-        Spacer(Modifier.height(TextEditGeometry.GAP_AFTER_FIELD_DP.dp))
-        Column(
+        Spacer(Modifier.height(6.dp))
+        TextTabRow(tab) { tab = it }
+        Box(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = TextEditGeometry.SCREEN_PAD_H_DP.dp)
         ) {
-            TextGroup("Font", first = true) {
-                FontSection(clip, onUpdate)
+            when (tab) {
+                TextTab.TEMPLATES -> TemplatesTab(clip, onUpdate)
+                TextTab.FONTS -> FontsTab(clip, onUpdate)
+                TextTab.STYLES -> StylesTab(clip, onUpdate, onEyedropper, pathLayers)
+                TextTab.EFFECTS -> EffectsTab(clip, onUpdate)
+                TextTab.ANIMATIONS -> AnimationsTab(clip, onUpdate, onAnimApply, onAnimPreview)
+                TextTab.BUBBLES -> BubblesTab(clip, onUpdate, onEyedropper)
             }
-            TextGroup("Style") {
-                GlPresetStrip(clip, onUpdate)
-                Spacer(Modifier.height(10.dp))
+        }
+    }
+}
+
+// ── Panel chrome: the draggable head + the tab row ────────────────
+
+private enum class TextTab(val label: String) {
+    TEMPLATES("Templates"), FONTS("Fonts"), STYLES("Styles"),
+    EFFECTS("Effects"), ANIMATIONS("Animations"), BUBBLES("Bubbles")
+}
+
+/**
+ * The panel's head: the grab pill on top, then "Text" + the lime
+ * Done. The WHOLE strip is the drag surface (a tap on Done still
+ * lands — the vertical-drag detector only takes over once the
+ * finger actually moves vertically).
+ */
+@Composable
+private fun PanelHead(
+    onDone: () -> Unit,
+    onDrag: (Float) -> Unit,
+    onDragEnd: () -> Unit
+) {
+    val g = TextEditGeometry.Panel
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(g.HEAD_H_DP.dp)
+            .pointerInput(Unit) {
+                detectVerticalDragGestures(
+                    onDragEnd = { onDragEnd() },
+                    onDragCancel = { onDragEnd() }
+                ) { change, dragAmount ->
+                    change.consume()
+                    onDrag(dragAmount)
+                }
+            }
+    ) {
+        NativeVectorCanvas(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 6.dp)
+                .width(g.GRAB_W_DP.dp)
+                .height(g.GRAB_H_DP.dp),
+            clearArgb = 0,
+            drawKey = g,
+            buildCmds = { w, h, _ ->
+                addRoundRect(w / 2f, h / 2f, w, h, h / 2f, TxtDimArgb)
+            }
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(
+                    start = TextEditGeometry.SCREEN_PAD_H_DP.dp,
+                    end = TextEditGeometry.SCREEN_PAD_H_DP.dp,
+                    top = 10.dp
+                ),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            GlLabelLine("Text", UiLabelStyle.HEADER_NAME, TxtWhiteArgb)
+            Spacer(Modifier.weight(1f))
+            GlVioletPill(label = "Done", onClick = onDone, tag = "text_edit_done")
+        }
+    }
+}
+
+/** The tab row: six hug pills on one scrolling GL strip. */
+@Composable
+private fun TextTabRow(selected: TextTab, onSelect: (TextTab) -> Unit) {
+    GlPillStrip(
+        items = TextTab.values().map { t ->
+            GlPillItem(label = t.label, selected = t == selected) { onSelect(t) }
+        },
+        labelStyle = { sel -> if (sel) UiLabelStyle.TEXT_13_BOLD else UiLabelStyle.TEXT_13_SEMI },
+        textArgb = { sel -> if (sel) TxtInkArgb else TxtWhiteArgb },
+        fillArgb = { sel -> if (sel) TxtAccentArgb else TxtSurfaceArgb },
+        borderArgb = { null },
+        padHDp = 14f,
+        padVDp = 8f,
+        gapDp = 6f,
+        minHDp = TextEditGeometry.Chips.H_DP,
+        scrollable = true,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = TextEditGeometry.SCREEN_PAD_H_DP.dp)
+    )
+}
+
+/** A tab's scrolling content column (the panel's own padding law). */
+@Composable
+private fun TabColumn(content: @Composable () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(
+                horizontal = TextEditGeometry.SCREEN_PAD_H_DP.dp,
+                vertical = 10.dp
+            )
+    ) {
+        content()
+        Spacer(Modifier.height(18.dp))
+    }
+}
+
+// ── Templates tab ──────────────────────────────────────────────────
+
+/**
+ * Templates: a 2-column grid of designed cards — the Default tile
+ * first (the app's plain default look), then the [TextTemplates]
+ * bundles. Each card renders the USER's actual text in the bundle's
+ * look (the hosted [TextLayerContent] painter); tapping applies the
+ * whole bundle through onUpdate, inside the session's one undo step.
+ */
+@Composable
+private fun TemplatesTab(
+    clip: TimelineClip,
+    onUpdate: ((TimelineClip) -> TimelineClip) -> Unit
+) {
+    TabColumn {
+        val cards: List<Pair<String, (TimelineClip) -> TimelineClip>> =
+            listOf("Default" to { c: TimelineClip -> defaultTextLook(c) }) +
+                TextTemplates.map { t -> t.name to { c: TimelineClip -> t.applyTo(c) } }
+        cards.chunked(2).forEach { rowCards ->
+            Row(horizontalArrangement = Arrangement.spacedBy(TextEditGeometry.Grid.GAP_DP.dp)) {
+                rowCards.forEach { (name, apply) ->
+                    TemplateCard(
+                        name = name,
+                        previewClip = apply(clip),
+                        modifier = Modifier.weight(1f)
+                    ) { onUpdate(apply) }
+                }
+                if (rowCards.size == 1) Spacer(Modifier.weight(1f))
+            }
+            Spacer(Modifier.height(TextEditGeometry.Grid.GAP_DP.dp))
+        }
+    }
+}
+
+@Composable
+private fun TemplateCard(
+    name: String,
+    previewClip: TimelineClip,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val scale = remember { Animatable(1f) }
+    BoxWithConstraints(
+        modifier = modifier
+            .height(96.dp)
+            .clip(RoundedCornerShape(12.dp))
+    ) {
+        NativeVectorCanvas(
+            modifier = Modifier.fillMaxSize(),
+            clearArgb = 0,
+            drawKey = listOf(scale.value),
+            buildCmds = { w, h, dd ->
+                setScaleAbout(w / 2f, h / 2f, scale.value)
+                addRoundRect(w / 2f, h / 2f, w, h, 12f * dd, TxtSurfaceArgb)
+                clearTransform()
+            }
+        )
+        TextLayerContent(
+            clip = previewClip,
+            frameWidth = maxWidth,
+            modifier = Modifier
+                .align(Alignment.Center)
+                .padding(horizontal = 8.dp, vertical = 6.dp)
+        )
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(start = 10.dp, bottom = 7.dp)
+        ) {
+            GlLabelLine(name, UiLabelStyle.TEXT_11_SEMI, TxtDimArgb)
+        }
+        ChromePressBox(
+            scale, 0.96f, onClick,
+            Modifier.fillMaxSize(),
+            description = name
+        )
+    }
+}
+
+// ── Fonts tab ──────────────────────────────────────────────────────
+
+/**
+ * Fonts: the weight pill row at the top, then the search field
+ * (hosted), Add font + import, the device-only note, and the font
+ * GRID — 3 columns, each tile the font's name in its own face
+ * (un-downloaded Google faces re-render on arrival, as the old
+ * strip's chips did). CapCut's category chips are its cloud
+ * catalogue and are not reproduced (no categories in our catalogue
+ * UI — the search field covers finding a face).
+ */
+@Composable
+private fun FontsTab(
+    clip: TimelineClip,
+    onUpdate: ((TimelineClip) -> TimelineClip) -> Unit
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var query by remember { mutableStateOf("") }
+    var userFonts by remember { mutableStateOf(FontRepository.userFonts(context)) }
+
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) scope.launch {
+            val name = FontRepository.importUserFont(context, uri)
+            if (name != null) {
+                userFonts = FontRepository.userFonts(context)
+                onUpdate { it.copy(fontFamily = name) }
+            }
+        }
+    }
+
+    val fonts = remember(query, userFonts) {
+        val all = userFonts.map { FontEntry(it, FontCatalog.USER_CATEGORY) } + FontCatalog.all
+        all.filter { query.isBlank() || it.name.contains(query.trim(), ignoreCase = true) }
+    }
+
+    TabColumn {
+        FontWeightRow(clip, onUpdate)
+        Spacer(Modifier.height(10.dp))
+        FontSearchField(query) { query = it }
+        Spacer(Modifier.height(8.dp))
+        GlTextChipButton("+ Add font") {
+            picker.launch(
+                arrayOf(
+                    "font/ttf", "font/otf", "font/sfnt",
+                    "application/x-font-ttf", "application/x-font-otf",
+                    "application/octet-stream"
+                )
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        // Build 201 (audit S-6): imported fonts live in this app's private
+        // storage on THIS device — say so where the user adds them.
+        GlNoteText("Fonts you add are stored on this device only — they don't travel with the project file.")
+        Spacer(Modifier.height(10.dp))
+        fonts.chunked(3).forEach { rowFonts ->
+            Row(horizontalArrangement = Arrangement.spacedBy(TextEditGeometry.Grid.GAP_DP.dp)) {
+                rowFonts.forEach { f ->
+                    FontGridTile(
+                        name = f.name,
+                        selected = clip.fontFamily == f.name,
+                        modifier = Modifier.weight(1f)
+                    ) { onUpdate { it.copy(fontFamily = f.name) } }
+                }
+                repeat(3 - rowFonts.size) { Spacer(Modifier.weight(1f)) }
+            }
+            Spacer(Modifier.height(TextEditGeometry.Grid.GAP_DP.dp))
+        }
+    }
+}
+
+/** The font weight pill row (the Fonts tab's top row). */
+@Composable
+private fun FontWeightRow(
+    clip: TimelineClip,
+    onUpdate: ((TimelineClip) -> TimelineClip) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        GlLabelLine("Font weight", UiLabelStyle.TEXT_13_MED, TxtWhiteArgb)
+        Spacer(Modifier.width(TextEditGeometry.Chips.LABEL_GAP_DP.dp))
+        GlPillStrip(
+            items = listOf(200, 400, 500, 600, 700, 800, 900).map { w ->
+                GlPillItem(
+                    label = "$w",
+                    selected = clip.fontWeight == w,
+                    onClick = { onUpdate { it.copy(fontWeight = w) } }
+                )
+            },
+            labelStyle = { UiLabelStyle.TEXT_13_BOLD },
+            textArgb = { sel -> if (sel) TxtInkArgb else TxtWhiteArgb },
+            fillArgb = { sel -> if (sel) TxtAccentArgb else TxtSurfaceArgb },
+            borderArgb = { null },
+            padHDp = 14f,
+            padVDp = 8f,
+            gapDp = 6f,
+            minHDp = TextEditGeometry.Chips.H_DP,
+            scrollable = true,
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+/** One Fonts-grid tile: the font's name rasterized in its own face. */
+@Composable
+private fun FontGridTile(
+    name: String,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val g = TextEditGeometry.Segmented
+    val density = LocalDensity.current.density
+    val atlas = rememberUiAtlas()
+    val entry = rememberFontChipEntry(atlas, name)
+    val scale = remember { Animatable(1f) }
+    Box(modifier.height(52.dp)) {
+        NativeVectorCanvas(
+            modifier = Modifier.fillMaxSize(),
+            clearArgb = 0,
+            atlas = atlas,
+            drawKey = listOf(entry, selected, scale.value, atlas.generation),
+            buildCmds = { w, h, dd ->
+                setScaleAbout(w / 2f, h / 2f, scale.value)
+                addRoundRect(
+                    w / 2f, h / 2f, w, h, g.CORNER_DP * dd, TxtSurfaceArgb,
+                    if (selected) 2f * dd else 0f,
+                    if (selected) TxtAccentArgb else 0
+                )
+                val e = entry
+                if (e != null) {
+                    addText(
+                        e.index,
+                        w / 2f - e.rectW / 2f, h / 2f - e.rectH / 2f,
+                        0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                        tintArgb = TxtWhiteArgb
+                    )
+                }
+                clearTransform()
+            }
+        )
+        ChromePressBox(
+            scale, 0.94f, onClick,
+            Modifier.fillMaxSize(),
+            description = name
+        )
+    }
+}
+
+// ── Styles tab ─────────────────────────────────────────────────────
+
+private enum class StyleSection(val label: String) {
+    BACKGROUND("Background"), SHADOW("Shadow"), CURVE("Curve"),
+    SPACING("Spacing"), FORMAT("Format")
+}
+
+/**
+ * Styles (the videos' structure): (1) a quick fill row — None/reset
+ * plus the standard colour set, tapping sets the fill colour; (2)
+ * the sub-section chips Background / Shadow / Curve / Spacing /
+ * Format, each holding its manual controls. CapCut's Glow
+ * sub-section is NOT one of ours: the text engine has no separate
+ * glow (the Shadow controls cover the look) — nothing is invented.
+ */
+@Composable
+private fun StylesTab(
+    clip: TimelineClip,
+    onUpdate: ((TimelineClip) -> TimelineClip) -> Unit,
+    onEyedropper: ((Long) -> Unit) -> Unit,
+    pathLayers: List<TimelineClip>
+) {
+    var section by remember(clip.id) { mutableStateOf(StyleSection.FORMAT) }
+    TabColumn {
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(TextEditGeometry.Swatches.GAP_DP.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            GlTextChipButton("None") {
+                onUpdate { it.copy(fillMode = FILL_NONE) }
+            }
+            Swatches.forEach { c ->
+                GlSwatchTile(
+                    argb = c,
+                    selected = clip.fillMode != FILL_NONE && clip.textColor == c
+                ) { onUpdate { it.copy(textColor = c, fillMode = FILL_SOLID) } }
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        GlPillStrip(
+            items = StyleSection.values().map { s ->
+                GlPillItem(label = s.label, selected = s == section) { section = s }
+            },
+            labelStyle = { sel -> if (sel) UiLabelStyle.TEXT_13_BOLD else UiLabelStyle.TEXT_13_SEMI },
+            textArgb = { sel -> if (sel) TxtInkArgb else TxtWhiteArgb },
+            fillArgb = { sel -> if (sel) TxtAccentArgb else TxtSurfaceArgb },
+            borderArgb = { null },
+            padHDp = 14f,
+            padVDp = 8f,
+            gapDp = 6f,
+            minHDp = TextEditGeometry.Chips.H_DP,
+            scrollable = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(Modifier.height(10.dp))
+        when (section) {
+            StyleSection.BACKGROUND -> BackgroundControls(clip, onUpdate, onEyedropper)
+            StyleSection.SHADOW -> ShadowControls(clip, onUpdate, onEyedropper)
+            StyleSection.CURVE -> PathSection(clip, pathLayers, onUpdate)
+            StyleSection.SPACING -> {
+                GlTextSliderRow("Letter space", clip.letterSpacing, -10f, 40f, "%") { v ->
+                    onUpdate { it.copy(letterSpacing = v) }
+                }
+                GlTextSliderRow("Line height", clip.lineHeightPercent, 80f, 200f, "%") { v ->
+                    onUpdate { it.copy(lineHeightPercent = v) }
+                }
+            }
+            StyleSection.FORMAT -> {
                 GlSegmentedRow(
                     listOf(
                         SegmentItem("Italic", null, clip.isItalic) {
@@ -172,16 +626,7 @@ fun TextEditScreen(
                         }
                     )
                 )
-            }
-            TextGroup("Color") {
-                GlColorRow(
-                    label = "Color",
-                    selected = clip.textColor,
-                    onSelect = { c -> onUpdate { it.copy(textColor = c, fillMode = FILL_SOLID) } },
-                    onEyedropper = onEyedropper
-                )
-            }
-            TextGroup("Alignment") {
+                Spacer(Modifier.height(10.dp))
                 GlSegmentedRow(
                     listOf(
                         SegmentItem("Left", Icons.Default.FormatAlignLeft, clip.textAlign == 0) {
@@ -195,76 +640,414 @@ fun TextEditScreen(
                         }
                     )
                 )
-            }
-            TextGroup("Spacing") {
-                GlTextSliderRow("Letter space", clip.letterSpacing, -10f, 40f, "%") { v ->
-                    onUpdate { it.copy(letterSpacing = v) }
-                }
-                GlTextSliderRow("Line height", clip.lineHeightPercent, 80f, 200f, "%") { v ->
-                    onUpdate { it.copy(lineHeightPercent = v) }
-                }
-            }
-            TextGroup("Stroke") {
-                GlTextSliderRow("Thickness", clip.textStrokeThickness, 0f, 100f, "%") { v ->
-                    onUpdate { it.copy(textStrokeThickness = v) }
-                }
+                Spacer(Modifier.height(10.dp))
                 GlColorRow(
                     label = "Color",
-                    selected = clip.textStrokeColor,
-                    onSelect = { c -> onUpdate { it.copy(textStrokeColor = c) } },
+                    selected = clip.textColor,
+                    onSelect = { c -> onUpdate { it.copy(textColor = c, fillMode = FILL_SOLID) } },
                     onEyedropper = onEyedropper
                 )
             }
-            TextGroup("Shadow") {
-                GlTextSliderRow("Opacity", clip.shadowOpacity, 0f, 100f, "%") { v ->
-                    onUpdate { it.copy(shadowOpacity = v) }
-                }
-                GlTextSliderRow("Blur", clip.shadowBlur, 0f, 100f, "%") { v ->
-                    onUpdate { it.copy(shadowBlur = v) }
-                }
-                GlTextSliderRow("Distance", clip.shadowDistance, 0f, 100f, "%") { v ->
-                    onUpdate { it.copy(shadowDistance = v) }
-                }
-                GlTextSliderRow("Angle", clip.shadowAngle, 0f, 360f, "°") { v ->
-                    onUpdate { it.copy(shadowAngle = v) }
-                }
-                GlColorRow(
-                    label = "Color",
-                    selected = clip.shadowColor,
-                    onSelect = { c -> onUpdate { it.copy(shadowColor = c) } },
-                    onEyedropper = onEyedropper
+        }
+    }
+}
+
+/** The Shadow controls (Styles → Shadow; the old Shadow group, verbatim). */
+@Composable
+private fun ShadowControls(
+    clip: TimelineClip,
+    onUpdate: ((TimelineClip) -> TimelineClip) -> Unit,
+    onEyedropper: ((Long) -> Unit) -> Unit
+) {
+    GlTextSliderRow("Opacity", clip.shadowOpacity, 0f, 100f, "%") { v ->
+        onUpdate { it.copy(shadowOpacity = v) }
+    }
+    GlTextSliderRow("Blur", clip.shadowBlur, 0f, 100f, "%") { v ->
+        onUpdate { it.copy(shadowBlur = v) }
+    }
+    GlTextSliderRow("Distance", clip.shadowDistance, 0f, 100f, "%") { v ->
+        onUpdate { it.copy(shadowDistance = v) }
+    }
+    GlTextSliderRow("Angle", clip.shadowAngle, 0f, 360f, "°") { v ->
+        onUpdate { it.copy(shadowAngle = v) }
+    }
+    GlColorRow(
+        label = "Color",
+        selected = clip.shadowColor,
+        onSelect = { c -> onUpdate { it.copy(shadowColor = c) } },
+        onEyedropper = onEyedropper
+    )
+}
+
+/**
+ * The background controls — ONE source of truth, shown by both
+ * Bubbles and Styles → Background (the same composable over the
+ * same clip fields, never a copy with separate state): the colour
+ * row, Opacity, Padding, and Corner. Corner exists only for the two
+ * box shapes; for a bubble shape the slider is replaced by the
+ * reason, in the UI as in the code ([textBgCornerApplies]).
+ */
+@Composable
+private fun BackgroundControls(
+    clip: TimelineClip,
+    onUpdate: ((TimelineClip) -> TimelineClip) -> Unit,
+    onEyedropper: ((Long) -> Unit) -> Unit
+) {
+    GlColorRow(
+        label = "Color",
+        selected = clip.bgColor,
+        onSelect = { c ->
+            // Picking a color for a hidden background turns it on (old
+            // rule); with the shape at None it also restores the box,
+            // or the picked colour would paint nothing at all.
+            onUpdate {
+                it.copy(
+                    bgColor = c,
+                    bgOpacity = if (it.bgOpacity == 0f) 100f else it.bgOpacity,
+                    bgShape = if (it.bgShape == TEXT_BG_NONE) TEXT_BG_RECTANGLE else it.bgShape
                 )
             }
-            TextGroup("Background") {
-                GlTextSliderRow("Opacity", clip.bgOpacity, 0f, 100f, "%") { v ->
-                    onUpdate { it.copy(bgOpacity = v) }
+        },
+        onEyedropper = onEyedropper
+    )
+    GlTextSliderRow("Opacity", clip.bgOpacity, 0f, 100f, "%") { v ->
+        onUpdate { it.copy(bgOpacity = v) }
+    }
+    GlTextSliderRow("Padding", clip.bgPadding, 0f, 100f, "%") { v ->
+        onUpdate { it.copy(bgPadding = v) }
+    }
+    if (textBgCornerApplies(clip.bgShape)) {
+        GlTextSliderRow("Corner", clip.bgCorner, 0f, 100f, "%") { v ->
+            onUpdate { it.copy(bgCorner = v) }
+        }
+    } else {
+        GlNoteText("Corner follows the bubble's own outline for this shape — choose Rectangle or Rounded in Bubbles to use the Corner slider.")
+    }
+}
+
+// ── Effects tab ────────────────────────────────────────────────────
+
+/**
+ * Effects: the one-tap text-effect grid (the videos' "ART" grid) —
+ * a None tile first, then the app's 10 style presets, each tile
+ * rendering the user's actual text in that preset; tapping applies
+ * it (the same applyTo / isCurrent rule as the old Style group,
+ * which is where the presets lived before build 268). The text
+ * layer's layer-FX are NOT here — they stay in the layer's own
+ * Effects tool, as before.
+ */
+@Composable
+private fun EffectsTab(
+    clip: TimelineClip,
+    onUpdate: ((TimelineClip) -> TimelineClip) -> Unit
+) {
+    TabColumn {
+        val defaults = remember {
+            TimelineClip(id = "", name = "", type = LayerType.TEXT, startMs = 0, durationMs = 0, color = 0)
+        }
+        val noneCurrent = clip.textColor == defaults.textColor &&
+            clip.textStrokeThickness == defaults.textStrokeThickness &&
+            clip.shadowOpacity == defaults.shadowOpacity &&
+            clip.shadowBlur == defaults.shadowBlur
+        val tiles: List<Pair<String, TextPreset?>> =
+            listOf("None" to null) + TextPresets.mapIndexed { i, p -> "Preset ${i + 1}" to p }
+        tiles.chunked(3).forEach { rowTiles ->
+            Row(horizontalArrangement = Arrangement.spacedBy(TextEditGeometry.Grid.GAP_DP.dp)) {
+                rowTiles.forEach { (label, preset) ->
+                    val isCurrent = if (preset == null) noneCurrent else
+                        clip.textColor == preset.fill &&
+                            clip.textStrokeThickness == preset.strokeThickness &&
+                            clip.shadowOpacity == preset.shadowOpacity &&
+                            (preset.shadowOpacity == 0f || clip.shadowBlur == preset.shadowBlur)
+                    val preview = if (preset == null) {
+                        clip.copy(
+                            textColor = defaults.textColor, fillMode = FILL_SOLID,
+                            textStrokeThickness = defaults.textStrokeThickness,
+                            textStrokeColor = defaults.textStrokeColor,
+                            shadowOpacity = defaults.shadowOpacity,
+                            shadowBlur = defaults.shadowBlur,
+                            shadowDistance = defaults.shadowDistance,
+                            shadowColor = defaults.shadowColor
+                        )
+                    } else preset.applyTo(clip)
+                    EffectTile(
+                        previewClip = preview,
+                        isCurrent = isCurrent,
+                        label = label,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        if (preset == null) {
+                            onUpdate {
+                                it.copy(
+                                    textColor = defaults.textColor, fillMode = FILL_SOLID,
+                                    textStrokeThickness = defaults.textStrokeThickness,
+                                    textStrokeColor = defaults.textStrokeColor,
+                                    shadowOpacity = defaults.shadowOpacity,
+                                    shadowBlur = defaults.shadowBlur,
+                                    shadowDistance = defaults.shadowDistance,
+                                    shadowColor = defaults.shadowColor
+                                )
+                            }
+                        } else {
+                            onUpdate { preset.applyTo(it) }
+                        }
+                    }
                 }
-                GlTextSliderRow("Corner", clip.bgCorner, 0f, 100f, "%") { v ->
-                    onUpdate { it.copy(bgCorner = v) }
-                }
-                GlTextSliderRow("Padding", clip.bgPadding, 0f, 100f, "%") { v ->
-                    onUpdate { it.copy(bgPadding = v) }
-                }
-                GlColorRow(
-                    label = "Color",
-                    selected = clip.bgColor,
-                    onSelect = { c ->
-                        // Picking a color for a hidden background turns it on (old rule).
-                        onUpdate {
-                            it.copy(bgColor = c, bgOpacity = if (it.bgOpacity == 0f) 100f else it.bgOpacity)
+                repeat(3 - rowTiles.size) { Spacer(Modifier.weight(1f)) }
+            }
+            Spacer(Modifier.height(TextEditGeometry.Grid.GAP_DP.dp))
+        }
+    }
+}
+
+@Composable
+private fun EffectTile(
+    previewClip: TimelineClip,
+    isCurrent: Boolean,
+    label: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val scale = remember { Animatable(1f) }
+    BoxWithConstraints(
+        modifier = modifier
+            .height(76.dp)
+            .clip(RoundedCornerShape(10.dp))
+    ) {
+        NativeVectorCanvas(
+            modifier = Modifier.fillMaxSize(),
+            clearArgb = 0,
+            drawKey = listOf(isCurrent, scale.value),
+            buildCmds = { w, h, dd ->
+                setScaleAbout(w / 2f, h / 2f, scale.value)
+                addRoundRect(
+                    w / 2f, h / 2f, w, h, 10f * dd, TxtSurfaceArgb,
+                    if (isCurrent) 2f * dd else 0f,
+                    if (isCurrent) TxtAccentArgb else 0
+                )
+                clearTransform()
+            }
+        )
+        TextLayerContent(
+            clip = previewClip,
+            frameWidth = maxWidth,
+            modifier = Modifier
+                .align(Alignment.Center)
+                .padding(horizontal = 6.dp, vertical = 4.dp)
+        )
+        ChromePressBox(
+            scale, 0.94f, onClick,
+            Modifier.fillMaxSize(),
+            description = label
+        )
+    }
+}
+
+// ── Animations tab ─────────────────────────────────────────────────
+
+private enum class AnimPhase(val label: String) { IN("In"), OUT("Out"), LOOP("Loop") }
+
+/**
+ * Animations: In / Out / Loop sub-tabs (the videos' structure) with
+ * preset tiles — None first in In and Out — populated from the
+ * [AnimPresets] catalogue by phase. The catalogue's presets are
+ * one-shot entrance/exit animations (each carries an In and an Out
+ * easing), so In and Out offer the whole catalogue for their slot;
+ * there are NO looping presets in the app, so Loop honestly shows
+ * none rather than fake tiles. Applying routes through the same
+ * ViewModel action as the Animations tool (the host wires it), with
+ * the preset's own default direction / length / curve. Below the
+ * tiles: the text Reveal controls.
+ */
+@Composable
+private fun AnimationsTab(
+    clip: TimelineClip,
+    onUpdate: ((TimelineClip) -> TimelineClip) -> Unit,
+    onAnimApply: (slot: AnimSlot, preset: AnimPreset?) -> Unit,
+    onAnimPreview: (slot: AnimSlot, durationMs: Long) -> Unit
+) {
+    var phase by remember(clip.id) { mutableStateOf(AnimPhase.IN) }
+    TabColumn {
+        GlPillStrip(
+            items = AnimPhase.values().map { p ->
+                GlPillItem(label = p.label, selected = p == phase) { phase = p }
+            },
+            labelStyle = { sel -> if (sel) UiLabelStyle.TEXT_13_BOLD else UiLabelStyle.TEXT_13_SEMI },
+            textArgb = { sel -> if (sel) TxtInkArgb else TxtWhiteArgb },
+            fillArgb = { sel -> if (sel) TxtAccentArgb else TxtSurfaceArgb },
+            borderArgb = { null },
+            padHDp = 14f,
+            padVDp = 8f,
+            gapDp = 6f,
+            minHDp = TextEditGeometry.Chips.H_DP,
+            scrollable = false,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(Modifier.height(10.dp))
+        when (phase) {
+            AnimPhase.IN, AnimPhase.OUT -> {
+                val slot = if (phase == AnimPhase.IN) AnimSlot.IN else AnimSlot.OUT
+                val applied = if (slot == AnimSlot.IN) clip.animIn else clip.animOut
+                GlPillStrip(
+                    items = listOf(
+                        GlPillItem(label = "None", selected = applied == null) {
+                            onAnimApply(slot, null)
+                        }
+                    ) + AnimPresets.ALL.map { p ->
+                        GlPillItem(label = p.label, selected = applied?.preset == p.id) {
+                            onAnimApply(slot, p)
+                            onAnimPreview(slot, p.defaultMs)
                         }
                     },
-                    onEyedropper = onEyedropper
+                    labelStyle = { sel -> if (sel) UiLabelStyle.TEXT_13_BOLD else UiLabelStyle.TEXT_13_SEMI },
+                    textArgb = { sel -> if (sel) TxtInkArgb else TxtWhiteArgb },
+                    fillArgb = { sel -> if (sel) TxtAccentArgb else TxtSurfaceArgb },
+                    borderArgb = { null },
+                    padHDp = 14f,
+                    padVDp = 8f,
+                    gapDp = 6f,
+                    minHDp = TextEditGeometry.Chips.H_DP,
+                    scrollable = true,
+                    modifier = Modifier.fillMaxWidth()
                 )
+                Spacer(Modifier.height(8.dp))
+                GlNoteText("Tiles apply the preset with its default direction, length and curve — fine-tune them in the Animations tool.")
             }
-            TextGroup("Reveal") {
-                RevealSection(clip, onUpdate)
+            AnimPhase.LOOP -> {
+                GlNoteText("No looping animations in the catalogue yet — the app's presets are one-shot In and Out animations, so this tab has no tiles rather than fake ones.")
             }
-            TextGroup("Path") {
-                PathSection(clip, pathLayers, onUpdate)
-            }
-            Spacer(Modifier.height(24.dp))
         }
+        Spacer(Modifier.height(16.dp))
+        GlLabelLine("Reveal", UiLabelStyle.TEXT_11_SEMI, TxtDimArgb)
+        Spacer(Modifier.height(6.dp))
+        RevealSection(clip, onUpdate)
+    }
+}
+
+// ── Bubbles tab ────────────────────────────────────────────────────
+
+/**
+ * Bubbles: the background-shape gallery — a None tile first, then
+ * Rectangle / Rounded rectangle / Speech bubble / Speech square /
+ * Thought bubble, each tile a small rendered preview of the shape
+ * (the catalog geometry itself for the bubbles). Tapping sets the
+ * text background shape ([TimelineClip.bgShape]); the engine draws
+ * it behind the text. Below the grid: the shared background
+ * controls (the same ones Styles → Background shows).
+ */
+@Composable
+private fun BubblesTab(
+    clip: TimelineClip,
+    onUpdate: ((TimelineClip) -> TimelineClip) -> Unit,
+    onEyedropper: ((Long) -> Unit) -> Unit
+) {
+    TabColumn {
+        val shapes = listOf(
+            TEXT_BG_NONE to "None",
+            TEXT_BG_RECTANGLE to "Rectangle",
+            TEXT_BG_ROUNDED to "Rounded",
+            TEXT_BG_SPEECH to "Speech bubble",
+            TEXT_BG_SPEECH_SQ to "Speech square",
+            TEXT_BG_THOUGHT to "Thought bubble"
+        )
+        shapes.chunked(3).forEach { rowShapes ->
+            Row(horizontalArrangement = Arrangement.spacedBy(TextEditGeometry.Grid.GAP_DP.dp)) {
+                rowShapes.forEach { (shape, label) ->
+                    BubbleTile(
+                        shape = shape,
+                        label = label,
+                        selected = clip.bgShape == shape,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        onUpdate { c ->
+                            if (shape == TEXT_BG_NONE) {
+                                c.copy(bgShape = TEXT_BG_NONE, bgOpacity = 0f)
+                            } else {
+                                c.copy(
+                                    bgShape = shape,
+                                    bgOpacity = if (c.bgOpacity == 0f) 100f else c.bgOpacity
+                                )
+                            }
+                        }
+                    }
+                }
+                repeat(3 - rowShapes.size) { Spacer(Modifier.weight(1f)) }
+            }
+            Spacer(Modifier.height(TextEditGeometry.Grid.GAP_DP.dp))
+        }
+        Spacer(Modifier.height(6.dp))
+        BackgroundControls(clip, onUpdate, onEyedropper)
+    }
+}
+
+@Composable
+private fun BubbleTile(
+    shape: Int,
+    label: String,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val scale = remember { Animatable(1f) }
+    val def = remember(shape) { textBgShapeDef(shape) }
+    Column(modifier) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+                .clip(RoundedCornerShape(10.dp))
+        ) {
+            NativeVectorCanvas(
+                modifier = Modifier.fillMaxSize(),
+                clearArgb = 0,
+                drawKey = listOf(shape, selected, scale.value, def),
+                buildCmds = { w, h, dd ->
+                    setScaleAbout(w / 2f, h / 2f, scale.value)
+                    addRoundRect(
+                        w / 2f, h / 2f, w, h, 10f * dd, TxtSurfaceArgb,
+                        if (selected) 2f * dd else 0f,
+                        if (selected) TxtAccentArgb else 0
+                    )
+                    // The shape preview, centred in the tile.
+                    val pw = 46f * dd
+                    val ph = 30f * dd
+                    val cx = w / 2f
+                    val cy = h / 2f
+                    when {
+                        def != null -> {
+                            for (sub in def.subs) {
+                                val pts = sub.pts
+                                if (pts.size < 6) continue
+                                val n = pts.size / 2
+                                val xs = FloatArray(n)
+                                val ys = FloatArray(n)
+                                for (i in 0 until n) {
+                                    xs[i] = cx + pts[i * 2] / 2f * pw
+                                    ys[i] = cy + pts[i * 2 + 1] / 2f * ph
+                                }
+                                addFilledPolygon(xs, ys, n, TxtWhiteArgb)
+                            }
+                        }
+                        shape == TEXT_BG_RECTANGLE ->
+                            addRoundRect(cx, cy, pw, ph, 3f * dd, TxtWhiteArgb)
+                        shape == TEXT_BG_ROUNDED ->
+                            addRoundRect(cx, cy, pw, ph, ph * 0.4f, TxtWhiteArgb)
+                        else -> Unit // None: the empty tile is the preview.
+                    }
+                    clearTransform()
+                }
+            )
+            ChromePressBox(
+                scale, 0.94f, onClick,
+                Modifier.fillMaxSize(),
+                description = label
+            )
+        }
+        Spacer(Modifier.height(4.dp))
+        GlLabelLine(
+            label, UiLabelStyle.TEXT_11_SEMI,
+            if (selected) TxtWhiteArgb else TxtDimArgb
+        )
     }
 }
 
@@ -278,110 +1061,6 @@ private val TxtDimArgb = AmTextDim.toArgb()
 private val TxtSliderInactiveArgb = 0xFF3A3A3A.toInt()
 
 // ── Chrome: top bar, preview, group headers ────────────────────────
-
-@Composable
-private fun TextTopBar(onBack: () -> Unit, onDone: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(TextEditGeometry.TopBar.H_DP.dp)
-            .padding(horizontal = TextEditGeometry.SCREEN_PAD_H_DP.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        GlBackButton(onBack)
-        Spacer(Modifier.width(4.dp))
-        GlLabelLine("Text", UiLabelStyle.HEADER_NAME, TxtWhiteArgb)
-        Spacer(Modifier.weight(1f))
-        GlVioletPill(label = "Done", onClick = onDone, tag = "text_edit_done")
-    }
-}
-
-@Composable
-private fun GlBackButton(onClick: () -> Unit) {
-    val g = TextEditGeometry.TopBar
-    val density = LocalDensity.current.density
-    val atlas = rememberUiAtlas()
-    val painter = rememberVectorPainter(Icons.Default.ArrowBack)
-    fun resolveIcon(): UiLabelAtlas.Entry? =
-        atlas.iconEntry("txted:back", painter, (g.BACK_ICON_DP * density).roundToInt(), density)
-    var entry = resolveIcon()
-    if (atlas.overflowed) {
-        atlas.reset()
-        entry = resolveIcon()
-    }
-    val e = entry
-    val scale = remember { Animatable(1f) }
-    Box(Modifier.size(g.BACK_BOX_DP.dp)) {
-        NativeVectorCanvas(
-            modifier = Modifier.fillMaxSize(),
-            clearArgb = 0,
-            atlas = atlas,
-            drawKey = listOf(e, scale.value, atlas.generation),
-            buildCmds = { w, h, _ ->
-                if (e != null) {
-                    setScaleAbout(w / 2f, h / 2f, scale.value)
-                    addText(
-                        e.index, w / 2f - e.rectW / 2f, h / 2f - e.rectH / 2f,
-                        0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
-                        tintArgb = TxtWhiteArgb
-                    )
-                    clearTransform()
-                }
-            }
-        )
-        ChromePressBox(
-            scale, 0.9f, onClick,
-            Modifier.fillMaxSize(),
-            description = "Back"
-        )
-    }
-}
-
-/**
- * The preview block: a quiet surface carrying the text itself, drawn
- * by the app's exact text painter (the hosted island — see the
- * screen's doc), centred and clipped to the surface.
- */
-@Composable
-private fun TextPreviewBlock(clip: TimelineClip) {
-    val g = TextEditGeometry.Preview
-    BoxWithConstraints(
-        modifier = Modifier
-            .padding(horizontal = TextEditGeometry.SCREEN_PAD_H_DP.dp)
-            .fillMaxWidth()
-            .height(g.H_DP.dp)
-            .clip(RoundedCornerShape(g.CORNER_DP.dp))
-    ) {
-        NativeVectorCanvas(
-            modifier = Modifier.fillMaxSize(),
-            clearArgb = 0,
-            drawKey = g,
-            buildCmds = { w, h, dd ->
-                addRoundRect(w / 2f, h / 2f, w, h, g.CORNER_DP * dd, TxtSurfaceArgb)
-            }
-        )
-        TextLayerContent(
-            clip = clip,
-            frameWidth = maxWidth,
-            modifier = Modifier.align(Alignment.Center)
-        )
-    }
-}
-
-@Composable
-private fun TextGroup(title: String, first: Boolean = false, content: @Composable () -> Unit) {
-    if (!first) Spacer(Modifier.height(TextEditGeometry.GroupHeader.GAP_BEFORE_DP.dp))
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(TextEditGeometry.GroupHeader.H_DP.dp),
-        contentAlignment = Alignment.CenterStart
-    ) {
-        GlLabelLine(title, UiLabelStyle.TEXT_11_SEMI, TxtDimArgb)
-    }
-    Spacer(Modifier.height(TextEditGeometry.GroupHeader.GAP_AFTER_DP.dp))
-    content()
-}
 
 /** A wrapped note line in GL (the sections' explanatory texts). */
 @Composable
@@ -866,163 +1545,6 @@ private fun GlEyedropperTile(onClick: () -> Unit) {
     }
 }
 
-// ── Font section ───────────────────────────────────────────────────
-
-/**
- * The Font group: the search field (hosted), the Add font chip +
- * the horizontally scrolling strip of font chips (each name in its
- * own face, selected = lime outline), the device-only note, and the
- * font weight pill row — the old Fonts tab + weight row, flattened.
- */
-@Composable
-private fun FontSection(
-    clip: TimelineClip,
-    onUpdate: ((TimelineClip) -> TimelineClip) -> Unit
-) {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    var query by remember { mutableStateOf("") }
-    var userFonts by remember { mutableStateOf(FontRepository.userFonts(context)) }
-
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) scope.launch {
-            val name = FontRepository.importUserFont(context, uri)
-            if (name != null) {
-                userFonts = FontRepository.userFonts(context)
-                onUpdate { it.copy(fontFamily = name) }
-            }
-        }
-    }
-
-    val fonts = remember(query, userFonts) {
-        val all = userFonts.map { FontEntry(it, FontCatalog.USER_CATEGORY) } + FontCatalog.all
-        all.filter { query.isBlank() || it.name.contains(query.trim(), ignoreCase = true) }
-    }
-
-    FontSearchField(query) { query = it }
-    Spacer(Modifier.height(8.dp))
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        GlTextChipButton("+ Add font") {
-            picker.launch(
-                arrayOf(
-                    "font/ttf", "font/otf", "font/sfnt",
-                    "application/x-font-ttf", "application/x-font-otf",
-                    "application/octet-stream"
-                )
-            )
-        }
-        Spacer(Modifier.width(8.dp))
-        GlFontChipStrip(
-            fonts = fonts,
-            selectedName = clip.fontFamily,
-            onSelect = { name -> onUpdate { it.copy(fontFamily = name) } },
-            modifier = Modifier.weight(1f)
-        )
-    }
-    Spacer(Modifier.height(8.dp))
-    // Build 201 (audit S-6): imported fonts live in this app's private
-    // storage on THIS device — say so where the user adds them.
-    GlNoteText("Fonts you add are stored on this device only — they don't travel with the project file.")
-    Spacer(Modifier.height(10.dp))
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        GlLabelLine("Font weight", UiLabelStyle.TEXT_13_MED, TxtWhiteArgb)
-        Spacer(Modifier.width(TextEditGeometry.Chips.LABEL_GAP_DP.dp))
-        GlPillStrip(
-            items = listOf(200, 400, 500, 600, 700, 800, 900).map { w ->
-                GlPillItem(
-                    label = "$w",
-                    selected = clip.fontWeight == w,
-                    onClick = { onUpdate { it.copy(fontWeight = w) } }
-                )
-            },
-            labelStyle = { UiLabelStyle.TEXT_13_BOLD },
-            textArgb = { sel -> if (sel) TxtInkArgb else TxtWhiteArgb },
-            fillArgb = { sel -> if (sel) TxtAccentArgb else TxtSurfaceArgb },
-            borderArgb = { null },
-            padHDp = 14f,
-            padVDp = 8f,
-            gapDp = 6f,
-            minHDp = TextEditGeometry.Chips.H_DP,
-            scrollable = true,
-            modifier = Modifier.weight(1f)
-        )
-    }
-}
-
-/**
- * The font chip strip on ONE GL surface: hug-content chips per
- * [TextEditGeometry.Chips], each name rasterized in its own face
- * (see [rememberFontChipEntry]), selected = lime outline.
- */
-@Composable
-private fun GlFontChipStrip(
-    fonts: List<FontEntry>,
-    selectedName: String,
-    onSelect: (String) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val g = TextEditGeometry.Chips
-    val density = LocalDensity.current.density
-    val atlas = rememberUiAtlas()
-    val entries = fonts.map { f -> key(f.name) { rememberFontChipEntry(atlas, f.name) } }
-    val widths = entries.map { g.chipWPx(it?.advance ?: 0f, density) }
-    val lefts = g.leftsPx(widths, density)
-    val contentW = g.contentWPx(widths, density)
-    val scales = remember(fonts.map { it.name }) { fonts.map { Animatable(1f) } }
-    val scaleValues = scales.map { it.value }
-    Row(modifier.horizontalScroll(rememberScrollState())) {
-        Box(
-            Modifier
-                .width((contentW / density).dp)
-                .height(g.H_DP.dp)
-        ) {
-            NativeVectorCanvas(
-                modifier = Modifier.fillMaxSize(),
-                clearArgb = 0,
-                atlas = atlas,
-                drawKey = listOf(entries, scaleValues, widths, selectedName, atlas.generation),
-                buildCmds = { _, h, dd ->
-                    fonts.forEachIndexed { i, f ->
-                        val chipW = widths[i]
-                        val chipL = lefts[i]
-                        val cx = chipL + chipW / 2f
-                        val sel = f.name == selectedName
-                        setScaleAbout(cx, h / 2f, scaleValues[i])
-                        addRoundRect(
-                            cx, h / 2f, chipW, h, g.CORNER_DP * dd, TxtSurfaceArgb,
-                            if (sel) 2f * dd else 0f,
-                            if (sel) TxtAccentArgb else 0
-                        )
-                        val e = entries[i]
-                        if (e != null) {
-                            addText(
-                                e.index,
-                                chipL + (chipW - e.rectW) / 2f, (h - e.rectH) / 2f,
-                                0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
-                                tintArgb = TxtWhiteArgb
-                            )
-                        }
-                        clearTransform()
-                    }
-                }
-            )
-            fonts.forEachIndexed { i, f ->
-                ChromePressBox(
-                    scales[i], 0.92f, { onSelect(f.name) },
-                    Modifier
-                        .offset(x = (lefts[i] / density).dp, y = 0.dp)
-                        .width((widths[i] / density).dp)
-                        .height(g.H_DP.dp),
-                    description = f.name
-                )
-            }
-        }
-    }
-}
-
 /** File typefaces for the chip rasters, loaded once per font file. */
 private val fontChipTypefaces = ConcurrentHashMap<String, Typeface>()
 
@@ -1080,77 +1602,6 @@ private fun rememberFontChipEntry(atlas: UiLabelAtlas, name: String): UiLabelAtl
         entry = resolveFont()
     }
     return entry
-}
-
-// ── Style preset strip ─────────────────────────────────────────────
-
-private val PreviewClip = TimelineClip(
-    id = "preview", name = "", type = LayerType.TEXT, startMs = 0, durationMs = 1, color = 0,
-    text = "Aa", fontWeight = 700, bgOpacity = 0f
-)
-
-/**
- * The Style group's preset tiles (the old Style tab's top half): a
- * scrolling strip of tiles, each carrying an exact "Aa" preview of
- * the preset (the hosted painter island — see the screen's doc);
- * the current preset carries the lime outline.
- */
-@Composable
-private fun GlPresetStrip(
-    clip: TimelineClip,
-    onUpdate: ((TimelineClip) -> TimelineClip) -> Unit
-) {
-    val g = TextEditGeometry.Presets
-    Row(
-        modifier = Modifier.horizontalScroll(rememberScrollState()),
-        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(g.GAP_DP.dp)
-    ) {
-        TextPresets.forEach { preset ->
-            val isCurrent = clip.textColor == preset.fill &&
-                clip.textStrokeThickness == preset.strokeThickness &&
-                clip.shadowOpacity == preset.shadowOpacity &&
-                (preset.shadowOpacity == 0f || clip.shadowBlur == preset.shadowBlur)
-            GlPresetTile(preset = preset, isCurrent = isCurrent) {
-                onUpdate { preset.applyTo(it) }
-            }
-        }
-    }
-}
-
-@Composable
-private fun GlPresetTile(preset: TextPreset, isCurrent: Boolean, onClick: () -> Unit) {
-    val g = TextEditGeometry.Presets
-    val scale = remember { Animatable(1f) }
-    Box(
-        Modifier
-            .size(g.TILE_DP.dp)
-            .clip(RoundedCornerShape(g.CORNER_DP.dp))
-    ) {
-        NativeVectorCanvas(
-            modifier = Modifier.fillMaxSize(),
-            clearArgb = 0,
-            drawKey = listOf(isCurrent, scale.value),
-            buildCmds = { w, h, dd ->
-                setScaleAbout(w / 2f, h / 2f, scale.value)
-                addRoundRect(
-                    w / 2f, h / 2f, w, h, g.CORNER_DP * dd, TxtSurfaceArgb,
-                    if (isCurrent) 2f * dd else 0f,
-                    if (isCurrent) TxtAccentArgb else 0
-                )
-                clearTransform()
-            }
-        )
-        TextLayerContent(
-            clip = preset.applyTo(PreviewClip),
-            frameWidth = 220.dp,
-            modifier = Modifier.align(Alignment.Center)
-        )
-        ChromePressBox(
-            scale, 0.93f, onClick,
-            Modifier.fillMaxSize(),
-            description = "Style preset"
-        )
-    }
 }
 
 // ── Reveal section ─────────────────────────────────────────────────
