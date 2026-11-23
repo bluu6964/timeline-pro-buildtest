@@ -28,7 +28,6 @@ import com.example.engine.TL_EV_DELETE
 import com.example.engine.TL_EV_ENTER_MULTI
 import com.example.engine.TL_EV_FADE
 import com.example.engine.TL_EV_MOVE_TIME
-import com.example.engine.TL_EV_PILL
 import com.example.engine.TL_EV_REDRAW
 import com.example.engine.TL_EV_REORDER
 import com.example.engine.TL_EV_SCRUB_START
@@ -50,7 +49,7 @@ import com.example.model.TimelineTrack
  * gesture owners one for one:
  *
  *  - tap a bar / rail cell: select (rail in multi mode: toggle check)
- *  - tap the eye: visibility toggle; tap the pill: the options sheet
+ *  - tap the eye: visibility toggle
  *  - tap a chain x / child x: the existing delete-by-id paths
  *  - horizontal swipe on ruler / lanes / a not-yet-long-pressed bar: scrub
  *    (seek, with the panel's fling decay), mostly-vertical swipe: lane scroll
@@ -91,7 +90,6 @@ fun NativeTimelineSurface(
     keyframeTimesMs: List<Long>,
     bottomPadDp: Float,
     comfortDensity: Boolean,
-    onLayerPillClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -135,7 +133,6 @@ fun NativeTimelineSurface(
         machine.onPxPerMsChange = onPxPerMsChange
         machine.onLongPressLane = onLongPressLane
         machine.onToggleMulti = onToggleMulti
-        machine.onLayerPillClick = onLayerPillClick
 
         engine.playheadOf = { latestPlayhead.value() }
         engine.update(
@@ -217,7 +214,6 @@ private class TlGestureGlue {
     var onPxPerMsChange: (Float) -> Unit = {}
     var onLongPressLane: (String) -> Unit = {}
     var onToggleMulti: (String) -> Unit = {}
-    var onLayerPillClick: () -> Unit = {}
 
     var touchSlop: Float = 8f
     var longPressMs: Long = 400L
@@ -296,7 +292,6 @@ private class TlGestureGlue {
                     }
                 }
                 TL_EV_ZOOM -> onPxPerMsChange(a.toFloat())
-                TL_EV_PILL -> onLayerPillClick()
                 TL_EV_TOGGLE_VISIBILITY -> if (id != null) onToggleClipVisibility(id)
                 TL_EV_TOGGLE_MULTI -> if (id != null) onToggleMulti(id)
                 TL_EV_ENTER_MULTI -> if (id != null) onLongPressLane(id)

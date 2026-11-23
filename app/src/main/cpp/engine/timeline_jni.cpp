@@ -198,8 +198,8 @@ JNIEXPORT void JNICALL Java_com_example_engine_TimelineNative_nativeSetThumbAtla
 
 JNIEXPORT void JNICALL Java_com_example_engine_TimelineNative_nativeBeginSnapshot(
     JNIEnv*, jclass, jlong p, jfloat density, jfloat pxPerMs, jfloat rulerHPx, jfloat railWPx,
-    jfloat topPadPx, jfloat gapPx, jfloat bottomPadPx, jlong totalMs, jint layerCount,
-    jint pillLabel, jfloat pillTextWPx, jint totalLabel, jint chainLabel, jboolean comfort,
+    jfloat topPadPx, jfloat gapPx, jfloat bottomPadPx, jlong totalMs,
+    jint totalLabel, jint chainLabel, jboolean comfort,
     jboolean multiMode, jboolean hasRange, jlong rangeInMs, jlong rangeOutMs) {
     TlHandle* h = of(p);
     if (!h) return;
@@ -220,9 +220,6 @@ JNIEXPORT void JNICALL Java_com_example_engine_TimelineNative_nativeBeginSnapsho
     s.gapPx = nonNeg(gapPx);
     s.bottomPadPx = nonNeg(bottomPadPx);
     s.totalMs = totalMs < 0 ? 0 : totalMs;
-    s.layerCount = layerCount < 0 ? 0 : layerCount;
-    s.pillLabel = pillLabel;
-    s.pillTextWPx = pillTextWPx;
     s.totalLabel = totalLabel;
     s.chainLabel = chainLabel;
     s.comfort = comfort == JNI_TRUE;
@@ -230,7 +227,6 @@ JNIEXPORT void JNICALL Java_com_example_engine_TimelineNative_nativeBeginSnapsho
     s.hasRange = hasRange == JNI_TRUE;
     s.rangeInMs = rangeInMs;
     s.rangeOutMs = rangeOutMs;
-    s.pillTextWPx = nonNeg(s.pillTextWPx);
     std::lock_guard<std::mutex> lock(h->mu);
     h->building = std::move(s);
 }

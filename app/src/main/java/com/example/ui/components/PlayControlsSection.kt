@@ -41,10 +41,11 @@ import kotlin.math.roundToInt
  * THE CONTROLS BAR (build 217 — Sarowar's HTML reference, copied exactly):
  * one slim row on the app background, a #1A1A20 hairline under it. LEFT
  * group: Undo, Redo, the "Full" outline badge. CENTRE: Play / Pause.
- * RIGHT group: the snap toggle, the grid toggle, and Add-Keyframe with
- * its orange dot. Ctrl glyphs are #E4E4E7, an active toggle turns LIME,
- * a disabled one #45454D — except the snap magnet, which follows
- * Sarowar's own icon language: WHITE = on, GREY = off.
+ * RIGHT group: the Tools button (build 263 — it replaced the snap magnet
+ * in the magnet's slot and opens the tools sheet the layer-count pill
+ * used to open), the grid toggle, and Add-Keyframe with its orange dot.
+ * Ctrl glyphs are #E4E4E7, an active toggle turns LIME, a disabled one
+ * #45454D.
  *
  * [showEditorControls] false = a chrome-only host (CropView, audit S-3):
  * the editor-only right group is omitted and the host's own wired
@@ -85,12 +86,12 @@ fun PlayControlsSection(
     onToolsGridExpandedChange: (Boolean) -> Unit = {},
     toolsGridActive: Boolean = false,
     /**
-     * Build 222: the snap toggle — the controls bar's first right-group
-     * button (the transform-box toggle's old slot). White magnet = on,
-     * grey = off.
+     * Build 263: the Tools button — the controls bar's first right-group
+     * button, in the slot the snap magnet held until now. It opens exactly
+     * what the timeline's layer-count pill used to open (the tools sheet);
+     * Snap itself remains a tile inside that sheet.
      */
-    snapOn: Boolean = false,
-    onSnapClick: () -> Unit = {},
+    onToolsClick: () -> Unit = {},
     /** Build 217: the canvas grid toggle of the controls bar. */
     gridOn: Boolean = false,
     onGridClick: () -> Unit = {},
@@ -147,7 +148,7 @@ fun PlayControlsSection(
             clearArgb = 0,
             atlas = atlas,
             drawKey = listOf(
-                isPlaying, canUndo, canRedo, snapOn, gridOn, showEditorControls,
+                isPlaying, canUndo, canRedo, gridOn, showEditorControls,
                 entries, scaleValues, atlas.generation
             ),
             buildCmds = { w, h, dd ->
@@ -221,7 +222,7 @@ fun PlayControlsSection(
                 }
 
                 if (showEditorControls) {
-                    // Snap toggle (magnet).
+                    // Tools button (build 263; the snap magnet's old slot).
                     run {
                         val left = c.rightLeftPx(w, dd, 0)
                         setScaleAbout(left + btnPx / 2f, cy, scales[4].value)
@@ -229,7 +230,7 @@ fun PlayControlsSection(
                             c.glyphLeftPx(left, c.GLYPH_SMALL_DP, dd),
                             c.glyphTopPx(btnT, c.GLYPH_SMALL_DP, dd)
                         )
-                        glyphMagnetBody(c.GLYPH_SMALL_DP * dd, snapOn)
+                        glyphToolsBody(c.GLYPH_SMALL_DP * dd)
                         clearTransform()
                     }
                     // Grid toggle.
@@ -332,8 +333,8 @@ fun PlayControlsSection(
             Spacer(Modifier.weight(1f))
             if (showEditorControls) {
                 ChromePressBox(
-                    scales[4], 0.9f, onSnapClick, Modifier.size(28.dp),
-                    tag = "workspace_snap_toggle", description = "Snap"
+                    scales[4], 0.9f, onToolsClick, Modifier.size(28.dp),
+                    tag = "workspace_tools_button", description = "Tools"
                 )
                 Spacer(Modifier.size(10.dp))
                 ChromePressBox(
@@ -428,23 +429,19 @@ private fun VectorCmdBuilder.glyphFrameBody(w: Float) {
     addRoundRect((7.0f + 4.0f) * u, (6.9f + 2.5f) * u, 8.0f * u, 5.0f * u, 2.5f * u, cArgb, 1.2f * u, AmBase.toArgb())
 }
 
-/** The snap magnet (build 222): a horseshoe magnet, WHITE while on, GREY while off (17 dp). */
-private fun VectorCmdBuilder.glyphMagnetBody(w: Float, on: Boolean) {
+/** The Tools wrench (build 263): an open-end wrench — a notched ring at the top-left running into a diagonal handle (17 dp, controls colour; an action button, not a toggle). */
+private fun VectorCmdBuilder.glyphToolsBody(w: Float) {
     val u = w / 24f
-    val c = if (on) RefCtrl else RefCtrlDisabled
-    val cArgb = c.toArgb()
-    val sw = 3.6f * u
+    val cArgb = RefCtrl.toArgb()
+    // The ring: a near-full arc whose gap faces the handle's root.
     addArc(
-        cx = 12f * u, cy = 10.2f * u,
-        rx = 6.8f * u, ry = 6.8f * u,
-        startDeg = 180f, sweepDeg = 180f,
-        width = sw, strokeArgb = cArgb, capRound = false, closedPie = false
+        cx = 8.6f * u, cy = 8.6f * u,
+        rx = 4.6f * u, ry = 4.6f * u,
+        startDeg = 55f, sweepDeg = 250f,
+        width = 2.7f * u, strokeArgb = cArgb, capRound = true, closedPie = false
     )
-    addLine(5.2f * u, 10.2f * u, 5.2f * u, 19.6f * u, sw, cArgb, capRound = false)
-    addLine(18.8f * u, 10.2f * u, 18.8f * u, 19.6f * u, sw, cArgb, capRound = false)
-    val tipArgb = (if (on) Color.White else c).toArgb()
-    addLine(5.2f * u, 16.4f * u, 5.2f * u, 19.6f * u, sw, tipArgb, capRound = false)
-    addLine(18.8f * u, 16.4f * u, 18.8f * u, 19.6f * u, sw, tipArgb, capRound = false)
+    // The handle: from the ring's lower-right down to the corner.
+    addLine(11.6f * u, 11.6f * u, 19.4f * u, 19.4f * u, 3.6f * u, cArgb, capRound = true)
 }
 
 /** The reference's grid glyph: a rounded square divided in thirds both ways (17 dp). Lime while on. */

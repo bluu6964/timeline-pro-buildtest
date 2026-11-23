@@ -104,14 +104,6 @@ fun TimescaleSection(
     /** Export range points (build 199, A10): when both are set, the ranged span is banded on the ruler. */
     exportInMs: Long? = null,
     exportOutMs: Long? = null,
-    /**
-     * Build 217: the layer-count pill at the ruler's left end (the
-     * reference's pill, showing the REAL layer count). Null = no pill
-     * (panel hosts). Its tap opens the timeline options sheet — the
-     * universal tools live there now (Sarowar's no-added-buttons rule).
-     */
-    layerCount: Int? = null,
-    onLayerPillClick: (() -> Unit)? = null,
     /** Build 217: keyframe times (project ms) of the selected layer — orange diamonds on the ruler. */
     keyframeTimesMs: List<Long> = emptyList()
 ) {
@@ -254,42 +246,9 @@ fun TimescaleSection(
         // Build 249: the playhead timecode and total duration are atlas
         // blits inside the GL stream above (they were Compose Text
         // overlays through build 248; no test referenced their tags).
-
-        if (layerCount != null) {
-            Row(
-                modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .padding(start = 8.dp)
-                    .clip(androidx.compose.foundation.shape.CircleShape)
-                    .background(com.example.ui.theme.RefPillBg)
-                    .border(1.dp, com.example.ui.theme.RefPillBorder, androidx.compose.foundation.shape.CircleShape)
-                    .bouncyClickable(pressedScale = 0.95f, onClick = { onLayerPillClick?.invoke() })
-                    .padding(horizontal = 7.dp, vertical = 2.dp)
-                    .testTag("layer_count_pill"),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "$layerCount Layers",
-                    color = AmTextDim,
-                    fontSize = 9.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1
-                )
-                Spacer(Modifier.width(4.dp))
-                Canvas(Modifier.size(9.dp)) {
-                    val u = size.width / 24f
-                    val c = AmTextDim
-                    val p1 = Path().apply {
-                        moveTo(7f * u, 15f * u); lineTo(12f * u, 20f * u); lineTo(17f * u, 15f * u)
-                    }
-                    val p2 = Path().apply {
-                        moveTo(7f * u, 9f * u); lineTo(12f * u, 4f * u); lineTo(17f * u, 9f * u)
-                    }
-                    drawPath(p1, c, style = Stroke(2.4f * u, cap = StrokeCap.Round, join = StrokeJoin.Round))
-                    drawPath(p2, c, style = Stroke(2.4f * u, cap = StrokeCap.Round, join = StrokeJoin.Round))
-                }
-            }
-        }
+        // Build 263: the build-217 layer-count pill that sat here is gone
+        // (Sarowar's order) — the controls bar's Tools button opens the
+        // tools sheet instead.
     }
 }
 

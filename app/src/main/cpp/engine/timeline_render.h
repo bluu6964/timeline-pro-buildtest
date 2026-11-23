@@ -115,9 +115,6 @@ struct Snapshot {
     int64_t rangeInMs = 0;
     int64_t rangeOutMs = 0;
     std::vector<int64_t> rulerKeysMs;  // the selected layer's keyframes, project ms
-    int32_t layerCount = 0;
-    int32_t pillLabel = -1;   // atlas entry: "N Layers"
-    float pillTextWPx = 0;    // measured width of the pill label (px)
     int32_t totalLabel = -1;  // atlas entry: total duration text
     int32_t chainLabel = -1;  // atlas entry: "Chain" (the empty-section label)
     bool comfort = false;
@@ -177,7 +174,6 @@ enum Zone : int32_t {
     kZoneTrimR,     // selected clip's right trim handle
     kZoneFadeL,     // selected audio clip's fade-in knob
     kZoneFadeR,     // selected audio clip's fade-out knob
-    kZonePill,      // the layer-count pill
     kZoneChainX,    // the selected chain section's delete x
     kZoneChildX     // a chain child's delete x (clip set)
 };

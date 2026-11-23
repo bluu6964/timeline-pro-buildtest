@@ -67,7 +67,7 @@ internal object TimelineNative {
     @JvmStatic external fun nativeBeginSnapshot(
         h: Long, density: Float, pxPerMs: Float, rulerHPx: Float, railWPx: Float,
         topPadPx: Float, gapPx: Float, bottomPadPx: Float, totalMs: Long,
-        layerCount: Int, pillLabel: Int, pillTextWPx: Float, totalLabel: Int,
+        totalLabel: Int,
         chainLabel: Int, comfort: Boolean, multiMode: Boolean,
         hasRange: Boolean, rangeInMs: Long, rangeOutMs: Long
     )
@@ -112,9 +112,8 @@ internal const val TL_ZONE_TRIM_L = 6
 internal const val TL_ZONE_TRIM_R = 7
 internal const val TL_ZONE_FADE_L = 8
 internal const val TL_ZONE_FADE_R = 9
-internal const val TL_ZONE_PILL = 10
-internal const val TL_ZONE_CHAIN_X = 11
-internal const val TL_ZONE_CHILD_X = 12
+internal const val TL_ZONE_CHAIN_X = 10
+internal const val TL_ZONE_CHILD_X = 11
 
 // Gesture events (mirror am::timeline::EventType in timeline_gesture.h).
 internal const val TL_EV_REDRAW = 0
@@ -128,14 +127,13 @@ internal const val TL_EV_REORDER = 7
 internal const val TL_EV_TRIM = 8
 internal const val TL_EV_FADE = 9
 internal const val TL_EV_ZOOM = 10
-internal const val TL_EV_PILL = 11
-internal const val TL_EV_TOGGLE_VISIBILITY = 12
-internal const val TL_EV_TOGGLE_MULTI = 13
-internal const val TL_EV_ENTER_MULTI = 14
-internal const val TL_EV_DELETE = 15
-internal const val TL_EV_ARM_LONG_PRESS = 16
-internal const val TL_EV_CANCEL_LONG_PRESS = 17
-internal const val TL_EV_ANIMATE = 18
+internal const val TL_EV_TOGGLE_VISIBILITY = 11
+internal const val TL_EV_TOGGLE_MULTI = 12
+internal const val TL_EV_ENTER_MULTI = 13
+internal const val TL_EV_DELETE = 14
+internal const val TL_EV_ARM_LONG_PRESS = 15
+internal const val TL_EV_CANCEL_LONG_PRESS = 16
+internal const val TL_EV_ANIMATE = 17
 /** Events one JNI touch call can return (the buffer holds 3 doubles per event). */
 internal const val TL_EV_CAPACITY = 16
 
@@ -177,7 +175,6 @@ internal enum class TlLabelStyle(val sp: Float, val weight: Int, val italic: Boo
     LABEL_SM(10.5f, 600),
     CHIP(9f, 500),
     BADGE(9f, 700),
-    PILL(9.5f, 700),
     TOTAL(9.5f, 500),
     DIGIT(10f, 700),
     FX(8f, 700, italic = true),
@@ -489,7 +486,7 @@ internal class NativeTimelineEngine(context: Context) {
                 TimelineNative.nativeBeginSnapshot(
                     h, density, input.pxPerMs, 34f * density, 34f * density,
                     3f * density, 3f * density, input.bottomPadPx, input.totalMs,
-                    0, -1, 0f, -1, -1, input.comfort, false, false, 0L, 0L
+                    -1, -1, input.comfort, false, false, 0L, 0L
                 )
                 TimelineNative.nativeEndSnapshot(h)
                 atlas.reset()
@@ -524,10 +521,6 @@ internal class NativeTimelineEngine(context: Context) {
     private fun buildSnapshot(h: Long, input: TlSnapshotInput): Boolean {
         val dpPx = density
         atlas.ensureDigits(15f * dpPx)
-        val layerCount = input.tracks.sumOf { it.clips.size }
-        val pillText = "$layerCount Layers"
-        val pillIdx = atlas.resolve(pillText, TlLabelStyle.PILL, 0f)
-        val pillW = atlas.measure(pillText, TlLabelStyle.PILL)
         val totalIdx = atlas.resolve(formatClock(input.totalMs), TlLabelStyle.TOTAL, 0f)
         val chainIdx = atlas.resolve("Chain", TlLabelStyle.EMPTY, 0f)
         val hasRange = input.exportInMs != null && input.exportOutMs != null &&
@@ -601,7 +594,7 @@ internal class NativeTimelineEngine(context: Context) {
         TimelineNative.nativeBeginSnapshot(
             h, density, input.pxPerMs, 34f * dpPx, 34f * dpPx,
             3f * dpPx, 3f * dpPx, input.bottomPadPx, input.totalMs,
-            layerCount, pillIdx, pillW, totalIdx, chainIdx,
+            totalIdx, chainIdx,
             input.comfort, input.multiSelectIds.isNotEmpty(),
             hasRange, input.exportInMs ?: 0L, input.exportOutMs ?: 0L
         )

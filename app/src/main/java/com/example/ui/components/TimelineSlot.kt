@@ -47,7 +47,6 @@ fun TimelineSlot(
     toolsPanelOpen: Boolean,
     barActionsState: BarActionsState,
     comfortDensity: Boolean,
-    onLayerPillClick: () -> Unit,
     onSpeedAction: (() -> Unit)?,
     onReverseAction: (() -> Unit)?,
     onReplaceAction: () -> Unit,
@@ -90,7 +89,6 @@ fun TimelineSlot(
                 toolsPanelOpen, multiSelectIds.isNotEmpty(), showActionBarNative
             ),
             comfortDensity = comfortDensity,
-            onLayerPillClick = onLayerPillClick,
             modifier = Modifier.fillMaxSize()
         )
         com.example.ui.components.TimelineBarActionsPublisher(

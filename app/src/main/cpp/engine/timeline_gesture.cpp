@@ -236,9 +236,6 @@ void Gesture::applyTrimFade(const Renderer& r, float dx, std::vector<Event>* out
 void Gesture::dispatchTap(const Renderer& r, std::vector<Event>* out) {
     const bool multi = r.snapshot().multiMode;
     switch (downZone_) {
-        case kZonePill:
-            emit(out, kEvPill);
-            break;
         case kZoneEye:
             if (!hasClip()) return;
             emit(out, multi ? kEvToggleMulti : kEvToggleVisibility);

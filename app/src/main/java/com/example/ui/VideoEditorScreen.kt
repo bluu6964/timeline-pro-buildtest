@@ -2923,6 +2923,13 @@ fun VideoEditorScreen(
                     context.getSharedPreferences("editor", android.content.Context.MODE_PRIVATE)
                         .edit().putBoolean("snap_enabled", next).apply()
                 }
+                // Build 263: the controls bar's Tools button opens EXACTLY what
+                // the timeline's layer-count pill used to open (the pill is
+                // gone): in the selected state the selected state's grid
+                // sheet, otherwise the in-flow tools panel.
+                val onToolsAction: () -> Unit = {
+                    if (sel219) selGridOpen = true else toolsPanelManual = true
+                }
                 // The selected clip panel's published overflow section
                 // (null while nothing is selected or the panel fits whole).
                 val moreClipSection = morePanelState.clipSection()
@@ -2959,13 +2966,10 @@ fun VideoEditorScreen(
                     toolsGridActive = snapEnabled || onionSkin.enabled || scopesOn ||
                         exportInMs != null || exportOutMs != null ||
                         (moreClipSection?.let { s -> s.tools.any { it.id in s.usedTools } } == true),
-                    // Build 222: the controls bar's first right-group button
-                    // is the SNAP toggle (it was the transform-box toggle —
-                    // Sarowar found it useless; the selection-frame toggle
-                    // lives in the options sheet's Frame tile now). Snap's
-                    // build-199 persistence rides along, as before.
-                    snapOn = snapEnabled,
-                    onSnapClick = onSnapAction,
+                    // Build 263: the controls bar's first right-group button
+                    // is the TOOLS button (the snap magnet's old slot — Snap
+                    // itself lives on as a tile in the sheet this opens).
+                    onToolsClick = onToolsAction,
                     // Build 217: the rest of the reference's controls-bar
                     // right group — the grid toggle (the build-216
                     // workspace row) and Add-Keyframe, which drops
@@ -3194,7 +3198,6 @@ fun VideoEditorScreen(
                     toolsPanelOpen = toolsPanelOpen,
                     barActionsState = barActionsState,
                     comfortDensity = comfortDensity,
-                    onLayerPillClick = { if (sel219) selGridOpen = true else toolsPanelManual = true },
                     onSpeedAction = onSpeedAction,
                     onReverseAction = onReverseAction,
                     onReplaceAction = onReplaceAction,

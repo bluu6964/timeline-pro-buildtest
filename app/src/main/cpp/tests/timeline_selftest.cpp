@@ -54,7 +54,7 @@ static Snapshot makeScene(TestAtlas& ta, int* idx) {
     idx[5] = ta.add(290, 0, 50, 18);    // chain child A label
     idx[6] = ta.add(350, 0, 44, 18);    // chain child B label
     idx[7] = ta.add(404, 0, 36, 20);    // shape label
-    idx[8] = ta.add(0, 32, 90, 20);     // pill "6 Layers"
+    idx[8] = ta.add(0, 32, 90, 20);     // spare entry (was the pill "6 Layers", removed in build 263)
     idx[9] = ta.add(100, 32, 40, 16);   // total "0:08"
     idx[10] = ta.add(150, 32, 40, 18);  // "Chain"
     for (int i = 0; i < 11; ++i) {
@@ -73,9 +73,6 @@ static Snapshot makeScene(TestAtlas& ta, int* idx) {
     s.gapPx = 8;
     s.bottomPadPx = 8;
     s.totalMs = 8000;
-    s.layerCount = 6;
-    s.pillLabel = idx[8];
-    s.pillTextWPx = 90;
     s.totalLabel = idx[9];
     s.chainLabel = idx[10];
     s.hasRange = true;
@@ -201,7 +198,7 @@ int main() {
     CHECK(r.hitTest(42, 128, v, &tr, &cl) == kZoneEye && tr == 0 && cl == 0, "eye box hit");
     CHECK(r.hitTest(10, 128, v, &tr, &cl) == kZoneRail && tr == 0, "rail cell outside the eye box");
     CHECK(r.hitTest(400, 44, v, &tr, &cl) == kZoneRuler, "ruler hit");
-    CHECK(r.hitTest(50, 44, v, &tr, &cl) == kZonePill, "layer pill hit");
+    CHECK(r.hitTest(50, 44, v, &tr, &cl) == kZoneRuler, "former pill spot is plain ruler (build 263: pill removed)");
     CHECK(r.hitTest(650, 128, v, &tr, &cl) == kZoneTrimR && cl == 0, "right trim handle");
     CHECK(r.hitTest(250, 128, v, &tr, &cl) == kZoneTrimL && cl == 0, "left trim handle");
     CHECK(r.hitTest(700, 460, v, &tr, &cl) == kZoneEmpty, "empty lane area");

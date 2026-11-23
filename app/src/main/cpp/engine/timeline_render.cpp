@@ -29,8 +29,6 @@ constexpr uint32_t kChainBorder = 0xFF262630u;
 constexpr uint32_t kChainBridge = 0xFF3A3A46u;
 constexpr uint32_t kChainInk = 0xFF71717Au;
 constexpr uint32_t kChainInkSel = 0xFFD4D4D8u;
-constexpr uint32_t kPillBg = 0xFF1D1D24u;
-constexpr uint32_t kPillBorder = 0xFF2A2A34u;
 constexpr uint32_t kFxBadge = 0xFF27272Eu;
 constexpr uint32_t kChipBg = 0x8C000000u;   // black 55%
 constexpr uint32_t kTeal = 0xFF00B8A9u;     // controller
@@ -1007,7 +1005,7 @@ void Renderer::draw(uint8_t* dst, int32_t dstW, int32_t dstH, int32_t stride, co
     drawLine(fb, cx, R, cx, dstH - c.dp(2), c.dp(7), 0x59000000u);
     drawLine(fb, cx, R, cx, dstH - c.dp(2), c.dp(2), kWhite);
 
-    // ---- Ruler texts + layer pill + bottom hairline ----
+    // ---- Ruler texts + bottom hairline ----
     {
         // Timecode from the digit atlas: "MM:SS:CC" (formatTimeCode).
         if (atlas_.digit[0] >= 0) {
@@ -1052,24 +1050,6 @@ void Renderer::draw(uint8_t* dst, int32_t dstW, int32_t dstH, int32_t stride, co
             blitCentered(fb, atlas_, s.totalLabel, dstW - c.dp(6) - ew / 2.f,
                          R - c.dp(3) - eh / 2.f, 0xFF71717Au, 1.f);
         }
-        // Layer-count pill.
-        if (s.pillLabel >= 0) {
-            float eh = entryH(atlas_, s.pillLabel);
-            float pillH = eh + c.dp(4);
-            float pillW = s.pillTextWPx + c.dp(26);
-            float pillX = c.dp(8), pillY = (R - pillH) / 2.f;
-            fillRoundRect(fb, pillX, pillY, pillW, pillH, pillH / 2.f, kPillBg);
-            strokeRoundRectIn(fb, pillX, pillY, pillW, pillH, pillH / 2.f, c.dp(1), kPillBorder);
-            blitLeft(fb, atlas_, s.pillLabel, pillX + c.dp(7), R / 2.f, kEyeTint, 1.f);
-            // Double chevron (the reference's stacked carets), 9 dp box.
-            float chX = pillX + c.dp(7) + s.pillTextWPx + c.dp(4);
-            float chY = R / 2.f - c.dp(4.5f);
-            float u = c.dp(9) / 24.f;
-            std::vector<Pt> p1 = {{chX + 7 * u, chY + 15 * u}, {chX + 12 * u, chY + 20 * u}, {chX + 17 * u, chY + 15 * u}};
-            std::vector<Pt> p2 = {{chX + 7 * u, chY + 9 * u}, {chX + 12 * u, chY + 4 * u}, {chX + 17 * u, chY + 9 * u}};
-            strokePolyline(fb, p1, false, 2.4f * u, kEyeTint);
-            strokePolyline(fb, p2, false, 2.4f * u, kEyeTint);
-        }
         fillRect(fb, 0, R - c.dp(1), (float)dstW, R, kHairline);
     }
 }
@@ -1082,17 +1062,7 @@ Zone Renderer::hitTest(float x, float y, const View& v, int32_t* track, int32_t*
     float R = s.rulerHPx;
     auto dp = [&](float val) { return val * d; };
 
-    if (y < R) {
-        if (s.pillLabel >= 0) {
-            float eh = entryH(atlas_, s.pillLabel);
-            float pillH = eh + dp(4);
-            float pillW = s.pillTextWPx + dp(26);
-            float pillY = (R - pillH) / 2.f;
-            if (x >= dp(8) && x <= dp(8) + pillW && y >= pillY && y <= pillY + pillH)
-                return kZonePill;
-        }
-        return kZoneRuler;
-    }
+    if (y < R) return kZoneRuler;
 
     int32_t selT = -1, selC = -1;
     for (int32_t ti = 0; ti < (int32_t)s.tracks.size() && selT < 0; ++ti)

@@ -5,7 +5,7 @@
 // thing is host-testable (tests/timeline_gesture_selftest.cpp).
 //
 // What it does (same rules as build 232):
-//   tap bar / rail / eye / pill / chain x           -> select / toggle / open / delete events
+//   tap bar / rail / eye / chain x                  -> select / toggle / delete events
 //   horizontal swipe on ruler / lanes / free bar    -> scrub (seek events) + fling
 //   mostly vertical swipe                           -> lane scroll (owned HERE) + fling
 //   long-press a bar, then drag                     -> move in time (live) + lane reorder on release
@@ -40,7 +40,6 @@ enum EventType : int32_t {
     kEvFade,              // a = 1 fade-in / 0 fade-out, b = raw whole-ms delta (the caller applies
                           //     fadeIn + b / fadeOut - b to its CURRENT values)
     kEvZoom,              // a = new px-per-ms (dp per ms, already clamped)
-    kEvPill,              // the layer-count pill was tapped
     kEvToggleVisibility,  // the gesture's clip: eye
     kEvToggleMulti,       // the gesture's clip: toggle in multi-select
     kEvEnterMulti,        // the gesture's clip: long-press on the rail -> start multi-select

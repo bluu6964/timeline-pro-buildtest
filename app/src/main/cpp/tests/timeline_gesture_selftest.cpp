@@ -20,8 +20,7 @@ static Snapshot makeScene(bool multi = false) {
     Snapshot s;
     s.density = 2.f; s.pxPerMs = 0.045f; s.rulerHPx = 88; s.railWPx = 84;
     s.topPadPx = 8; s.gapPx = 8; s.bottomPadPx = 8; s.totalMs = 8000;
-    s.layerCount = 5; s.multiMode = multi;
-    s.pillLabel = 0; s.pillTextWPx = 90;
+    s.multiMode = multi;
     Track t0; t0.heightPx = 64;
     Clip v; v.startMs = 1000; v.durMs = 4000; v.kind = kGlyphVideo;
     v.flags = kFlagVideo | kFlagHasUri | kFlagSelected;
@@ -88,13 +87,14 @@ int main() {
     }
     {
         Rig rig(makeScene());
+        // Build 263: the layer-count pill is gone — its old spot is plain ruler.
         rig.send(kActionDown, 50, 44);
         auto u = rig.send(kActionUp, 50, 44);
-        CHECK(count(u, kEvPill) == 1, "pill tap");
+        CHECK(u.empty() || count(u, kEvSelect) == 0, "former pill spot: ruler tap does nothing");
         auto d = rig.send(kActionDown, 400, 44);
         CHECK(count(d, kEvArmLongPress) == 0, "no long-press on the ruler");
         u = rig.send(kActionUp, 400, 44);
-        CHECK(u.empty() || (count(u, kEvSelect) == 0 && count(u, kEvPill) == 0), "ruler tap does nothing");
+        CHECK(u.empty() || count(u, kEvSelect) == 0, "ruler tap does nothing");
     }
     {
         Rig rig(makeScene());
