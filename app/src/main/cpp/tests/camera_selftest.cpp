@@ -128,6 +128,88 @@ int main() {
         ++checks; if (cameraDepth(in, &d)) { ++fails; std::puts("FAIL depth behind camera should be false"); }
     }
 
+    // 11) Build 262: cameraPoints at the four corners == cameraQuad, across placements
+    //     (flat / Z / 3D turn / camera pan+dolly+orbit+roll). The grid floor and the
+    //     extrusion walls are built from cameraPoints, so they must meet the faces
+    //     (cameraQuad pins) exactly.
+    {
+        const float bw = 800.f, bh = 600.f;  // fitted picture of the placement below
+        for (int trial = 0; trial < 3; ++trial) {
+            base(in);
+            in[2] = 800; in[3] = 600;  // content == fitted (canvas is bigger, fit = min(1080/800, 1920/600) -> bw != 800!)
+            // Use a canvas exactly the content size so fit = 1 and the corners are (+-400, +-300).
+            in[0] = 800; in[1] = 600;
+            if (trial == 1) { in[6] = 130; in[7] = -60; in[8] = 250; in[11] = 20; in[12] = 25; in[13] = -35; in[9] = 1.4f; in[10] = 0.8f; }
+            if (trial == 2) {
+                in[6] = -80; in[7] = 40; in[8] = 100; in[11] = -15; in[12] = -20; in[13] = 30;
+                in[17] = 1; in[18] = 60; in[19] = -45; in[20] = 150; in[21] = 1.3f; in[22] = 18; in[23] = -22; in[24] = 12;
+            }
+            float quad[8];
+            ++checks;
+            if (!cameraQuad(in, quad)) { ++fails; std::printf("FAIL points trial %d: quad behind\n", trial); continue; }
+            const float pts[12] = {-bw / 2, -bh / 2, 0, bw / 2, -bh / 2, 0, bw / 2, bh / 2, 0, -bw / 2, bh / 2, 0};
+            float out[8];
+            uint8_t ok[4] = {0, 0, 0, 0};
+            cameraPoints(in, pts, 4, out, ok);
+            for (int i = 0; i < 4; ++i) {
+                ++checks;
+                if (!ok[i]) { ++fails; std::printf("FAIL points trial %d corner %d not ok\n", trial, i); }
+                near(out[i * 2], quad[i * 2], 0.05, "points==quad x");
+                near(out[i * 2 + 1], quad[i * 2 + 1], 0.05, "points==quad y");
+            }
+        }
+    }
+    // 12) Build 262: a point pushed along the plane normal (qz = +depth — local +z points
+    //     INTO the screen in this math, p.z = v.z - zToward; the extrusion's back face sits
+    //     at qz = +depth) lands CLOSER to the centre than the same point at qz = 0, by the
+    //     perspective factor: offset scales by 1 / (1 + depth / D) with no camera.
+    {
+        base(in);
+        const float pts[6] = {200, 100, 0, 200, 100, 250};
+        float out[4];
+        uint8_t ok[2] = {0, 0};
+        cameraPoints(in, pts, 2, out, ok);
+        ++checks; if (!ok[0] || !ok[1]) { ++fails; std::puts("FAIL qz points not ok"); }
+        const double f = 1.0 / (1.0 + 250.0 / 1000.0);
+        near(out[2], 540 + 200 * f, 0.05, "back point x");
+        near(out[3], 960 + 100 * f, 0.05, "back point y");
+        near(out[0], 540 + 200, 0.05, "front point x");
+    }
+    // 13) Build 262: a point behind the camera reports ok = 0 (dolly past it).
+    {
+        base(in);
+        in[17] = 1; in[20] = 1100;
+        const float pts[3] = {0, 0, 0};
+        float out[2];
+        uint8_t ok[1] = {1};
+        cameraPoints(in, pts, 1, out, ok);
+        ++checks; if (ok[0]) { ++fails; std::puts("FAIL behind-camera point must not be ok"); }
+    }
+    // 14) Build 262: the 3D Space's DEFAULT view (pitch = the space clip's rotation3dX
+    //     default, tested at +22 deg here and pinned in SpaceRig's default): the grid
+    //     floor must read as a floor — all four corners in front of the camera, the FAR
+    //     edge nearer the canvas centre (the horizon) than the NEAR edge, and the near
+    //     edge BELOW the centre. If this fails with +22, the default pitch sign is wrong.
+    {
+        base(in);
+        in[17] = 1; in[22] = 22;  // camRotX = the space's pitch
+        const float S = 2400.f, gy = 0.30f * 1920.f;
+        // identity layer placement: content = canvas, base 0, scale 1 (base() already)
+        const float pts[12] = {
+            -S / 2, gy, -S / 2,  S / 2, gy, -S / 2,   // near edge (z toward the viewer)
+            -S / 2, gy, S / 2,   S / 2, gy, S / 2     // far edge
+        };
+        float out[8];
+        uint8_t ok[4] = {0, 0, 0, 0};
+        cameraPoints(in, pts, 4, out, ok);
+        for (int i = 0; i < 4; ++i) { ++checks; if (!ok[i]) { ++fails; std::printf("FAIL floor corner %d behind\n", i); } }
+        const float nearY = (out[1] + out[3]) / 2.f, farY = (out[5] + out[7]) / 2.f;
+        ++checks; if (!(nearY > 960.f)) { ++fails; std::printf("FAIL floor near edge must be below centre: %.1f\n", nearY); }
+        ++checks; if (!(std::fabs(farY - 960.f) < std::fabs(nearY - 960.f))) {
+            ++fails; std::printf("FAIL floor far edge must sit nearer the horizon: far %.1f near %.1f\n", farY, nearY);
+        }
+    }
+
     std::printf("camera_selftest: %d checks, %d failed\n", checks, fails);
     return fails ? 1 : 0;
 }

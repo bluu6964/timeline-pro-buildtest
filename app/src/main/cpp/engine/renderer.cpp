@@ -58,6 +58,23 @@ void main() {
 )";
 
 
+const char* kQuadVertex = R"(#version 300 es
+layout(location = 0) in vec2 aPos;           // NDC, Y up
+layout(location = 1) in vec4 aColor;         // premultiplied RGBA
+out vec4 vColor;
+void main() {
+    gl_Position = vec4(aPos, 0.0, 1.0);
+    vColor = aColor;
+}
+)";
+
+const char* kQuadFragment = R"(#version 300 es
+precision mediump float;
+in vec4 vColor;
+out vec4 oColor;
+void main() { oColor = vColor; }
+)";
+
 const char* kBlendVertex = R"(#version 300 es
 layout(location = 0) in vec2 aPos;           // quad corners -0.5 .. 0.5
 out vec2 vUv;
@@ -288,7 +305,68 @@ bool Renderer::buildPrograms() {
     }
     // A broken blend shader must not stop plain exports: blended layers then fall back to Normal.
     if (!buildBlendProgram()) LOGE("blend program unavailable, blend modes fall back to Normal");
+    // Same for the 3D Space quad program: without it a space simply has no grid / walls.
+    if (!buildQuadProgram()) LOGE("quad program unavailable, 3D Space grid / extrusion walls off");
     return true;
+}
+
+bool Renderer::buildQuadProgram() {
+    const uint32_t vs = compile(GL_VERTEX_SHADER, kQuadVertex);
+    const uint32_t fs = compile(GL_FRAGMENT_SHADER, kQuadFragment);
+    if (!vs || !fs) return false;
+    const uint32_t prog = glCreateProgram();
+    glAttachShader(prog, vs);
+    glAttachShader(prog, fs);
+    glLinkProgram(prog);
+    glDeleteShader(vs);
+    glDeleteShader(fs);
+    GLint ok = 0;
+    glGetProgramiv(prog, GL_LINK_STATUS, &ok);
+    if (!ok) {
+        char log[512] = {0};
+        glGetProgramInfoLog(prog, sizeof(log) - 1, nullptr, log);
+        LOGE("quad program link failed: %s", log);
+        glDeleteProgram(prog);
+        return false;
+    }
+    quadProg_ = prog;
+    return true;
+}
+
+void Renderer::drawQuads(const float* verts, const float* colors, int quads) {
+    if (!quadProg_ || quads <= 0 || w_ < 1 || h_ < 1) return;
+    if (!quadVao_) {
+        glGenVertexArrays(1, &quadVao_);
+        glGenBuffers(1, &quadVbo_);
+    }
+    // Interleaved triangle list: 6 vertices per quad (TL, TR, BR, TL, BR, BL), each
+    // vertex = NDC position (2) + premultiplied colour (4).
+    std::vector<float> buf;
+    buf.reserve((size_t)quads * 6 * 6);
+    auto pushVert = [&](int quad, int corner) {
+        const float x = verts[quad * 8 + corner * 2], y = verts[quad * 8 + corner * 2 + 1];
+        buf.push_back(2.f * x / (float)w_ - 1.f);
+        buf.push_back(1.f - 2.f * y / (float)h_);
+        const float a = colors[quad * 4 + 3];
+        buf.push_back(colors[quad * 4] * a);
+        buf.push_back(colors[quad * 4 + 1] * a);
+        buf.push_back(colors[quad * 4 + 2] * a);
+        buf.push_back(a);
+    };
+    for (int q = 0; q < quads; ++q) {
+        pushVert(q, 0); pushVert(q, 1); pushVert(q, 2);
+        pushVert(q, 0); pushVert(q, 2); pushVert(q, 3);
+    }
+    glBindVertexArray(quadVao_);
+    glBindBuffer(GL_ARRAY_BUFFER, quadVbo_);
+    glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)(buf.size() * sizeof(float)), buf.data(), GL_DYNAMIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 6 * sizeof(float), nullptr);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (const void*)(2 * sizeof(float)));
+    glUseProgram(quadProg_);
+    glDrawArrays(GL_TRIANGLES, 0, (GLsizei)(quads * 6));
+    glBindVertexArray(vao_);
 }
 
 bool Renderer::buildBlendProgram() {
@@ -330,6 +408,10 @@ void Renderer::release() {
     if (oes_.id) glDeleteProgram(oes_.id);
     if (flat_.id) glDeleteProgram(flat_.id);
     if (blendProg_) glDeleteProgram(blendProg_);
+    if (quadProg_) glDeleteProgram(quadProg_);
+    if (quadVbo_) glDeleteBuffers(1, &quadVbo_);
+    if (quadVao_) glDeleteVertexArrays(1, &quadVao_);
+    quadProg_ = quadVbo_ = quadVao_ = 0;
     if (fboLayer_) glDeleteFramebuffers(1, &fboLayer_);
     if (texLayer_) glDeleteTextures(1, &texLayer_);
     if (texBackdrop_) glDeleteTextures(1, &texBackdrop_);

@@ -82,6 +82,20 @@ JNIEXPORT jint JNICALL Java_com_example_engine_RendererNative_nativeEndGroup(JNI
     return (jint)R(p)->endGroup();
 }
 
+// Build 262 (3D Space): flat-colour quads into the current target (grid floor, extrusion
+// walls). verts = quads * 8 floats (x, y canvas px from the top-left; TL, TR, BR, BL per
+// quad), colors = quads * 4 floats (r, g, b, a, straight alpha 0..1).
+JNIEXPORT void JNICALL Java_com_example_engine_RendererNative_nativeDrawQuads(JNIEnv* env, jclass, jlong p,
+                                                                              jfloatArray vertsA, jfloatArray colorsA,
+                                                                              jint quads) {
+    if (!vertsA || !colorsA || quads <= 0) return;
+    if (env->GetArrayLength(vertsA) < quads * 8 || env->GetArrayLength(colorsA) < quads * 4) return;
+    std::vector<jfloat> verts(quads * 8), colors(quads * 4);
+    env->GetFloatArrayRegion(vertsA, 0, quads * 8, verts.data());
+    env->GetFloatArrayRegion(colorsA, 0, quads * 4, colors.data());
+    R(p)->drawQuads(verts.data(), colors.data(), (int)quads);
+}
+
 JNIEXPORT void JNICALL Java_com_example_engine_RendererNative_nativeDrawLayer(JNIEnv* env, jclass, jlong p,
                                                                             jint tex, jboolean oes,
                                                                             jfloatArray params) {

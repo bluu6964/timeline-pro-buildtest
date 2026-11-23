@@ -186,4 +186,26 @@ JNIEXPORT jfloat JNICALL Java_com_example_engine_AnimNative_nativeCameraDepth(JN
     return am::cameraDepth(v, &d) ? d : NAN;
 }
 
+// 3D Space (build 262, camera.h): arbitrary plane points through the same projection as
+// nativeCameraQuad. pts = n triples (qx, qy, qz); out = n pairs (canvas px from the top-left);
+// ok = n flags (1 = in front of the camera). Used for the space's grid floor and for the
+// extrusion walls / back faces of text and shape children.
+JNIEXPORT void JNICALL Java_com_example_engine_AnimNative_nativeCameraPoints(JNIEnv* env, jclass, jfloatArray inA,
+                                                                             jfloatArray ptsA, jfloatArray outA,
+                                                                             jbooleanArray okA) {
+    if (!inA || !ptsA || !outA || !okA || env->GetArrayLength(inA) < am::kCamIn) return;
+    const int n = env->GetArrayLength(ptsA) / 3;
+    if (n <= 0 || env->GetArrayLength(outA) < n * 2 || env->GetArrayLength(okA) < n) return;
+    jfloat v[am::kCamIn];
+    env->GetFloatArrayRegion(inA, 0, am::kCamIn, v);
+    std::vector<jfloat> pts(n * 3), out(n * 2);
+    std::vector<uint8_t> ok(n);
+    env->GetFloatArrayRegion(ptsA, 0, n * 3, pts.data());
+    am::cameraPoints(v, pts.data(), n, out.data(), ok.data());
+    env->SetFloatArrayRegion(outA, 0, n * 2, out.data());
+    std::vector<jboolean> okJ(n);
+    for (int i = 0; i < n; ++i) okJ[i] = ok[i] ? JNI_TRUE : JNI_FALSE;
+    env->SetBooleanArrayRegion(okA, 0, n, okJ.data());
+}
+
 }  // extern "C"

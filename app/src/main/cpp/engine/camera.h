@@ -10,6 +10,8 @@
 // Pure C++, host-tested: tests/camera_selftest.cpp.
 #pragma once
 
+#include <cstdint>
+
 namespace am {
 
 constexpr int kCamIn = 25;
@@ -28,5 +30,16 @@ bool cameraQuad(const float* in, float* out);
 // the farthest is drawn first, so a layer the camera has dollied past or orbited behind goes to the back. With no camera
 // it is -Z. Returns false when the centre is at / behind the camera (the layer is not drawn then).
 bool cameraDepth(const float* in, float* depth);
+
+// Build 262 (3D Space): the same projection as cameraQuad for ARBITRARY points of the layer's plane.
+// pts = n triples (qx, qy, qz): qx / qy are the point in the FITTED picture, px from its centre (the
+// same space cameraQuad's corners live in: corner = (+-bw/2, +-bh/2, 0)), and qz is the point's offset
+// along the plane's own normal in the same px (local +z points INTO the screen in this math —
+// p.z = v.z - zToward — so the extrusion's back face sits at qz = +depth, and a 3D scene's floor
+// recedes toward qz = +extent). The point goes through the layer's own rotation about its pivot
+// exactly like a corner, then the camera. out = n pairs (canvas px from the top-left); ok[i] tells
+// whether point i is in front of the camera (out is still written, but meaningless when ok is 0).
+// cameraQuad's corners ARE cameraPoints at the four corners with qz = 0 (the selftest pins it).
+void cameraPoints(const float* in, const float* pts, int n, float* out, uint8_t* ok);
 
 }  // namespace am

@@ -29,6 +29,8 @@ internal object RendererNative {
     @JvmStatic external fun nativeEndFrame(r: Long, ptsNs: Long): Boolean
     @JvmStatic external fun nativeBeginGroup(r: Long): Boolean
     @JvmStatic external fun nativeEndGroup(r: Long): Int
+    /** Build 262 (3D Space): flat-colour quads into the current target. verts = quads*8 (x, y canvas px from top-left, TL/TR/BR/BL), colors = quads*4 (r, g, b, a straight 0..1). */
+    @JvmStatic external fun nativeDrawQuads(r: Long, verts: FloatArray, colors: FloatArray, quads: Int)
     @JvmStatic external fun nativeLoadMask(r: Long, slot: Int, path: String): Int
     @JvmStatic external fun nativeLoadImage(r: Long, fd: Int, maxSide: Int, out: IntArray): Int
     @JvmStatic external fun nativeApplyFx(
@@ -310,6 +312,15 @@ class NativeRenderer private constructor(private var ptr: Long) : AutoCloseable 
      */
     fun beginGroup(): Boolean = RendererNative.nativeBeginGroup(ptr)
     fun endGroup(): Int = RendererNative.nativeEndGroup(ptr)
+
+    /**
+     * Build 262 (3D Space): draws [quads] flat-colour quads into the current target (the frame,
+     * or the group / space picture being composed). [verts] = quads*8 floats (x, y in canvas px
+     * from the top-left; TL, TR, BR, BL per quad), [colors] = quads*4 floats (r, g, b, a,
+     * straight alpha 0..1). Used for the space's grid floor and the extrusion walls.
+     */
+    fun drawQuads(verts: FloatArray, colors: FloatArray, quads: Int) =
+        RendererNative.nativeDrawQuads(ptr, verts, colors, quads)
 
     override fun close() {
         val p = ptr

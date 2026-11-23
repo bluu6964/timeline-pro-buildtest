@@ -118,6 +118,13 @@ public:
     // Same ownership as applyFx: the result lives in the fx targets, valid until the next
     // applyFx / applyTexMask call. False = nothing was done (the caller draws the source itself).
     bool applyTexMask(const LayerDraw& src, uint32_t maskTex, bool subtract, LayerDraw* out);
+    // Build 262 (3D Space): flat-colour quads straight into the current target (the frame, or the
+    // group / space picture being composed) — the space's grid floor and the extrusion walls.
+    // verts = quads * 8 floats (x, y canvas px from the TOP-LEFT; TL, TR, BR, BL per quad);
+    // colors = quads * 4 floats (r, g, b, a, straight alpha 0..1 — premultiplied here). Drawn with
+    // the frame's normal premultiplied blending; the canvas scissor stays on. A no-op when the
+    // quad program failed to build (the space then simply has no grid / walls).
+    void drawQuads(const float* verts, const float* colors, int quads);
     // Group pass: a Group layer is drawn as ONE picture. beginGroup() makes the frame target a transparent canvas-sized
     // picture (premultiplied RGBA); everything drawn until endGroup() lands in it, blend modes of the layers inside blend
     // with the group's own contents only. endGroup() puts the previous target back (the frame, or the group this one is
@@ -135,6 +142,7 @@ public:
 private:
     bool buildPrograms();
     bool buildBlendProgram();
+    bool buildQuadProgram();
     bool ensureScratch();
     bool ensureGroupTargets();
     void releaseGroupTargets();
@@ -220,6 +228,10 @@ private:
     };
     EglCore egl_;
     Program oes_, flat_;
+    // Build 262: the flat-colour quad program (3D Space grid floor + extrusion walls) and its
+    // own dynamic buffer pair (created lazily on the first drawQuads call).
+    uint32_t quadProg_ = 0;
+    uint32_t quadVao_ = 0, quadVbo_ = 0;
     // Blend pass: scratch buffers are canvas-sized (re-created when the output size changes).
     uint32_t blendProg_ = 0;
     int bBackdrop_ = -1, bLayer_ = -1, bMode_ = -1, bOpacity_ = -1, bCanvas_ = -1, bFlip_ = -1;

@@ -24,6 +24,14 @@ internal object AnimNative {
     @JvmStatic external fun nativeCameraQuad(input: FloatArray, out: FloatArray): Boolean
     /** Distance of the layer's centre from the camera (bigger = farther); NaN = behind the camera. Same input as [nativeCameraQuad]. */
     @JvmStatic external fun nativeCameraDepth(input: FloatArray): Float
+
+    /**
+     * Build 262 (3D Space): arbitrary points of a layer's plane through the same projection as
+     * [nativeCameraQuad]. [pts] = n triples (qx, qy, qz — fitted-picture px from the centre, qz
+     * along the plane normal, + = into the screen); [out] = n pairs (canvas px from the top-left);
+     * [ok][i] = point i is in front of the camera. Same input as [nativeCameraQuad].
+     */
+    @JvmStatic external fun nativeCameraPoints(input: FloatArray, pts: FloatArray, out: FloatArray, ok: BooleanArray)
 }
 
 /**
