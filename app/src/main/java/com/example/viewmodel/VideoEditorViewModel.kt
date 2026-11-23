@@ -339,6 +339,13 @@ class VideoEditorViewModel : ViewModel() {
             exitMultiSelect()
             if (gid != null) setSelected(gid)
         }
+        if (action == MultiAction.SPLIT) {
+            // Build 263 (Sarowar): a split deselects — the checked set named the
+            // pre-split layers, so multi-select ends with the split, like the
+            // single-layer split clearing the selection.
+            exitMultiSelect()
+            setSelected(null)
+        }
     }
 
     private val _canvasColor = MutableStateFlow(0xFF000000L)
@@ -542,7 +549,9 @@ class VideoEditorViewModel : ViewModel() {
             val res = GroupOps.splitGroup(LaneLayout.normalize(_tracks.value), clip.id, playhead) ?: return
             pushHistory()
             _tracks.value = res.tracks
-            setSelected(res.groupId)
+            // Build 263 (Sarowar): a split DESELECTS — the panel returns to the
+            // no-selection state instead of following either half.
+            setSelected(null)
             recomputeTotal()
             return
         }
@@ -570,7 +579,8 @@ class VideoEditorViewModel : ViewModel() {
             track.copy(clips = track.clips.map { if (it.id == clipId) part1 else it })
         }
         _tracks.value = placeNewLayer(LaneLayout.normalize(withPart1), part2, clip.chainId)
-        setSelected(part2.id)
+        // Build 263 (Sarowar): a split DESELECTS — neither half stays selected.
+        setSelected(null)
         recomputeTotal()
     }
 
