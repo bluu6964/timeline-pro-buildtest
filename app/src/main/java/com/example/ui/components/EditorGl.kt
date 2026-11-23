@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -129,31 +130,46 @@ internal fun GlTextLine(
             entry = resolveOnce()
         }
         val e = entry
-        NativeVectorCanvas(
-            modifier = Modifier.fillMaxSize(),
-            clearArgb = 0,
-            atlas = atlas,
-            drawKey = listOf(e, colorArgb, wPx, hPx, atlas.generation),
-            buildCmds = { w, h, _ ->
-                if (e != null) {
-                    val textH = atlas.textHeightPx(style)
-                    val fm = atlas.fontMetrics(style)
-                    val top = EditorGeometry.centredTextTopPx(0f, h, textH)
-                    val baseline = PanelGeometry.lineBaselinePx(top, textH, fm.ascent, fm.descent)
-                    val originX = when (align) {
-                        TextAlign.Center -> EditorGeometry.centredOriginPx(w / 2f, e.advance)
-                        TextAlign.End -> w - e.advance
-                        else -> 0f
-                    }
-                    val (dstX, dstY) = EditorGeometry.textDst(originX, baseline, e.bearing, e.base, pad)
-                    addText(
-                        e.index, dstX, dstY,
-                        0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
-                        tintArgb = colorArgb
-                    )
-                }
-            }
+        // Build 267: the box hugs the drawn run's advance (the
+        // Compose Text form — see EditorGeometry.LabelLine). A
+        // fillMaxSize canvas here took the whole incoming max width,
+        // so as a Row child this line starved every sibling after it
+        // (the Text editor's sliders / swatches / pills vanished).
+        // Width-pinned hosts (min == max) keep their exact width.
+        val boxWPx = EditorGeometry.LabelLine.boxWPx(
+            e?.advance ?: wPx, constraints.minWidth.toFloat(), wPx
         )
+        Box(
+            Modifier
+                .width((boxWPx / density).dp)
+                .fillMaxHeight()
+        ) {
+            NativeVectorCanvas(
+                modifier = Modifier.fillMaxSize(),
+                clearArgb = 0,
+                atlas = atlas,
+                drawKey = listOf(e, colorArgb, wPx, hPx, atlas.generation),
+                buildCmds = { w, h, _ ->
+                    if (e != null) {
+                        val textH = atlas.textHeightPx(style)
+                        val fm = atlas.fontMetrics(style)
+                        val top = EditorGeometry.centredTextTopPx(0f, h, textH)
+                        val baseline = PanelGeometry.lineBaselinePx(top, textH, fm.ascent, fm.descent)
+                        val originX = when (align) {
+                            TextAlign.Center -> EditorGeometry.centredOriginPx(w / 2f, e.advance)
+                            TextAlign.End -> w - e.advance
+                            else -> 0f
+                        }
+                        val (dstX, dstY) = EditorGeometry.textDst(originX, baseline, e.bearing, e.base, pad)
+                        addText(
+                            e.index, dstX, dstY,
+                            0f, 0f, e.rectW.toFloat(), e.rectH.toFloat(),
+                            tintArgb = colorArgb
+                        )
+                    }
+                }
+            )
+        }
     }
 }
 

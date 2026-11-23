@@ -724,7 +724,7 @@ private fun GlColorRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         GlLabelLine(label, UiLabelStyle.TEXT_13_MED, TxtWhiteArgb)
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(g.LABEL_GAP_DP.dp))
         Row(
             modifier = Modifier
                 .weight(1f)
@@ -929,7 +929,7 @@ private fun FontSection(
         verticalAlignment = Alignment.CenterVertically
     ) {
         GlLabelLine("Font weight", UiLabelStyle.TEXT_13_MED, TxtWhiteArgb)
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(TextEditGeometry.Chips.LABEL_GAP_DP.dp))
         GlPillStrip(
             items = listOf(200, 400, 500, 600, 700, 800, 900).map { w ->
                 GlPillItem(
