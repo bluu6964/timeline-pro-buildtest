@@ -141,7 +141,7 @@ fun toolsGridRowsForHeight(heightDp: Int): Int {
 private sealed interface GridGlyph {
     /** One of the sheet's own vector glyphs (command bodies below). */
     class Vector(val kind: Kind, val on: Boolean) : GridGlyph {
-        enum class Kind { GRID, FRAME, NATIVE_TIMELINE, ONION, SCOPES, MAGNET, BEAT }
+        enum class Kind { GRID, FRAME, ONION, SCOPES, MAGNET, BEAT }
     }
 
     /** A short text mark (IN / OUT / the preview label). */
@@ -195,13 +195,6 @@ fun ToolsGridSheet(
      */
     frameOn: Boolean = true,
     onFrameClick: () -> Unit = {},
-    /**
-     * Native timeline toggle (build 224): the timeline renders on the C++
-     * surface (ON, the default) or with the Compose panel (OFF — Sarowar's
-     * A/B safety switch; it flips live, no editor restart). White = on.
-     */
-    nativeTimelineOn: Boolean = true,
-    onNativeTimelineClick: () -> Unit = {},
     /** Canvas button: the aspect / project format sheet. */
     onCanvasClick: () -> Unit,
     /** The selected clip panel's tools, published via [MorePanelState] (full list while the panel is open, build 210); null = utility section only. */
@@ -262,8 +255,6 @@ fun ToolsGridSheet(
             glyph = GridGlyph.Vector(GridGlyph.Vector.Kind.MAGNET, on = snapOn)),
         GridEntry("Frame", frameOn, "frame_button", "Selection frame", closeOnTap = false, onClick = onFrameClick,
             glyph = GridGlyph.Vector(GridGlyph.Vector.Kind.FRAME, on = frameOn)),
-        GridEntry("Native timeline", nativeTimelineOn, "native_timeline_button", "Native timeline renderer", closeOnTap = false, onClick = onNativeTimelineClick,
-            glyph = GridGlyph.Vector(GridGlyph.Vector.Kind.NATIVE_TIMELINE, on = nativeTimelineOn)),
         GridEntry("Canvas", false, "grid_button", "Canvas", closeOnTap = true, onClick = onCanvasClick,
             glyph = GridGlyph.Vector(GridGlyph.Vector.Kind.GRID, on = false)),
         GridEntry("Prev frame", false, "prev_frame_button", "Previous frame", closeOnTap = false, onClick = onPrevFrameClick,
@@ -609,15 +600,6 @@ private fun VectorCmdBuilder.gridVectorGlyph(
             for ((hx, hy) in listOf(5f to 5f, 19f to 5f, 5f to 19f, 19f to 19f)) {
                 addRoundRect(hx * u, hy * u, sq, sq, 0.8f * u, cArgb)
             }
-        }
-        GridGlyph.Vector.Kind.NATIVE_TIMELINE -> {
-            // A ticked ruler over two lane bars (build 224).
-            addLine(3f * u, 6f * u, 21f * u, 6f * u, 1.6f * u, cArgb, capRound = false)
-            for (tx in listOf(6f, 12f, 18f)) {
-                addLine(tx * u, 4f * u, tx * u, 8f * u, 1.6f * u, cArgb, capRound = false)
-            }
-            addRoundRect((3f + 6.5f) * u, (11f + 2.2f) * u, 13f * u, 4.4f * u, 2.2f * u, cArgb)
-            addRoundRect((8f + 6.5f) * u, (17.6f + 2.2f) * u, 13f * u, 4.4f * u, 2.2f * u, cArgb)
         }
         GridGlyph.Vector.Kind.ONION -> {
             // Two overlapping frames (the onion-skin ghosts, build 190):

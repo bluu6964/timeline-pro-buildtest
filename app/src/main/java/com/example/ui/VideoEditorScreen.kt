@@ -167,7 +167,6 @@ import com.example.ui.components.ScopesPanel
 import com.example.ui.components.ScopesPanelHeight
 import com.example.ui.components.PlayControlsSection
 import com.example.ui.components.ResolutionSheet
-import com.example.ui.components.TimelineLayerPanel
 import com.example.ui.components.TimelineSlot
 import com.example.ui.components.TimescaleSection
 import com.example.ui.theme.EditorBackground
@@ -253,19 +252,9 @@ fun VideoEditorScreen(
     // Build 217: the reference's lane density (32 dp rows; comfort = 44 dp),
     // toggled from the timeline options sheet's Density tile.
     var comfortDensity by remember { mutableStateOf(false) }
-    // Build 224 (GRADUAL NATIVE MIGRATION, step 1): the timeline renders on
-    // the C++ surface when ON (the default); OFF is the Compose panel,
-    // switched live from the options sheet's "Native timeline" tile —
-    // Sarowar's A/B safety switch. Persisted like the snap switch (loaded
-    // by the LaunchedEffect next to the snap load below).
-    // Build 228: the crash-loop breaker MUST be consulted for the very first composition.
-    // (Build 227 read it in a LaunchedEffect, i.e. AFTER the first frame: the native surface was
-    // already created -> a crash at surface creation looped forever, and the surface's own arm()
-    // could even be mistaken for "previous session died".)
-    val nativeTimelineCtx = androidx.compose.ui.platform.LocalContext.current
-    var nativeTimeline by remember {
-        mutableStateOf(com.example.engine.NativeTimelineBreaker.initialNativeOn(nativeTimelineCtx))
-    }
+    // Build 263: the build-224 A/B switch is gone — the timeline is the C++
+    // surface, unconditionally (the Compose branch and its crash-loop
+    // breaker were removed at Sarowar's order).
     LaunchedEffect(selectedClipId) { toolsPanelManual = null }
     val toolsPanelOpen = toolsPanelManual ?: (selectedClipId != null)
     // Build 219 (Sarowar's HTML reference v4): the SELECTED state's
@@ -2934,13 +2923,6 @@ fun VideoEditorScreen(
                     context.getSharedPreferences("editor", android.content.Context.MODE_PRIVATE)
                         .edit().putBoolean("snap_enabled", next).apply()
                 }
-                // Build 224: the native-timeline A/B switch (options sheet tile).
-                val onNativeTimelineAction: () -> Unit = {
-                    val next = !nativeTimeline
-                    nativeTimeline = next
-                    context.getSharedPreferences("editor", android.content.Context.MODE_PRIVATE)
-                        .edit().putBoolean("native_timeline", next).apply()
-                }
                 // The selected clip panel's published overflow section
                 // (null while nothing is selected or the panel fits whole).
                 val moreClipSection = morePanelState.clipSection()
@@ -3192,7 +3174,6 @@ fun VideoEditorScreen(
                 // components/TimelineSlot.kt — inlined here it pushed this
                 // composable's lambda over the JVM 64 KB per-method limit.
                 TimelineSlot(
-                    nativeTimeline = nativeTimeline,
                     rulerH = rulerH,
                     layerPanelH = layerPanelH,
                     tracks = tracks,
@@ -3217,9 +3198,6 @@ fun VideoEditorScreen(
                     onSpeedAction = onSpeedAction,
                     onReverseAction = onReverseAction,
                     onReplaceAction = onReplaceAction,
-                    onSpatialActionVal = onSpatialActionVal,
-                    onBooleanActionVal = onBooleanActionVal,
-                    onDeleteCheckedLayersAction = onDeleteCheckedLayersAction,
                     editingGroupId = editingGroupId,
                     viewModel = viewModel
                 )
@@ -3274,9 +3252,6 @@ fun VideoEditorScreen(
                             // bar by the snap toggle — same local state.
                             frameOn = transformBoxOn,
                             onFrameClick = { transformBoxOn = !transformBoxOn },
-                            // Build 224: the native-timeline A/B switch.
-                            nativeTimelineOn = nativeTimeline,
-                            onNativeTimelineClick = onNativeTimelineAction,
                             onCanvasClick = { showAspectRatioSheet = true },
                             // Build 217: the displaced functions, housed
                             // in this sheet (see ToolsGridSheet).

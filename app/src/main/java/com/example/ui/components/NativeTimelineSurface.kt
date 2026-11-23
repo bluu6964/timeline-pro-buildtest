@@ -17,7 +17,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.viewinterop.AndroidView
-import com.example.engine.NativeTimelineBreaker
 import com.example.engine.NativeTimelineEngine
 import com.example.engine.TL_EV_ANIMATE
 import com.example.engine.TL_EV_ARM_LONG_PRESS
@@ -103,17 +102,7 @@ fun NativeTimelineSurface(
     val latestPlayhead = rememberUpdatedState(playheadMs)
 
     DisposableEffect(Unit) {
-        // Build 227: crash-loop breaker (NativeTimelineBreaker). The surface
-        // arms the flag when it is created (below); stand it down once the
-        // surface has been alive ~10 s — a native lifecycle crash strikes at
-        // creation / first frames — and again on clean disposal, so the flag
-        // survives ONLY a session that actually died with the surface up.
-        val disarmHandler = Handler(Looper.getMainLooper())
-        val disarm = Runnable { NativeTimelineBreaker.disarm(context) }
-        disarmHandler.postDelayed(disarm, 10_000L)
         onDispose {
-            disarmHandler.removeCallbacks(disarm)
-            NativeTimelineBreaker.disarm(context)
             machine.release()
             engine.release()
         }
@@ -178,10 +167,6 @@ fun NativeTimelineSurface(
             machine.longPressMs = ViewConfiguration.getLongPressTimeout().toLong()
             view.holder.addCallback(object : SurfaceHolder.Callback {
                 override fun surfaceCreated(holder: SurfaceHolder) {
-                    // Build 227: arm the crash-loop breaker BEFORE the native
-                    // surface work starts (commit() — must be durable even if
-                    // the process dies seconds from now).
-                    NativeTimelineBreaker.arm(context)
                     engine.surfaceChanged(holder.surface)
                 }
 
