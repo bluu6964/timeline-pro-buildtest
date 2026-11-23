@@ -239,6 +239,120 @@ class TextEditGeometryTest {
         }
     }
 
+    // ── Build 268: the panel height law ─────────────────────────
+    //
+    // Sarowar's rule: drag the head and the panel follows the finger
+    // 1:1 and STAYS where it is released — no snap points anywhere.
+    // These tests pin the pure law the host lays out by.
+
+    @Test
+    fun panelDragFollowsTheFingerOneToOne() {
+        val g = TextEditGeometry.Panel
+        for (d in densities) {
+            val min = g.minHeightPx(d)
+            val max = g.maxHeightPx(700f * d)
+            val start = 400f * d
+            // Finger moves up 30 dp (delta is negative: down = +):
+            // the panel grows by exactly 30 dp — no rounding, no step.
+            assertEquals(start + 30f * d, g.draggedHeightPx(start, -30f * d, min, max), eps)
+            // Finger moves down 45.5 dp: the panel shrinks by exactly that.
+            assertEquals(start - 45.5f * d, g.draggedHeightPx(start, 45.5f * d, min, max), eps)
+            // A fractional delta lands on the exact fractional height
+            // (a snap law would round this to a detent).
+            assertEquals(start - 13.37f * d, g.draggedHeightPx(start, 13.37f * d, min, max), 0.1f)
+        }
+    }
+
+    @Test
+    fun panelDragClampsAtBothEnds() {
+        val g = TextEditGeometry.Panel
+        for (d in densities) {
+            val min = g.minHeightPx(d)
+            val max = g.maxHeightPx(700f * d)
+            // A huge upward drag stops at the available height (the
+            // lower zone — the canvas above is never covered).
+            assertEquals(max, g.draggedHeightPx(400f * d, -100000f, min, max), eps)
+            // A huge downward drag stops at the minimum: head +
+            // typing field + tab row + about one control row.
+            assertEquals(min, g.draggedHeightPx(400f * d, 100000f, min, max), eps)
+            assertEquals(
+                (g.HEAD_H_DP + g.FIELD_H_DP + g.TAB_ROW_H_DP + g.MIN_CONTENT_DP) * d,
+                min, eps
+            )
+        }
+    }
+
+    @Test
+    fun panelReleaseStaysExactlyThere() {
+        val g = TextEditGeometry.Panel
+        val d = 2.625f
+        val min = g.minHeightPx(d)
+        val max = g.maxHeightPx(700f * d)
+        // Release = the dragged value passes the clamp unchanged, and
+        // re-clamping the remembered height is a fixed point (the
+        // host restores it verbatim on reopen).
+        val released = g.draggedHeightPx(400f * d, -77.25f * d, min, max)
+        assertEquals(released, g.clampHeightPx(released, min, max), eps)
+        // A zero-delta drag (a tap on the head) never moves the panel.
+        assertEquals(released, g.draggedHeightPx(released, 0f, min, max), eps)
+    }
+
+    @Test
+    fun panelImeShrinksTheDragRange() {
+        val g = TextEditGeometry.Panel
+        val d = 2f
+        val available = 700f * d
+        val ime = 300f * d
+        // With the keyboard up, the max is measured in the space
+        // above the keyboard.
+        assertEquals(available - ime, g.imeMaxHeightPx(available, ime), eps)
+        assertEquals(available, g.imeMaxHeightPx(available, 0f), eps)
+        // A height remembered from before the keyboard opened clamps
+        // into the IME range; the minimum still wins over an inverted
+        // range so the typing field stays visible.
+        val min = g.minHeightPx(d)
+        val clamped = g.clampHeightPx(650f * d, min, g.imeMaxHeightPx(available, ime))
+        assertEquals(available - ime, clamped, eps)
+        val inverted = g.clampHeightPx(650f * d, min, g.imeMaxHeightPx(100f * d, ime))
+        assertEquals(min, inverted, eps)
+    }
+
+    @Test
+    fun panelDefaultHeightIsInsideTheRange() {
+        val g = TextEditGeometry.Panel
+        for (d in densities) {
+            val available = 700f * d
+            val def = g.defaultHeightPx(available, d)
+            assertTrue(def >= g.minHeightPx(d))
+            assertTrue(def <= g.maxHeightPx(available))
+            assertEquals(available * g.DEFAULT_FRACTION, def, eps)
+            // A zone smaller than the minimum still yields the minimum.
+            assertEquals(g.minHeightPx(d), g.defaultHeightPx(100f * d, d), eps)
+        }
+    }
+
+    @Test
+    fun tileGridsTileTheRowExactly() {
+        val g = TextEditGeometry.Grid
+        for (d in densities) {
+            val rowW = 328f * d
+            for (cols in listOf(2, 3)) {
+                // The last cell's right edge is exactly the row width.
+                assertEquals(rowW, g.lastCellRightPx(rowW, cols, d), eps)
+                assertTrue(g.cellWPx(rowW, cols, d) > 0f)
+                // Row-major lefts repeat per row.
+                assertEquals(g.cellLeftPx(0, rowW, cols, d), g.cellLeftPx(cols, rowW, cols, d), eps)
+                assertEquals(g.cellLeftPx(1, rowW, cols, d), g.cellLeftPx(cols + 1, rowW, cols, d), eps)
+            }
+            // Row counts: Templates 13 cards at 2 cols = 7 rows;
+            // Effects 11 tiles at 3 cols = 4 rows; Bubbles 6 at 3 = 2.
+            assertEquals(7, g.rowCount(13, 2))
+            assertEquals(4, g.rowCount(11, 3))
+            assertEquals(2, g.rowCount(6, 3))
+            assertEquals(0, g.rowCount(0, 3))
+        }
+    }
+
     @Test
     fun weightStripSlotIsRealAndPillsTile() {
         val g = TextEditGeometry.Chips

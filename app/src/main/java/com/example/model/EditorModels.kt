@@ -22,6 +22,41 @@ const val GRAD_LINEAR = 0
 const val GRAD_RADIAL = 1
 const val GRAD_SWEEP = 2
 
+/**
+ * Text background shapes ([TimelineClip.bgShape], build 268 — the Text
+ * panel's Bubbles gallery). RECTANGLE is the default and is exactly the
+ * pre-268 background box (the stored corner rule included), so project
+ * files written before build 268 — which have no bgShape key — load
+ * with the identical background. ROUNDED is the same box with a
+ * guaranteed-strong corner radius. The three bubble kinds draw the
+ * [ShapeCatalog] outlines (SH_SPEECH / SH_SPEECH_SQ / SH_THOUGHT,
+ * build 256) behind the text in every painter (native text engine,
+ * Canvas fallback, Compose preview).
+ */
+const val TEXT_BG_NONE = 0
+const val TEXT_BG_RECTANGLE = 1
+const val TEXT_BG_ROUNDED = 2
+const val TEXT_BG_SPEECH = 3
+const val TEXT_BG_SPEECH_SQ = 4
+const val TEXT_BG_THOUGHT = 5
+
+/** The catalog outline a bubble [bgShape] draws, or null for the box shapes / None. */
+fun textBgShapeDef(bgShape: Int): ShapeCatalog.Def? = when (bgShape) {
+    TEXT_BG_SPEECH -> ShapeCatalog.byPattern("SH_SPEECH")
+    TEXT_BG_SPEECH_SQ -> ShapeCatalog.byPattern("SH_SPEECH_SQ")
+    TEXT_BG_THOUGHT -> ShapeCatalog.byPattern("SH_THOUGHT")
+    else -> null
+}
+
+/**
+ * Whether the Corner slider applies to [bgShape]: the two box shapes
+ * take the corner radius; the bubble shapes follow their own outline
+ * (the Bubbles tab hides the slider for them and says why, in code
+ * and in the UI note — never silently).
+ */
+fun textBgCornerApplies(bgShape: Int): Boolean =
+    bgShape == TEXT_BG_RECTANGLE || bgShape == TEXT_BG_ROUNDED
+
 /** Ops of one segment of a freehand path ([TimelineClip.pathSegments]). */
 const val PATH_OP_MOVE = 0
 const val PATH_OP_LINE = 1
@@ -244,6 +279,13 @@ data class TimelineClip(
     val bgColor: Long = 0xFF000000,
     val bgCorner: Float = 20f,
     val bgPadding: Float = 30f,
+    /**
+     * Build 268: the text background's SHAPE (see TEXT_BG_* — the
+     * Bubbles gallery). Additive with the pre-268 box as the default:
+     * old project files have no key and load as TEXT_BG_RECTANGLE,
+     * which renders byte-identically to the old box.
+     */
+    val bgShape: Int = TEXT_BG_RECTANGLE,
     val shapePattern: String? = null,
     val shapeOffsetX: Float = 0f,
     val shapeOffsetY: Float = 0f,

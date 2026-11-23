@@ -329,4 +329,113 @@ object TextEditGeometry {
         /** The label column's width (the old PathTab's 88 dp). */
         const val LABEL_W_DP = 88f
     }
+
+    // ── Build 268: the draggable bottom panel ──────────────────────
+    //
+    // The Text editor is a bottom panel over the editor: the canvas
+    // above stays visible and live, and the panel's HEAD (grab pill +
+    // "Text" title + Done) drags vertically. Sarowar's rule, verbatim
+    // in effect: drag up → the panel rises; drag down → it sinks; it
+    // STAYS exactly where the finger releases it. There is NO snap
+    // point, detent or spring anywhere in this law — [draggedHeightPx]
+    // is a pure clamp of the finger's own delta, and the released
+    // height is the height, remembered by the host for the session.
+
+    object Panel {
+        /** The head strip: grab-pill zone + the title / Done row. */
+        const val HEAD_H_DP = 48f
+
+        /** The grab pill the finger takes hold of. */
+        const val GRAB_W_DP = 40f
+        const val GRAB_H_DP = 4f
+
+        /** The hosted typing field's budgeted height in the min law. */
+        const val FIELD_H_DP = 56f
+
+        /** The tab row under the typing field. */
+        const val TAB_ROW_H_DP = 40f
+
+        /** Minimum visible content under the tabs: about one row. */
+        const val MIN_CONTENT_DP = 44f
+
+        /** First-open height: this share of the available height. */
+        const val DEFAULT_FRACTION = 0.62f
+
+        /** The smallest panel: head + field + tab row + one row. */
+        fun minHeightPx(density: Float): Float =
+            (HEAD_H_DP + FIELD_H_DP + TAB_ROW_H_DP + MIN_CONTENT_DP) * density
+
+        /**
+         * The most room the panel may take: the height the host hands
+         * it (the editor's lower zone — the canvas's invariant height
+         * is never touched; the panel grows over the lower zone only).
+         */
+        fun maxHeightPx(availablePx: Float): Float = availablePx.coerceAtLeast(0f)
+
+        /**
+         * The max height while the keyboard is up: the drag range is
+         * measured in the space above the keyboard, so the IME inset
+         * comes off the available height.
+         */
+        fun imeMaxHeightPx(availablePx: Float, imeBottomPx: Float): Float =
+            (availablePx - imeBottomPx).coerceAtLeast(0f)
+
+        /**
+         * The clamp both the drag and the remembered height go
+         * through. When the range inverts (IME taller than the zone),
+         * the minimum wins: head + field + one row stay visible.
+         */
+        fun clampHeightPx(heightPx: Float, minPx: Float, maxPx: Float): Float =
+            heightPx.coerceIn(minPx, maxOf(maxPx, minPx))
+
+        /**
+         * One drag step: the finger moved [dragDeltaYPx] (down =
+         * positive), so the panel height changes by exactly the
+         * opposite — 1:1, no stepping, no rounding, NO SNAP. On
+         * release nothing else runs: this value is the resting
+         * height, and the host remembers it for the session.
+         */
+        fun draggedHeightPx(
+            currentPx: Float, dragDeltaYPx: Float, minPx: Float, maxPx: Float
+        ): Float = clampHeightPx(currentPx - dragDeltaYPx, minPx, maxPx)
+
+        /** The first-open height, before any drag is remembered. */
+        fun defaultHeightPx(availablePx: Float, density: Float): Float =
+            clampHeightPx(
+                availablePx * DEFAULT_FRACTION,
+                minHeightPx(density), maxHeightPx(availablePx)
+            )
+    }
+
+    // ── Build 268: tile grids (Templates / Fonts / Effects / Bubbles) ──
+    //
+    // Equal cells tiling the padded row width exactly, [GAP_DP]
+    // apart, in row-major order — the same tiling discipline as
+    // [Segmented], generalised to a grid.
+
+    object Grid {
+        const val GAP_DP = 8f
+
+        /** One cell's width: the row split into [columns] cells. */
+        fun cellWPx(rowWPx: Float, columns: Int, density: Float): Float =
+            if (columns <= 0) 0f
+            else (rowWPx - GAP_DP * density * (columns - 1)) / columns
+
+        /** A cell's left edge (its column's slot). */
+        fun cellLeftPx(index: Int, rowWPx: Float, columns: Int, density: Float): Float {
+            if (columns <= 0) return 0f
+            val col = index % columns
+            return col * (cellWPx(rowWPx, columns, density) + GAP_DP * density)
+        }
+
+        /** Rows needed for [count] cells at [columns] per row. */
+        fun rowCount(count: Int, columns: Int): Int =
+            if (count <= 0 || columns <= 0) 0 else (count + columns - 1) / columns
+
+        /** The last cell's right edge must be the row width (tiling). */
+        fun lastCellRightPx(rowWPx: Float, columns: Int, density: Float): Float =
+            if (columns <= 0) 0f
+            else cellLeftPx(columns - 1, rowWPx, columns, density) +
+                cellWPx(rowWPx, columns, density)
+    }
 }
