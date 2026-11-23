@@ -550,15 +550,17 @@ private fun FontGridTile(
 // ── Styles tab ─────────────────────────────────────────────────────
 
 private enum class StyleSection(val label: String) {
-    BACKGROUND("Background"), SHADOW("Shadow"), CURVE("Curve"),
-    SPACING("Spacing"), FORMAT("Format")
+    BACKGROUND("Background"), STROKE("Stroke"), SHADOW("Shadow"),
+    CURVE("Curve"), SPACING("Spacing"), FORMAT("Format")
 }
 
 /**
  * Styles (the videos' structure): (1) a quick fill row — None/reset
  * plus the standard colour set, tapping sets the fill colour; (2)
- * the sub-section chips Background / Shadow / Curve / Spacing /
- * Format, each holding its manual controls. CapCut's Glow
+ * the sub-section chips Background / Stroke / Shadow / Curve /
+ * Spacing / Format (the canonical order lives in
+ * [TextEditGeometry.Styles.SECTION_LABELS], pinned by tests), each
+ * holding its manual controls. CapCut's Glow
  * sub-section is NOT one of ours: the text engine has no separate
  * glow (the Shadow controls cover the look) — nothing is invented.
  */
@@ -605,6 +607,7 @@ private fun StylesTab(
         Spacer(Modifier.height(10.dp))
         when (section) {
             StyleSection.BACKGROUND -> BackgroundControls(clip, onUpdate, onEyedropper)
+            StyleSection.STROKE -> StrokeControls(clip, onUpdate, onEyedropper)
             StyleSection.SHADOW -> ShadowControls(clip, onUpdate, onEyedropper)
             StyleSection.CURVE -> PathSection(clip, pathLayers, onUpdate)
             StyleSection.SPACING -> {
@@ -653,6 +656,29 @@ private fun StylesTab(
             }
         }
     }
+}
+
+/**
+ * The Stroke controls (Styles → Stroke; the old Stroke group,
+ * verbatim — build 269 restores the tab home build 268's
+ * reorganisation dropped: the Thickness slider + the stroke
+ * colour row over the same clip fields and update actions).
+ */
+@Composable
+private fun StrokeControls(
+    clip: TimelineClip,
+    onUpdate: ((TimelineClip) -> TimelineClip) -> Unit,
+    onEyedropper: ((Long) -> Unit) -> Unit
+) {
+    GlTextSliderRow("Thickness", clip.textStrokeThickness, 0f, 100f, "%") { v ->
+        onUpdate { it.copy(textStrokeThickness = v) }
+    }
+    GlColorRow(
+        label = "Color",
+        selected = clip.textStrokeColor,
+        onSelect = { c -> onUpdate { it.copy(textStrokeColor = c) } },
+        onEyedropper = onEyedropper
+    )
 }
 
 /** The Shadow controls (Styles → Shadow; the old Shadow group, verbatim). */
