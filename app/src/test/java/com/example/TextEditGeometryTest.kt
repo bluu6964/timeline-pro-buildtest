@@ -239,6 +239,62 @@ class TextEditGeometryTest {
         }
     }
 
+    // ── Build 269: the Styles sub-sections + the Stroke rows ────
+    //
+    // Build 268's tab reorganisation dropped the manual Stroke
+    // group (Thickness slider + stroke colour row) — no tab home.
+    // These pins keep the sub-section list (Stroke restored after
+    // Background) and the Stroke rows' control slots from ever
+    // silently vanishing again.
+
+    @Test
+    fun stylesSectionsIncludeStrokeAfterBackground() {
+        assertEquals(
+            listOf("Background", "Stroke", "Shadow", "Curve", "Spacing", "Format"),
+            TextEditGeometry.Styles.SECTION_LABELS
+        )
+    }
+
+    @Test
+    fun strokeRowsGiveControlsRealSlots() {
+        val sliders = TextEditGeometry.SliderRow
+        val swatches = TextEditGeometry.Swatches
+        for (d in densities) {
+            val rowW = 328f * d // 360 dp screen − the screen padding
+            // Thickness slider row ("Thickness" label, "100%" value):
+            // the slider span is real and the boxes tile the row.
+            val labelAdv = 62f * d
+            val valueAdv = 32f * d
+            val sliderW = sliders.sliderWPx(rowW, labelAdv, valueAdv, d)
+            assertTrue("Stroke slider span must be real (d=$d)", sliderW > 100f * d)
+            val sliderL = sliders.sliderLeftPx(labelAdv, rowW, d)
+            assertEquals(
+                sliders.labelWPx(labelAdv, rowW) + sliders.LABEL_GAP_DP * d, sliderL, eps
+            )
+            val valueL = sliders.valueLeftPx(rowW, labelAdv, valueAdv, d)
+            assertEquals(sliderL + sliderW + sliders.VALUE_GAP_DP * d, valueL, eps)
+            assertEquals(rowW, valueL + sliders.valueWPx(valueAdv, rowW), eps)
+            // Stroke colour row ("Color" label): the swatch strip is
+            // real and the custom + eyedropper tiles end flush with
+            // the row's right edge.
+            val colorAdv = 34f * d
+            val stripW = swatches.stripWPx(rowW, colorAdv, d)
+            assertTrue(
+                "Stroke colour strip must be real (d=$d)",
+                stripW > 2f * swatches.CELL_DP * d
+            )
+            val customL = swatches.customLeftPx(rowW, colorAdv, d)
+            val dropL = swatches.eyedropperLeftPx(rowW, colorAdv, d)
+            assertEquals(
+                swatches.stripLeftPx(colorAdv, rowW, d) + stripW +
+                    swatches.PIN_GAP_DP * d,
+                customL, eps
+            )
+            assertEquals(customL + swatches.CELL_DP * d + swatches.GAP_DP * d, dropL, eps)
+            assertEquals(rowW, dropL + swatches.CELL_DP * d, eps)
+        }
+    }
+
     // ── Build 268: the panel height law ─────────────────────────
     //
     // Sarowar's rule: drag the head and the panel follows the finger

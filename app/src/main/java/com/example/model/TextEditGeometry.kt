@@ -330,6 +330,21 @@ object TextEditGeometry {
         const val LABEL_W_DP = 88f
     }
 
+    // ── Build 269: the Styles tab's sub-sections ───────────────────
+
+    object Styles {
+        /**
+         * The Styles tab's sub-section chips, in display order —
+         * the canonical list the host's StyleSection enum mirrors.
+         * Build 268's tab reorganisation left the manual Stroke
+         * group (Thickness slider + stroke colour row) with no home;
+         * this list is pinned by TextEditGeometryTest so a
+         * sub-section can never silently lose its place again.
+         */
+        val SECTION_LABELS: List<String> =
+            listOf("Background", "Stroke", "Shadow", "Curve", "Spacing", "Format")
+    }
+
     // ── Build 268: the draggable bottom panel ──────────────────────
     //
     // The Text editor is a bottom panel over the editor: the canvas
