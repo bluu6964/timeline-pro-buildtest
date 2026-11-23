@@ -23,7 +23,8 @@ class DockGeometryTest {
 
     @Test
     fun contentWidthCoversTwelveTiles() {
-        assertEquals(632f, DockGeometry.contentWidthDp(), 0f)
+        // Build 262: thirteen tiles now (the 3D Space tile) — 632 + one 52 pitch.
+        assertEquals(684f, DockGeometry.contentWidthDp(), 0f)
         assertEquals(112f, DockGeometry.contentWidthDp(2), 0f)
         assertEquals(0f, DockGeometry.contentWidthDp(0), 0f)
     }
@@ -121,10 +122,11 @@ class DockGeometryTest {
     fun glyphTableScalesBuild248SizesByFortyPercentTwice() {
         // Build 257: 15 -> 21, 16 -> 22.4 (x1.4). Build 260 (Sarowar's
         // order): x1.4 again -> 29.4 / 31.4.
-        assertEquals(12, DockGeometry.GLYPH_DP.size)
+        assertEquals(13, DockGeometry.GLYPH_DP.size)
         assertEquals(29.4f, DockGeometry.GLYPH_DP[0], 0.001f) // media: 21 x 1.4
         assertEquals(31.4f, DockGeometry.GLYPH_DP[2], 0.001f) // fx: 22.4 x 1.4
         assertEquals(29.4f, DockGeometry.GLYPH_DP[9], 0.001f) // camera (icon): 21 x 1.4
         assertEquals(31.4f, DockGeometry.GLYPH_DP[11], 0.001f) // chain: 22.4 x 1.4
+        assertEquals(31.4f, DockGeometry.GLYPH_DP[12], 0.001f) // build 262: space, same large-vector class
     }
 }
