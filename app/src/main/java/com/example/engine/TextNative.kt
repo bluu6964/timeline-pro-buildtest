@@ -33,7 +33,8 @@ internal object TextNative {
     @JvmStatic external fun nativeDraw(
         bitmap: Bitmap, text: String, fontPath: String?, family: String?, p: FloatArray, c: IntArray,
         fillBitmap: Bitmap?, levels: ByteArray?, paraRtl: ByteArray?, anim: FloatArray?,
-        pathPts: FloatArray?, pathStart: Float
+        pathPts: FloatArray?, pathStart: Float,
+        bgPts: FloatArray?, bgCounts: IntArray?
     ): Boolean
 
     /** True when the library is loaded AND was built with FreeType + HarfBuzz. */
@@ -72,7 +73,9 @@ internal class NativeTextPainter(
      */
     var pathPoints: ((clip: TimelineClip, timeMs: Long) -> FloatArray?)? = null
 
-    private val p = FloatArray(39)
+    // 40 floats: 0..36 the draw params, 37/38 the engine's layout-box
+    // outputs, 39 (build 268) the background shape code.
+    private val p = FloatArray(40)
     private val c = IntArray(7)
     private val anim = FloatArray(15)
 
@@ -146,13 +149,28 @@ internal class NativeTextPainter(
         }
         // The painted background is exactly bgColor × bgOpacity (build 212, TextPaintRules —
         // the same rule as the Compose / Canvas painters; null = the engine paints nothing).
-        val bgArgb = com.example.model.TextPaintRules.bgArgb(clip.bgColor, clip.bgOpacity)
+        // Build 268 (Bubbles): bgShape picks WHAT is painted — None
+        // paints nothing whatever the opacity says; Rectangle is the
+        // pre-268 box; Rounded the strong-corner box; the bubble kinds
+        // hand the engine the ShapeCatalog outline (p[39] = 2 + the
+        // flattened points / per-subpath counts).
+        val bgDef = if (clip.bgShape == com.example.model.TEXT_BG_NONE) null
+            else com.example.model.textBgShapeDef(clip.bgShape)
+        val bgArgb = if (clip.bgShape == com.example.model.TEXT_BG_NONE) null
+            else com.example.model.TextPaintRules.bgArgb(clip.bgColor, clip.bgOpacity)
+        var bgPts: FloatArray? = null
+        var bgCounts: IntArray? = null
         if (bgArgb != null) {
             c[3] = bgArgb
             p[28] = 1f
             p[29] = (clip.bgCorner / 2f).toInt().coerceIn(0, 50) / 100f
+            when {
+                bgDef != null -> { p[39] = 2f; bgPts = bgDef.flat; bgCounts = bgDef.counts }
+                clip.bgShape == com.example.model.TEXT_BG_ROUNDED -> p[39] = 1f
+                else -> p[39] = 0f
+            }
         } else {
-            p[28] = 0f; p[29] = 0f; c[3] = 0
+            p[28] = 0f; p[29] = 0f; p[39] = 0f; c[3] = 0
         }
         c[0] = argb(clip.textColor, 0xFFFFFFFF)
         c[1] = argb(clip.textStrokeColor, 0xFF000000)
@@ -225,7 +243,7 @@ internal class NativeTextPainter(
             val bidi = bidiLevelsOf(content)
             val ok = TextNative.nativeDraw(
                 bmp, content, path, family, p, c, fillBmp, bidi?.first, bidi?.second, animArr,
-                pathPts, clip.textPathStart
+                pathPts, clip.textPathStart, bgPts, bgCounts
             )
             if (ok) { lastBoxW = p[37]; lastBoxH = p[38] }
             ok

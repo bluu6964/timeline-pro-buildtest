@@ -60,11 +60,15 @@ JNIEXPORT jboolean JNICALL Java_com_example_engine_TextNative_nativeEmojiAvailab
 // fraction of the path's total length, see Request::pathOn.
 JNIEXPORT jboolean JNICALL Java_com_example_engine_TextNative_nativeDraw(
     JNIEnv* env, jclass, jobject bitmap, jstring text, jstring fontPath, jstring family, jfloatArray pA, jintArray cA,
-    jobject fillBitmap, jbyteArray levelsA, jbyteArray paraRtlA, jfloatArray animA, jfloatArray pathA, jfloat pathStart) {
+    jobject fillBitmap, jbyteArray levelsA, jbyteArray paraRtlA, jfloatArray animA, jfloatArray pathA, jfloat pathStart,
+    jfloatArray bgPtsA, jintArray bgCountsA) {
     if (!bitmap || !pA || !cA || env->GetArrayLength(pA) < 37 || env->GetArrayLength(cA) < 6) return JNI_FALSE;
-    float p[37];
+    // p[39] (build 268) carries the background shape code; older callers
+    // with a 39-float array simply read 0 = the rectangle box.
+    const jsize pLen = env->GetArrayLength(pA);
+    float p[40] = {};
     jint c[7] = {0, 0, 0, 0, 0, 0, (jint)0xFF00FF00};
-    env->GetFloatArrayRegion(pA, 0, 37, p);
+    env->GetFloatArrayRegion(pA, 0, pLen < 40 ? pLen : 40, p);
     env->GetIntArrayRegion(cA, 0, env->GetArrayLength(cA) >= 7 ? 7 : 6, c);
 
     am::text::Request r;
@@ -81,6 +85,17 @@ JNIEXPORT jboolean JNICALL Java_com_example_engine_TextNative_nativeDraw(
     r.fillOn = p[22] > 0.5f; r.strokeW = p[23];
     r.shadowOn = p[24] > 0.5f; r.shadowBlur = p[25]; r.shadowDx = p[26]; r.shadowDy = p[27];
     r.bgOn = p[28] > 0.5f; r.bgCornerFrac = p[29];
+    r.bgShape = pLen >= 40 ? (int)p[39] : 0;
+    if (bgPtsA && bgCountsA) {
+        const jsize np = env->GetArrayLength(bgPtsA);
+        const jsize nc = env->GetArrayLength(bgCountsA);
+        if (np >= 4 && nc >= 1) {
+            r.bgPts.resize((size_t)np);
+            env->GetFloatArrayRegion(bgPtsA, 0, np, r.bgPts.data());
+            r.bgCounts.resize((size_t)nc);
+            env->GetIntArrayRegion(bgCountsA, 0, nc, r.bgCounts.data());
+        }
+    }
     r.fillKind = (int)p[30]; r.gradType = (int)p[31];
     r.gx1 = p[32]; r.gy1 = p[33]; r.gx2 = p[34]; r.gy2 = p[35]; r.fillImgMode = (int)p[36];
     r.grad1 = (uint32_t)c[4]; r.grad2 = (uint32_t)c[5];

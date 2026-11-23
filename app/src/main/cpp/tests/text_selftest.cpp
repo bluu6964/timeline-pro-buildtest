@@ -167,6 +167,33 @@ static void testEngine() {
     for (size_t i = 0; i < bmp.size(); i += 4) { if (bmp[i] > 200 && bmp[i + 1] < 40 && bmp[i + 3] > 200) sawRed = true; if (bmp[i + 2] > 200 && bmp[i] < 40 && bmp[i + 3] > 200) sawBlue = true; }
     CHECK(sawRed && sawBlue);
 
+    // Build 268 (Bubbles): the polygon background fills its outline,
+    // not the box — a diamond over the same box leaves the box's
+    // corner transparent where the rectangle (shape 0, corner 0)
+    // paints it, and still paints on the diamond's own axis.
+    {
+        Request rb;
+        rb.text = "Hi"; rb.fontPath = latin; rb.fontPx = 60; rb.maxTextW = 500;
+        rb.padH = 40; rb.padV = 30; rb.cx = 300; rb.cy = 150;
+        rb.bgOn = true; rb.bgArgb = 0xFF0000FF; rb.bgCornerFrac = 0.f;
+        Stats sb;
+        std::fill(bmp.begin(), bmp.end(), 0);
+        CHECK(draw(bmp.data(), W, H, W * 4, rb, &sb));
+        auto pxAt = [&](int x, int y) -> const uint8_t* { return &bmp[((size_t)y * W + x) * 4]; };
+        const int cornerX = 300 - (int)(sb.boxW / 2) + 3, cornerY = 150 - (int)(sb.boxH / 2) + 3;
+        const uint8_t* cornerRect = pxAt(cornerX, cornerY);
+        CHECK(cornerRect[3] > 200 && cornerRect[2] > 200 && cornerRect[0] < 40);
+        rb.bgShape = 2;
+        rb.bgPts = {0.f, -1.f, 1.f, 0.f, 0.f, 1.f, -1.f, 0.f};
+        rb.bgCounts = {4};
+        std::fill(bmp.begin(), bmp.end(), 0);
+        CHECK(draw(bmp.data(), W, H, W * 4, rb, &sb));
+        const uint8_t* cornerDia = pxAt(cornerX, cornerY);
+        CHECK(cornerDia[3] < 10);
+        const uint8_t* axis = pxAt(300, 150 + (int)(sb.boxH / 2) - 4);
+        CHECK(axis[3] > 200 && axis[2] > 200 && axis[0] < 40);
+    }
+
     // rotation 90: the box becomes tall
     r = Request(); r.text = "WWWW"; r.fontPath = latin; r.fontPx = 50; r.maxTextW = 500; r.cx = 300; r.cy = 150; r.rotationDeg = 90.f;
     std::fill(bmp.begin(), bmp.end(), 0);

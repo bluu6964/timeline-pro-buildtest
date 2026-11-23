@@ -9,6 +9,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -120,13 +121,42 @@ fun TextLayerContent(
     }
     // The painted background is exactly bgColor × bgOpacity (build 212, TextPaintRules —
     // the same rule the Canvas / native painters use; null = nothing is painted).
-    val bgArgb = com.example.model.TextPaintRules.bgArgb(clip.bgColor, clip.bgOpacity)
-    val bgModifier = if (bgArgb != null) {
-        Modifier.background(
+    // Build 268 (Bubbles): the shape choice mirrors the render
+    // painters — None paints nothing, Rectangle is the pre-268 box,
+    // Rounded guarantees a strong radius, the bubble kinds fill
+    // their ShapeCatalog outline behind the text.
+    val bgArgb = if (clip.bgShape == com.example.model.TEXT_BG_NONE) null
+        else com.example.model.TextPaintRules.bgArgb(clip.bgColor, clip.bgOpacity)
+    val bgDef = com.example.model.textBgShapeDef(clip.bgShape)
+    val bgModifier = when {
+        bgArgb == null -> Modifier
+        bgDef != null -> Modifier.drawBehind {
+            val path = androidx.compose.ui.graphics.Path()
+            for (sub in bgDef.subs) {
+                val pts = sub.pts
+                if (pts.size < 6) continue
+                path.moveTo((pts[0] + 1f) / 2f * size.width, (pts[1] + 1f) / 2f * size.height)
+                var i = 2
+                while (i + 1 < pts.size) {
+                    path.lineTo((pts[i] + 1f) / 2f * size.width, (pts[i + 1] + 1f) / 2f * size.height)
+                    i += 2
+                }
+                path.close()
+            }
+            path.fillType = androidx.compose.ui.graphics.PathFillType.EvenOdd
+            drawPath(path, Color(bgArgb))
+        }
+        clip.bgShape == com.example.model.TEXT_BG_ROUNDED -> Modifier.background(
+            Color(bgArgb),
+            RoundedCornerShape(
+                percent = maxOf((clip.bgCorner / 2f).toInt().coerceIn(0, 50), 25)
+            )
+        )
+        else -> Modifier.background(
             Color(bgArgb),
             RoundedCornerShape(percent = (clip.bgCorner / 2f).toInt().coerceIn(0, 50))
         )
-    } else Modifier
+    }
 
     Box(
         modifier = modifier

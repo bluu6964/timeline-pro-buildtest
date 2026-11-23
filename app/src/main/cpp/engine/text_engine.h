@@ -63,6 +63,16 @@ struct Request {
     bool bgOn = false;
     uint32_t bgArgb = 0u;
     float bgCornerFrac = 0.f;         // corner radius as a fraction of min(boxW, boxH)
+    // Build 268 (Bubbles): the background's shape. 0 = the box above
+    // (RECTANGLE — the pre-268 rendering, unchanged); 1 = ROUNDED (the
+    // same box with a guaranteed-strong radius, see text_engine.cpp);
+    // 2 = a polygon set: [bgPts] holds the ShapeCatalog outline of the
+    // chosen bubble in the unit basis [-1,1] (x,y pairs, subpaths
+    // concatenated), [bgCounts] the point count of each subpath; the
+    // set fills EVEN-ODD across subpaths, like the shape engine.
+    int bgShape = 0;
+    std::vector<float> bgPts;
+    std::vector<int> bgCounts;
 
     // Text animator (Alight Motion "texttransform", already evaluated for this frame by Kotlin: TextAnimEval.kt).
     // The text is cut into units (0 = every letter, 1 = every word, 2 = every line); the range [animStart, animEnd]

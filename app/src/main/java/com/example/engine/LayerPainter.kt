@@ -524,11 +524,38 @@ internal class LayerPainter(
 
         // Optional background box: exactly bgColor × bgOpacity (build 212, TextPaintRules —
         // the same rule as the Compose preview; null = nothing is painted).
-        val bgArgb = com.example.model.TextPaintRules.bgArgb(clip.bgColor, clip.bgOpacity)
+        // Build 268 (Bubbles): the shape choice mirrors the native
+        // engine — None paints nothing, Rectangle is the pre-268 box,
+        // Rounded guarantees a strong radius, the bubble kinds fill
+        // their ShapeCatalog outline (even-odd across subpaths).
+        val bgArgb = if (clip.bgShape == com.example.model.TEXT_BG_NONE) null
+            else com.example.model.TextPaintRules.bgArgb(clip.bgColor, clip.bgOpacity)
         if (bgArgb != null) {
             val bg = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = bgArgb }
-            val corner = (clip.bgCorner / 2f).toInt().coerceIn(0, 50) / 100f * minOf(boxW, boxH)
-            canvas.drawRoundRect(RectF(0f, 0f, boxW, boxH), corner, corner, bg)
+            val bgDef = com.example.model.textBgShapeDef(clip.bgShape)
+            if (bgDef != null) {
+                val path = android.graphics.Path().apply {
+                    fillType = android.graphics.Path.FillType.EVEN_ODD
+                    for (sub in bgDef.subs) {
+                        val pts = sub.pts
+                        if (pts.size < 6) continue
+                        moveTo((pts[0] + 1f) / 2f * boxW, (pts[1] + 1f) / 2f * boxH)
+                        var i = 2
+                        while (i + 1 < pts.size) {
+                            lineTo((pts[i] + 1f) / 2f * boxW, (pts[i + 1] + 1f) / 2f * boxH)
+                            i += 2
+                        }
+                        close()
+                    }
+                }
+                canvas.drawPath(path, bg)
+            } else {
+                var corner = (clip.bgCorner / 2f).toInt().coerceIn(0, 50) / 100f * minOf(boxW, boxH)
+                if (clip.bgShape == com.example.model.TEXT_BG_ROUNDED) {
+                    corner = maxOf(corner, 0.25f * minOf(boxW, boxH))
+                }
+                canvas.drawRoundRect(RectF(0f, 0f, boxW, boxH), corner, corner, bg)
+            }
         }
 
         canvas.translate(padH + dx, padV)

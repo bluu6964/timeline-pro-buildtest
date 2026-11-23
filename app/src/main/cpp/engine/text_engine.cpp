@@ -763,6 +763,46 @@ void drawRoundRect(Image& img, float x0, float y0, float x1, float y1, float rad
     compositeMask(img, m, argb);
 }
 
+// Build 268 (Bubbles): even-odd point-in-polygon-set test. The set is
+// the ShapeCatalog outline of a bubble in the unit basis [-1,1],
+// mapped onto the background box (x0,y0)-(x1,y1); parity is taken
+// across ALL subpaths, so catalog holes punch out exactly like the
+// shape engine's even-odd fill.
+bool bgPointInSet(float px, float py, float x0, float y0, float x1, float y1, const Request& rq) {
+    const float ux = (px - x0) / std::max(1.f, x1 - x0) * 2.f - 1.f;
+    const float uy = (py - y0) / std::max(1.f, y1 - y0) * 2.f - 1.f;
+    bool inside = false;
+    size_t base = 0;
+    for (int count : rq.bgCounts) {
+        if (count < 3 || base + (size_t)count * 2 > rq.bgPts.size()) break;
+        for (int i = 0, j = count - 1; i < count; j = i++) {
+            const float xi = rq.bgPts[base + (size_t)i * 2], yi = rq.bgPts[base + (size_t)i * 2 + 1];
+            const float xj = rq.bgPts[base + (size_t)j * 2], yj = rq.bgPts[base + (size_t)j * 2 + 1];
+            if ((yi > uy) != (yj > uy) && ux < (xj - xi) * (uy - yi) / (yj - yi) + xi) inside = !inside;
+        }
+        base += (size_t)count * 2;
+    }
+    return inside;
+}
+
+// Draws the bubble background: the catalog outline filled with [argb]
+// over the box (x0,y0)-(x1,y1), 2x2-supersampled edges.
+void drawBgShape(Image& img, float x0, float y0, float x1, float y1, const Request& rq, uint32_t argb) {
+    std::vector<uint8_t> m((size_t)img.w * img.h, 0);
+    const int ix0 = std::max(0, (int)std::floor(x0) - 1), ix1 = std::min(img.w, (int)std::ceil(x1) + 1);
+    const int iy0 = std::max(0, (int)std::floor(y0) - 1), iy1 = std::min(img.h, (int)std::ceil(y1) + 1);
+    for (int y = iy0; y < iy1; ++y) {
+        for (int x = ix0; x < ix1; ++x) {
+            int hits = 0;
+            for (int sy = 0; sy < 2; ++sy)
+                for (int sx = 0; sx < 2; ++sx)
+                    if (bgPointInSet(x + 0.25f + 0.5f * sx, y + 0.25f + 0.5f * sy, x0, y0, x1, y1, rq)) ++hits;
+            if (hits) m[(size_t)y * img.w + x] = (uint8_t)(hits * 255 / 4);
+        }
+    }
+    compositeMask(img, m, argb);
+}
+
 // Converts glyph [g] (an outline or stroked outline glyph) to a bitmap at the sub-pixel origin of
 // (x, y) and adds it into the mask with the alpha [gain]. Takes ownership of [g] either way.
 bool blitGlyph(FT_Glyph g, float x, float y, std::vector<uint8_t>& mask, int mw, int mh, float gain) {
@@ -1549,8 +1589,20 @@ bool draw(uint8_t* dst, int dstW, int dstH, int dstStride, const Request& rq, St
     FT_Set_Transform(primary->ft, nullptr, nullptr);
 
     // ---- compose: background, outline, shadow, fill (same order as the Canvas version)
-    if (rq.bgOn && !pathMode && argbA(rq.bgArgb) > 0)  // no background box on a path (see text_engine.h)
-        drawRoundRect(img, ox, oy, ox + boxWs, oy + boxHs, rq.bgCornerFrac * std::min(boxWs, boxHs), rq.bgArgb);
+    if (rq.bgOn && !pathMode && argbA(rq.bgArgb) > 0) {  // no background box on a path (see text_engine.h)
+        // Build 268 (Bubbles): shape 2 + a real outline = the bubble
+        // polygon; shape 1 (ROUNDED) = the box with a guaranteed
+        // radius of at least a quarter of the short side (the stored
+        // corner still wins when it is larger); shape 0 = the box
+        // exactly as before build 268.
+        if (rq.bgShape == 2 && rq.bgCounts.size() >= 1 && rq.bgPts.size() >= 6)
+            drawBgShape(img, ox, oy, ox + boxWs, oy + boxHs, rq, rq.bgArgb);
+        else if (rq.bgShape == 1)
+            drawRoundRect(img, ox, oy, ox + boxWs, oy + boxHs,
+                          std::max(rq.bgCornerFrac, 0.25f) * std::min(boxWs, boxHs), rq.bgArgb);
+        else
+            drawRoundRect(img, ox, oy, ox + boxWs, oy + boxHs, rq.bgCornerFrac * std::min(boxWs, boxHs), rq.bgArgb);
+    }
     if (wantStroke) compositeMask(img, strokeMask, rq.strokeArgb);
     if (rq.shadowOn && (wantFill || haveColor || rq.drawOn) && argbA(rq.shadowArgb) > 0) {
         std::vector<uint8_t> sh((size_t)imgW * imgH, 0);
