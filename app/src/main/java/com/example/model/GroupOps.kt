@@ -31,9 +31,10 @@ object GroupOps {
     /** Result of [group]: the new lanes and the id of the group that holds the layers now. */
     data class Grouped(val tracks: List<TimelineTrack>, val groupId: String)
 
-    /** Audio has no picture, a Camera is a view and a Chain is a lane container: none of them can sit in a group. */
+    /** Audio has no picture, a Camera is a view and a Chain is a lane container: none of them can sit in a group.
+     *  Build 262: a layer inside a 3D Space cannot also sit in a group (one container per layer). */
     fun canGroup(c: TimelineClip): Boolean =
-        c.type != LayerType.AUDIO && c.type != LayerType.CAMERA && c.type != LayerType.CHAIN
+        c.type != LayerType.AUDIO && c.type != LayerType.CAMERA && c.type != LayerType.CHAIN && c.spaceId == null
 
 
     /** Ids of every Group layer in [tracks]. */

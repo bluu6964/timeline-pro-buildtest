@@ -120,7 +120,23 @@ enum class LayerType(val displayName: String) {
      * 2026-11-13 ~16:09), and on the canvas it draws nothing while unselected; selected, it gets
      * the standard white bounding box ([CanvasMarkRule]). It is never drawn / exported.
      */
-    CONTROLLER("Controller")
+    CONTROLLER("Controller"),
+    /**
+     * 3D Space (build 262 — Sarowar's feature, from his Blender-style reference): a CONTAINER layer
+     * with its own orbit camera. The layers inside it ([TimelineClip.spaceId] = its id) are placed by
+     * the space's perspective camera (see SpaceRig): their own transforms are read as 3D placement
+     * (X / Y / Z, RX / RY / RZ), they are depth-sorted by distance from the space camera, TEXT and
+     * SHAPE children get real extrusion, and the space's grid floor + axis lines are part of the
+     * scene (drawn in preview AND export). The space itself is composited into the main stack like
+     * a Group (its own opacity / blend / effects apply to the whole scene picture). The space's
+     * camera lives in its OWN transform fields (transformX/Y = pan, transformZ = dolly,
+     * scalePercent = zoom, rotation3dX = pitch, rotation3dY = yaw, rotationDeg = roll), so it is
+     * keyframable through the normal transform keyframes; a project Camera layer does NOT drive it.
+     *
+     * Declared LAST on purpose: native bridges pass LayerType ordinals across JNI
+     * (CanvasMark, TemplatePlans), so existing entries must keep their ordinals.
+     */
+    SPACE3D("3D Space")
 }
 
 /**
@@ -139,6 +155,7 @@ fun defaultClipColor(type: LayerType): Long = when (type) {
     LayerType.CAMERA -> 0xFF8E6BF2
     LayerType.CHAIN -> 0xFF9AA0A8
     LayerType.GROUP -> 0xFF5BB85D
+    LayerType.SPACE3D -> 0xFF5E35B1
     LayerType.CONTROLLER -> 0xFF00B8A9
 }
 
@@ -425,6 +442,31 @@ data class TimelineClip(
     val chainId: String? = null,
     /** Id of the real Group layer this layer is inside (it follows that group, see [GroupOps]), null = not in a group. */
     val groupId: String? = null,
+    /**
+     * Id of the 3D Space layer this layer sits inside (build 262, see [LayerType.SPACE3D] and
+     * [SpaceOps]), null = not in a space. Membership is by this field ALONE — a space child has no
+     * [parent] link to the space (ParentRig must never compose it; the space's camera places it).
+     * A clip carries at most one container: setting spaceId clears groupId and vice versa (the
+     * editor enforces it in setClipParent / grouping).
+     */
+    val spaceId: String? = null,
+    /**
+     * 3D Space layers only (build 262): the grid floor + axis lines are drawn as part of the scene
+     * (preview and export). Default on — the grid IS the space's look in Sarowar's reference.
+     */
+    val spaceGridOn: Boolean = true,
+    /** 3D Space layers only (build 262): the grid floor's extent in stored units (a square of this side, 20×20 cells). */
+    val spaceGridSize: Float = 2400f,
+    /**
+     * 3D Space layers only (build 262): the default extrusion depth (stored units, the same scale
+     * as transformZ) for TEXT / SHAPE children inside the space. 0 = no extrusion.
+     */
+    val spaceExtrude: Float = 80f,
+    /**
+     * Any layer (build 262): this layer's own extrusion depth override when it sits inside a 3D
+     * Space. Negative = use the space's [spaceExtrude] default; 0 = no extrusion for this layer.
+     */
+    val spaceExtrudeSelf: Float = -1f,
     /**
      * Group layers imported from an Alight `<embedScene>`: the embedded scene's own canvas size,
      * in stored (preview) units like every other size (0 = not an imported embed, or an older
