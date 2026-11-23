@@ -10,16 +10,8 @@ import android.os.Handler
 import android.os.Looper
 import android.view.PixelCopy
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import com.example.engine.UiGlNative
-import com.example.engine.UiLabelStyle
-import com.example.engine.UiMathNative
-import com.example.ui.util.enterPop
-import com.example.ui.util.bouncyClickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -31,14 +23,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Colorize
-import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -50,109 +35,36 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import com.example.ui.theme.AmAccent
+import com.example.engine.UiGlNative
+import com.example.engine.UiLabelStyle
+import com.example.engine.UiMathNative
 import com.example.ui.theme.AmBase
 import com.example.ui.theme.AmCornerCard
 import com.example.ui.theme.AmPanel
 import com.example.ui.theme.AmPanelElevated
 import com.example.ui.theme.TextPrimary
+import com.example.ui.util.enterPop
 import java.util.Locale
 
-/** Colors used by the Text edit panel (taken from the reference screenshots). */
+/**
+ * Build 266: the Text editor's remaining shared controls. The old
+ * Compose colour row and ruler slider were replaced by the GL rows
+ * in TextEditView.kt (the build-266 redesign); what stays here is
+ * the full colour picker dialog (a hosted dialog app-wide — the
+ * stage-6 pattern: its surfaces already draw in GL) and the window
+ * pixel picker behind the colour rows' eyedropper.
+ */
+
+/** Colors used by the Text edit screens (taken from the reference screenshots). */
 internal val SheetBg = AmPanel // build 223 (colour balance): the sheet joins the unified dark surfaces (was build 216's white)
 internal val FieldBg = AmPanelElevated // build 223: raised pill surface on the sheet
-internal val ChipBg = AmBase // build 223: chips stay the darkest surface (their labels are white) on the sheet
-internal val ChipSelectedBg = AmAccent // build 223: selected chip = the one lime (its label is ink)
-
-private val Swatches = listOf(
-    0xFF9C27B0, 0xFFE91E63, 0xFFF44336, 0xFFFFFFFF, 0xFF9E9E9E, 0xFF000000,
-    0xFFFF9800, 0xFFFFEB3B, 0xFF4CAF50, 0xFF00E5FF, 0xFF2196F3, 0xFF3F51B5
-)
-
-/**
- * "Color" row: scrollable swatches, then the palette button (full picker) and the eyedropper
- * (pick a color from the canvas) pinned on the right.
- */
-@Composable
-fun TextColorRow(
-    selected: Long,
-    onSelect: (Long) -> Unit,
-    onEyedropper: ((Long) -> Unit) -> Unit,
-    label: String = "Color",
-    modifier: Modifier = Modifier
-) {
-    var showPicker by remember { mutableStateOf(false) }
-    val isCustom = Swatches.none { it == selected }
-
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(40.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(label, color = TextPrimary, fontSize = 13.5.sp, fontWeight = FontWeight.Medium,
-            modifier = Modifier.width(64.dp))
-        LazyRow(
-            modifier = Modifier.weight(1f),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            items(Swatches) { c ->
-                Box(
-                    modifier = Modifier
-                        .size(34.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Color(c))
-                        .then(
-                            if (c == selected) Modifier.border(2.dp, Color.White, RoundedCornerShape(8.dp))
-                            else Modifier.border(1.dp, Color.Black.copy(alpha = 0.10f), RoundedCornerShape(8.dp))
-                        )
-                        .bouncyClickable(pressedScale = 0.85f) { onSelect(c) }
-                )
-            }
-        }
-        Spacer(Modifier.width(6.dp))
-        Box(
-            modifier = Modifier
-                .size(34.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(if (isCustom) Color(selected) else Color.Transparent)
-                .border(1.5.dp, Color.White.copy(alpha = if (isCustom) 1f else 0.85f), RoundedCornerShape(8.dp))
-                .bouncyClickable(pressedScale = 0.88f) { showPicker = true },
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(Icons.Default.Palette, "Custom color", tint = Color.White, modifier = Modifier.size(17.dp))
-        }
-        Spacer(Modifier.width(6.dp))
-        Box(
-            modifier = Modifier
-                .size(34.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(ChipBg)
-                .bouncyClickable(pressedScale = 0.88f) { onEyedropper(onSelect) },
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(Icons.Default.Colorize, "Pick from canvas", tint = TextPrimary, modifier = Modifier.size(17.dp))
-        }
-    }
-
-    if (showPicker) {
-        ColorPickerDialog(
-            initial = Color(selected),
-            onPick = { onSelect(it.toArgb().toLong() and 0xFFFFFFFFL) },
-            onDismiss = { showPicker = false }
-        )
-    }
-}
+internal val ChipBg = AmBase // build 223: chips stay the darkest surface (their labels are white) on the sheet — still used by EditShapeView
 
 /** Full color picker: saturation/value square, hue bar, opacity bar and a hex readout. */
 @Composable
@@ -324,46 +236,6 @@ private fun PickerBar(
             addCircle(cx, r, r - 1f * d, 0, 3f * d, android.graphics.Color.WHITE)
         },
     )
-}
-
-/**
- * Ruler-style slider matching the reference ("Thickness |||||| 0%"): drag the ruler, one tick =
- * one unit, a quick swipe glides a little. Same behaviour as the other sliders ([RulerDial]).
- */
-@Composable
-fun TextRulerSlider(
-    label: String,
-    value: Float,
-    onValueChange: (Float) -> Unit,
-    min: Float = 0f,
-    max: Float = 100f,
-    unit: String = "%",
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(38.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(label, color = TextPrimary, fontSize = 13.5.sp, fontWeight = FontWeight.Medium,
-            modifier = Modifier.width(88.dp))
-        RulerDial(
-            value = value,
-            onValueChange = onValueChange,
-            min = min,
-            max = max,
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight()
-        )
-        Text(
-            text = String.format(Locale.US, "%d%s", value.toInt(), unit),
-            color = TextPrimary, fontSize = 13.5.sp, fontWeight = FontWeight.Bold,
-            textAlign = androidx.compose.ui.text.style.TextAlign.End,
-            modifier = Modifier.width(52.dp)
-        )
-    }
 }
 
 /** Reads the color of one pixel from what is currently on screen (video included). */
