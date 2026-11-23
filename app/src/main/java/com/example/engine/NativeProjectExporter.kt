@@ -24,6 +24,8 @@ import com.example.model.GifQuantizer
 import com.example.model.GifWriter
 import com.example.model.GroupOps
 import com.example.model.LayerType
+import com.example.model.OutlineTrace
+import com.example.model.SpaceOps
 import com.example.model.TimelineClip
 import com.example.model.TimelineTrack
 import com.example.model.exportSpeed
@@ -174,6 +176,9 @@ class NativeProjectExporter(private val context: Context) {
         // placed by the renderer. boxW / boxH = its box at scale 1 (the pivot is a fraction of it).
         var boxW = 0f
         var boxH = 0f
+        // Build 262: the traced silhouette of this picture (3D Space extrusion walls), in picture
+        // px — refreshed whenever the picture is redrawn (the signature block in drawScope).
+        var outline: List<FloatArray> = emptyList()
         var bmp: Bitmap? = null
         var canvas: android.graphics.Canvas? = null
         var tex = 0
@@ -258,7 +263,9 @@ class NativeProjectExporter(private val context: Context) {
                 // Null objects: layers that have a parent follow it (same maths as the preview, ParentRig.kt).
                 val rig = ParentRig(all) { c, t -> c.renderAt(t) }
                 // 3D camera: layers in the lanes below a Camera layer are seen through it (CameraRig.kt).
-                val cam = CameraRig(tracks, rig)
+                // Build 262: the dispatcher also places the children of every 3D Space by that
+                // space's own camera (SceneCameras / SpaceRig) — preview and export share the path.
+                val cam = SceneCameras(tracks, rig)
                 val camK = if (previewW > 0f) w / previewW else 1f
                 // Effects as the renderer runs them this frame: Motion Blur is resolved from the
                 // layer's own motion over one export frame, a keyframed Solid Color takes its
@@ -302,7 +309,7 @@ class NativeProjectExporter(private val context: Context) {
                 // layers that follow each other share one picture; a layer with a blend mode gets its own,
                 // so the stacking order is kept.
                 fun buildOverlayGroups(scopeId: String?): List<OverlayGroup> {
-                    val scopeClips = GroupOps.scopeTracks(tracks, scopeId).asReversed().flatMap { it.clips }
+                    val scopeClips = SpaceOps.scopeTracks(tracks, scopeId).asReversed().flatMap { it.clips }
                     val overlays = scopeClips.filter {
                         it.isVisible && !it.isMask && (it.type == LayerType.SHAPE || it.type == LayerType.TEXT || it.type == LayerType.STICKER)
                     }
@@ -310,7 +317,7 @@ class NativeProjectExporter(private val context: Context) {
                     val maskByTarget = LayerMaskLinks.masksByTarget(scopeClips)
                     // Lanes of the pictures and groups of this level: overlays on both sides of one cannot share one picture.
                     val mediaLanes = scopeClips
-                        .filter { (it.type == LayerType.VIDEO && it.uri != null && it.isVisible) || (it.type == LayerType.GROUP && it.isVisible) }
+                        .filter { (it.type == LayerType.VIDEO && it.uri != null && it.isVisible) || (it.type == LayerType.GROUP && it.isVisible) || (it.type == LayerType.SPACE3D && it.isVisible) }
                         .map { laneIdx[it.id] ?: 0 }
                     fun mediaBetween(a: TimelineClip, b: TimelineClip): Boolean {
                         val lo = laneIdx[a.id] ?: 0
@@ -359,6 +366,7 @@ class NativeProjectExporter(private val context: Context) {
                 val overlayGroups = HashMap<String, List<OverlayGroup>>().also { m ->
                     m[""] = buildOverlayGroups(null)
                     for (id in groupIds) m[id] = buildOverlayGroups(id)
+                    for (id in SpaceOps.spaceIdsOf(tracks)) m[id] = buildOverlayGroups(id)
                 }
                 // A mask layer over a Group or Video layer needs the painter too (it draws the mask
                 // that cuts the group's composed picture / the video's placed picture), even when the
@@ -482,7 +490,7 @@ class NativeProjectExporter(private val context: Context) {
                     // cut from it). A stack of masks over the layer comes back as several entries: the
                     // layer is cut by each in turn.
                     fun scopeMasksFor(clip: TimelineClip, timeMs: Long): List<TimelineClip> {
-                        val scopeClips = GroupOps.scopeTracks(tracks, clip.groupId).asReversed().flatMap { it.clips }
+                        val scopeClips = SpaceOps.scopeTracks(tracks, clip.groupId ?: clip.spaceId).asReversed().flatMap { it.clips }
                         val mcs = LayerMaskLinks.masksByTarget(scopeClips)[clip.id] ?: return emptyList()
                         return mcs.filter { it.isActiveAt(timeMs) }
                             .map { if (rig.hasLinks) rig.adjusted(it, timeMs) else it.renderAt(timeMs) }
@@ -845,6 +853,48 @@ class NativeProjectExporter(private val context: Context) {
                             }
                         }
                     }
+                    // Build 262: a 3D Space layer is ONE layer like a Group — its scene (the grid
+                    // floor, then its children placed by the space's own camera, depth-sorted
+                    // inside the space's scope) is composed into its own picture, and that picture
+                    // gets the space's opacity / blend / effects / mask-layer cuts. No embed canvas
+                    // clip and no Repeat copies in v1; the children are NOT parent-composed — the
+                    // space camera places them (SpaceRig). The preview's drawSpaceLayer is the twin.
+                    fun drawSpaceLayer(clip: TimelineClip, timeMs: Long, depth: Int) {
+                        if (timeMs < clip.startMs || timeMs >= clip.endMs) return
+                        val s = if (rig.hasLinks) rig.adjusted(clip, timeMs) else clip.renderAt(timeMs)
+                        val opacity = s.opacityFraction.coerceIn(0f, 1f)
+                        if (opacity <= 0f) return
+                        val sRig = cam.spaceRig(clip.id) ?: return
+                        fun drawContents() {
+                            sRig.gridQuads(timeMs, camK, w, h)?.let { q -> renderer.drawQuads(q.first, q.second, q.third) }
+                            drawScopeRef(clip.id, depth + 1, timeMs)
+                        }
+                        if (!renderer.beginGroup()) {  // too deep / no memory: the scene goes straight onto the frame
+                            drawContents()
+                            return
+                        }
+                        drawContents()
+                        val tex = renderer.endGroup()
+                        if (tex == 0) return
+                        val blendId = BlendModes.find(s.blendMode).shaderId
+                        val fxOps = fxOpsOf(s, timeMs, clip)
+                        var drawTex = tex
+                        for (maskAdj in scopeMasksFor(clip, timeMs)) {
+                            drawTex = cutPictureByMask(drawTex, maskAdj, timeMs, clip.name)
+                        }
+                        val maskOps = ClipMaskLibrary.toNative(clip.masks, timeMs - clip.startMs, CutoutMasks.sourceMs(clip, timeMs))
+                        if (fxOps != null || maskOps != null) {
+                            val fxTex = renderer.applyFx(
+                                drawTex, false, IDENTITY_TEX_MATRIX, w, h, 0,
+                                0, 0f, 0, false, canvasRgb, fxOps, ClipFxLibrary.grainFrame(timeMs), maskOps, null, true
+                            )
+                            if (fxTex == 0) error("Native effects / masks failed on space '${clip.name}'.")
+                            drawTex = fxTex
+                        }
+                        val lp = LayerParams().apply { this.opacity = opacity }
+                        if (blendId == 0) renderer.drawLayer(drawTex, false, IDENTITY_TEX_MATRIX, w, h, 0, lp)
+                        else renderer.drawLayerBlended(drawTex, false, IDENTITY_TEX_MATRIX, w, h, 0, lp, blendId, canvasRgb)
+                    }
                     // A video-filled shape's live composite (build 104): the fill video is placed into
                     // the shape's box (FillVideoPlacement), cut by the shape's silhouette texture, run
                     // through the layer's effects when it has any, and drawn — the shape's own outline
@@ -898,11 +948,16 @@ class NativeProjectExporter(private val context: Context) {
                     // One level of the frame: the top level, or the layers inside a Group.
                     fun drawScope(scopeId: String?, depth: Int, timeMs: Long) {
                         val levelGroups = overlayGroups[scopeId ?: ""] ?: emptyList()
-                        val items = GroupOps.scopeTracks(tracks, scopeId).asReversed().flatMap { it.clips }
-                            .filter { (it.type == LayerType.VIDEO && it.uri != null && it.isVisible) || (it.type == LayerType.GROUP && it.isVisible) }
+                        // Build 262: when this level is a 3D Space's inside, its TEXT / SHAPE layers extrude.
+                        val spaceClip = scopeId?.let { id -> all.firstOrNull { it.id == id && it.type == LayerType.SPACE3D } }
+                        val items = SpaceOps.scopeTracks(tracks, scopeId).asReversed().flatMap { it.clips }
+                            .filter { (it.type == LayerType.VIDEO && it.uri != null && it.isVisible) || (it.type == LayerType.GROUP && it.isVisible) || (it.type == LayerType.SPACE3D && it.isVisible) }
                         // Under a 3D camera the key is the distance from the camera (CameraRig.stackKey), also for text / shapes.
+                        // Build 262: a 3D Space sits at the Z = 0 plane of its level (its transformZ
+                        // is its camera's dolly, never its stacking depth) — the preview's zOf twin.
                         fun zAt(c: TimelineClip): Float =
                             if (timeMs < c.startMs || timeMs >= c.endMs) 0f
+                            else if (c.type == LayerType.SPACE3D) 0f
                             else if (c.type == LayerType.GROUP && rig.hasLinks) rig.adjusted(c, timeMs).transformZ
                             else {
                                 val r0 = if (rig.hasLinks) rig.adjusted(c, timeMs) else c.renderAt(timeMs)
@@ -920,7 +975,9 @@ class NativeProjectExporter(private val context: Context) {
                                 val behind = mz < zLimit || (mz == zLimit && (laneIdx[mc.id] ?: 0) < laneLimit)
                                 if (!behind) break
                                 mediaPos++
-                                if (mc.type == LayerType.GROUP) drawGroupLayer(mc, timeMs, depth) else drawMediaLayer(li, mc, timeMs, depth)
+                                if (mc.type == LayerType.GROUP) drawGroupLayer(mc, timeMs, depth)
+                                else if (mc.type == LayerType.SPACE3D) drawSpaceLayer(mc, timeMs, depth)
+                                else drawMediaLayer(li, mc, timeMs, depth)
                             }
                         }
                         if (painter != null) {
@@ -1061,6 +1118,28 @@ class NativeProjectExporter(private val context: Context) {
                                         }
                                     }
                                     if (g.pose) painter.boxOf(drawn[0]).let { g.boxW = it.first; g.boxH = it.second }
+                                    // Build 262: a TEXT / SHAPE layer inside a 3D Space gets its
+                                    // silhouette traced from the picture just drawn — the extrusion
+                                    // walls are built from it when the picture is placed below.
+                                    // The preview's drawTextLayers traces the same way.
+                                    if (spaceClip != null && g.pose && g.clips.size == 1 && rendered.isNotEmpty() &&
+                                        SpaceOps.extrudeFor(spaceClip, rendered[0]) > 0f
+                                    ) {
+                                        val bmpNow = g.bmp!!
+                                        val px = IntArray(w * h)
+                                        bmpNow.getPixels(px, 0, w, 0, 0, w, h)
+                                        val alpha = IntArray(w * h) { px[it] ushr 24 }
+                                        val s = (rendered[0].effectiveScalePercent / 100f).coerceAtLeast(0.01f)
+                                        val halfW = (g.boxW * s / 2f * 1.35f + 16f).toInt()
+                                        val halfH = (g.boxH * s / 2f * 1.35f + 16f).toInt()
+                                        var traced = OutlineTrace.trace(
+                                            alpha, w, h,
+                                            maxOf(0, w / 2 - halfW), maxOf(0, h / 2 - halfH),
+                                            minOf(w, w / 2 + halfW), minOf(h, h / 2 + halfH)
+                                        )
+                                        if (traced.isEmpty()) traced = OutlineTrace.trace(alpha, w, h, 0, 0, w, h)
+                                        g.outline = traced
+                                    }
                                     GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, g.tex)
                                     if (!g.uploaded) {
                                         GLUtils.texImage2D(GLES30.GL_TEXTURE_2D, 0, g.bmp!!, 0)
@@ -1152,6 +1231,26 @@ class NativeProjectExporter(private val context: Context) {
                                 val seen = if (g.pose) cam.seeOverlay(rendered[0], timeMs, g.boxW, g.boxH, camK, w, h) else null
                                 if (seen != null && seen.quad == null) continue  // behind the camera
                                 if (g.pose) {
+                                    // Build 262: extrusion of a TEXT / SHAPE layer inside a 3D Space —
+                                    // the back face (darkened by the flat back shade through the draw
+                                    // gain), then the flat-shaded walls, then the front face below.
+                                    // The preview's drawTextLayers draws the same three parts.
+                                    val sRig = if (seen?.quad != null) cam.rigFor(rendered[0]) else null
+                                    val extrudeDepth = if (sRig != null && spaceClip != null) SpaceOps.extrudeFor(spaceClip, rendered[0]) else 0f
+                                    if (sRig != null && extrudeDepth > 0f) {
+                                        val back = sRig.backQuad(rendered[0], timeMs, g.boxW, g.boxH, camK, w, h, extrudeDepth)
+                                        if (back != null) {
+                                            val blp = LayerParams().apply { pin = back; gain = 1f - SpaceOps.BACK_SHADE_ALPHA }
+                                            if (g.blendId == 0) {
+                                                renderer.drawLayer(drawTex, false, drawMat, w, h, 0, blp)
+                                            } else {
+                                                blp.opacity = rendered[0].opacityFraction
+                                                renderer.drawLayerBlended(drawTex, false, drawMat, w, h, 0, blp, g.blendId, canvasRgb)
+                                            }
+                                            sRig.wallQuads(rendered[0], timeMs, g.boxW, g.boxH, camK, w, h, g.outline, extrudeDepth, rendered[0].opacityFraction)
+                                                ?.let { q -> renderer.drawQuads(q.first, q.second, q.third) }
+                                        }
+                                    }
                                     // The upright picture, placed by the renderer like a video layer (pivot, rotation, 3D turn).
                                     val lp = if (seen != null) LayerParams().apply { pin = seen.quad }
                                     else overlayPoseParams(rendered[0], g.boxW, g.boxH, if (previewW > 0f) w / previewW else 1f)
