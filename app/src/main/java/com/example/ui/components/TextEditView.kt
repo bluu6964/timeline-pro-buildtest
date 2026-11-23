@@ -196,7 +196,7 @@ fun TextEditPanel(
             text, onText,
             Modifier.padding(horizontal = TextEditGeometry.SCREEN_PAD_H_DP.dp)
         )
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(TextEditGeometry.Panel.FIELD_GAP_DP.dp))
         TextTabRow(tab) { tab = it }
         Box(
             modifier = Modifier
@@ -361,7 +361,7 @@ private fun TemplateCard(
     val scale = remember { Animatable(1f) }
     BoxWithConstraints(
         modifier = modifier
-            .height(96.dp)
+            .height(TextEditGeometry.Grid.TEMPLATE_CARD_H_DP.dp)
             .clip(RoundedCornerShape(12.dp))
     ) {
         NativeVectorCanvas(

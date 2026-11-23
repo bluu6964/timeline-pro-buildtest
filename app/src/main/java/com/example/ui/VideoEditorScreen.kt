@@ -2552,6 +2552,17 @@ fun VideoEditorScreen(
             // top, exactly the build-215 relationship.
             val panelTop = headerH + canvasH + playControlsH + workspaceH + onionRowH + scopesPanelH
             val panelH = (totalHeight - panelTop).coerceAtLeast(140.dp)
+            // Build 269: the Text panel's OWNED zone — from the
+            // canvas's bottom edge to the screen bottom (the
+            // play-controls row included: at max height the panel's
+            // top reaches exactly the canvas's bottom edge, never
+            // above it — canvasH is untouched). While the panel is
+            // open the timeline / tools stage / footer are not
+            // composed at all (the swap in the Column below), so
+            // this whole zone is the panel's drag range — not the
+            // leftover strip under a still-laid-out timeline, which
+            // is what squeezed build 268's panel to its minimum.
+            val textZoneH = totalHeight - headerH - canvasH
 
             // The selected layer, drawn by the real timeline panel (identical look) as the first row.
             val layerRow: @Composable (String) -> Unit = { id ->
@@ -3181,6 +3192,15 @@ fun VideoEditorScreen(
                         { startVideoReverse(sel.id) }
                     } else null
                 }
+                // Build 269 (Sarowar's correction on 268): while the
+                // Text panel is open it OWNS the whole lower zone —
+                // the timeline slot, the tools stage and the footer
+                // below are NOT composed, exactly the swap every other
+                // editor panel performs. No state is touched:
+                // toolsPanelOpen, multi-select and the selection all
+                // survive, and closing the panel (editingTextId =
+                // null) recomposes everything exactly as it was.
+                if (editingTextId == null) {
                 // Build 224 fix round: the timeline slot subtree (ruler +
                 // lanes, native + Compose branches) is extracted into
                 // components/TimelineSlot.kt — inlined here it pushed this
@@ -4098,6 +4118,7 @@ fun VideoEditorScreen(
                         )
                     }
                 }
+                } // Build 269: end of the Text-panel zone swap (timeline / tools / footer).
             }
 
             // ---- Build 219: the selected state's all-tools grid --------
@@ -4208,9 +4229,12 @@ fun VideoEditorScreen(
             // stays visible and live (it is the preview now), the
             // panel's head drags to a free height that stays where it
             // is released, remembered in [textPanelHeightDp] for the
-            // session. Its height is clamped to panelH (the lower
-            // zone under the play controls), so canvasH's build-260
-            // invariance holds exactly as for the other panels.
+            // session. Build 269: its height range is [textZoneH] —
+            // the whole zone it owns while open (canvas's bottom
+            // edge to the screen bottom; the timeline / tools /
+            // footer are swapped out of the Column above), so
+            // canvasH's build-260 invariance holds exactly as for
+            // the other panels.
             val editingText = editingTextId?.let { id -> tracks.flatMap { it.clips }.find { it.id == id } }
             LaunchedEffect(editingText == null, editingTextId) {
                 if (editingText == null && editingTextId != null) editingTextId = null
@@ -4239,7 +4263,7 @@ fun VideoEditorScreen(
                     },
                     heightDp = textPanelHeightDp,
                     onHeightChange = { textPanelHeightDp = it },
-                    availableHeightDp = panelH.value,
+                    availableHeightDp = textZoneH.value,
                     imeBottomDp = textImeBottomDp.value,
                     onAnimApply = { slot, preset ->
                         // The Animations tool's own action and canvas
@@ -4279,6 +4303,16 @@ fun VideoEditorScreen(
                     },
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
+                        // Build 269: this bottom padding + the Panel
+                        // law's imeMaxHeightPx are the ONLY IME
+                        // compensation in the app. The Activity
+                        // declares adjustResize (manifest), so the
+                        // system never pans the window — on 268 the
+                        // undeclared softInputMode defaulted to
+                        // adjustPan and the system's pan stacked on
+                        // top of this padding, flying the panel a
+                        // second keyboard height up off the screen.
+                        // Do not add another inset mechanism here.
                         .padding(bottom = textImeBottomDp)
                         .zIndex(30f)
                 )
