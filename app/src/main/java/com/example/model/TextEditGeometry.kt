@@ -342,7 +342,7 @@ object TextEditGeometry {
          * sub-section can never silently lose its place again.
          */
         val SECTION_LABELS: List<String> =
-            listOf("Background", "Stroke", "Shadow", "Curve", "Spacing", "Format")
+            listOf("Text", "Stroke", "Glow", "Background", "Shadow", "Curve", "Spacing", "Bold italic", "Case")
     }
 
     // ── Build 268: the draggable bottom panel ──────────────────────

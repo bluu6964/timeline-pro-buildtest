@@ -248,9 +248,9 @@ class TextEditGeometryTest {
     // silently vanishing again.
 
     @Test
-    fun stylesSectionsIncludeStrokeAfterBackground() {
+    fun stylesSectionsFollowCapCutOrder() {
         assertEquals(
-            listOf("Background", "Stroke", "Shadow", "Curve", "Spacing", "Format"),
+            listOf("Text", "Stroke", "Glow", "Background", "Shadow", "Curve", "Spacing", "Bold italic", "Case"),
             TextEditGeometry.Styles.SECTION_LABELS
         )
     }

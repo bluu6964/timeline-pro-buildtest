@@ -28,6 +28,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Colorize
 import androidx.compose.material.icons.filled.FormatAlignCenter
 import androidx.compose.material.icons.filled.FormatAlignLeft
@@ -204,14 +207,63 @@ fun TextEditPanel(
                 .fillMaxWidth()
         ) {
             when (tab) {
-                TextTab.TEMPLATES -> TemplatesTab(clip, onUpdate)
-                TextTab.FONTS -> FontsTab(clip, onUpdate)
+                TextTab.TEMPLATES -> ChipsOver(listOf("Trending", "Black Friday", "Classic", "NEW", "Hits")) {
+                    TemplatesTab(clip, onUpdate)
+                }
+                TextTab.FONTS -> ChipsOver(listOf("My fonts", "Trending", "Classic", "NEW", "Display", "Handwriting")) {
+                    FontsTab(clip, onUpdate)
+                }
                 TextTab.STYLES -> StylesTab(clip, onUpdate, onEyedropper, pathLayers)
-                TextTab.EFFECTS -> EffectsTab(clip, onUpdate)
+                TextTab.EFFECTS -> ChipsOver(listOf("Trending", "Black Friday", "Classic", "NEW", "Hits")) {
+                    EffectsTab(clip, onUpdate)
+                }
                 TextTab.ANIMATIONS -> AnimationsTab(clip, onUpdate, onAnimApply, onAnimPreview)
                 TextTab.BUBBLES -> BubblesTab(clip, onUpdate, onEyedropper)
             }
         }
+    }
+}
+
+/**
+ * Build 271: the category chip row (search + saved icons + chips) over a
+ * tab's content. The chips are UI only for now — the catalogues (and
+ * their filtering) come with the assets later.
+ */
+@Composable
+private fun ChipsOver(labels: List<String>, content: @Composable () -> Unit) {
+    var sel by remember { mutableStateOf(1.coerceAtMost(labels.lastIndex)) }
+    Column(Modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = TextEditGeometry.SCREEN_PAD_H_DP.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            androidx.compose.material3.Icon(
+                Icons.Default.Search, "Search", tint = TextPrimary,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(Modifier.width(10.dp))
+            androidx.compose.material3.Icon(
+                Icons.Default.BookmarkBorder, "Saved", tint = TextPrimary,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(Modifier.width(4.dp))
+            GlPillStrip(
+                items = labels.mapIndexed { i, l -> GlPillItem(label = l, selected = i == sel) { sel = i } },
+                labelStyle = { on -> if (on) UiLabelStyle.TEXT_13_BOLD else UiLabelStyle.TEXT_13_SEMI },
+                textArgb = { on -> if (on) TxtWhiteArgb else TxtDimArgb },
+                fillArgb = { 0 },
+                borderArgb = { null },
+                padHDp = 10f,
+                padVDp = 8f,
+                gapDp = 4f,
+                minHDp = TextEditGeometry.Chips.H_DP,
+                scrollable = true,
+                modifier = Modifier.weight(1f)
+            )
+        }
+        Box(Modifier.weight(1f).fillMaxWidth()) { content() }
     }
 }
 
@@ -286,12 +338,12 @@ private fun TextTabRow(selected: TextTab, onSelect: (TextTab) -> Unit) {
             GlPillItem(label = t.label, selected = t == selected) { onSelect(t) }
         },
         labelStyle = { sel -> if (sel) UiLabelStyle.TEXT_13_BOLD else UiLabelStyle.TEXT_13_SEMI },
-        textArgb = { sel -> if (sel) TxtInkArgb else TxtWhiteArgb },
-        fillArgb = { sel -> if (sel) TxtAccentArgb else TxtSurfaceArgb },
+        textArgb = { sel -> if (sel) TxtWhiteArgb else TxtDimArgb },
+        fillArgb = { 0 },
         borderArgb = { null },
-        padHDp = 14f,
+        padHDp = 10f,
         padVDp = 8f,
-        gapDp = 6f,
+        gapDp = 4f,
         minHDp = TextEditGeometry.Chips.H_DP,
         scrollable = true,
         modifier = Modifier
@@ -550,8 +602,9 @@ private fun FontGridTile(
 // ── Styles tab ─────────────────────────────────────────────────────
 
 private enum class StyleSection(val label: String) {
-    BACKGROUND("Background"), STROKE("Stroke"), SHADOW("Shadow"),
-    CURVE("Curve"), SPACING("Spacing"), FORMAT("Format")
+    TEXT("Text"), STROKE("Stroke"), GLOW("Glow"), BACKGROUND("Background"),
+    SHADOW("Shadow"), CURVE("Curve"), SPACING("Spacing"),
+    BOLD_ITALIC("Bold italic"), CASE("Case")
 }
 
 /**
@@ -571,8 +624,26 @@ private fun StylesTab(
     onEyedropper: ((Long) -> Unit) -> Unit,
     pathLayers: List<TimelineClip>
 ) {
-    var section by remember(clip.id) { mutableStateOf(StyleSection.FORMAT) }
+    var section by remember(clip.id) { mutableStateOf(StyleSection.TEXT) }
     TabColumn {
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            EffectTile(
+                previewClip = defaultTextLook(clip).copy(text = "Aa"),
+                isCurrent = false, label = "None",
+                modifier = Modifier.width(56.dp)
+            ) { onUpdate { defaultTextLook(it) } }
+            TextPresets.forEachIndexed { i, preset ->
+                EffectTile(
+                    previewClip = preset.applyTo(clip).copy(text = "Aa"),
+                    isCurrent = false, label = "Preset ${i + 1}",
+                    modifier = Modifier.width(56.dp)
+                ) { onUpdate { preset.applyTo(it) } }
+            }
+        }
+        Spacer(Modifier.height(12.dp))
         Row(
             modifier = Modifier.horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(TextEditGeometry.Swatches.GAP_DP.dp),
@@ -594,18 +665,36 @@ private fun StylesTab(
                 GlPillItem(label = s.label, selected = s == section) { section = s }
             },
             labelStyle = { sel -> if (sel) UiLabelStyle.TEXT_13_BOLD else UiLabelStyle.TEXT_13_SEMI },
-            textArgb = { sel -> if (sel) TxtInkArgb else TxtWhiteArgb },
-            fillArgb = { sel -> if (sel) TxtAccentArgb else TxtSurfaceArgb },
+            textArgb = { sel -> if (sel) TxtWhiteArgb else TxtDimArgb },
+            fillArgb = { 0 },
             borderArgb = { null },
-            padHDp = 14f,
+            padHDp = 10f,
             padVDp = 8f,
-            gapDp = 6f,
+            gapDp = 4f,
             minHDp = TextEditGeometry.Chips.H_DP,
             scrollable = true,
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(Modifier.height(10.dp))
         when (section) {
+            StyleSection.GLOW -> GlNoteText("Glow styles — assets coming later")
+            StyleSection.BOLD_ITALIC -> GlSegmentedRow(
+                listOf(
+                    SegmentItem("Italic", null, clip.isItalic) {
+                        onUpdate { it.copy(isItalic = !it.isItalic) }
+                    },
+                    SegmentItem("Underline", null, clip.isUnderline) {
+                        onUpdate { it.copy(isUnderline = !it.isUnderline) }
+                    }
+                )
+            )
+            StyleSection.CASE -> GlSegmentedRow(
+                listOf(
+                    SegmentItem("TT", null, false) { },
+                    SegmentItem("tt", null, false) { },
+                    SegmentItem("Tt", null, false) { }
+                )
+            )
             StyleSection.BACKGROUND -> BackgroundControls(clip, onUpdate, onEyedropper)
             StyleSection.STROKE -> StrokeControls(clip, onUpdate, onEyedropper)
             StyleSection.SHADOW -> ShadowControls(clip, onUpdate, onEyedropper)
@@ -618,7 +707,7 @@ private fun StylesTab(
                     onUpdate { it.copy(lineHeightPercent = v) }
                 }
             }
-            StyleSection.FORMAT -> {
+            StyleSection.TEXT -> {
                 GlSegmentedRow(
                     listOf(
                         SegmentItem("Italic", null, clip.isItalic) {
@@ -780,7 +869,7 @@ private fun EffectsTab(
             clip.shadowBlur == defaults.shadowBlur
         val tiles: List<Pair<String, TextPreset?>> =
             listOf("None" to null) + TextPresets.mapIndexed { i, p -> "Preset ${i + 1}" to p }
-        tiles.chunked(3).forEach { rowTiles ->
+        tiles.chunked(4).forEach { rowTiles ->
             Row(horizontalArrangement = Arrangement.spacedBy(TextEditGeometry.Grid.GAP_DP.dp)) {
                 rowTiles.forEach { (label, preset) ->
                     val isCurrent = if (preset == null) noneCurrent else
@@ -822,7 +911,7 @@ private fun EffectsTab(
                         }
                     }
                 }
-                repeat(3 - rowTiles.size) { Spacer(Modifier.weight(1f)) }
+                repeat(4 - rowTiles.size) { Spacer(Modifier.weight(1f)) }
             }
             Spacer(Modifier.height(TextEditGeometry.Grid.GAP_DP.dp))
         }
@@ -979,7 +1068,7 @@ private fun BubblesTab(
             TEXT_BG_SPEECH_SQ to "Speech square",
             TEXT_BG_THOUGHT to "Thought bubble"
         )
-        shapes.chunked(3).forEach { rowShapes ->
+        shapes.chunked(4).forEach { rowShapes ->
             Row(horizontalArrangement = Arrangement.spacedBy(TextEditGeometry.Grid.GAP_DP.dp)) {
                 rowShapes.forEach { (shape, label) ->
                     BubbleTile(
@@ -1000,7 +1089,7 @@ private fun BubblesTab(
                         }
                     }
                 }
-                repeat(3 - rowShapes.size) { Spacer(Modifier.weight(1f)) }
+                repeat(4 - rowShapes.size) { Spacer(Modifier.weight(1f)) }
             }
             Spacer(Modifier.height(TextEditGeometry.Grid.GAP_DP.dp))
         }
@@ -1108,11 +1197,18 @@ private fun GlNoteText(text: String) {
 /** The typing field: one clean hosted field under the preview. */
 @Composable
 private fun TextBoxField(text: String, onText: (String) -> Unit, modifier: Modifier = Modifier) {
+    var expanded by remember { mutableStateOf(false) }
     TextField(
         value = text,
         onValueChange = onText,
         placeholder = { Text("Type text", color = AmTextDim, fontSize = 14.sp) },
-        maxLines = 3,
+        maxLines = if (expanded) 8 else 3,
+        trailingIcon = {
+            androidx.compose.material3.Icon(
+                Icons.Default.Fullscreen, "Expand", tint = TextPrimary,
+                modifier = Modifier.size(20.dp).clickable { expanded = !expanded }
+            )
+        },
         textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp, color = TextPrimary),
         shape = RoundedCornerShape(AmCornerCard),
         colors = TextFieldDefaults.colors(
