@@ -68,7 +68,7 @@ fun ParentSheet(
             GlLabelLine("Parent of $layerName", UiLabelStyle.SHEET_TITLE, TextPrimary.toArgb())
             Spacer(Modifier.height(3.dp))
             GlTextBlock(
-                "The layer follows the move, turn and size of its parent (a Null). A Controller is not a parent: the layer is only connected to it, and whatever is done to the Controller is done to the connected layers too, each in its own place.",
+                "The layer follows the move, turn and size of its parent (a Null). A Controller is not a parent: the layer is only connected to it, and whatever is done to the Controller is done to the connected layers too, each in its own place. A 3D Space is a scene: the layer goes inside it and is placed by the space's own camera, in 3D.",
                 UiLabelStyle.SHEET_DESC, TextSecondary.toArgb(),
                 Modifier.fillMaxWidth(),
                 align = androidx.compose.ui.text.style.TextAlign.Start

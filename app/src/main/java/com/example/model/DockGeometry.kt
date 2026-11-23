@@ -26,7 +26,8 @@ package com.example.model
  */
 object DockGeometry {
 
-    const val TILE_COUNT = 12
+    /** Build 262: 13 tiles — the 3D Space tile joins at the end of the row. */
+    const val TILE_COUNT = 13
     const val TILE_DP = 44f
     const val GAP_DP = 8f
     const val PAD_DP = 8f
@@ -47,9 +48,9 @@ object DockGeometry {
      * The three Material icons (music, sticker, camera) are the
      * 29.4 dp entries.
      * Order: media, music, fx, text, shapes, sticker, vector, drawing,
-     * null, camera, group, chain.
+     * null, camera, group, chain, space (build 262).
      */
-    val GLYPH_DP = floatArrayOf(29.4f, 29.4f, 31.4f, 29.4f, 31.4f, 29.4f, 31.4f, 31.4f, 31.4f, 29.4f, 31.4f, 31.4f)
+    val GLYPH_DP = floatArrayOf(29.4f, 29.4f, 31.4f, 29.4f, 31.4f, 29.4f, 31.4f, 31.4f, 31.4f, 29.4f, 31.4f, 31.4f, 31.4f)
 
     /** The scrolling content's total width (dp): both paddings + tiles + gaps. */
     fun contentWidthDp(tileCount: Int = TILE_COUNT): Float =

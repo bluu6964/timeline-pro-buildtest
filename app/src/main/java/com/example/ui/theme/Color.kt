@@ -160,6 +160,8 @@ val ClipVectorCyan = Color(0xFF06B6D4)
 val ClipDrawingRose = Color(0xFFFB7185)
 /** 3D Camera bar — the reference's indigo (a flat bar now, not the quiet hollow). */
 val ClipCameraIndigo = Color(0xFF6366F1)
+/** 3D Space bar (build 262) — deep violet, distinct from the camera's indigo. */
+val ClipSpaceViolet = Color(0xFF7C4DFF)
 /** Group bar — the reference's teal (was indigo in 217). */
 val ClipGroupTeal = Color(0xFF14B8A6)
 /** Chain section fill (build 218) and its selected fill. */

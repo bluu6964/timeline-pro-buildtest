@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Tonality
 import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.Widgets
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -83,6 +84,8 @@ fun ClipEditToolsPanel(
     onEditPoints: (() -> Unit)? = null,
     /** Parent: pick a Null object this layer follows. */
     onParent: (() -> Unit)? = null,
+    /** Only set for a 3D Space layer (build 262): opens the Space panel (its camera / grid / extrusion). */
+    onSpace3d: (() -> Unit)? = null,
     /** Only set for a real Group layer: takes the layers out of the group again. */
     onUngroup: (() -> Unit)? = null,
     /** Only set for a real Group layer: saves the whole group as a reusable user template (Templates v2). */
@@ -168,6 +171,7 @@ fun ClipEditToolsPanel(
     else emptyList()) + (if (onStabilize != null) listOf(ClipToolItem("stabilize", "Stabilize", Icons.Default.CenterFocusStrong))
     else emptyList()) + (if (onFaceAi != null) listOf(ClipToolItem("face_ai", "Face AI", Icons.Default.Face))
     else emptyList()) + (if (onFaceSwap != null) listOf(ClipToolItem("face_swap", "Face swap", Icons.Default.SwapHoriz))
+    else emptyList()) + (if (onSpace3d != null) listOf(ClipToolItem("space3d", "3D Space", Icons.Default.Widgets))
     else emptyList()) + (if (onParent != null) listOf(ClipToolItem("parent", "Parent", Icons.Default.AccountTree))
     else emptyList()) + (if (onUngroup != null) listOf(ClipToolItem("ungroup", "Ungroup", Icons.Default.LayersClear))
     else emptyList()) + (if (onSaveTemplate != null) listOf(ClipToolItem("save_template", "Save as Template", Icons.Default.Save))
@@ -219,6 +223,7 @@ fun ClipEditToolsPanel(
             "volume" -> onVolume?.invoke()
             "masks" -> onMasks?.invoke()
             "parent" -> onParent?.invoke()
+            "space3d" -> onSpace3d?.invoke()
             "ungroup" -> onUngroup?.invoke()
             "save_template" -> onSaveTemplate?.invoke()
             "edit_group" -> onEditGroup?.invoke()

@@ -100,7 +100,9 @@ fun BottomToolbar(
     onDrawingClick: () -> Unit = {},
     onCameraClick: () -> Unit = {},
     onGroupClick: () -> Unit = {},
-    onChainClick: () -> Unit = {}
+    onChainClick: () -> Unit = {},
+    /** Build 262: the 3D Space tile's direct add. */
+    onSpaceClick: () -> Unit = {}
 ) {
     Column(
         modifier = modifier
@@ -130,7 +132,8 @@ fun BottomToolbar(
             onDrawingClick = onDrawingClick,
             onCameraClick = onCameraClick,
             onGroupClick = onGroupClick,
-            onChainClick = onChainClick
+            onChainClick = onChainClick,
+            onSpaceClick = onSpaceClick
         )
     }
 }

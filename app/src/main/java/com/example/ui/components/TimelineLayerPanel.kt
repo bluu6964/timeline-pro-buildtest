@@ -177,6 +177,7 @@ import com.example.ui.theme.ChainSectionBg
 import com.example.ui.theme.ChainSectionBgSelected
 import com.example.ui.theme.ChainSectionBorder
 import com.example.ui.theme.ClipCameraIndigo
+import com.example.ui.theme.ClipSpaceViolet
 import com.example.ui.theme.ClipDrawingRose
 import com.example.ui.theme.ClipGroupTeal
 import com.example.ui.theme.ClipStickerAmber
@@ -1718,6 +1719,7 @@ internal fun barColorFor(clip: TimelineClip): Color = when {
     clip.type == LayerType.OVERLAY -> NeonBarViolet
     clip.type == LayerType.GROUP -> ClipGroupTeal
     clip.type == LayerType.CAMERA -> ClipCameraIndigo
+    clip.type == LayerType.SPACE3D -> ClipSpaceViolet
     clip.type == LayerType.NULL -> com.example.ui.theme.RefNullPink
     else -> NeonBarGold
 }
@@ -1731,6 +1733,7 @@ internal fun barGlyphFor(clip: TimelineClip): String = when {
     clip.type == LayerType.SHAPE -> "shape"
     clip.type == LayerType.STICKER -> "sticker"
     clip.type == LayerType.CAMERA -> "camera"
+    clip.type == LayerType.SPACE3D -> "space"
     clip.type == LayerType.GROUP -> "group"
     clip.type == LayerType.NULL -> "null"
     clip.type == LayerType.VIDEO -> "video"
@@ -1969,6 +1972,8 @@ fun TimelineClipItem(
             // capsule (it was the quiet hollow bar before).
             LayerType.NULL -> CapsuleBar(com.example.ui.theme.RefNullPink, clip.name, isSelected, icon = { BarTypeIcon("null") })
             LayerType.CAMERA -> CapsuleBar(ClipCameraIndigo, clip.name, isSelected, icon = { BarTypeIcon("camera") })
+            // Build 262: the 3D Space bar — deep violet capsule with the cube glyph.
+            LayerType.SPACE3D -> CapsuleBar(ClipSpaceViolet, clip.name, isSelected, icon = { BarTypeIcon("space") })
 
             // No other LayerType exists today; the catch-all takes the reference's
             // indigo — the adjustment / effect-layer colour of the mapping.
@@ -2302,6 +2307,17 @@ private fun BarTypeIcon(kind: String) {
                     quadraticBezierTo(12f * u, 16.6f * u, 15.2f * u, 13.8f * u)
                 }
                 drawPath(smile, c, style = Stroke(1.8f * u, cap = StrokeCap.Round))
+            }
+            "space" -> {
+                // Build 262: a small isometric cube (hexagon + the three centre edges).
+                val cube = Path().apply {
+                    moveTo(12f * u, 3.5f * u); lineTo(20f * u, 7.5f * u); lineTo(20f * u, 16f * u)
+                    lineTo(12f * u, 20f * u); lineTo(4f * u, 16f * u); lineTo(4f * u, 7.5f * u); close()
+                }
+                drawPath(cube, c, style = Stroke(1.7f * u))
+                drawLine(c, Offset(4f * u, 7.5f * u), Offset(12f * u, 11.5f * u), 1.7f * u)
+                drawLine(c, Offset(20f * u, 7.5f * u), Offset(12f * u, 11.5f * u), 1.7f * u)
+                drawLine(c, Offset(12f * u, 11.5f * u), Offset(12f * u, 20f * u), 1.7f * u)
             }
             "camera" -> {
                 drawRoundRect(

@@ -2250,6 +2250,8 @@ fun VideoEditorScreen(
     var showClipCropSheet by remember { mutableStateOf(false) }
     var showAppliedEffectsMode by remember { mutableStateOf(false) }
     var showTransformMode by remember { mutableStateOf(false) }
+    // Build 262: the 3D Space panel (the space's own camera / grid / extrusion).
+    var showSpaceMode by remember { mutableStateOf(false) }
 
     // Play / pause: the view model's wall clock drives the playhead (see VideoEditorViewModel.play).
     // Full-screen editors (Shape / Crop) show the media layers themselves.
@@ -2271,6 +2273,7 @@ fun VideoEditorScreen(
 
     // System back / gesture back closes Transform first instead of leaving the editor.
     BackHandler(enabled = showTransformMode) { showTransformMode = false }
+    BackHandler(enabled = showSpaceMode) { showSpaceMode = false }
     // Back leaves multi-select first.
     BackHandler(enabled = multiSelectIds.isNotEmpty() && !showTransformMode && editingTextId == null && editingColorId == null && editingBlendId == null) {
         viewModel.exitMultiSelect()
@@ -3462,8 +3465,23 @@ fun VideoEditorScreen(
                                     com.example.model.ControllerPanel.TOOLS
                                 tracks.any { t -> t.clips.any { it.id == targetClipId && (it.type == LayerType.NULL || it.type == LayerType.CAMERA) } } ->
                                     setOf("transform", "parent", "rename")
+                                // Build 262: a 3D Space has no picture of its own either — its panel,
+                                // Transform (its camera, keyframable), Blending (the whole scene's
+                                // opacity / blend) and the housekeeping tools.
+                                tracks.any { t -> t.clips.any { it.id == targetClipId && it.type == LayerType.SPACE3D } } ->
+                                    setOf("space3d", "transform", "blend", "parent", "rename")
                                 else -> null
                             },
+                            onSpace3d = if (tracks.flatMap { it.clips }.any { it.id == targetClipId && it.type == LayerType.SPACE3D }) {
+                                {
+                                    val target = tracks.flatMap { it.clips }.find { it.id == selectedClipId }
+                                    if (target != null && !target.isActiveAt(playheadState.value)) {
+                                        viewModel.seekTo(target.startMs)
+                                    }
+                                    viewModel.beginAdjust()
+                                    showSpaceMode = true
+                                }
+                            } else null,
                             onDeselect = { viewModel.selectClip(null) },
                             onEffects = {
                                 // Effects are drawn by the C++ engine on every picture layer: video, photo, text, shape, sticker.
@@ -4089,7 +4107,8 @@ fun VideoEditorScreen(
                             },
                             onCameraClick = { viewModel.addCameraLayer() },
                             onGroupClick = { viewModel.addGroupLayer() },
-                            onChainClick = { viewModel.addChainLayer() }
+                            onChainClick = { viewModel.addChainLayer() },
+                            onSpaceClick = { viewModel.addSpace3DLayer() }
                         )
                     }
                 }
@@ -4637,6 +4656,59 @@ fun VideoEditorScreen(
                             }
                         }
                     )
+                }
+            }
+            // ---- 3D Space panel (build 262): same overlay slot as Transform — the canvas
+            // above stays untouched, the panel takes the lower zone only (CANVAS LAW). ----
+            val spacePanelClip = tracks.flatMap { it.clips }.find { it.id == selectedClipId && it.type == LayerType.SPACE3D }
+            LaunchedEffect(showSpaceMode, spacePanelClip == null) {
+                if (showSpaceMode && spacePanelClip == null) showSpaceMode = false
+            }
+            if (showSpaceMode && spacePanelClip != null) {
+                val spaceClip = spacePanelClip
+                run {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .offset(y = panelTop)
+                            .fillMaxWidth()
+                            .height(panelH)
+                            .zIndex(20f)
+                            .enterPop(fromBottom = true)
+                            .background(EditorBackground)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = {}
+                            )
+                            .swipeDownToDismiss(onDismiss = { showSpaceMode = false })
+                    ) {
+                        com.example.ui.components.SpaceEditView(
+                            space = spaceClip.at(playheadState.value),
+                            children = tracks.flatMap { it.clips }.filter { it.spaceId == spaceClip.id },
+                            onCamera = { c ->
+                                viewModel.updateClipFullTransform(
+                                    spaceClip.id, c.transformX, c.transformY, c.scalePercent, c.rotationDeg,
+                                    c.pivotX, c.pivotY, c.rotation3dX, c.rotation3dY, c.warpDistort, c.transformZ
+                                )
+                            },
+                            onSpaceField = { c ->
+                                viewModel.updateClipNoKeyframes(spaceClip.id) {
+                                    it.copy(spaceGridOn = c.spaceGridOn, spaceGridSize = c.spaceGridSize, spaceExtrude = c.spaceExtrude)
+                                }
+                            },
+                            onChildExtrude = { childId, v ->
+                                viewModel.updateClipNoKeyframes(childId) { it.copy(spaceExtrudeSelf = v) }
+                            },
+                            onResetView = {
+                                val c = spaceClip.at(playheadState.value)
+                                viewModel.updateClipFullTransform(
+                                    spaceClip.id, 0f, 0f, 100f, 0f,
+                                    c.pivotX, c.pivotY, com.example.viewmodel.SPACE_DEFAULT_PITCH, 0f, c.warpDistort, 0f
+                                )
+                            }
+                        )
+                    }
                 }
             }
             // ---- Audio panels (Volume / Fade / Speed): same layout as the other editors ----------
@@ -5903,8 +5975,15 @@ fun VideoEditorScreen(
             }
             com.example.ui.components.ParentSheet(
                 layerName = child.text?.takeIf { it.isNotBlank() } ?: child.name,
-                nulls = all.filter { (it.type == LayerType.NULL || it.type == LayerType.CONTROLLER) && it.id != childId && !loops(it.id) }.map { it.id to it.name },
-                currentId = child.parent?.id ?: child.controllerId,
+                // Build 262: a 3D Space is a parent target too — for the layers that may live
+                // inside one (SpaceOps.canBeChild: the visual layers). Picking it puts the layer
+                // into the space (the spaceId relation in setClipParent).
+                nulls = all.filter {
+                    ((it.type == LayerType.NULL || it.type == LayerType.CONTROLLER) ||
+                        (it.type == LayerType.SPACE3D && com.example.model.SpaceOps.canBeChild(child))) &&
+                        it.id != childId && !loops(it.id)
+                }.map { it.id to it.name },
+                currentId = child.spaceId ?: child.parent?.id ?: child.controllerId,
                 onPick = { pid ->
                     if (!viewModel.setClipParent(childId, pid)) {
                         scope.launch { snackbarHostState.showSnackbar("This layer cannot be the parent") }

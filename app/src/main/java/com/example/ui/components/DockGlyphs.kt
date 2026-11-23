@@ -128,6 +128,23 @@ internal fun VectorCmdBuilder.dockGroupGlyph(w: Float) {
     )
 }
 
+/** Build 262: the 3D Space tile's glyph — an isometric cube wireframe (the space's mark). */
+internal fun VectorCmdBuilder.dockSpaceGlyph(w: Float) {
+    val u = w / 25f
+    val cArgb = Color(0xFFE4E4E7).toArgb()
+    val sw = 1.9f * u
+    fun line(pts: List<Pair<Float, Float>>, closed: Boolean = false) {
+        val xs = FloatArray(pts.size) { pts[it].first * u }
+        val ys = FloatArray(pts.size) { pts[it].second * u }
+        addPolyline(xs, ys, pts.size, closed, sw, cArgb, capRound = true)
+    }
+    // Outer hexagon of the cube.
+    line(listOf(12.5f to 3f, 21f to 7.5f, 21f to 16.5f, 12.5f to 21f, 4f to 16.5f, 4f to 7.5f), closed = true)
+    // The three edges meeting at the centre.
+    line(listOf(4f to 7.5f, 12.5f to 12f, 21f to 7.5f))
+    line(listOf(12.5f to 12f, 12.5f to 21f))
+}
+
 /** Build 218: the Chain tile's glyph — two interlocked rounded links. */
 internal fun VectorCmdBuilder.dockChainGlyph(w: Float) {
     val u = w / 25f

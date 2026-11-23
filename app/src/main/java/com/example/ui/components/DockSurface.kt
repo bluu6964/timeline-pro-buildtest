@@ -97,7 +97,8 @@ internal fun DockGlRow(
     onDrawingClick: () -> Unit,
     onCameraClick: () -> Unit,
     onGroupClick: () -> Unit,
-    onChainClick: () -> Unit
+    onChainClick: () -> Unit,
+    onSpaceClick: () -> Unit
 ) {
     val density = LocalDensity.current.density
     val atlas = rememberUiAtlas()
@@ -109,7 +110,8 @@ internal fun DockGlRow(
     // vector, drawing, null, camera, group, chain) — NOT parameter order.
     val clicks = listOf(
         onMediaClick, onAudioClick, onFxClick, onTextClick, onShapesClick, onStickerClick,
-        onVectorClick, onDrawingClick, onNullClick, onCameraClick, onGroupClick, onChainClick
+        onVectorClick, onDrawingClick, onNullClick, onCameraClick, onGroupClick, onChainClick,
+        onSpaceClick
     )
     // The three Material-icon tiles (music, sticker, camera), in tile order.
     val iconPainters = listOf(
@@ -213,16 +215,17 @@ internal fun DockGlRow(
     }
 }
 
-/** The dock's twelve tiles, in the reference's order (build 218). */
+/** The dock's tiles, in the reference's order (build 218; build 262 adds the 3D Space tile at the end). */
 private val DOCK_LABELS = listOf(
     "Video/Photo", "Music", "Fx", "Text", "Shapes", "Sticker",
-    "Vector", "Drawing", "Null", "3D Camera", "Group", "Chain"
+    "Vector", "Drawing", "Null", "3D Camera", "Group", "Chain", "3D Space"
 )
 private val DOCK_TAGS = listOf(
     "toolbar_media_button", "toolbar_audio_button", "toolbar_fx_button",
     "toolbar_text_button", "toolbar_shapes_button", "toolbar_sticker_button",
     "toolbar_vector_button", "toolbar_drawing_button", "toolbar_null_button",
-    "toolbar_camera_button", "toolbar_group_button", "toolbar_chain_button"
+    "toolbar_camera_button", "toolbar_group_button", "toolbar_chain_button",
+    "toolbar_space_button"
 )
 
 /** Tile indices whose glyph is a Material icon (music, sticker, camera). */
@@ -353,6 +356,7 @@ private fun VectorCmdBuilder.buildDockCommands(
                 8 -> dockNullGlyph(gw)
                 10 -> dockGroupGlyph(gw)
                 11 -> dockChainGlyph(gw)
+                12 -> dockSpaceGlyph(gw)
             }
             setTranslate(0f, 0f)
         }

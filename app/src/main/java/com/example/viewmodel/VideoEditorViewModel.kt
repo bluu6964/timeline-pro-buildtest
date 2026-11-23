@@ -87,6 +87,9 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.util.UUID
 
+/** Build 262: a fresh 3D Space's camera pitch (its rotation3dX) — the floor-reading default the camera selftest pins. */
+const val SPACE_DEFAULT_PITCH = 22f
+
 class VideoEditorViewModel : ViewModel() {
 
     private val _currentPlayheadMs = MutableStateFlow(0L)
@@ -592,8 +595,13 @@ class VideoEditorViewModel : ViewModel() {
         // Deleting a Chain deletes the layers inside it too.
         val inGroup = GroupOps.descendantsOf(_tracks.value, clipId).map { it.id }.toSet()
         val gone = _tracks.value.flatMap { it.clips }.filter { it.id == clipId || it.chainId == clipId || it.id in inGroup }.map { it.id }.toSet()
+        // Build 262: deleting a 3D Space RELEASES its layers (they become normal layers again) —
+        // a space is a scene, not an owner like a Chain / Group.
+        val deletedIsSpace = _tracks.value.flatMap { it.clips }.any { it.id == clipId && it.type == LayerType.SPACE3D }
         val withoutClip = _tracks.value.map { track ->
-            track.copy(clips = track.clips.filter { it.id !in gone })
+            track.copy(clips = track.clips.filter { it.id !in gone }.map {
+                if (deletedIsSpace && it.spaceId == clipId) it.copy(spaceId = null) else it
+            })
         }
         _tracks.value = LaneLayout.normalize(withoutClip)
         if (_selectedClipId.value in gone) setSelected(null)
@@ -1358,6 +1366,22 @@ class VideoEditorViewModel : ViewModel() {
     }
 
     /**
+     * Adds a 3D Space layer at the playhead and selects it (build 262 — Sarowar's feature).
+     * The space starts with its camera pitched down at the grid floor (rotation3dX =
+     * [SPACE_DEFAULT_PITCH], the sign the camera selftest pins: the far edge sits nearer the
+     * horizon, the near edge below centre), so a fresh space reads as a floor, not a wall.
+     * Layers are put inside it afterwards through the Parent picker (see [setClipParent]).
+     */
+    fun addSpace3DLayer(durationMs: Long = 5000L) {
+        val n = _tracks.value.flatMap { it.clips }.count { it.type == LayerType.SPACE3D } + 1
+        addClip(type = LayerType.SPACE3D, name = if (n == 1) "3D Space" else "3D Space $n", durationMs = durationMs.coerceIn(250L, 60_000L))
+        val id = _selectedClipId.value ?: return
+        _tracks.value = _tracks.value.map { track ->
+            track.copy(clips = track.clips.map { if (it.id == id) it.copy(rotation3dX = SPACE_DEFAULT_PITCH) else it })
+        }
+    }
+
+    /**
      * Links [clipId] to the layer [parentId] (null = no link). The Parent picker offers two
      * different relations under one list, and each pick changes only its own relation:
      *  - a Null or a Group becomes the layer's PARENT: the link saves the parent's pose at the
@@ -1377,13 +1401,32 @@ class VideoEditorViewModel : ViewModel() {
             pushHistory()
             _tracks.value = _tracks.value.map { track ->
                 track.copy(clips = track.clips.map {
-                    if (it.id == clipId) it.copy(parent = null, controllerId = null) else it
+                    if (it.id == clipId) it.copy(parent = null, controllerId = null, spaceId = null) else it
                 })
             }
             return true
         }
         if (parentId == clipId) return false
         val target = all.firstOrNull { it.id == parentId } ?: return false
+        if (target.type == LayerType.SPACE3D) {
+            // Build 262: putting a layer INTO a 3D Space is the third relation of this picker.
+            // Membership is the spaceId field alone (no parent link — the space's camera places
+            // the layer, ParentRig must not compose it); a grouped layer leaves its group (one
+            // container per layer), a Null parent link survives like it does under a Camera.
+            val child = all.first { it.id == clipId }
+            if (!com.example.model.SpaceOps.canBeChild(child)) return false
+            pushHistory()
+            _tracks.value = _tracks.value.map { track ->
+                track.copy(clips = track.clips.map {
+                    if (it.id == clipId) it.copy(
+                        spaceId = parentId,
+                        groupId = null,
+                        parent = if (it.groupId != null) null else it.parent
+                    ) else it
+                })
+            }
+            return true
+        }
         if (target.type == LayerType.CONTROLLER) {
             pushHistory()
             _tracks.value = _tracks.value.map { track ->
@@ -1410,7 +1453,8 @@ class VideoEditorViewModel : ViewModel() {
                 // Controller connection (controllerId) is a separate relation and survives;
                 // a legacy controller link sitting in the parent field is replaced with the
                 // rest of the link, as the picker showed only one current link.
-                if (it.id == clipId) it.copy(parent = link, groupId = if (it.groupId != null && link?.id != it.groupId) null else it.groupId) else it
+                // Build 262: a layer that gets a real parent leaves any 3D Space it was in.
+                if (it.id == clipId) it.copy(parent = link, spaceId = null, groupId = if (it.groupId != null && link?.id != it.groupId) null else it.groupId) else it
             })
         }
         return true
