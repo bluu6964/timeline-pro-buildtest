@@ -737,6 +737,13 @@ fun ExportModalDialog(
                         }
                     }
                     isExporting -> {
+                        // Build 272: the cute loading pill brands the waiting
+                        // header; the determinate ring below it is kept.
+                        LoadingPill(
+                            mascot = com.example.model.LoadingPillAssignments.VIDEO_EXPORT,
+                            label = "Exporting"
+                        )
+                        Spacer(modifier = Modifier.height(14.dp))
                         // Build 223: the progress ring in the unified language — a lime
                         // arc on the elevated-surface track, the % centred inside.
                         // Build 253: the % and the two lines under it draw in GL.

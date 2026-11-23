@@ -1840,6 +1840,10 @@ fun VideoEditorScreen(
     // Project file (.ampro): export one project with its media, import it on this or another phone.
     var projectBusy by remember { mutableStateOf<String?>(null) }
     var projectBusyProgress by remember { mutableStateOf(-1f) }
+    // Build 272: the cute-pill mascot branding the busy dialog (per operation).
+    var projectBusyMascot by remember {
+        mutableStateOf(com.example.model.LoadingPillAssignments.PROJECT_IMPORT)
+    }
     var pendingExportId by remember { mutableStateOf<String?>(null) }
 
     val exportProjectLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
@@ -1851,6 +1855,7 @@ fun VideoEditorScreen(
             scope.launch {
                 projectBusy = "Exporting project..."
                 projectBusyProgress = 0f
+                projectBusyMascot = com.example.model.LoadingPillAssignments.PROJECT_EXPORT
                 val result = withContext(Dispatchers.IO) {
                     runCatching {
                         if (id == viewModel.projectId.value) projectStore.save(id, viewModel.snapshot())
@@ -1884,6 +1889,7 @@ fun VideoEditorScreen(
             scope.launch {
                 projectBusy = "Importing project..."
                 projectBusyProgress = -1f
+                projectBusyMascot = com.example.model.LoadingPillAssignments.PROJECT_IMPORT
                 val result = withContext(Dispatchers.IO) {
                     runCatching {
                         val input = context.contentResolver.openInputStream(source) ?: error("Cannot read that file")
@@ -2295,14 +2301,35 @@ fun VideoEditorScreen(
         snackbarHost = {
             androidx.compose.foundation.layout.Column {
                 cutoutProgress?.let { p ->
-                    com.example.ui.components.CutoutProgressBar(p, cutoutLabel, onCancel = { cutoutJob?.cancel() })
+                    com.example.ui.components.CutoutProgressBar(
+                        p, cutoutLabel, onCancel = { cutoutJob?.cancel() },
+                        mascot = if (cutoutLabel.startsWith("Downloading")) {
+                            com.example.model.LoadingPillAssignments.MODEL_DOWNLOAD
+                        } else {
+                            com.example.model.LoadingPillAssignments.CUTOUT
+                        }
+                    )
                 }
                 faceProgress?.let { p ->
-                    com.example.ui.components.CutoutProgressBar(p, faceLabel, onCancel = { faceJob?.cancel() })
+                    com.example.ui.components.CutoutProgressBar(
+                        p, faceLabel, onCancel = { faceJob?.cancel() },
+                        mascot = if (faceLabel.startsWith("Downloading")) {
+                            com.example.model.LoadingPillAssignments.MODEL_DOWNLOAD
+                        } else {
+                            com.example.model.LoadingPillAssignments.FACE
+                        }
+                    )
                 }
                 trackProgress?.let { p ->
                     com.example.ui.components.CutoutProgressBar(
-                        p, removeLabel ?: if (planarRunning) "Tracking the surface…" else "Tracking the object…", onCancel = { trackStop.set(true) }, actionLabel = "Stop"
+                        p, removeLabel ?: if (planarRunning) "Tracking the surface…" else "Tracking the object…", onCancel = { trackStop.set(true) }, actionLabel = "Stop",
+                        mascot = when {
+                            removeLabel == "Detecting beats…" ->
+                                com.example.model.LoadingPillAssignments.BEATS
+                            removeLabel?.startsWith("Reversing") == true ->
+                                com.example.model.LoadingPillAssignments.REVERSE
+                            else -> com.example.model.LoadingPillAssignments.TRACKING
+                        }
                     )
                 }
                 // Square snackbar surface (Sarowar's square order 2026-11-14 —
@@ -5808,12 +5835,24 @@ fun VideoEditorScreen(
             onDismissRequest = {},
             containerColor = AmPanel,
             shape = androidx.compose.foundation.shape.RoundedCornerShape(AmCornerCard),
-            title = { androidx.compose.material3.Text(msg, color = androidx.compose.ui.graphics.Color.White) },
             text = {
-                if (projectBusyProgress >= 0f) {
-                    androidx.compose.material3.LinearProgressIndicator(progress = { projectBusyProgress })
-                } else {
-                    androidx.compose.material3.LinearProgressIndicator()
+                // Build 272: the cute loading pill carries the message.
+                // A determinate operation keeps its progress bar under
+                // the pill; the indeterminate import shows the pill
+                // alone (it replaces the old indeterminate indicator).
+                androidx.compose.foundation.layout.Column(
+                    horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
+                ) {
+                    com.example.ui.components.LoadingPill(
+                        mascot = projectBusyMascot,
+                        label = msg
+                    )
+                    if (projectBusyProgress >= 0f) {
+                        androidx.compose.foundation.layout.Spacer(
+                            androidx.compose.ui.Modifier.height(12.dp)
+                        )
+                        androidx.compose.material3.LinearProgressIndicator(progress = { projectBusyProgress })
+                    }
                 }
             },
             confirmButton = {}

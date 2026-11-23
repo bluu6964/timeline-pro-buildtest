@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -35,7 +36,9 @@ fun CutoutProgressBar(
     label: String,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
-    actionLabel: String = "Cancel"
+    actionLabel: String = "Cancel",
+    /** Build 272: the cute-pill mascot chip branding this bar (bar + label kept). */
+    mascot: com.example.model.LoadingMascot? = null
 ) {
     val p = progress.coerceIn(0f, 1f)
     GlPanelBody(
@@ -50,6 +53,12 @@ fun CutoutProgressBar(
             Modifier.padding(horizontal = 11.dp, vertical = 7.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                if (mascot != null) {
+                    LoadingMascotChip(mascot)
+                    androidx.compose.foundation.layout.Spacer(
+                        androidx.compose.ui.Modifier.width(8.dp)
+                    )
+                }
                 GlLabelLine(
                     "$label ${(p * 100).toInt()}%",
                     UiLabelStyle.ED_TEXT, Color.White.toArgb(),
