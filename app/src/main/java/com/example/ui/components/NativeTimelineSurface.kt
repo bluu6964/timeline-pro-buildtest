@@ -142,8 +142,8 @@ fun NativeTimelineSurface(
                 multiSelectIds = multiSelectIds,
                 waveforms = waveforms,
                 totalMs = totalDurationMs,
-                beatMs = beatMarksMs.toLongArray(),
-                rulerKeysMs = keyframeTimesMs.toLongArray(),
+                beatMs = beatMarksMs,
+                rulerKeysMs = keyframeTimesMs,
                 exportInMs = exportInMs,
                 exportOutMs = exportOutMs,
                 pxPerMs = pxPerMs,
@@ -284,7 +284,12 @@ private class TlGestureGlue {
                 TL_EV_TRIM -> if (id != null) onTrimClipEdge(id, a != 0.0, b.toLong())
                 TL_EV_FADE -> if (id != null) {
                     // The engine reports the raw whole-ms delta; apply it to the CURRENT fades.
-                    val clip = tracks.flatMap { it.clips }.firstOrNull { it.id == id }
+                    // (Build 264: plain loop — this runs per fade-drag event and
+                    // flatMap allocated a whole flattened list per event.)
+                    var clip: com.example.model.TimelineClip? = null
+                    outer@ for (t in tracks) {
+                        for (c in t.clips) if (c.id == id) { clip = c; break@outer }
+                    }
                     if (clip != null) {
                         val whole = b.toLong()
                         if (a != 0.0) onSetClipFades(id, clip.fadeInMs + whole, clip.fadeOutMs)

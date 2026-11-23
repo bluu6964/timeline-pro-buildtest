@@ -81,9 +81,14 @@ fun TimelineSlot(
             exportInMs = exportInMs,
             exportOutMs = exportOutMs,
             keyframeTimesMs = selectedClipId?.let { sid ->
-                tracks.flatMap { it.clips }.firstOrNull { it.id == sid }?.let { c ->
-                    c.keyframeTimes().map { t -> c.startMs + t }
+                // Build 264: plain loop (this composable re-runs at playhead
+                // rate during playback; flatMap allocated a flattened list of
+                // every clip per recomposition just to find one).
+                var found: com.example.model.TimelineClip? = null
+                outer@ for (t in tracks) {
+                    for (c in t.clips) if (c.id == sid) { found = c; break@outer }
                 }
+                found?.let { c -> c.keyframeTimes().map { t -> c.startMs + t } }
             } ?: emptyList(),
             bottomPadDp = com.example.ui.components.timelineBottomPadDp(
                 toolsPanelOpen, multiSelectIds.isNotEmpty(), showActionBarNative

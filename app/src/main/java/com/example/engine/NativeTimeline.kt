@@ -327,8 +327,8 @@ internal class TlSnapshotInput(
     val multiSelectIds: Set<String>,
     val waveforms: Map<String, FloatArray>,
     val totalMs: Long,
-    val beatMs: LongArray,
-    val rulerKeysMs: LongArray,
+    val beatMs: List<Long>,
+    val rulerKeysMs: List<Long>,
     val exportInMs: Long?,
     val exportOutMs: Long?,
     val pxPerMs: Float,
@@ -371,11 +371,20 @@ internal class NativeTimelineEngine(context: Context) {
     private var uploadedThumbCount = -1
     private var lastInput: TlSnapshotInput? = null
 
+    // Build 264: the change key of the last COMPLETED snapshot build. An
+    // update whose key matches is skipped — the snapshot it would build is
+    // the one already native. (The playhead is not part of the key: the
+    // draw reads it live, so playback no longer rebuilds anything.)
+    private var lastKey: Long = 0L
+    private var hasKey: Boolean = false
+
     init {
         // A finished strip re-runs the last snapshot build so the clip picks
         // its entry up (the callback fires on the main thread, like update()).
+        // Forced: the input itself is unchanged — the new strip entry is
+        // exactly what the change key cannot see.
         thumbs.onStripReady = {
-            if (!destroyed) lastInput?.let { update(it) }
+            if (!destroyed) lastInput?.let { update(it, force = true) }
         }
     }
 
@@ -467,19 +476,46 @@ internal class NativeTimelineEngine(context: Context) {
         return TlHit(zone, out[0], out[1])
     }
 
-    /** Push a fresh data snapshot (called from the composition on data change). */
-    fun update(input: TlSnapshotInput) {
+    /**
+     * Push a fresh data snapshot (called from the composition on data change).
+     *
+     * Build 264: the composition re-runs this on every recomposition of the
+     * timeline surface — during playback that is ~60 times a second (the
+     * playhead state drives the screen), and the snapshot does not depend
+     * on the playhead at all. The build is therefore gated on the input's
+     * change key ([TimelineSnapshotKey]): an unchanged input costs one
+     * fingerprint walk and no JNI, no label measurement, no peaks copies.
+     * [force] bypasses the gate (a filmstrip strip landed: the native
+     * snapshot must pick its thumb entry up).
+     */
+    fun update(input: TlSnapshotInput, force: Boolean = false) {
         lastInput = input
+        val key = com.example.model.TimelineSnapshotKey.compute(
+            input.tracks, input.selectedClipId, input.multiSelectIds, input.waveforms,
+            input.totalMs, input.beatMs, input.rulerKeysMs,
+            input.exportInMs, input.exportOutMs, input.pxPerMs, input.comfort, input.bottomPadPx
+        )
+        if (!force && hasKey && key == lastKey) {
+            // Nothing the snapshot reads has changed: the native side
+            // already holds this exact snapshot. A frame is still
+            // requested, as before (coalesced; the draw is playhead-live).
+            requestFrame()
+            return
+        }
         // The whole build runs under ONE read-lock acquisition (withHandle):
         // destroy can never free the handle mid-build, and the begin..end
         // sequence is atomic against every other entry point.
+        var built = false
         withHandle { h ->
             // Two passes at most: if the atlas overflows mid-resolve it is reset
             // and every label is resolved again against the empty atlas.
             var pass = 0
             while (true) {
                 val ok = buildSnapshot(h, input)
-                if (ok) break
+                if (ok) {
+                    built = true
+                    break
+                }
                 if (++pass > 1) break
                 // The old snapshot's indices are invalid against a fresh atlas:
                 // blank the surface snapshot first, then upload and rebuild.
@@ -493,6 +529,12 @@ internal class NativeTimelineEngine(context: Context) {
                 uploadAtlas(h)
             }
         } ?: return
+        // Only a completed build earns the key: if the atlas overflowed on
+        // both passes the next update must retry, not skip.
+        if (built) {
+            lastKey = key
+            hasKey = true
+        }
         requestFrame()
     }
 
@@ -598,7 +640,7 @@ internal class NativeTimelineEngine(context: Context) {
             input.comfort, input.multiSelectIds.isNotEmpty(),
             hasRange, input.exportInMs ?: 0L, input.exportOutMs ?: 0L
         )
-        TimelineNative.nativeSetBeats(h, input.beatMs, input.rulerKeysMs)
+        TimelineNative.nativeSetBeats(h, input.beatMs.toLongArray(), input.rulerKeysMs.toLongArray())
         input.tracks.forEachIndexed { ti, track ->
             val chainClipIdx = track.clips.indexOfFirst { it.type == LayerType.CHAIN }
             val chainClip = track.clips.getOrNull(chainClipIdx)
