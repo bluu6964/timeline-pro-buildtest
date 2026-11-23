@@ -1040,6 +1040,43 @@ bool fxIsIdentity(const FxOp& op);
 // non-identity effect (nothing can spread, so nothing is padded). The fx system exposes no
 // per-effect extent, so the pad does not depend on WHICH effects are in the chain.
 int fxSpillPadPx(int w, int h, const FxOp* ops, int nOps);
+// ---- Build 265: directional-blur working resolution + the still-picture FX cache laws ----
+// The Directional Blur kernel length in working pixels, exactly the kFxBlur2 mode 0
+// formula: length% of 160 px, scaled by uUnit = max(0.25, H / 1080).
+float fxDirBlurLenPx(float lengthPct, int h);
+// Working-resolution plan for a directional blur of [lenPx] px (the fxPlanBlur idea,
+// for the 1D streak kernel): halve the picture while the length at the smaller size
+// stays above 64 px, at most 3 halvings (8x). At the reduced size the shader's 48 taps
+// sample the streak at least as finely as they do at full size for any lenPx > 64
+// (full-size spacing is lenPx / 48 > 1.33 px), and the 13-tap box reduce prefilters
+// each halving, so the only approximation is a perpendicular softening of at most
+// 2^shift px — invisible next to a streak of lenPx >= 2^shift x 64 px.
+struct DirBlurPlan {
+    int shift = 0;      // the blur runs on a picture 2^shift times smaller (0 = full size)
+    float lenLow = 0;   // the kernel length in pixels of that smaller picture
+};
+DirBlurPlan fxPlanDirBlur(float lenPx);
+// true when the op's output depends on the frame counter (uFrame / grainFrame): the
+// dedicated grain and BCC film-glow passes, plus the shaded modes whose GLSL reads
+// uFrame (fx_shaders.h, by group / mode: BLUR2 17 twitch, COLOR 27 negative's grain,
+// WARP 0 wave / 5 turbulent / 6 ripple / 9 tile / 10 shake / 30 refraction / 35 ripple
+// light, STYLE 2 scanlines / 3 glitch / 9 strobe / 10 VHS / 11 old film / 12 light leak).
+// Everything a caller evaluates per frame (keyframed sliders, animated masks) reaches
+// the renderer as changed op / mask values instead, so this is the ONLY hidden time
+// input a chain can have.
+bool fxOpUsesFrame(const FxOp& op);
+bool fxChainUsesFrame(const FxOp* ops, int nOps);
+// true when a non-identity op in the chain reads the frame's backdrop (Copy Background
+// and the two Displace Map passes — the same set Renderer::applyFx scans for its
+// backdrop copy): such a chain's output depends on what is behind the layer, so the
+// still-picture cache must not serve it.
+bool fxChainReadsBackdrop(const FxOp* ops, int nOps);
+// FNV-1a style mixing for the still-picture FX cache key (Renderer::applyFx): floats
+// are hashed by their exact bit pattern, so any input change — a keyframed slider's
+// new value included — changes the key.
+uint64_t fxHashMix(uint64_t h, uint64_t v);
+uint64_t fxHashFloats(uint64_t h, const float* v, int n);
+uint64_t fxHashInts(uint64_t h, const int* v, int n);
 // CPU reference of the Levels effect (one channel, 0..1, sRGB values): input black / white (0..255), gamma (%), output black / white (0..255).
 float fxLevelsMap(float v, float inBlack, float inWhite, float gammaPct, float outBlack, float outWhite);
 // CPU reference of the Brightness & Contrast curve (one channel, 0..1): brightness / contrast -100..100.

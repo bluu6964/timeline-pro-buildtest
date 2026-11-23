@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <functional>
 #include <vector>
 
@@ -707,6 +708,77 @@ int fxSpillPadPx(int w, int h, const FxOp* ops, int nOps) {
     if (pad < 48) pad = 48;
     if (pad > 480) pad = 480;
     return pad;
+}
+
+float fxDirBlurLenPx(float lengthPct, int h) {
+    const float unit = std::max(0.25f, (float)h / 1080.f);
+    return lengthPct / 100.f * 160.f * unit;
+}
+
+DirBlurPlan fxPlanDirBlur(float lenPx) {
+    DirBlurPlan p;
+    float s = std::max(0.f, lenPx);
+    // keep the length of the small picture <= 64 px: the 48 taps then sit <= 1.33 px
+    // apart, at most 3 halvings (the levels machinery's glow chain depth is the model)
+    while (s > 64.f && p.shift < 3) {
+        s *= 0.5f;
+        ++p.shift;
+    }
+    p.lenLow = s;
+    return p;
+}
+
+bool fxOpUsesFrame(const FxOp& op) {
+    // The two dedicated passes that receive the frame counter.
+    if (op.type == FX_GRAIN || op.type == FX_BCC_FILM_GLOW_AM) return true;
+    const FxShaderRef ref = fxShaderOf(op.type);
+    switch (ref.group) {
+        case FXG_BLUR2: return ref.mode == 17;
+        case FXG_COLOR: return ref.mode == 27;
+        case FXG_WARP:
+            return ref.mode == 0 || ref.mode == 5 || ref.mode == 6 || ref.mode == 9 ||
+                   ref.mode == 10 || ref.mode == 30 || ref.mode == 35;
+        case FXG_STYLE:
+            return ref.mode == 2 || ref.mode == 3 || ref.mode == 9 || ref.mode == 10 ||
+                   ref.mode == 11 || ref.mode == 12;
+        default: return false;
+    }
+}
+
+bool fxChainUsesFrame(const FxOp* ops, int nOps) {
+    for (int i = 0; i < nOps; ++i)
+        if (fxOpUsesFrame(ops[i])) return true;
+    return false;
+}
+
+bool fxChainReadsBackdrop(const FxOp* ops, int nOps) {
+    for (int i = 0; i < nOps; ++i) {
+        const int t = ops[i].type;
+        if ((t == FX_COPY_BG || t == FX_DISPLACE_MAP_AM || t == FX_DISPLACE_MAP_RAD_AM) &&
+            !fxIsIdentity(ops[i]))
+            return true;
+    }
+    return false;
+}
+
+uint64_t fxHashMix(uint64_t h, uint64_t v) {
+    h ^= v;
+    h *= 1099511628211ULL;  // FNV-1a prime
+    return h;
+}
+
+uint64_t fxHashFloats(uint64_t h, const float* v, int n) {
+    for (int i = 0; i < n; ++i) {
+        uint32_t bits;
+        std::memcpy(&bits, &v[i], sizeof(bits));
+        h = fxHashMix(h, bits);
+    }
+    return h;
+}
+
+uint64_t fxHashInts(uint64_t h, const int* v, int n) {
+    for (int i = 0; i < n; ++i) h = fxHashMix(h, (uint64_t)(uint32_t)v[i]);
+    return h;
 }
 
 float fxLevelsMap(float v, float inBlack, float inWhite, float gammaPct, float outBlack, float outWhite) {

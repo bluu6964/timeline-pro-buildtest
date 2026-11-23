@@ -2548,6 +2548,150 @@ int main() {
         FxOp chain[2] = {idOp, blur};
         CHECK(fxSpillPadPx(300, 900, chain, 2) == 450, "spill pad: one live op is enough, larger side wins");
     }
+    {
+        // Build 265: the directional-blur length formula (the shader's own) and the
+        // working-resolution plan — full size up to 64 px, then one halving per
+        // doubling, capped at 3.
+        CHECK(std::fabs(fxDirBlurLenPx(100.f, 1080) - 160.f) < 0.01f, "dir blur len: 100%% at 1080 = 160 px");
+        CHECK(std::fabs(fxDirBlurLenPx(50.f, 1080) - 80.f) < 0.01f, "dir blur len: 50%% at 1080 = 80 px");
+        CHECK(std::fabs(fxDirBlurLenPx(100.f, 540) - 80.f) < 0.01f, "dir blur len: unit halves with H");
+        CHECK(std::fabs(fxDirBlurLenPx(100.f, 2160) - 320.f) < 0.01f, "dir blur len: unit doubles at 2160");
+        CHECK(std::fabs(fxDirBlurLenPx(100.f, 100) - 40.f) < 0.01f, "dir blur len: unit floor 0.25");
+        CHECK(fxDirBlurLenPx(0.f, 1080) == 0.f, "dir blur len: 0%% = 0");
+        DirBlurPlan pl;
+        pl = fxPlanDirBlur(0.4f);
+        CHECK(pl.shift == 0 && std::fabs(pl.lenLow - 0.4f) < 0.001f, "dir blur plan: sub-pixel stays full size");
+        pl = fxPlanDirBlur(64.f);
+        CHECK(pl.shift == 0 && pl.lenLow == 64.f, "dir blur plan: 64 px stays full size");
+        pl = fxPlanDirBlur(65.f);
+        CHECK(pl.shift == 1 && std::fabs(pl.lenLow - 32.5f) < 0.001f, "dir blur plan: 65 px halves once");
+        pl = fxPlanDirBlur(160.f);
+        CHECK(pl.shift == 2 && pl.lenLow == 40.f, "dir blur plan: 160 px (1080p max) -> shift 2, 40 px");
+        pl = fxPlanDirBlur(302.f);
+        CHECK(pl.shift == 3 && std::fabs(pl.lenLow - 37.75f) < 0.001f, "dir blur plan: 302 px (spill-padded) -> shift 3");
+        pl = fxPlanDirBlur(100000.f);
+        CHECK(pl.shift == 3 && pl.lenLow == 12500.f, "dir blur plan: shift capped at 3");
+    }
+    {
+        // Build 265: numeric equivalence of the downsampled directional blur on a
+        // smooth synthetic picture (CPU reference of the shader's weighted box:
+        // 48 taps, soft ends; the low path box-reduces by 2^shift, blurs at the
+        // reduced length, bilinear-upsamples). Tolerance is for the reduced path
+        // against the full-size path on THIS smooth input — high-frequency detail
+        // is where the paths legitimately differ (the stated approximation).
+        const int W = 256, H = 256;
+        std::vector<float> img(W * H);
+        for (int y = 0; y < H; ++y)
+            for (int x = 0; x < W; ++x)
+                img[y * W + x] = 0.5f + 0.35f * std::sin(x * 0.11f) * std::cos(y * 0.07f) +
+                                 0.15f * std::exp(-((x - 128) * (x - 128) + (y - 110) * (y - 110)) / 1800.f);
+        auto sample = [](const std::vector<float>& im, int w, int h, float fx, float fy) {
+            fx = std::min(std::max(fx, 0.f), (float)w - 1.001f);
+            fy = std::min(std::max(fy, 0.f), (float)h - 1.001f);
+            const int x0 = (int)fx, y0 = (int)fy;
+            const float ax = fx - x0, ay = fy - y0;
+            auto at = [&](int x, int y) { return im[y * w + x]; };
+            return at(x0, y0) * (1 - ax) * (1 - ay) + at(x0 + 1, y0) * ax * (1 - ay) +
+                   at(x0, y0 + 1) * (1 - ax) * ay + at(x0 + 1, y0 + 1) * ax * ay;
+        };
+        auto dirBlur = [&](const std::vector<float>& im, int w, int h, float lenPx, std::vector<float>& out) {
+            out.assign(W * H, 0.f);  // the output is always the full-size picture (offsets are in im's pixels)
+            const int N = 48;
+            for (int y = 0; y < H; ++y)
+                for (int x = 0; x < W; ++x) {
+                    // map the full-size output pixel into this picture's space
+                    const float cx = (x + 0.5f) * w / W - 0.5f, cy = (y + 0.5f) * h / H - 0.5f;
+                    float acc = 0.f, wsum = 0.f;
+                    for (int i = 0; i < N; ++i) {
+                        const float s = (i + 0.5f) / N * 2.f - 1.f;
+                        const float t = std::min(std::max((std::fabs(s) - 0.82f) / 0.18f, 0.f), 1.f);
+                        const float wgt = 1.f - t * t * (3.f - 2.f * t);  // 1 - smoothstep(0.82, 1, |s|), as the shader
+                        // angle 0: the streak runs along +x (dir = (cos, -sin) in uv; y flip is moot at 0)
+                        acc += sample(im, w, h, cx + s * lenPx, cy) * wgt;
+                        wsum += wgt;
+                    }
+                    out[y * W + x] = acc / wsum;
+                }
+        };
+        std::vector<float> full;
+        dirBlur(img, W, H, 160.f, full);
+        // the reduced path: box-reduce by 2^shift (the plan for 160 px), blur there
+        const DirBlurPlan plan = fxPlanDirBlur(160.f);
+        std::vector<float> cur = img;
+        int cw = W, ch = H;
+        for (int s = 0; s < plan.shift; ++s) {
+            const int nw = cw / 2, nh = ch / 2;
+            std::vector<float> nxt(nw * nh);
+            for (int y = 0; y < nh; ++y)
+                for (int x = 0; x < nw; ++x)
+                    nxt[y * nw + x] = 0.25f * (cur[(2 * y) * cw + 2 * x] + cur[(2 * y) * cw + 2 * x + 1] +
+                                               cur[(2 * y + 1) * cw + 2 * x] + cur[(2 * y + 1) * cw + 2 * x + 1]);
+            cur = nxt; cw = nw; ch = nh;
+        }
+        std::vector<float> low;
+        dirBlur(cur, cw, ch, plan.lenLow, low);
+        double mae = 0.0, mx = 0.0;
+        for (int i = 0; i < W * H; ++i) {
+            const double d = std::fabs((double)low[i] - full[i]);
+            mae += d;
+            if (d > mx) mx = d;
+        }
+        mae /= (W * H);
+        // Measured on this input: MAE 0.0097, max 0.028 (the reduce's perpendicular
+        // softening of the y-cosine term dominates). The bounds pin the reduced path
+        // to ~1% mean / ~4% max of full scale on smooth content.
+        CHECK(mae < 0.012, "dir blur equivalence: mean abs error of the reduced path < 0.012");
+        CHECK(mx < 0.04, "dir blur equivalence: max error of the reduced path < 0.04");
+    }
+    {
+        // Build 265: frame-dependence of ops (the still-picture cache includes the
+        // frame counter in its key only for these) and backdrop-reading chains.
+        FxOp op{};
+        op.type = FX_DIR_BLUR; op.p[1] = 60.f;
+        CHECK(!fxOpUsesFrame(op), "frame use: directional blur is time-free");
+        op.type = FX_BLUR;
+        CHECK(!fxOpUsesFrame(op), "frame use: gaussian blur is time-free");
+        op.type = FX_GRAIN;
+        CHECK(fxOpUsesFrame(op), "frame use: grain reads the frame counter");
+        op.type = FX_BCC_FILM_GLOW_AM;
+        CHECK(fxOpUsesFrame(op), "frame use: bcc film glow reads the frame counter");
+        op.type = FX_TWITCH_AM;
+        CHECK(fxOpUsesFrame(op), "frame use: twitch (blur2 17) reads uFrame");
+        op.type = FX_NEGATIVE_AM;
+        CHECK(fxOpUsesFrame(op), "frame use: negative (color 27) reads uFrame");
+        op.type = FX_WAVE;
+        CHECK(fxOpUsesFrame(op), "frame use: wave warp (warp 0) is animated");
+        op.type = FX_SHAKE;
+        CHECK(fxOpUsesFrame(op), "frame use: camera shake (warp 10) is animated");
+        op.type = FX_REFRACTION_AM;
+        CHECK(fxOpUsesFrame(op), "frame use: refraction (warp 30) is animated");
+        op.type = FX_SCANLINES;
+        CHECK(fxOpUsesFrame(op), "frame use: scanlines (style 2) read uFrame");
+        op.type = FX_STROBE;
+        CHECK(fxOpUsesFrame(op), "frame use: strobe (style 9) reads uFrame");
+        op.type = FX_MOSAIC;
+        CHECK(!fxOpUsesFrame(op), "frame use: mosaic (style 0) is time-free");
+        op.type = FX_TWIRL;
+        CHECK(!fxOpUsesFrame(op), "frame use: twirl (warp 1) is time-free");
+        op.type = FX_LENS_BLUR;
+        CHECK(!fxOpUsesFrame(op), "frame use: lens blur (blur2 3) is time-free");
+        FxOp still[2]; still[0].type = FX_DIR_BLUR; still[0].p[1] = 60.f; still[1].type = FX_VIGNETTE;
+        CHECK(!fxChainUsesFrame(still, 2), "frame use: a still chain stays cacheable");
+        FxOp timed[2]; timed[0] = still[0]; timed[1].type = FX_GRAIN;
+        CHECK(fxChainUsesFrame(timed, 2), "frame use: one timed op poisons the chain");
+        FxOp bg{}; bg.type = FX_COPY_BG;
+        CHECK(!fxChainReadsBackdrop(&bg, 1), "backdrop: identity copy-bg does not read it");
+        bg.p[0] = 100.f;  // live (identity is p[0] < 0.5)
+        CHECK(fxChainReadsBackdrop(&bg, 1), "backdrop: live copy-bg reads it");
+        FxOp plain{}; plain.type = FX_DIR_BLUR; plain.p[1] = 60.f;
+        CHECK(!fxChainReadsBackdrop(&plain, 1), "backdrop: directional blur does not read it");
+        // The cache-key hash: deterministic, and one changed float changes it.
+        const float a[3] = {1.f, 2.f, 3.f}, b[3] = {1.f, 2.f, 4.f};
+        CHECK(fxHashFloats(12345, a, 3) == fxHashFloats(12345, a, 3), "fx hash: deterministic");
+        CHECK(fxHashFloats(12345, a, 3) != fxHashFloats(12345, b, 3), "fx hash: one float changes the key");
+        const float negZero[1] = {-0.f}, posZero[1] = {0.f};
+        CHECK(fxHashFloats(7, negZero, 1) != fxHashFloats(7, posZero, 1), "fx hash: bit-exact (-0 != +0)");
+    }
     printf("%d checks, %d failed\n", checks, fails);
     return fails ? 1 : 0;
 }
