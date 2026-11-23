@@ -42,7 +42,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
-import com.example.ui.components.TextEditSheet
+import com.example.ui.components.TextEditScreen
 import com.example.ui.components.swipeDownToDismiss
 import com.example.ui.util.amChromeSpec
 import com.example.ui.util.enterPop
@@ -4195,71 +4195,31 @@ fun VideoEditorScreen(
             }
 
             // ---- Text edit -------------------------------------------------------------------
-            // Same idea as Transform: the real canvas in the middle stays visible (it shows every
-            // change live), the header becomes "Text edit" and the lower area becomes the editor.
+            // Build 266: the Text editor is its own full-screen GL
+            // screen (TextEditScreen) — preview on top, the hosted
+            // typing field under it, one flat list of controls.
             val editingText = editingTextId?.let { id -> tracks.flatMap { it.clips }.find { it.id == id } }
             LaunchedEffect(editingText == null, editingTextId) {
                 if (editingText == null && editingTextId != null) editingTextId = null
             }
-            if (editingText != null) {
-                val closeText = {
-                    eyedropperCallback = null
-                    editingTextId = null
-                }
-                // Build 219: in the selected state the selected header
-                // stays the header — the panels' own header bars (and
-                // their resets, now in the header's More menu) yield.
-                if (!sel219) com.example.ui.components.TransformHeaderBar(
-                    height = headerH,
-                    title = "Text edit",
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .zIndex(31f)
-                        .enterPop()
+            if (editingText != null && eyedropperCallback == null) {
+                // The screen hides while an eyedropper pick is armed:
+                // the eyedropper overlay below (this window, zIndex
+                // 32) and the canvas take the tap, and the screen
+                // returns when the pick resolves and clears the
+                // callback. Back and Done both close the screen —
+                // changes apply live, exactly as the old sheet's did.
+                TextEditScreen(
+                    clip = editingText,
+                    pathLayers = tracks.flatMap { it.clips }.filter { it.isPathBearing && it.id != editingText.id },
+                    onUpdate = { change -> viewModel.updateClip(editingText.id, change) },
+                    onEyedropper = { cb -> eyedropperCallback = cb },
+                    onClose = {
+                        eyedropperCallback = null
+                        editingTextId = null
+                    },
+                    modifier = Modifier.zIndex(30f)
                 )
-
-                // Same layout as Color/Blending. While the keyboard is open only the text box +
-                // quick row remain, raised above the keyboard (build 212); the canvas keeps its
-                // fixed height — the space comes from this lower zone (timescale + layer row
-                // hidden, the panel column wraps the compact sheet).
-                val textImeVisible = WindowInsets.isImeVisible
-                Column(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .then(if (textImeVisible) Modifier else Modifier.height(panelH))
-                        .zIndex(30f)
-                        .enterPop(fromBottom = true)
-                        .background(EditorBackground)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = {}
-                        )
-                        .swipeDownToDismiss(onDismiss = closeText)
-                ) {
-                    if (!textImeVisible) {
-                        com.example.ui.components.TimescaleSection(
-                            height = timescaleH,
-                            playheadMs = { playheadState.value },
-                            totalDurationMs = totalDurationMs,
-                            onBack = closeText
-                        )
-                        layerRow(editingText.id)
-                    }
-                    TextEditSheet(
-                        clip = editingText,
-                        pathLayers = tracks.flatMap { it.clips }.filter { it.isPathBearing && it.id != editingText.id },
-                        onUpdate = { change -> viewModel.updateClip(editingText.id, change) },
-                        onEyedropper = { cb -> eyedropperCallback = cb },
-                        // Build 212: the sheet is sized by layout (the rest of the panel
-                        // column), not by a hand-computed height difference.
-                        modifier = if (textImeVisible) Modifier.fillMaxWidth()
-                        else Modifier.fillMaxWidth().weight(1f)
-                    )
-                }
-                // The layer can disappear while editing (undo / delete): close the editor then.
-
             }
 
             // ---- Color (fill) editor -----------------------------------------------------
