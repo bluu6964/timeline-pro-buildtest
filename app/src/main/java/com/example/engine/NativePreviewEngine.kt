@@ -23,6 +23,7 @@ import com.example.model.isBehindCamera
 import com.example.model.opacityFraction
 import com.example.model.sourceOffsetMs
 import com.example.model.LayerType
+import com.example.model.PlaybackAdvanceLaw
 import com.example.model.TimelineClip
 import com.example.model.TimelineTrack
 import java.util.concurrent.atomic.AtomicBoolean
@@ -52,7 +53,16 @@ class NativePreviewEngine(context: Context) {
         var shown = false
         var probes = 0
         var swRetried = false
+        // Build 273: this layer's private decode worker and the batch running
+        // on it (see startAdvanceBatch). One worker per layer, so the pool
+        // calls of different layers never queue behind each other.
+        val decodeExec = java.util.concurrent.Executors.newSingleThreadExecutor { run ->
+            Thread(run, "am-decode").apply { isDaemon = true }
+        }
+        @Volatile var decodeFuture: java.util.concurrent.Future<IntArray>? = null
+        @Volatile var decodeTargetUs: Long = Long.MIN_VALUE
         fun close(r: NativeRenderer) {
+            decodeExec.shutdownNow()
             video?.close()
             image?.let { r.deleteTexture(it.tex) }
         }
@@ -443,21 +453,109 @@ class NativePreviewEngine(context: Context) {
      * window in the file (fillSourceMs), sought / stepped exactly like a picture layer in [advance],
      * minus the black-frame probe (a fill that misbehaves falls back to its poster instead).
      */
-    private fun advanceFill(s: Source, shape: TimelineClip, t: Long) {
-        val v = s.video ?: return
-        val targetUs = fillSourceMs(shape, t, v.clip.durationUs / 1000L) * 1000L
+    // ---------------------------------------------------------------------------------------------
+    // Build 273: parallel decode. Until now advance() ran every layer's decoder-pool calls
+    // one after another ON the GL thread, each one blocking until its frame reached the
+    // surface — with two video layers the GL thread waited for two decoders in series every
+    // frame, with three, three. Now, while playing, drawFrame starts each layer's batch on
+    // the layer's own worker (the pool calls are per-clip and render into the layer's own
+    // surface, so they are safe there); the hardware decoders work at the same time, and
+    // advance() only latches the finished frame. The batch follows [PlaybackAdvanceLaw] —
+    // the same law the synchronous fallback below follows — so the frame a layer shows is
+    // the same one the old serial path would have shown.
+
+    /** The pool calls of one advance for one layer, without latching. Runs on the layer's decode worker; returns [status, renderedFlag]. */
+    private fun runAdvanceBatch(v: VideoLayerSource, shown: Boolean, targetUs: Long): IntArray {
         val frameUs = if (v.clip.fps > 1f) (1_000_000f / v.clip.fps).toLong() else 33_333L
-        var st: Int
-        if (!s.shown || !playing) {
-            st = seekTo(v, targetUs, patient = !s.shown)
-        } else {
-            val diff = targetUs - v.clip.ptsUs
-            if (diff < -2 * frameUs || diff > MAX_CATCHUP_US) {
-                st = seekTo(v, targetUs, patient = false)
-            } else {
-                st = DecoderPool.SAME
+        v.beginDecodeBatch()
+        var rendered = false
+        var st = DecoderPool.SAME
+        when (PlaybackAdvanceLaw.action(shown, playing, targetUs, v.clip.ptsUs, frameUs)) {
+            PlaybackAdvanceLaw.Action.SEEK_PATIENT -> {
+                st = seekRaw(v, targetUs, patient = true)
+                rendered = st == DecoderPool.OK
+            }
+            PlaybackAdvanceLaw.Action.SEEK -> {
+                st = seekRaw(v, targetUs, patient = false)
+                rendered = st == DecoderPool.OK
+            }
+            PlaybackAdvanceLaw.Action.NEXT -> {
                 var n = 0
-                while (targetUs - v.clip.ptsUs >= frameUs && n < 3) {
+                while (PlaybackAdvanceLaw.shouldStep(targetUs, v.clip.ptsUs, frameUs, n)) {
+                    val r2 = v.decodeNextRaw()
+                    n++
+                    if (r2 == DecoderPool.OK) rendered = true
+                    st = r2
+                    if (r2 != DecoderPool.OK) break
+                }
+            }
+        }
+        return intArrayOf(st, if (rendered) 1 else 0)
+    }
+
+    /** [seekTo] for the decode worker: the same BUSY patience, on raw pool calls. */
+    private fun seekRaw(v: VideoLayerSource, targetUs: Long, patient: Boolean): Int {
+        var st = v.decodeSeekRaw(targetUs)
+        if (patient) {
+            var tries = 0
+            try {
+                while (st == DecoderPool.BUSY && tries++ < 40) {
+                    Thread.sleep(10)
+                    st = v.decodeSeekRaw(targetUs)
+                }
+            } catch (_: InterruptedException) {
+                return DecoderPool.ERROR
+            }
+        }
+        return st
+    }
+
+    /** GL thread: start this frame's decode batch for one layer on its own worker (no-op while a batch is still uncollected). */
+    private fun startAdvanceBatch(s: Source, v: VideoLayerSource, targetUs: Long) {
+        if (s.decodeFuture != null) return
+        val shown = s.shown
+        s.decodeTargetUs = targetUs
+        s.decodeFuture = s.decodeExec.submit<IntArray> { runAdvanceBatch(v, shown, targetUs) }
+    }
+
+    /**
+     * GL thread: collect the batch [startAdvanceBatch] started for [targetUs] — wait for it,
+     * latch its frame, mark the source shown, exactly as the synchronous path did. True = the
+     * batch was this frame's and its result stands (the caller is done); false = no usable
+     * batch, the caller runs the synchronous path. A batch started for another target is
+     * drained first, so a stale frame can never be latched by a later advance.
+     */
+    private fun awaitAdvanceBatch(s: Source, v: VideoLayerSource, targetUs: Long): Boolean {
+        val fut = s.decodeFuture ?: return false
+        s.decodeFuture = null
+        val res = try {
+            fut.get()
+        } catch (_: Throwable) {
+            return false
+        }
+        if (s.decodeTargetUs != targetUs) {
+            if (res[1] == 1) v.consumeDecoded()  // drain the stale frame; the caller re-decodes synchronously
+            return false
+        }
+        var st = res[0]
+        if (res[1] == 1) {
+            val cs = v.consumeDecoded()
+            if (cs != DecoderPool.OK && st == DecoderPool.OK) st = cs
+        }
+        if (st == DecoderPool.OK || st == DecoderPool.SAME) s.shown = true
+        return true
+    }
+
+    /** The synchronous advance (paused / scrubbing / no batch): the same [PlaybackAdvanceLaw] decisions, latched per call as the preview always did. Sets shown on OK / SAME. */
+    private fun advanceSync(s: Source, v: VideoLayerSource, targetUs: Long) {
+        val frameUs = if (v.clip.fps > 1f) (1_000_000f / v.clip.fps).toLong() else 33_333L
+        var st = DecoderPool.SAME
+        when (PlaybackAdvanceLaw.action(s.shown, playing, targetUs, v.clip.ptsUs, frameUs)) {
+            PlaybackAdvanceLaw.Action.SEEK_PATIENT -> st = seekTo(v, targetUs, patient = true)
+            PlaybackAdvanceLaw.Action.SEEK -> st = seekTo(v, targetUs, patient = false)
+            PlaybackAdvanceLaw.Action.NEXT -> {
+                var n = 0
+                while (PlaybackAdvanceLaw.shouldStep(targetUs, v.clip.ptsUs, frameUs, n)) {
                     st = v.next()
                     n++
                     if (st != DecoderPool.OK) break
@@ -466,6 +564,13 @@ class NativePreviewEngine(context: Context) {
         }
         if (st == DecoderPool.OK || st == DecoderPool.SAME) s.shown = true
         // END_OF_STREAM / BUSY: the last picture stays on the texture.
+    }
+
+    private fun advanceFill(s: Source, shape: TimelineClip, t: Long) {
+        val v = s.video ?: return
+        val targetUs = fillSourceMs(shape, t, v.clip.durationUs / 1000L) * 1000L
+        if (awaitAdvanceBatch(s, v, targetUs)) return
+        advanceSync(s, v, targetUs)
     }
 
     /**
@@ -520,6 +625,27 @@ class NativePreviewEngine(context: Context) {
         }
         val fillGone = fillSources.keys.filter { it !in fillWanted }
         for (id in fillGone) fillSources.remove(id)?.close(r)
+
+        // Build 273: while playing, start EVERY active video layer's decode for this
+        // frame now, each on its own worker, so the decoders run in parallel instead
+        // of queueing on the GL thread (advance() below only latches the results).
+        // Paused / scrubbing starts nothing: those paths seek synchronously, and the
+        // onion-skin ghost passes (paused only) must never meet a running batch.
+        if (playing) {
+            for (c in media) {
+                if (!c.isActiveAt(t)) continue
+                val s = sources[c.id] ?: continue
+                val v = s.video ?: continue
+                val anim = animFor(c) ?: continue
+                startAdvanceBatch(s, v, anim.sourceMs(t) * 1000L)
+            }
+            for (c in liveTracks.flatMap { it.clips }) {
+                if (!c.isVideoFilledShape() || !c.isVisible || !c.isActiveAt(t)) continue
+                val s = fillSources[c.id] ?: continue
+                val v = s.video ?: continue
+                startAdvanceBatch(s, v, fillSourceMs(c, t, v.clip.durationUs / 1000L) * 1000L)
+            }
+        }
 
         val bg = canvasArgb
         val canvasRgb = floatArrayOf(
@@ -1671,26 +1797,11 @@ class NativePreviewEngine(context: Context) {
         anim: NativeLayerAnim, t: Long, p: LayerParams
     ) {
         val targetUs = anim.sourceMs(t) * 1000L
-        val frameUs = if (v.clip.fps > 1f) (1_000_000f / v.clip.fps).toLong() else 33_333L
-        var st: Int
-        if (!s.shown || !playing) {
-            st = seekTo(v, targetUs, patient = !s.shown)
-        } else {
-            val diff = targetUs - v.clip.ptsUs
-            if (diff < -2 * frameUs || diff > MAX_CATCHUP_US) {
-                st = seekTo(v, targetUs, patient = false)
-            } else {
-                st = DecoderPool.SAME
-                var n = 0
-                while (targetUs - v.clip.ptsUs >= frameUs && n < 3) {
-                    st = v.next()
-                    n++
-                    if (st != DecoderPool.OK) break
-                }
-            }
-        }
-        if (st == DecoderPool.OK || st == DecoderPool.SAME) s.shown = true
-        // END_OF_STREAM / BUSY: the last picture stays on the texture.
+        // Build 273: while playing, drawFrame already started this layer's decode
+        // batch on its own worker (in parallel with every other layer's); collect
+        // it. Anything else (paused, scrubbing, onion ghosts, a layer whose batch
+        // was started for another time) takes the synchronous path.
+        if (!awaitAdvanceBatch(s, v, targetUs)) advanceSync(s, v, targetUs)
 
         // A hardware decoder that outputs only black (seen with several layers on some chips): the first
         // frames are checked, a black layer is re-opened with a software decoder (same as the export).
@@ -1731,7 +1842,6 @@ class NativePreviewEngine(context: Context) {
         const val PRELOAD_MS = 1_500L
         const val KEEP_MS = 500L
         const val MAX_PHOTO_SIDE = 2048
-        const val MAX_CATCHUP_US = 750_000L
         const val MAX_HW_DECODERS = 8   // preview: one hardware decoder per visible layer, no evict/reopen
         const val STATS_EVERY_MS = 2_000L
 

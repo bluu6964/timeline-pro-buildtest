@@ -99,8 +99,33 @@ class VideoLayerSource private constructor(
         return finish(pool.next(clip))
     }
 
-    private fun finish(st: Int): Int {
-        if (st != DecoderPool.OK) return st
+    // Build 273: the two halves of seek / next, split so the preview can run the
+    // decode half of EVERY visible video layer in parallel (one worker thread
+    // per layer) and only latch the finished frames on the GL thread. The pool
+    // calls are per-clip (own mutex, own codec) and render into this layer's
+    // own surface, so they are safe off the GL thread; updateTexImage() is not
+    // — it stays in [consumeDecoded], GL thread only, exactly like [finish].
+    // Callers: [beginDecodeBatch] once, then any mix of the raw calls, then
+    // [consumeDecoded] once when a raw call returned OK. The frames a batch
+    // renders queue on the surface; consumeDecoded latches the most recent
+    // one — the same final texture the old per-call finish() ended on, since
+    // the intermediate latches were never drawn.
+
+    /** Starts a decode batch: permits of frames latched earlier are dropped. */
+    fun beginDecodeBatch() {
+        frameReady.drainPermits()
+    }
+
+    /** [seek] without the latch: renders the frame to the surface, nothing more. */
+    fun decodeSeekRaw(timeUs: Long): Int = pool.seek(clip, timeUs)
+
+    /** [next] without the latch: renders the frame to the surface, nothing more. */
+    fun decodeNextRaw(): Int = pool.next(clip)
+
+    private fun finish(st: Int): Int = if (st != DecoderPool.OK) st else consumeDecoded()
+
+    /** GL thread: latch the frame the raw calls rendered (waits for it like [finish] does). */
+    fun consumeDecoded(): Int {
         if (!frameReady.tryAcquire(1, TimeUnit.SECONDS)) return DecoderPool.ERROR
         surfaceTexture.updateTexImage()
         surfaceTexture.getTransformMatrix(texMatrix)
